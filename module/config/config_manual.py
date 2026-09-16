@@ -10,6 +10,7 @@ class ConfigManual:
     SCHEDULER_PRIORITY = """
         Restart > DailyTrifles
         > WorldBoss
+        > Challenge
         > Orochi
         > RichMan
         """

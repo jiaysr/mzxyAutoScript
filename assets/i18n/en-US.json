@@ -56,5 +56,8 @@
   "Orochi": "Orochi",
   "RichMan": "Rich Man",
   "WorldBoss": "World Boss",
-  "Battle Task": "Battle Task"
+  "Battle Task": "Battle Task",
+  "Challenge": "Challenge",
+  "challenge": "Challenge",
+  "challenge_config": "Challenge Settings"
 }

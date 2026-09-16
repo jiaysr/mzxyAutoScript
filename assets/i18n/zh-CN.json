@@ -164,5 +164,8 @@
   "queue_idle_threshold": "排队空闲阈值",
   "queue_idle_threshold_help": "排队模式下等待多久释放执行权（分钟），仅排队模式开启时生效",
   "WorldBoss": "世界首领",
-  "Battle Task": "战斗任务"
+  "Battle Task": "战斗任务",
+  "Challenge": "挑战",
+  "challenge": "挑战",
+  "challenge_config": "挑战设置"
 }

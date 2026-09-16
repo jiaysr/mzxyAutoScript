@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "avatar",
+    "roiFront": "22,12,32,42",
+    "roiBack": "22,12,32,42",
+    "description": "主界面-左上角头像(进入个人信息)"
+  },
+  {
+    "itemName": "challenge_tab",
+    "roiFront": "78,478,62,38",
+    "roiBack": "78,478,62,38",
+    "description": "角色面板-左侧挑战页签"
+  }
+]

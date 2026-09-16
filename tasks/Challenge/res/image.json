@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "character_panel",
+    "imageName": "res_character_panel.png",
+    "roiFront": "300,8,820,62",
+    "roiBack": "300,8,820,62",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "角色面板-顶部页签栏"
+  },
+  {
+    "itemName": "challenge_page",
+    "imageName": "res_challenge_page.png",
+    "roiFront": "290,10,800,60",
+    "roiBack": "290,10,800,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "挑战页-顶部页签栏"
+  }
+]
