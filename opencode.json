@@ -3,10 +3,9 @@
   "mcp": {
     "oas": {
       "type": "local",
-      "command": [
-        "D:/project/mzxy/mzxyAutoScript/toolkit/python.exe",
-        "D:/project/mzxy/mzxyAutoScript/dev_tools/mcp_server.py"
-      ],
+      "command": ["cmd", "/c", "dev_tools\\mcp_launch.bat"],
+      "cwd": ".",
+      "timeout": 30000,
       "enabled": true
     }
   }

@@ -5,13 +5,56 @@
 
 ## 启动方式
 
-opencode 通过项目根 `opencode.json` 自动拉起：
+opencode 打开本项目时，会按项目根 `opencode.json` 自动拉起（相对路径，换电脑无需改配置）：
 
-    toolkit\python.exe dev_tools\mcp_server.py
+    cmd /c dev_tools\mcp_launch.bat
+    # 等价于 dev_tools\mcp_launch.bat 内部执行：..\toolkit\python.exe mcp_server.py
 
 手动调试（在项目根执行）：
 
-    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | toolkit\python.exe dev_tools\mcp_server.py
+    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | cmd /c dev_tools\mcp_launch.bat
+
+## 新电脑适配（拉取代码后）
+
+1. **准备 toolkit 环境**（`toolkit/` 不进 git）：运行 `deploy\launcher\oas-gui.bat` 完成一键安装，
+   或手动执行：
+
+       toolkit\python.exe -m pip install -r requirements.txt
+
+   MCP 不引入新的第三方依赖，用项目 `requirements.txt` 即可（含 cv2/numpy/psutil/filelock 等）。
+2. **用 opencode 打开项目**：`opencode.json` 里的命令是工作区相对路径，opencode 会以工作区为
+   基准解析；`dev_tools\mcp_launch.bat` 自己按脚本位置定位项目根，所以**不需要修改任何配置**。
+3. **验证**：对话里让 AI 调 `get_project_info`；或命令行执行 `dev_tools\mcp_launch.bat` 看是否报
+   `toolkit\python.exe not found`（报错说明第 1 步没做完）。
+4. **设备配置**：`config/*.json` 不进 git，首次使用会基于 `config/template.json` 自动生成 `oas1`；
+   需要在 GUI（或直接改 `config/oas1.json` 的 `script.device.serial/handle`）里配置模拟器。
+
+### 兜底：opencode 未加载该 MCP
+
+若工具列表里没有 `oas_*`（例如 opencode 从其它目录启动导致相对路径解析失败），把
+`opencode.json` 的 `command` 改为绝对路径即可：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "oas": {
+      "type": "local",
+      "command": ["cmd", "/c", "<项目绝对路径>\\dev_tools\\mcp_launch.bat"],
+      "cwd": "<项目绝对路径>",
+      "timeout": 30000,
+      "enabled": true
+    }
+  }
+}
+```
+
+非 Windows 环境（本项目其余部分也是 Windows 专用）可直接用：
+
+```json
+"command": ["toolkit/python.exe", "dev_tools/mcp_server.py"],
+"cwd": "<项目绝对路径>",
+```
 
 ## 工具清单（23 个）
 
@@ -40,4 +83,5 @@ opencode 通过项目根 `opencode.json` 自动拉起：
 
 - 依赖项目锁定的 toolkit 解释器（`toolkit/python.exe`）与已安装依赖；不引入新的第三方包。
 - 规则校验/写入与 annotator 网页共用同一套实现（`module/server/tool.py`），写出的 JSON 与网页完全一致。
-- 规则测试依赖 `dev_tools/assets_test.py`（本地文件，未纳入 git）。
+- 规则测试使用 `dev_tools/assets_test.py`（已纳入 git，随代码拉取）。
+- 启动耗时约 0.3s（工具模块按需加载）；`opencode.json` 里 `timeout` 设为 30s 是为慢机器留余量。
