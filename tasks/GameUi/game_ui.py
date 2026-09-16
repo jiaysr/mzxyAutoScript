@@ -23,7 +23,6 @@ from module.logger import logger
 from tasks.Component.GeneralBattle.assets import GeneralBattleAssets
 from tasks.GameUi.assets import GameUiAssets
 from tasks.GameUi.page import Page, PageRegistry, page_main, random_click
-from tasks.Restart.assets import RestartAssets
 from tasks.base_task import BaseTask
 
 

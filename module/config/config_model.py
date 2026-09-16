@@ -20,6 +20,7 @@ from tasks.GlobalGame.config import GlobalGame
 from tasks.DailyTrifles.config import DailyTrifles
 from tasks.Orochi.config import Orochi
 from tasks.RichMan.config import RichMan
+from tasks.WorldBoss.config import WorldBoss
 
 
 class ConfigModel(ConfigBase):
@@ -33,6 +34,7 @@ class ConfigModel(ConfigBase):
     daily_trifles: DailyTrifles = Field(default_factory=DailyTrifles)
     orochi: Orochi = Field(default_factory=Orochi)
     rich_man: RichMan = Field(default_factory=RichMan)
+    world_boss: WorldBoss = Field(default_factory=WorldBoss)
 
     def __init__(self, config_name: str=None) -> None:
         """

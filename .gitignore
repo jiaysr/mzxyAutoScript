@@ -275,3 +275,5 @@ oas.bat
 
 # mcp dev docs (local only)
 docs/superpowers/
+# mcp test workspace
+tasks/__mcp_test__/

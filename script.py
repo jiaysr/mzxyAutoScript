@@ -406,12 +406,14 @@ class Script:
         method = self.config.script.optimization.when_task_queue_empty
         strategy_map = {
             "close_game": self._wait_close_game,
-            "goto_main": self._wait_goto_main,
+            # 挂机：不做任何游戏内操作（含老配置的 stay_there）
+            "goto_main": self._wait_idle,
+            "stay_there": self._wait_idle,
         }
         func = strategy_map.get(method)
         if func is None:
-            logger.warning(f"Invalid Optimization_WhenTaskQueueEmpty: {method}, fallback to stay_there")
-            func = self._wait_stay_there
+            logger.warning(f"Invalid Optimization_WhenTaskQueueEmpty: {method}, fallback to idle")
+            func = self._wait_idle
         return func(next_run)
 
     @staticmethod
@@ -493,9 +495,13 @@ class Script:
             return False
         return True
 
-    def _wait_goto_main(self, next_run: datetime) -> bool:
+    def _wait_idle(self, next_run: datetime) -> bool:
+        """
+        挂机：不做任何游戏内操作，只保持当前画面等待
+        等待时间较长时可按配置关闭模拟器省资源
+        """
         if self._emulator_down:
-            logger.info("Emulator is down, skip goto_main and wait with preheat")
+            logger.info("Idle during wait (emulator is down, with preheat)")
             return self._wait_until_with_emulator_preheat(next_run)
 
         close_emulator_wait_duration = self.config.script.optimization.close_emulator_wait_duration
@@ -511,17 +517,7 @@ class Script:
             self.run("Restart")
             return True
 
-        logger.info("Goto main page during wait")
-        self.run("GotoMain")
-        self.device.release_during_wait()
-        return self.wait_until(next_run)
-
-    def _wait_stay_there(self, next_run: datetime) -> bool:
-        if self._emulator_down:
-            logger.info("Stay_there during wait (emulator is down, with preheat)")
-            return self._wait_until_with_emulator_preheat(next_run)
-
-        logger.info("Stay_there (no action) during wait")
+        logger.info("Idle (no action) during wait")
         self.device.release_during_wait()
         return self.wait_until(next_run)
 

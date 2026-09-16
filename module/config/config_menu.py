@@ -21,7 +21,7 @@ class ConfigMenu:
         # 日常的任务
         self.menu["Daily Task"] = ['DailyTrifles']
         # 战斗的任务
-        self.menu["Battle Task"] = ['Orochi']
+        self.menu["Battle Task"] = ['Orochi', 'WorldBoss']
         # 每周任务
         self.menu["Weekly Task"] = ['RichMan']
         # 开发工具

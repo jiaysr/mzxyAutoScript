@@ -1,0 +1,56 @@
+[
+  {
+    "itemName": "menu_toggle_click",
+    "roiFront": "1141,25,46,40",
+    "roiBack": "1141,25,46,40",
+    "description": "主界面-菜单栏折叠按钮"
+  },
+  {
+    "itemName": "activity_menu",
+    "roiFront": "985,55,60,35",
+    "roiBack": "985,55,60,35",
+    "description": "主界面-活动菜单"
+  },
+  {
+    "itemName": "activity_tab",
+    "roiFront": "431,90,90,50",
+    "roiBack": "431,90,90,50",
+    "description": "活动弹窗-活动tab"
+  },
+  {
+    "itemName": "world_boss_tab",
+    "roiFront": "1030,448,140,57",
+    "roiBack": "1030,448,140,57",
+    "description": "活动弹窗-世界首领子tab"
+  },
+  {
+    "itemName": "panel_close_click",
+    "roiFront": "1210,30,44,44",
+    "roiBack": "1210,30,44,44",
+    "description": "活动弹窗-关闭按钮"
+  },
+  {
+    "itemName": "target_button_click",
+    "roiFront": "1226,270,28,18",
+    "roiBack": "1226,270,28,18",
+    "description": "主界面-目标锁定按钮(点文字中心,避开左侧按钮)"
+  },
+  {
+    "itemName": "attack",
+    "roiFront": "1146,597,82,60",
+    "roiBack": "1146,597,82,60",
+    "description": "主界面-攻击按钮"
+  },
+  {
+    "itemName": "revive_return",
+    "roiFront": "486,264,310,58",
+    "roiBack": "486,264,310,58",
+    "description": "死亡弹窗-返回村子"
+  },
+  {
+    "itemName": "character_return",
+    "roiFront": "1185,5,80,65",
+    "roiBack": "1185,5,80,65",
+    "description": "角色面板-返回按钮"
+  }
+]

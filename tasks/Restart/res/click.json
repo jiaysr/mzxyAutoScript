@@ -1,0 +1,32 @@
+[
+  {
+    "itemName": "x7_login_agree_click",
+    "roiFront": "388,630,30,30",
+    "roiBack": "388,630,30,30",
+    "description": "小七版登录页-用户协议勾选框"
+  },
+  {
+    "itemName": "x7_server_last_login",
+    "roiFront": "500,178,400,44",
+    "roiBack": "500,178,400,44",
+    "description": "小七版选择服务器页-上次登录区服"
+  },
+  {
+    "itemName": "x7_character_first",
+    "roiFront": "600,140,300,80",
+    "roiBack": "600,140,300,80",
+    "description": "小七版角色选择页-上次登录角色卡"
+  },
+  {
+    "itemName": "x7_character_login",
+    "roiFront": "245,608,185,55",
+    "roiBack": "245,608,185,55",
+    "description": "小七版角色确认页-登录角色按钮"
+  },
+  {
+    "itemName": "x7_popup_close_click",
+    "roiFront": "1203,20,46,46",
+    "roiBack": "1203,20,46,46",
+    "description": "小七版通用弹窗-关闭按钮"
+  }
+]

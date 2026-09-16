@@ -8,6 +8,7 @@ from module.logger import logger
 from tasks.Component.config_base import Time
 
 class WhenTaskQueueEmpty(str, Enum):
+    # 'goto_main' 现为「挂机」：无任务时不做任何游戏内操作
     GOTO_MAIN = 'goto_main'
     CLOSE_GAME = 'close_game'
 

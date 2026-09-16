@@ -37,11 +37,15 @@ import sys
 sys.path.insert(0, r"{project_root}")
 from module.config.config import Config
 from module.device.device import Device
+from module.exception import TaskEnd
 from tasks.{task}.script_task import ScriptTask
 
 config = Config("{config}")
 device = Device(config)
-ScriptTask(config, device).run()
+try:
+    ScriptTask(config, device).run()
+except TaskEnd as e:
+    print(f"TaskEnd: {{e}}")
 '''
 
 

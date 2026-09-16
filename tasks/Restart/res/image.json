@@ -1,0 +1,74 @@
+[
+  {
+    "itemName": "x7_login_enter",
+    "imageName": "res_x7_login_enter.png",
+    "roiFront": "560,360,170,170",
+    "roiBack": "460,280,420,300",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版登录页-登录游戏按钮"
+  },
+  {
+    "itemName": "x7_login_agree",
+    "imageName": "res_x7_login_agree.png",
+    "roiFront": "388,630,30,30",
+    "roiBack": "350,610,120,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版登录页-用户协议已勾选"
+  },
+  {
+    "itemName": "x7_login_repair",
+    "imageName": "res_x7_login_repair.png",
+    "roiFront": "1152,622,96,40",
+    "roiBack": "1100,600,180,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版登录页-修复按钮"
+  },
+  {
+    "itemName": "x7_login_exit",
+    "imageName": "res_x7_login_exit.png",
+    "roiFront": "37,592,66,66",
+    "roiBack": "10,560,140,120",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版登录页-退出账号"
+  },
+  {
+    "itemName": "x7_server_page",
+    "imageName": "res_x7_server_page.png",
+    "roiFront": "565,76,145,35",
+    "roiBack": "500,60,320,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版选择服务器页-标题"
+  },
+  {
+    "itemName": "x7_character_page",
+    "imageName": "res_x7_character_page.png",
+    "roiFront": "1143,49,88,28",
+    "roiBack": "1100,35,180,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版角色选择页-小号说明"
+  },
+  {
+    "itemName": "x7_character_confirm",
+    "imageName": "res_x7_character_confirm.png",
+    "roiFront": "580,25,115,34",
+    "roiBack": "520,10,240,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版角色确认页-标题"
+  },
+  {
+    "itemName": "x7_popup_close",
+    "imageName": "res_x7_popup_close.png",
+    "roiFront": "1203,20,46,46",
+    "roiBack": "1150,0,130,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小七版通用弹窗-关闭按钮"
+  }
+]

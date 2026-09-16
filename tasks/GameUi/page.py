@@ -6,7 +6,6 @@ import traceback
 from module.atom.click import RuleClick
 from tasks.GlobalGame.assets import GlobalGameAssets as GGA
 from tasks.GameUi.assets import GameUiAssets as G
-from tasks.Restart.assets import RestartAssets
 from tasks.base_task import BaseTask as BT
 
 
@@ -50,9 +49,8 @@ class Page:
 page_login = Page(G.I_CHECK_LOGIN_FORM)
 # Main Home 主页
 page_main = Page(G.I_CHECK_MAIN)
-page_main.additional = [G.I_AD_CLOSE_RED, G.I_BACK_FRIENDS, RestartAssets.I_CANCEL_BATTLE,
-                            GGA.I_CHAT_CLOSE_BUTTON, G.I_CLOSE_CHAT_WINDOW,
-                            [G.I_MAIN_GOTO_SHIKIGAMI_RECORDS, RestartAssets.C_LOGIN_SCROLL_CLOSE_AREA, True]]
+page_main.additional = [G.I_AD_CLOSE_RED, G.I_BACK_FRIENDS,
+                            GGA.I_CHAT_CLOSE_BUTTON, G.I_CLOSE_CHAT_WINDOW]
 # 召唤summon
 page_summon = Page(G.I_CHECK_SUMMON)
 page_summon.link(button=G.I_SUMMON_GOTO_MAIN, destination=page_main)

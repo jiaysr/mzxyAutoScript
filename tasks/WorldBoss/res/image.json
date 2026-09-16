@@ -1,0 +1,119 @@
+[
+  {
+    "itemName": "menu_toggle",
+    "imageName": "res_menu_toggle.png",
+    "roiFront": "1150,28,30,34",
+    "roiBack": "1100,5,140,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主界面-菜单栏展开按钮"
+  },
+  {
+    "itemName": "menu_collapsed",
+    "imageName": "res_menu_collapsed.png",
+    "roiFront": "1150,28,30,34",
+    "roiBack": "1100,5,140,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主界面-菜单栏已折叠按钮"
+  },
+  {
+    "itemName": "panel_close",
+    "imageName": "res_panel_close.png",
+    "roiFront": "1210,30,44,44",
+    "roiBack": "1180,10,100,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动弹窗-面板已打开标志"
+  },
+  {
+    "itemName": "world_boss_tab",
+    "imageName": "res_world_boss_tab.png",
+    "roiFront": "1043,459,116,33",
+    "roiBack": "1020,200,170,420",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动弹窗-世界首领子tab"
+  },
+  {
+    "itemName": "boss_manchui",
+    "imageName": "res_boss_manchui.png",
+    "roiFront": "211,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-蛮锤名称"
+  },
+  {
+    "itemName": "boss_wuqing",
+    "imageName": "res_boss_wuqing.png",
+    "roiFront": "515,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-无情名称"
+  },
+  {
+    "itemName": "boss_julian",
+    "imageName": "res_boss_julian.png",
+    "roiFront": "823,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-巨镰名称"
+  },
+  {
+    "itemName": "boss_fuwang",
+    "imageName": "res_boss_fuwang.png",
+    "roiFront": "435,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-斧王名称"
+  },
+  {
+    "itemName": "boss_xiewang",
+    "imageName": "res_boss_xiewang.png",
+    "roiFront": "738,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-蝎王名称"
+  },
+  {
+    "itemName": "world_boss_page",
+    "imageName": "res_world_boss_page.png",
+    "roiFront": "325,505,127,32",
+    "roiBack": "300,490,200,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领页-刷新时间标签"
+  },
+  {
+    "itemName": "target_button",
+    "imageName": "res_target_button.png",
+    "roiFront": "1198,232,60,80",
+    "roiBack": "1180,210,110,130",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主界面-目标锁定按钮"
+  },
+  {
+    "itemName": "revive_dialog",
+    "imageName": "res_revive_dialog.png",
+    "roiFront": "486,255,310,260",
+    "roiBack": "486,255,310,260",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "死亡弹窗-三个按钮区块"
+  },
+  {
+    "itemName": "character_panel",
+    "imageName": "res_character_panel.png",
+    "roiFront": "300,8,820,62",
+    "roiBack": "300,8,820,62",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "角色面板-顶部页签栏"
+  }
+]

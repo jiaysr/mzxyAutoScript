@@ -1,0 +1,30 @@
+[
+  {
+    "itemName": "boss_scroll_left",
+    "roiFront": "700,380,100,80",
+    "roiBack": "250,380,100,80",
+    "mode": "default",
+    "description": "世界首领-向左滚动卡片"
+  },
+  {
+    "itemName": "boss_scroll_right",
+    "roiFront": "250,380,100,80",
+    "roiBack": "700,380,100,80",
+    "mode": "default",
+    "description": "世界首领-向右滚动卡片"
+  },
+  {
+    "itemName": "subtab_scroll_up",
+    "roiFront": "1105,565,20,40",
+    "roiBack": "1105,215,20,40",
+    "mode": "default",
+    "description": "活动弹窗-子tab列表上滑"
+  },
+  {
+    "itemName": "subtab_scroll_down",
+    "roiFront": "1105,215,20,40",
+    "roiBack": "1105,565,20,40",
+    "mode": "default",
+    "description": "活动弹窗-子tab列表下滑(回到顶部)"
+  }
+]
