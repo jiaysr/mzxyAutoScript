@@ -833,7 +833,7 @@ class Connection(ConnectionAttr):
         packages = re.findall(r'package:([^\s]+)', output)
         return packages
 
-    def list_app_packages(self, keywords=('android.xuanyuan',), show_log=True):
+    def list_app_packages(self, keywords=('xuanyuan',), show_log=True):
         """
         Args:
             keywords:
@@ -858,7 +858,7 @@ class Connection(ConnectionAttr):
     #     packages = [p for p in packages if p in server_.VALID_PACKAGE or p in server_.VALID_CLOUD_PACKAGE]
     #     return packages
 
-    def detect_package(self, keywords=('android.xuanyuan',), set_config=True):
+    def detect_package(self, keywords=('xuanyuan',), set_config=True):
         """
         Show all possible packages with the given keyword on this device.
         """
