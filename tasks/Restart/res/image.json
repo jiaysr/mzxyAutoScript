@@ -66,9 +66,9 @@
     "itemName": "x7_popup_close",
     "imageName": "res_x7_popup_close.png",
     "roiFront": "1203,20,46,46",
-    "roiBack": "1150,0,130,90",
+    "roiBack": "640,0,640,720",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "小七版通用弹窗-关闭按钮"
+    "description": "小七版通用的弹窗-关闭按钮(在右半屏内搜图)"
   }
 ]

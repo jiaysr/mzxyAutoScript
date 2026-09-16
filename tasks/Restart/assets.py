@@ -38,8 +38,8 @@ class RestartAssets:
 	I_X7_CHARACTER_PAGE = RuleImage(roi_front=(1143,49,88,28), roi_back=(1100,35,180,60), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_page.png")
 	# 小七版角色确认页-标题 
 	I_X7_CHARACTER_CONFIRM = RuleImage(roi_front=(580,25,115,34), roi_back=(520,10,240,60), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_confirm.png")
-	# 小七版通用弹窗-关闭按钮 
-	I_X7_POPUP_CLOSE = RuleImage(roi_front=(1203,20,46,46), roi_back=(1150,0,130,90), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_popup_close.png")
+	# 小七版通用的弹窗-关闭按钮(在右半屏内搜图) 
+	I_X7_POPUP_CLOSE = RuleImage(roi_front=(1203,20,46,46), roi_back=(640,0,640,720), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_popup_close.png")
 
 
 	# Ocr Rule Assets

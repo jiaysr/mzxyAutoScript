@@ -150,7 +150,9 @@ class RestartX7(RestartBase):
 
     def handle_popup(self, timeout: int = 2) -> bool:
         """
-        关闭进入游戏后的所有弹窗，全部以弹窗关闭按钮图片判断
+        关闭进入游戏后的所有弹窗
+        关闭按钮在右半屏内搜索（弹窗位置不固定，如公告栏的叉在偏左处），
+        匹配到后点击匹配到的位置，而不是固定坐标
         """
         closes = [self.I_X7_POPUP_CLOSE]
         timer = Timer(timeout).start()
