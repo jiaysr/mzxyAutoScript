@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "oas": {
+      "type": "local",
+      "command": [
+        "D:/project/mzxy/mzxyAutoScript/toolkit/python.exe",
+        "D:/project/mzxy/mzxyAutoScript/dev_tools/mcp_server.py"
+      ],
+      "enabled": true
+    }
+  }
+}
