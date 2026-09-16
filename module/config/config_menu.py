@@ -18,30 +18,12 @@ class ConfigMenu:
         self.menu['TaskList'] = []
         # 脚本设置
         self.menu['Script'] = ['Script', 'Restart', 'GlobalGame']
-        # 刷御魂
-        self.menu["Soul Zones"] = ['Orochi', 'Sougenbi', 'FallenSun', 'EternitySea', 'SixRealms']
         # 日常的任务
-        self.menu["Daily Task"] = ['DailyTrifles', 'AreaBoss', 'GoldYoukai', 'ExperienceYoukai', 'Nian',
-                                   'TalismanPass', 'DemonEncounter', 'Pets', 'SoulsTidy', 'Delegation', 'WantedQuests',
-                                   'Tako', 'AutoCheckinBigGod']
-        # 很肝的任务
-        self.menu["Liver Emperor Exclusive"] = [
-            "BondlingFairyland",
-            "EvoZone",
-            "GoryouRealm",
-            "Exploration",
-            "Hyakkiyakou",
-            "HeroTest",
-            "FindJade",
-            "MemoryScrolls"
-        ]
-        # 阴阳寮
-        self.menu["Guild"] = ['KekkaiUtilize', 'KekkaiActivation', 'RealmRaid', 'RyouToppa', 'Dokan', 'CollectiveMissions',
-                              'Hunt' , 'AbyssShadows', 'GuildBanquet', 'DemonRetreat', 'GuildActivityMonitor']
+        self.menu["Daily Task"] = ['DailyTrifles']
+        # 战斗的任务
+        self.menu["Battle Task"] = ['Orochi']
         # 每周任务
-        self.menu["Weekly Task"] = ['TrueOrochi', 'RichMan', 'Secret', 'WeeklyTrifles', 'MysteryShop', 'Duel']
-        # 活动的任务
-        self.menu["Activity Task"] = ['ActivityShikigami', 'MetaDemon', 'FrogBoss', 'FloatParade', 'Quiz', 'KittyShop', 'DyeTrials', 'BudokaiTournament']
+        self.menu["Weekly Task"] = ['RichMan']
         # 开发工具
         self.menu["Tools"] = ['Image Rule', 'Ocr Rule', 'Click Rule', 'Long Click Rule', 'Swipe Rule', 'List Rule']
 

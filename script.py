@@ -525,18 +525,6 @@ class Script:
         self.device.release_during_wait()
         return self.wait_until(next_run)
 
-    def exception_handler(self, e: Exception, command: str) -> None:
-        # 处理御魂溢出
-        from tasks.Utils.post_diagnotor import PostDiagnotor, AnalyzeType
-        image = getattr(self.device, 'image', None)
-        # image为None则不做处理
-        if image is None:
-            return
-        analyse_type = PostDiagnotor().handle(e=e, command=command, image=image)
-        if analyse_type == AnalyzeType.SoulOverflow:
-            self.config.task_call('SoulsTidy')
-            time.sleep(1)
-
     def run(self, command: str) -> bool:
         """
         :param command:  大写驼峰命名的任务名字
@@ -569,13 +557,11 @@ class Script:
             return True
         except GameNotRunningError as e:
             logger.warning(e)
-            self.exception_handler(e=e, command=command)
             self.config.task_call('Restart')
             return True
         except (GameStuckError, GameTooManyClickError) as e:
             logger.error(e)
             self.save_error_log()
-            self.exception_handler(e=e, command=command)
             logger.warning(f'Game stuck, {self.device.package} will be restarted in 10 seconds')
             logger.warning('If you are playing by hand, please stop Alas')
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> GameStuckError or GameTooManyClickError")
@@ -585,8 +571,7 @@ class Script:
         except GameBugError as e:
             logger.warning(e)
             self.save_error_log()
-            self.exception_handler(e=e, command=command)
-            logger.warning('An error has occurred in Azur Lane game client, Alas is unable to handle')
+            logger.warning('An error has occurred in game client, unable to handle')
             logger.warning(f'Restarting {self.device.package} to fix it')
             self.config.task_call('Restart')
             self.device.sleep(10)
@@ -596,26 +581,22 @@ class Script:
             # 这个还不重要 留着坑填
             logger.critical('Game page unknown')
             self.save_error_log()
-            self.exception_handler(e=e, command=command)
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> GamePageUnknownError")
             self.config.task_call('Restart')
             self.device.sleep(10)
             return False
         except ScriptError as e:
             logger.critical(e)
-            self.exception_handler(e=e, command=command)
             logger.critical('This is likely to be a mistake of developers, but sometimes just random issues')
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> ScriptError")
             exit(1)
         except RequestHumanTakeover as e:
             logger.critical(e)
-            self.exception_handler(e=e, command=command)
             logger.critical('Request human takeover')
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> RequestHumanTakeover")
             exit(1)
         except Exception as e:
             logger.exception(e)
-            self.exception_handler(e=e, command=command)
             self.save_error_log()
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> Exception occured")
             exit(1)

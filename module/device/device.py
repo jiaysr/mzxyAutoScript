@@ -1,6 +1,5 @@
 
 from collections import deque
-from datetime import datetime
 
 # Patch pkg_resources before importing adbutils and uiautomator2
 from module.device.pkg_resources import get_distribution
@@ -9,7 +8,6 @@ _ = get_distribution
 
 from module.device.env import IS_WINDOWS
 from module.base.timer import Timer
-from module.config.utils import get_server_next_update
 from module.device.app_control import AppControl
 from module.device.control import Control
 from module.device.platform2 import Platform
@@ -28,7 +26,7 @@ class Device(Platform, Screenshot, Control, AppControl):
     click_record = deque(maxlen=15)
     stuck_timer = Timer(60, count=60).start()
     stuck_timer_long = Timer(300, count=300).start()
-    stuck_long_wait_list = ['BATTLE_STATUS_S', 'PAUSE', 'LOGIN_CHECK', 'PREPARE_BEFORE_BATTLE']
+    stuck_long_wait_list = ['LOGIN_CHECK']
 
     def __init__(self, *args, **kwargs):
         for trial in range(4):
@@ -75,28 +73,6 @@ class Device(Platform, Screenshot, Control, AppControl):
         self.config.script.device.screenshot_method = method
         self.config.save()
 
-    def handle_night_commission(self, daily_trigger='21:00', threshold=30):
-        """
-        Args:
-            daily_trigger (int): Time for commission refresh.
-            threshold (int): Seconds around refresh time.
-
-        Returns:
-            bool: If handled.
-        """
-        update = get_server_next_update(daily_trigger=daily_trigger)
-        now = datetime.now()
-        diff = (update.timestamp() - now.timestamp()) % 86400
-        if threshold < diff < 86400 - threshold:
-            return False
-
-        # if GET_MISSION.match(self.image, offset=True):
-        #     logger.info('Night commission appear.')
-        #     self.click(GET_MISSION)
-        #     return True
-
-        return False
-
     def screenshot(self):
         """
         Returns:
@@ -108,9 +84,6 @@ class Device(Platform, Screenshot, Control, AppControl):
             super().screenshot()
         except RequestHumanTakeover as e:
             raise RequestHumanTakeover
-
-        if self.handle_night_commission():
-            super().screenshot()
 
         return self.image
 
@@ -229,7 +202,7 @@ class Device(Platform, Screenshot, Control, AppControl):
     def app_start(self):
         if not self.config.script.error.handle_error:
             logger.critical('No app stop/start, because HandleError disabled')
-            logger.critical('Please enable Alas.Error.HandleError or manually login to AzurLane')
+            logger.critical('Please enable script.error.handle_error or manually login to the game')
             raise RequestHumanTakeover
         super().app_start()
         self.stuck_record_clear()
@@ -238,7 +211,7 @@ class Device(Platform, Screenshot, Control, AppControl):
     def app_stop(self):
         if not self.config.script.error.handle_error:
             logger.critical('No app stop/start, because HandleError disabled')
-            logger.critical('Please enable Alas.Error.HandleError or manually login to AzurLane')
+            logger.critical('Please enable script.error.handle_error or manually login to the game')
             raise RequestHumanTakeover
         super().app_stop()
         self.stuck_record_clear()

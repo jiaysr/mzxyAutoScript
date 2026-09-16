@@ -4,14 +4,10 @@ import random
 
 import traceback
 from module.atom.click import RuleClick
-from tasks.BondlingFairyland.assets import BondlingFairylandAssets
-from tasks.Duel.assets import DuelAssets
 from tasks.GlobalGame.assets import GlobalGameAssets as GGA
 from tasks.GameUi.assets import GameUiAssets as G
-from tasks.KekkaiUtilize.assets import KekkaiUtilizeAssets
 from tasks.Restart.assets import RestartAssets
 from tasks.base_task import BaseTask as BT
-from tasks.RyouToppa.assets import RyouToppaAssets
 
 
 class PageRegistry:
@@ -83,11 +79,6 @@ page_exploration.link(button=G.I_EXPLORATION_GOTO_SOUL_ZONE, destination=page_so
 page_realm_raid = Page(G.I_CHECK_REALM_RAID)
 page_realm_raid.link(button=G.I_REALM_RAID_GOTO_EXPLORATION, destination=page_exploration)
 page_exploration.link(button=G.I_EXPLORATION_GOTO_REALM_RAID, destination=page_realm_raid)
-# 寮结界突破右上角 kekkai toppa
-page_kekkai_toppa = Page(G.I_KEKKAI_TOPPA)
-page_kekkai_toppa.link(button=G.I_REALM_RAID_GOTO_EXPLORATION, destination=page_exploration)
-page_realm_raid.link(button=RyouToppaAssets.I_RYOU_TOPPA, destination=page_kekkai_toppa)
-page_kekkai_toppa.link(button=G.I_RYOUTOPPA_GOTO_REALMRAID, destination=page_realm_raid)
 # 御灵 goryou realm
 page_goryou_realm = Page(G.I_CHECK_GORYOU)
 page_goryou_realm.link(button=G.I_BACK_YOLLOW, destination=page_exploration)
@@ -112,21 +103,12 @@ page_exploration.link(button=G.I_EXPLORATION_GOTO_HEIAN_KITAN, destination=page_
 page_six_gates = Page(G.I_CHECK_SIX_GATES)
 page_six_gates.link(button=G.I_SIX_GATES_GOTO_EXPLORATION, destination=page_exploration)
 page_exploration.link(button=G.I_EXPLORATION_GOTO_SIX_GATES, destination=page_six_gates)
-# 契灵之境 bondling fairyland
-page_bondling_fairyland = Page(BondlingFairylandAssets.I_BALL_AREA)
-page_bondling_fairyland.link(button=G.I_BACK_YOLLOW, destination=page_exploration)
-page_exploration.link(button=G.I_EXPLORATION_GOTO_BONDLING_FAIRYLAND, destination=page_bondling_fairyland)
 # 英杰试炼 hero test
 page_hero_test = Page(G.I_CHECK_HERO_TEST)
 page_hero_test.link(button=G.I_BACK_YOLLOW, destination=page_exploration)
 page_exploration.link(button=G.I_EXPLORATION_GOTO_HERO_TEST, destination=page_hero_test)
 
 # ************************************* 町中部分 *****************************************#
-# 斗技 duel
-page_duel = Page(G.I_CHECK_DUEL)
-page_duel.additional = [DuelAssets.I_D_TRY]
-page_duel.link(button=G.I_BACK_YOLLOW, destination=page_town)
-page_town.link(button=G.I_TOWN_GOTO_DUEL, destination=page_duel)
 # 逢魔之时 demon_encounter
 page_demon_encounter = Page(G.I_CHECK_DEMON_ENCOUNTER)
 page_demon_encounter.link(button=G.I_BACK_YOLLOW, destination=page_town)
@@ -184,7 +166,7 @@ page_mall.link(button=G.I_BACK_YOLLOW, destination=page_main)
 page_main.link(button=G.I_MAIN_GOTO_MALL, destination=page_mall)
 # 阴阳寮 guild
 page_guild = Page(G.I_CHECK_GUILD)
-page_guild.additional = [KekkaiUtilizeAssets.I_PLANT_TREE_CLOSE, G.I_CLOSE_CHAT_WINDOW]
+page_guild.additional = [G.I_CLOSE_CHAT_WINDOW]
 page_guild.link(button=G.I_BACK_Y, destination=page_main)
 page_main.link(button=G.I_MAIN_GOTO_GUILD, destination=page_guild)
 # 组队 team
@@ -202,12 +184,6 @@ page_travel.link(button=G.I_BACK_Y, destination=page_main)
 page_main.link(button=G.I_MAIN_GOTO_TRAVEL, destination=page_travel)
 
 # 道馆
-from tasks.Component.GeneralBattle.assets import GeneralBattleAssets
-from tasks.Dokan.assets import DokanAssets
-
-page_dokan = Page(DokanAssets.I_RYOU_DOKAN_CHECK)
-page_dokan.additional = [GeneralBattleAssets.I_EXIT, DokanAssets.I_RYOU_DOKAN_EXIT_ENSURE, G.I_BACK_BLUE]
-page_dokan.link(button=G.I_BACK_Y, destination=page_main)
 
 
 # ************************************* 战斗部分 *****************************************#

@@ -75,14 +75,8 @@ class RuleAnimate(RuleImage):
 
 if __name__ == '__main__':
     from module.base.utils import load_image
-    from tasks.SixRealms.assets import SixRealmsAssets
-    ttt = RuleAnimate(SixRealmsAssets.C_MAIN_ANIMATE_KEEP, threshold=0.5)
     imga = r'C:\Users\Ryland\Desktop\Desktop\37.png'
     imgb = r'C:\Users\Ryland\Desktop\Desktop\38.png'
     imga = load_image(imga)
     imgb = load_image(imgb)
-
-    print(ttt.stable(imga))
-    print(ttt.stable(imgb))
-    print(ttt.stable(imgb))
 

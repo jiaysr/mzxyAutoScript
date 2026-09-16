@@ -24,9 +24,7 @@ from tasks.Component.GeneralBattle.assets import GeneralBattleAssets
 from tasks.GameUi.assets import GameUiAssets
 from tasks.GameUi.page import Page, PageRegistry, page_main, random_click
 from tasks.Restart.assets import RestartAssets
-from tasks.SixRealms.assets import SixRealmsAssets
 from tasks.base_task import BaseTask
-from tasks.ActivityShikigami.assets import ActivityShikigamiAssets
 
 
 class GameUi(BaseTask, GameUiAssets):
@@ -35,8 +33,7 @@ class GameUi(BaseTask, GameUiAssets):
                 BaseTask.I_UI_BACK_RED, BaseTask.I_UI_BACK_YELLOW,
                 GameUiAssets.I_BACK_FRIENDS, GameUiAssets.I_BACK_DAILY,
                 GameUiAssets.I_REALM_RAID_GOTO_EXPLORATION,
-                GameUiAssets.I_SIX_GATES_GOTO_EXPLORATION, SixRealmsAssets.I_EXIT_SIXREALMS,
-                ActivityShikigamiAssets.I_SKIP_BUTTON, ActivityShikigamiAssets.I_RED_EXIT, BaseTask.I_UI_BACK_BLUE]
+                GameUiAssets.I_SIX_GATES_GOTO_EXPLORATION, BaseTask.I_UI_BACK_BLUE]
 
     def __init__(self, config, device):
         super().__init__(config, device)

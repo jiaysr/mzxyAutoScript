@@ -17,17 +17,14 @@ from module.atom.swipe import RuleSwipe
 from module.base.timer import Timer
 from module.config.config import Config
 from module.device.device import Device
-from module.exception import ScriptError
 from module.logger import logger
 from module.ocr.base_ocr import OcrMode
-from tasks.Component.Costume.costume_base import CostumeBase
 from tasks.Component.config_base import Time
 from tasks.GlobalGame.assets import GlobalGameAssets
-from tasks.GlobalGame.config_emergency import FriendInvitation
 from typing import Union
 
 
-class BaseTask(GlobalGameAssets, CostumeBase):
+class BaseTask(GlobalGameAssets):
     config: Config = None
     device: Device = None
 
@@ -50,7 +47,6 @@ class BaseTask(GlobalGameAssets, CostumeBase):
         self.interval_timer = {}  # 这个是用来记录每个匹配的运行间隔的，用于控制运行频率
         self.animates = {}  # 保存缓存
         self.start_time = datetime.now()  # 启动的时间
-        self.check_costume(self.config.global_game.costume_config)
         # self.friend_timer = None  # 这个是用来记录勾协的时间的
         # if self.config.global_game.emergency.invitation_detect_interval:
         #     self.interval_time = self.config.global_game.emergency.invitation_detect_interval
@@ -61,69 +57,12 @@ class BaseTask(GlobalGameAssets, CostumeBase):
         self.current_count = 0  # 战斗次数
         self._boss_mark_flag = False
 
-    def _burst(self) -> bool:
-        """
-        游戏界面突发异常检测
-        :return: 没有出现返回False, 其他True
-        """
-        image = self.device.image
-        appear_invitation = self.appear(self.I_G_ACCEPT)
-        if not appear_invitation:
-            return False
-        logger.info('Invitation appearing')
-        invite_type = self.config.global_game.emergency.friend_invitation
-        detect_record = self.device.detect_record
-        match invite_type:
-            case FriendInvitation.ACCEPT:
-                logger.info(f"Accept friend invitation")
-                click_button = self.I_G_ACCEPT
-            case FriendInvitation.REJECT:
-                logger.info(f"Reject friend invitation")
-                click_button = self.I_G_REJECT
-            case FriendInvitation.ONLY_JADE:
-                # 勾协
-                logger.info(f"Only accept jade invitation")
-                if self.appear(self.I_G_JADE):
-                    click_button = self.I_G_ACCEPT
-                else:
-                    click_button = self.I_G_IGNORE
-            case FriendInvitation.JADE_AND_FOOD:
-                # 如果是接受勾协和粮协
-                logger.info(f"Accept jade and food invitation")
-                if self.appear(self.I_G_JADE) or self.appear(self.I_G_CAT_FOOD) or self.appear(self.I_G_DOG_FOOD):
-                    click_button = self.I_G_ACCEPT
-                else:
-                    click_button = self.I_G_IGNORE
-            case FriendInvitation.IGNORE:
-                # 如果是忽略
-                logger.info(f"Ignore friend invitation")
-                click_button = self.I_G_IGNORE
-            case _:
-                raise ScriptError(f'Unknown friend invitation type: {invite_type}')
-        if not click_button:
-            raise ScriptError(f'Unknown click button type: {invite_type}')
-        while 1:
-            self.device.screenshot()
-            if not self.appear(target=click_button):
-                logger.info('Deal with invitation done')
-                break
-            if self.appear_then_click(click_button, interval=0.8):
-                continue
-        # 有的时候长战斗 点击后会取消战斗状态
-        self.device.detect_record = detect_record
-        # 如果接受邀请则立即执行悬赏任务
-        if click_button == self.I_G_ACCEPT:
-            self.set_next_run(task='WantedQuests', target=datetime.now().replace(microsecond=0))
-        return True
-
     def screenshot(self):
         """
-        截图 引入中间函数的目的是 为了解决如协作的这类突发的事件
+        截图
         :return:
         """
         self.device.screenshot()
-        # 判断勾协
-        self._burst()
 
         # # 判断网络异常
         # if self.appear(self.I_NETWORK_ABNORMAL):

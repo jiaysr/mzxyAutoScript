@@ -21,6 +21,7 @@ from module.device.method.utils import (
     recv_all, possible_reasons,
     random_port, get_serial_pair)
 from module.config.server import set_server
+from module.config.client import set_client, get_client_name
 from module.exception import RequestHumanTakeover, EmulatorNotRunningError
 from module.logger import logger
 from module.map.map_grids import SelectedGrids
@@ -111,7 +112,9 @@ class Connection(ConnectionAttr):
             pass
             # 因为用不到就注释掉了
             # set_server(self.package)
+        set_client(self.package)
         logger.attr('PackageName', self.package)
+        logger.attr('GameClient', get_client_name())
         # logger.attr('Server', self.config.SERVER)
 
     @Config.when(DEVICE_OVER_HTTP=False)
@@ -748,7 +751,7 @@ class Connection(ConnectionAttr):
         """
         logger.hr('Detect device')
         logger.info('Here are the available devices, '
-                    'copy to Alas.Emulator.Serial to use it or set Alas.Emulator.Serial="auto"')
+                    'copy to config.script.device.serial to use it or set config.script.device.serial="auto"')
         devices = self.list_device()
 
         # Show available devices
@@ -770,7 +773,7 @@ class Connection(ConnectionAttr):
         # if self.config.Emulator_Serial == 'auto':
             if available.count == 0:
                 logger.critical('No available device found, auto device detection cannot work, '
-                                'please set an exact serial in Alas.Emulator.Serial instead of using "auto"')
+                                'please set an exact serial in config.script.device.serial instead of using "auto"')
                 raise RequestHumanTakeover
             elif available.count == 1:
                 logger.info(f'Auto device detection found only one device, using it')
@@ -778,7 +781,7 @@ class Connection(ConnectionAttr):
                 del_cached_property(self, 'adb')
             else:
                 logger.critical('Multiple devices found, auto device detection cannot decide which to choose, '
-                                'please copy one of the available devices listed above to Alas.Emulator.Serial')
+                                'please copy one of the available devices listed above to config.script.device.serial')
                 raise RequestHumanTakeover
 
         # Handle LDPlayer
@@ -830,7 +833,7 @@ class Connection(ConnectionAttr):
         packages = re.findall(r'package:([^\s]+)', output)
         return packages
 
-    def list_app_packages(self, keywords=('onmyoji', 'yys'), show_log=True):
+    def list_app_packages(self, keywords=('android.xuanyuan',), show_log=True):
         """
         Args:
             keywords:
@@ -855,7 +858,7 @@ class Connection(ConnectionAttr):
     #     packages = [p for p in packages if p in server_.VALID_PACKAGE or p in server_.VALID_CLOUD_PACKAGE]
     #     return packages
 
-    def detect_package(self, keywords=('onmyoji', 'yys'), set_config=True):
+    def detect_package(self, keywords=('android.xuanyuan',), set_config=True):
         """
         Show all possible packages with the given keyword on this device.
         """
@@ -864,7 +867,7 @@ class Connection(ConnectionAttr):
 
         # Show packages
         logger.info(f'Here are the available packages in device "{self.serial}", '
-                    f'copy to Alas.Emulator.PackageName to use it')
+                    f'copy to config.script.device.package_name to use it')
         if len(packages):
             for package in packages:
                 logger.info(package)
@@ -888,5 +891,5 @@ class Connection(ConnectionAttr):
         else:
             logger.critical(
                 f'Multiple {keywords[0]} packages found, auto package detection cannot decide which to choose, '
-                'please copy one of the available devices listed above to Alas.Emulator.PackageName')
+                'please copy one of the available devices listed above to config.script.device.package_name')
             raise RequestHumanTakeover

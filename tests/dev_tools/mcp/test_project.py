@@ -23,9 +23,9 @@ class ProjectToolsTest(unittest.TestCase):
         with self.assertRaises(McpToolError):
             project.select_config({"name": "__no_such_config__"})
 
-    def test_list_tasks_contains_abyss_shadows(self):
+    def test_list_tasks_contains_orochi(self):
         text = project.list_tasks({})
-        self.assertIn("AbyssShadows", text)
+        self.assertIn("Orochi", text)
         self.assertIn("script_task.py", text)
 
     def test_get_project_info_smoke(self):
