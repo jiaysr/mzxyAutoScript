@@ -52,8 +52,10 @@ def retry(func):
             # AdbError
             except AdbError as e:
                 if handle_adb_error(e):
+                    err = e  # except 块结束后 e 会被删除，闭包需要单独持有
+
                     def init():
-                        self.adb_reconnect()
+                        self.adb_reconnect(err)
                 else:
                     break
             # Package not installed
@@ -602,10 +604,19 @@ class Connection(ConnectionAttr):
         _ = self.adb_client
 
     @Config.when(DEVICE_OVER_HTTP=False)
-    def adb_reconnect(self):
+    def adb_reconnect(self, error: Exception = None):
         """
            Reboot adb client if no device found, otherwise try reconnecting device.
+        :param error: 触发重连的 adb 错误。'unknown host service' 表示 adb server
+                      被其它版本的 adb（模拟器自带的）抢占，此时设备仍在设备列表里，
+                      单纯 disconnect/connect 无效，必须重启 adb server。
         """
+        if error is not None and 'unknown host service' in str(error):
+            logger.warning('Another version of adb took over, restart adb server')
+            self.adb_restart()
+            self.adb_connect(self.serial)
+            self.detect_device()
+            return
         # if self.config.Emulator_AdbRestart and len(self.list_device()) == 0:
         if self.config.script.device.adb_restart and len(self.list_device()) == 0:
             # Restart Adb
@@ -619,7 +630,7 @@ class Connection(ConnectionAttr):
             self.detect_device()
 
     @Config.when(DEVICE_OVER_HTTP=True)
-    def adb_reconnect(self):
+    def adb_reconnect(self, error: Exception = None):
         logger.warning(
             f'When connecting a device over http: {self.serial} '
             f'adb_reconnect() is skipped, you may need to restart ATX manually'

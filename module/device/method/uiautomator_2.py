@@ -51,15 +51,19 @@ def retry(func):
             # AdbError
             except AdbError as e:
                 if handle_adb_error(e):
+                    err = e  # except 块结束后 e 会被删除，闭包需要单独持有
+
                     def init():
-                        self.adb_reconnect()
+                        self.adb_reconnect(err)
                 else:
                     break
             # RuntimeError: USB device 127.0.0.1:5555 is offline
             except RuntimeError as e:
                 if handle_adb_error(e):
+                    err = e  # except 块结束后 e 会被删除，闭包需要单独持有
+
                     def init():
-                        self.adb_reconnect()
+                        self.adb_reconnect(err)
                 else:
                     break
             # In `assert c.read string(4) == _OKAY`
