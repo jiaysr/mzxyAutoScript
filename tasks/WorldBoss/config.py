@@ -20,7 +20,7 @@ class ManchuiConfig(BaseModel):
 class WuqingConfig(BaseModel):
     time_10: bool = Field(default=False, title='10:00', description='world_boss_wuqing_10_help')
     time_12: bool = Field(default=False, title='12:00', description='world_boss_wuqing_12_help')
-    time_14: bool = Field(default=False, title='14:00', description='world_boss_wuqing_14_help')
+    time_19: bool = Field(default=False, title='19:00', description='world_boss_wuqing_19_help')
 
 
 class JulianConfig(BaseModel):
@@ -28,6 +28,7 @@ class JulianConfig(BaseModel):
 
 
 class FuwangConfig(BaseModel):
+    time_14: bool = Field(default=False, title='14:00', description='world_boss_fuwang_14_help')
     time_18: bool = Field(default=False, title='18:00', description='world_boss_fuwang_18_help')
     time_22: bool = Field(default=False, title='22:00', description='world_boss_fuwang_22_help')
 

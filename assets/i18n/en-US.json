@@ -13,7 +13,6 @@
   "world_boss_manchui_09_help": "Join Manchui 09:00",
   "world_boss_manchui_13_help": "Join Manchui 13:00",
   "world_boss_wuqing_10_help": "Join Wuqing 10:00",
-  "world_boss_wuqing_14_help": "Join Wuqing 14:00",
   "world_boss_julian_15_help": "Join Julian 15:00",
   "world_boss_fuwang_18_help": "Join Fuwang 18:00",
   "world_boss_fuwang_22_help": "Join Fuwang 22:00",
@@ -60,5 +59,7 @@
   "Challenge": "Challenge",
   "challenge": "Challenge",
   "challenge_config": "Challenge Settings",
-  "world_boss_wuqing_12_help": "Join Wuqing 12:00"
+  "world_boss_wuqing_12_help": "Join Wuqing 12:00",
+  "world_boss_wuqing_19_help": "Join Wuqing 19:00",
+  "world_boss_fuwang_14_help": "Join Fuwang 14:00"
 }

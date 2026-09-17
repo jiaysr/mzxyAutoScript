@@ -22,7 +22,7 @@ BOSS_LIST = [
         'name': '无情',
         'target_map': '万剑冢',
         'target_coord': (124, 372),
-        'times': [('time_10', time(10, 0)), ('time_12', time(12, 0)), ('time_14', time(14, 0))],
+        'times': [('time_10', time(10, 0)), ('time_12', time(12, 0)), ('time_19', time(19, 0))],
     },
     {
         'key': 'julian',
@@ -36,7 +36,7 @@ BOSS_LIST = [
         'name': '斧王',
         'target_map': '忘川',
         'target_coord': (219, 416),
-        'times': [('time_18', time(18, 0)), ('time_22', time(22, 0))],
+        'times': [('time_14', time(14, 0)), ('time_18', time(18, 0)), ('time_22', time(22, 0))],
     },
     {
         'key': 'xiewang',

@@ -13,7 +13,6 @@
   "world_boss_manchui_09_help": "参与蛮锤 09:00 场",
   "world_boss_manchui_13_help": "参与蛮锤 13:00 场",
   "world_boss_wuqing_10_help": "参与无情 10:00 场",
-  "world_boss_wuqing_14_help": "参与无情 14:00 场",
   "world_boss_julian_15_help": "参与巨镰 15:00 场",
   "world_boss_fuwang_18_help": "参与斧王 18:00 场",
   "world_boss_fuwang_22_help": "参与斧王 22:00 场",
@@ -168,5 +167,7 @@
   "Challenge": "挑战",
   "challenge": "挑战",
   "challenge_config": "挑战设置",
-  "world_boss_wuqing_12_help": "参与无情 12:00 场"
+  "world_boss_wuqing_12_help": "参与无情 12:00 场",
+  "world_boss_wuqing_19_help": "参与无情 19:00 场",
+  "world_boss_fuwang_14_help": "参与斧王 14:00 场"
 }
