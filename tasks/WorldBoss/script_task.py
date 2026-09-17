@@ -22,7 +22,7 @@ BOSS_LIST = [
         'name': '无情',
         'target_map': '万剑冢',
         'target_coord': (124, 372),
-        'times': [('time_10', time(10, 0)), ('time_14', time(14, 0))],
+        'times': [('time_10', time(10, 0)), ('time_12', time(12, 0)), ('time_14', time(14, 0))],
     },
     {
         'key': 'julian',

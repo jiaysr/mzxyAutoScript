@@ -19,6 +19,7 @@ class ManchuiConfig(BaseModel):
 
 class WuqingConfig(BaseModel):
     time_10: bool = Field(default=False, title='10:00', description='world_boss_wuqing_10_help')
+    time_12: bool = Field(default=False, title='12:00', description='world_boss_wuqing_12_help')
     time_14: bool = Field(default=False, title='14:00', description='world_boss_wuqing_14_help')
 
 
