@@ -29,7 +29,7 @@ BOSS_LIST = [
         'name': '巨镰',
         'target_map': '骨牢',
         'target_coord': (216, 184),
-        'times': [('time_15', time(15, 0))],
+        'times': [('time_15', time(15, 0)), ('time_17', time(17, 0))],
     },
     {
         'key': 'fuwang',

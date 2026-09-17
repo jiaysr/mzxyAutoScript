@@ -25,6 +25,7 @@ class WuqingConfig(BaseModel):
 
 class JulianConfig(BaseModel):
     time_15: bool = Field(default=False, title='15:00', description='world_boss_julian_15_help')
+    time_17: bool = Field(default=False, title='17:00', description='world_boss_julian_17_help')
 
 
 class FuwangConfig(BaseModel):
