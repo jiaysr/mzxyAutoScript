@@ -46,6 +46,7 @@ class RestartX7(RestartBase):
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
+            self.device.sleep(0.2)
             if not self.appear(rule):
                 logger.info(f'{name} disappear')
                 return True
@@ -59,6 +60,7 @@ class RestartX7(RestartBase):
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
+            self.device.sleep(0.2)
             if not self.appear(self.I_X7_LOGIN_ENTER):
                 if timer.reached():
                     raise GameStuckError('Login page does not appear')
@@ -82,6 +84,7 @@ class RestartX7(RestartBase):
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
+            self.device.sleep(0.2)
             if not self.appear(self.I_X7_SERVER_PAGE):
                 if timer.reached():
                     raise GameStuckError('Server page does not appear')
@@ -102,6 +105,7 @@ class RestartX7(RestartBase):
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
+            self.device.sleep(0.2)
             if not self.appear(self.I_X7_CHARACTER_PAGE):
                 if timer.reached():
                     raise GameStuckError('Character page does not appear')
@@ -122,6 +126,7 @@ class RestartX7(RestartBase):
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
+            self.device.sleep(0.2)
             if not self.appear(self.I_X7_CHARACTER_CONFIRM):
                 if timer.reached():
                     raise GameStuckError('Character confirm page does not appear')
@@ -142,6 +147,7 @@ class RestartX7(RestartBase):
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
+            self.device.sleep(0.2)
             if self.appear(self.O_CHAT):
                 logger.info('Main page appear')
                 return True

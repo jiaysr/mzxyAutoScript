@@ -53,7 +53,7 @@ class WorldBossAssets:
 	# 世界首领页-刷新时间标签 
 	I_WORLD_BOSS_PAGE = RuleImage(roi_front=(325,505,127,32), roi_back=(300,490,200,60), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_world_boss_page.png")
 	# 主界面-目标锁定按钮 
-	I_TARGET_BUTTON = RuleImage(roi_front=(1198,232,60,80), roi_back=(1180,210,110,130), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_target_button.png")
+	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1199,223,71,69), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_target_button.png")
 	# 死亡弹窗-三个按钮区块 
 	I_REVIVE_DIALOG = RuleImage(roi_front=(486,255,310,260), roi_back=(486,255,310,260), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_revive_dialog.png")
 	# 角色面板-顶部页签栏 
