@@ -20,11 +20,11 @@ from module.device.device import Device
 from module.logger import logger
 from module.ocr.base_ocr import OcrMode
 from tasks.Component.config_base import Time
-from tasks.GlobalGame.assets import GlobalGameAssets
+from tasks.GlobalGame.global_game import GlobalGame
 from typing import Union
 
 
-class BaseTask(GlobalGameAssets):
+class BaseTask(GlobalGame):
     config: Config = None
     device: Device = None
 
@@ -59,20 +59,11 @@ class BaseTask(GlobalGameAssets):
 
     def screenshot(self):
         """
-        截图
+        截图，并做全局死亡检测：检测到阵亡会复活并重跑当前任务
         :return:
         """
         self.device.screenshot()
-
-        # # 判断网络异常
-        # if self.appear(self.I_NETWORK_ABNORMAL):
-        #     logger.warning(f"Network abnormal")
-        #     raise GameStuckError
-        #
-        # # 判断网络错误
-        # if self.appear(self.I_NETWORK_ERROR):
-        #     logger.warning(f"Network error")
-        #     raise GameStuckError
+        self.handle_death()
 
         return self.device.image
 
@@ -618,57 +609,6 @@ class BaseTask(GlobalGameAssets):
     #  ---------------------------------------------------------------------------------------------------------------
     #
     #  ---------------------------------------------------------------------------------------------------------------
-    def ui_reward_appear_click(self, screenshot=False) -> bool:
-        """
-        如果出现 ‘获得奖励’ 就点击
-        :return:
-        """
-        if screenshot:
-            self.screenshot()
-        return self.appear_then_click(self.I_UI_REWARD, action=self.C_UI_REWARD, interval=0.4, threshold=0.6)
-
-    def ui_get_reward(self, click_image: RuleImage or RuleOcr or RuleClick, click_interval: float = 1):
-        """
-        传进来一个点击图片 或是 一个ocr， 会点击这个图片，然后等待‘获得奖励’，
-        最后当获得奖励消失后 退出
-        :param click_interval:
-        :param click_image:
-        :return:
-        """
-        _timer = Timer(10)
-        _timer.start()
-        while 1:
-            self.screenshot()
-
-            if self.ui_reward_appear_click():
-                sleep(0.5)
-                while 1:
-                    self.screenshot()
-                    # 等待动画结束
-                    if not self.appear(self.I_UI_REWARD, threshold=0.6):
-                        logger.info('Get reward success')
-                        break
-
-                    # 一直点击
-                    if self.ui_reward_appear_click():
-                        continue
-                break
-            if _timer.reached():
-                logger.warning('Get reward timeout')
-                break
-
-            if isinstance(click_image, RuleImage):
-                if self.appear_then_click(click_image, interval=click_interval):
-                    continue
-            elif isinstance(click_image, RuleOcr):
-                if self.ocr_appear_click(click_image, interval=click_interval):
-                    continue
-            elif isinstance(click_image, RuleClick):
-                if self.click(click_image, interval=click_interval):
-                    continue
-
-        return True
-
     def ui_click(self, click, stop, interval=1, timeout=None):
         """
         循环的一个操作，直到出现stop

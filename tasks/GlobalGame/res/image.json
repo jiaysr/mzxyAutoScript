@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "death_dialog",
+    "imageName": "res_death_dialog.png",
+    "roiFront": "486,255,310,260",
+    "roiBack": "486,255,310,260",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "死亡弹窗-三个按钮区块"
+  }
+]

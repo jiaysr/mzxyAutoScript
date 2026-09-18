@@ -17,7 +17,7 @@ class ConfigMenu:
         self.menu["Overview"] = []
         self.menu['TaskList'] = []
         # 脚本设置
-        self.menu['Script'] = ['Script', 'Restart', 'GlobalGame']
+        self.menu['Script'] = ['Script', 'Restart']
         # 日常的任务
         self.menu["Daily Task"] = ['DailyTrifles']
         # 战斗的任务

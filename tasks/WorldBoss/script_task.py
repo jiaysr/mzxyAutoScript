@@ -29,7 +29,7 @@ BOSS_LIST = [
         'name': '巨镰',
         'target_map': '骨牢',
         'target_coord': (216, 184),
-        'times': [('time_15', time(15, 0)), ('time_17', time(17, 0))],
+        'times': [('time_15', time(15, 0)), ('time_17', time(17, 0)), ('time_19', time(19, 0))],
     },
     {
         'key': 'fuwang',
@@ -54,59 +54,62 @@ SEEK_OFFSET_Y = 576
 ARRIVE_TOLERANCE = 20
 
 
-class CharacterDead(Exception):
-    """
-    角色阵亡：死亡弹窗出现，点「返回村子」复活后会回到出生点
-    任务需要从寻路重新开始，所以抛出该异常交给上层重跑
-    """
-
-
 class ScriptTask(BaseTask, WorldBossAssets):
     """
     世界首领：按配置的时间段提前出发，自动寻路到首领位置
+    角色阵亡由 BaseTask.screenshot 的全局死亡检测处理（复活后重跑本任务）
     """
 
-    # 事件时间之后仍认为处于本次事件的时间窗
-    event_window = timedelta(minutes=30)
+    # 首领出现时长：事件时间之后超过该时长首领已消失，直接跳过本次事件
+    event_window = timedelta(minutes=5)
     # 攻击间隔（秒），截图与目标确认的耗时算在间隔内
     attack_interval = 0.5
     # 攻击次数上限，打满即视为本流程结束
     attack_times = 15
-    # 阵亡复活后重跑流程的最大次数
-    max_revive = 3
+    # 当前事件的标识与已攻击次数，阵亡重跑时用于恢复进度
+    event_key: str = ''
+    attack_count: int = 0
 
     def run(self) -> None:
         self.reset_records()
-        event = self.current_event()
-        if event is None:
+        events = self.current_events()
+        if not events:
             logger.info('No world boss event now')
+            self.clear_task_record()
             self.schedule_next_event()
             raise TaskEnd('WorldBoss')
 
-        boss, event_time = event
-        logger.hr(f"World boss {boss['name']} {event_time.strftime('%H:%M')}")
+        for index, (boss, event_time) in enumerate(events, start=1):
+            logger.hr(f"World boss {boss['name']} {event_time.strftime('%H:%M')} ({index}/{len(events)})")
+            self.event_key = f"{boss['key']} {event_time.strftime('%Y-%m-%d %H:%M')}"
+            self.attack_count = 0
+            if self.restore_task_record():
+                logger.attr('Restore attack count', self.attack_count)
+            self.world_boss_flow(boss, event_time)
 
-        # 阵亡会复活到出生点，需要重新寻路，所以整个流程重跑
-        for attempt in range(1, self.max_revive + 1):
-            try:
-                self.world_boss_flow(boss, event_time)
-                break
-            except CharacterDead:
-                logger.warning(f'Character died, revive ({attempt}/{self.max_revive})')
-                if not self.revive():
-                    logger.warning('Unable to revive')
-                    break
-                logger.info('Revived, restart world boss flow')
-        else:
-            logger.warning('World boss flow unable to finish after revive attempts')
-
+        self.clear_task_record()
         self.schedule_next_event()
         raise TaskEnd('WorldBoss')
+
+    # ---------------------------------------------------------------- 进度记录
+    def save_task_record(self) -> dict:
+        """
+        阵亡重跑时保留当前事件与已攻击次数
+        """
+        return {'event': self.event_key, 'attack_count': self.attack_count}
+
+    def load_task_record(self, record: dict) -> bool:
+        """
+        只有同一个事件的记录才恢复，避免把上一次事件的次数带到本次
+        """
+        if record.get('event') != self.event_key:
+            return False
+        self.attack_count = int(record.get('attack_count', 0))
+        return True
 
     def world_boss_flow(self, boss: dict, event_time: datetime) -> None:
         """
         一次完整的首领流程：主界面出发 -> 寻路 -> 等到刷新 -> 锁定 -> 攻击
-        过程中阵亡会抛出 CharacterDead
         """
         self.enter_world_boss_page()
         if not self.seek_boss(boss):
@@ -156,15 +159,19 @@ class ScriptTask(BaseTask, WorldBossAssets):
                 result.append((boss, datetime.combine(today + timedelta(days=day), event_time)))
         return result
 
-    def current_event(self):
+    def current_events(self) -> list:
         """
-        当前处于（出发时间 ~ 事件时间 + 窗口）内的事件
+        当前处于（出发时间 ~ 首领消失）内的全部事件，按事件时间排序
+        首领只出现 event_window，现在距离事件时间超过该时长则视为已错过
+        同一时间段可能出现多个首领（如 19:00 的无情与巨镰），都勾选时全部返回
         """
         now = datetime.now()
+        result = []
         for boss, event_datetime in self.event_datetimes():
             if event_datetime - self.advance <= now < event_datetime + self.event_window:
-                return boss, event_datetime
-        return None
+                result.append((boss, event_datetime))
+        result.sort(key=lambda item: item[1])
+        return result
 
     def schedule_next_event(self) -> None:
         """
@@ -183,39 +190,6 @@ class ScriptTask(BaseTask, WorldBossAssets):
         logger.attr('Next world boss start', target)
         self.set_next_run(task='WorldBoss', target=target, success=None, finish=True, server=False)
 
-    # ---------------------------------------------------------------- 复活
-    def raise_if_dead(self) -> None:
-        """
-        检测到死亡弹窗则抛出 CharacterDead，调用前需已截图
-        """
-        if self.appear(self.I_REVIVE_DIALOG):
-            logger.warning('Character died')
-            raise CharacterDead
-
-    def revive(self, timeout: int = 60) -> bool:
-        """
-        阵亡后点击第一个按钮「返回村子」复活，等待回到主界面
-        """
-        logger.hr('Revive')
-        timer = Timer(timeout).start()
-        clicked = False
-        while 1:
-            self.reset_records()
-            self.screenshot()
-            if self.appear(self.I_REVIVE_DIALOG):
-                logger.warning('Click return to village')
-                self.click(self.C_REVIVE_RETURN, interval=1)
-                clicked = True
-                self.device.sleep(2)
-                continue
-            if clicked and (self.appear(self.I_MENU_TOGGLE) or self.appear(self.I_MENU_COLLAPSED)):
-                logger.info('Revived at spawn point')
-                return True
-            if timer.reached():
-                logger.warning('Revive timeout')
-                return False
-            self.device.sleep(1)
-
     # ---------------------------------------------------------------- 页面
     def reset_records(self) -> None:
         """
@@ -232,7 +206,6 @@ class ScriptTask(BaseTask, WorldBossAssets):
         while 1:
             self.reset_records()
             self.screenshot()
-            self.raise_if_dead()
             if self.appear(self.I_MENU_TOGGLE) or self.appear(self.I_MENU_COLLAPSED):
                 logger.info('Main page appear')
                 return True
@@ -335,7 +308,6 @@ class ScriptTask(BaseTask, WorldBossAssets):
         for _ in range(5):
             self.reset_records()
             self.screenshot()
-            self.raise_if_dead()
             if self.appear(boss_image):
                 x = boss_image.roi_front[0] + SEEK_OFFSET_X
                 logger.info(f"Click seek of {boss['name']} at ({x}, {SEEK_OFFSET_Y})")
@@ -364,7 +336,6 @@ class ScriptTask(BaseTask, WorldBossAssets):
                 # 长时间等待期间也要确认角色状态
                 self.reset_records()
                 self.screenshot()
-                self.raise_if_dead()
         logger.info(f"Boss spawn time reached: {target.strftime('%H:%M:%S')}")
 
     def collapse_menu(self) -> None:
@@ -410,7 +381,6 @@ class ScriptTask(BaseTask, WorldBossAssets):
         while 1:
             self.reset_records()
             self.screenshot()
-            self.raise_if_dead()
             target_name = self.get_target_name()
             if target_name:
                 logger.attr('Target', target_name)
@@ -439,24 +409,28 @@ class ScriptTask(BaseTask, WorldBossAssets):
         """
         锁定目标后循环攻击：点击攻击区域 -> 间隔 0.5s -> 重新截图确认目标仍在锁定
         只有目标仍在锁定状态时才继续攻击，打满次数上限即本流程结束
+        阵亡重跑后从上次已攻击次数继续，保证同一个事件总攻击次数不超过上限
         """
         logger.hr(f"Attack {boss['name']}")
         keywords = self.target_keywords(boss)
         times = times or self.attack_times
+        done = self.attack_count
+        if done >= times:
+            logger.info(f'Attack already finished, {done} attacks')
+            return True
 
         self.reset_records()
         self.screenshot()
-        self.raise_if_dead()
         if not self.target_locked(keywords):
             logger.warning('Target is not locked before attack')
             return False
 
-        for attack_count in range(1, times + 1):
+        for attack_count in range(done + 1, times + 1):
             started = datetime.now()
             self.reset_records()
             self.click(self.C_ATTACK)
             self.screenshot()
-            self.raise_if_dead()
+            self.attack_count = attack_count
 
             if not self.target_locked(keywords):
                 logger.info(f'Target lost after {attack_count} attacks, stop')
@@ -495,7 +469,6 @@ class ScriptTask(BaseTask, WorldBossAssets):
         while 1:
             self.reset_records()
             self.screenshot()
-            self.raise_if_dead()
             map_name, coord = self.get_position()
             if map_name is None:
                 if timer.reached():

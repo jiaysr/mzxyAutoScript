@@ -25,8 +25,6 @@ class WorldBossAssets:
 	C_TARGET_BUTTON_CLICK = RuleClick(roi_front=(1226,270,28,18), roi_back=(1226,270,28,18), name="target_button_click")
 	# 主界面-攻击按钮 
 	C_ATTACK = RuleClick(roi_front=(1146,597,82,60), roi_back=(1146,597,82,60), name="attack")
-	# 死亡弹窗-返回村子 
-	C_REVIVE_RETURN = RuleClick(roi_front=(486,264,310,58), roi_back=(486,264,310,58), name="revive_return")
 	# 角色面板-返回按钮 
 	C_CHARACTER_RETURN = RuleClick(roi_front=(1185,5,80,65), roi_back=(1185,5,80,65), name="character_return")
 
@@ -54,8 +52,6 @@ class WorldBossAssets:
 	I_WORLD_BOSS_PAGE = RuleImage(roi_front=(325,505,127,32), roi_back=(300,490,200,60), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_world_boss_page.png")
 	# 主界面-目标锁定按钮 
 	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1199,223,71,69), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_target_button.png")
-	# 死亡弹窗-三个按钮区块 
-	I_REVIVE_DIALOG = RuleImage(roi_front=(486,255,310,260), roi_back=(486,255,310,260), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_revive_dialog.png")
 	# 角色面板-顶部页签栏 
 	I_CHARACTER_PANEL = RuleImage(roi_front=(300,8,820,62), roi_back=(300,8,820,62), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_character_panel.png")
 

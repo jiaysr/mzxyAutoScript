@@ -99,15 +99,6 @@
     "description": "主界面-目标锁定按钮"
   },
   {
-    "itemName": "revive_dialog",
-    "imageName": "res_revive_dialog.png",
-    "roiFront": "486,255,310,260",
-    "roiBack": "486,255,310,260",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "死亡弹窗-三个按钮区块"
-  },
-  {
     "itemName": "character_panel",
     "imageName": "res_character_panel.png",
     "roiFront": "300,8,820,62",

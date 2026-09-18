@@ -42,12 +42,6 @@
     "description": "主界面-攻击按钮"
   },
   {
-    "itemName": "revive_return",
-    "roiFront": "486,264,310,58",
-    "roiBack": "486,264,310,58",
-    "description": "死亡弹窗-返回村子"
-  },
-  {
     "itemName": "character_return",
     "roiFront": "1185,5,80,65",
     "roiBack": "1185,5,80,65",

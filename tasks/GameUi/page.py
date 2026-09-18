@@ -4,7 +4,6 @@ import random
 
 import traceback
 from module.atom.click import RuleClick
-from tasks.GlobalGame.assets import GlobalGameAssets as GGA
 from tasks.GameUi.assets import GameUiAssets as G
 from tasks.base_task import BaseTask as BT
 
@@ -50,7 +49,7 @@ page_login = Page(G.I_CHECK_LOGIN_FORM)
 # Main Home 主页
 page_main = Page(G.I_CHECK_MAIN)
 page_main.additional = [G.I_AD_CLOSE_RED, G.I_BACK_FRIENDS,
-                            GGA.I_CHAT_CLOSE_BUTTON, G.I_CLOSE_CHAT_WINDOW]
+                            G.I_CLOSE_CHAT_WINDOW]
 # 召唤summon
 page_summon = Page(G.I_CHECK_SUMMON)
 page_summon.link(button=G.I_SUMMON_GOTO_MAIN, destination=page_main)
@@ -139,7 +138,7 @@ page_town.link(button=G.I_TOWN_GOTO_HYAKKIYAKOU, destination=page_hyakkiyakou)
 # ************************************* 庭院部分 *****************************************#
 # 式神录 shikigami_records
 page_shikigami_records = Page(G.I_CHECK_RECORDS)
-page_shikigami_records.additional = [G.I_AD_DISAPPEAR, G.I_RECORDS_CLOSE, GGA.I_UI_CANCEL_SAMLL]
+page_shikigami_records.additional = [G.I_AD_DISAPPEAR, G.I_RECORDS_CLOSE]
 page_shikigami_records.link(button=G.I_BACK_Y, destination=page_main)
 page_main.link(button=G.I_MAIN_GOTO_SHIKIGAMI_RECORDS, destination=page_shikigami_records)
 # 阴阳术 onmyodo
@@ -159,7 +158,7 @@ from tasks.DailyTrifles.assets import DailyTriflesAssets
 
 # 商店 mall
 page_mall = Page(check_button=[G.I_CHECK_MALL, DailyTriflesAssets.I_ROOM_GIFT])
-page_mall.additional = [G.I_AD_CLOSE_RED, GGA.I_UI_CANCEL_SAMLL, G.I_BACK_Y]
+page_mall.additional = [G.I_AD_CLOSE_RED, G.I_BACK_Y]
 page_mall.link(button=G.I_BACK_YOLLOW, destination=page_main)
 page_main.link(button=G.I_MAIN_GOTO_MALL, destination=page_mall)
 # 阴阳寮 guild
@@ -173,7 +172,6 @@ page_team.link(button=G.I_BACK_Y, destination=page_main)
 page_main.link(button=G.I_MAIN_GOTO_TEAM, destination=page_team)
 # 收集 collection
 page_collection = Page(G.I_CHECK_COLLECTION)
-page_collection.additional = [GGA.I_UI_CANCEL_SAMLL]
 page_collection.link(button=G.I_BACK_Y, destination=page_main)
 page_main.link(button=G.I_MAIN_GOTO_COLLECTION, destination=page_collection)
 # 珍旅居
@@ -207,8 +205,7 @@ def random_click(low: int = None, high: int = None, ltrb: tuple = (True, False, 
 # page_reward = Page(check_button=[GeneralBattleAssets.I_REWARD_PURPLE_SNAKE_SKIN, GeneralBattleAssets.I_REWARD,
 #                                  GeneralBattleAssets.I_REWARD_EXP_SOUL_4, GeneralBattleAssets.I_WIN,
 #                                  GeneralBattleAssets.I_REWARD_GOLD, GeneralBattleAssets.I_REWARD_GOLD_SNAKE_SKIN,
-#                                  GeneralBattleAssets.I_REWARD_SOUL_5, GeneralBattleAssets.I_REWARD_SOUL_6,
-#                                  GGA.I_UI_REWARD, ])
+#                                  GeneralBattleAssets.I_REWARD_SOUL_5, GeneralBattleAssets.I_REWARD_SOUL_6, ])
 # page_reward.additional = [random_click()]
 # # 失败界面
 # page_failed = Page(GeneralBattleAssets.I_FALSE)

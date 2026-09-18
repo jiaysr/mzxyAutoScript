@@ -16,7 +16,6 @@ from module.logger import logger
 from tasks.Component.config_base import ConfigBase, TimeDelta
 from tasks.Script.config import Script
 from tasks.Restart.config import Restart
-from tasks.GlobalGame.config import GlobalGame
 from tasks.DailyTrifles.config import DailyTrifles
 from tasks.Orochi.config import Orochi
 from tasks.RichMan.config import RichMan
@@ -29,7 +28,6 @@ class ConfigModel(ConfigBase):
     running_task: str = ''
     script: Script = Field(default_factory=Script)
     restart: Restart = Field(default_factory=Restart)
-    global_game: GlobalGame = Field(default_factory=GlobalGame)
 
     # 这些是任务的
     daily_trifles: DailyTrifles = Field(default_factory=DailyTrifles)
