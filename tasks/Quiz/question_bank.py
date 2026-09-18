@@ -144,43 +144,99 @@ class QuestionBank:
         return ''
 
     # ---------------------------------------------------------------- 写入
+    def ensure_entry(self, question: str, options: dict = None) -> dict:
+        """
+        确保题目在库里（答案可以暂时为空）
+
+        用途：在调用 AI 之前先把题目落库，这样即使 API 超时/报错也不会丢题，
+        留下一道 answer 为空的记录，下次遇到会重新作答，也可以人工补。
+        """
+        record, _ = self.find(question)
+        option_list = [options.get(k, '') for k in ('A', 'B', 'C')] if options else []
+        if record is not None:
+            if option_list:
+                record['options'] = option_list
+            return record
+
+        record = {
+            'id': self.make_id(question),
+            'q': question,
+            'options': option_list,
+            'answer': '',
+            'verified': False,
+            'wrong': [],
+            'hits': 0,
+            'source': 'pending',
+            'updated': datetime.now().strftime('%Y-%m-%d'),
+        }
+        self.questions.append(record)
+        logger.info(f'题库先记录题目（待作答）: {question[:20]}...')
+        self.save()
+        return record
+
     def upsert(self, question: str, options: list, answer_text: str,
-               verified: bool, source: str = 'llm') -> dict:
+               source: str = 'llm') -> dict:
         """
-        写入或更新一条题目（不管对错都写，用 verified 区分可信度）
-        :return: 写入后的记录
+        写入或更新一条题目的题目/选项/答案（不碰 verified，由 update_by_feedback 管）
         """
-        record, score = self.find(question)
+        record, _ = self.find(question)
         today = datetime.now().strftime('%Y-%m-%d')
+        option_list = [o for o in (options or []) if o]
         if record is None:
             record = {
                 'id': self.make_id(question),
                 'q': question,
-                'options': list(options),
+                'options': option_list,
                 'answer': answer_text,
-                'verified': bool(verified),
+                'verified': False,
                 'wrong': [],
                 'hits': 0,
                 'source': source,
                 'updated': today,
             }
             self.questions.append(record)
-            logger.info(f'题库新增: {question[:20]}... -> {answer_text} (verified={verified})')
+            logger.info(f'题库新增: {question[:20]}... -> {answer_text}')
         else:
-            record['options'] = list(options) or record.get('options', [])
-            record['answer'] = answer_text
+            if option_list:
+                record['options'] = option_list
+            if answer_text:
+                record['answer'] = answer_text
             record['source'] = source
             record['updated'] = today
-            if verified:
-                record['verified'] = True
-                # 被游戏确认过的答案：wrong 里是"这些文字是错误答案"，与选项顺序无关，保留
-                logger.info(f'题库更新为已验证: {question[:20]}... -> {answer_text}')
-            else:
-                record.setdefault('verified', False)
-                logger.info(f'题库更新(未验证): {question[:20]}... -> {answer_text}')
-        record['hits'] = record.get('hits', 0) + 1
+            logger.info(f'题库更新: {question[:20]}... -> {answer_text}')
         self.save()
         return record
+
+    def update_by_feedback(self, question: str, answer_text: str, feedback: str) -> None:
+        """
+        用游戏反馈更新题库（不管答对答错都会走到这里，题库命中也一样）
+
+        :param answer_text: 本次提交的答案文字
+        :param feedback: 'correct' / 'wrong' / None
+        """
+        record, _ = self.find(question)
+        if record is None:
+            return
+        record['hits'] = record.get('hits', 0) + 1
+
+        if feedback == 'correct':
+            if answer_text:
+                record['answer'] = answer_text
+                # 该答案已被游戏确认，从排除列表里移除（选项顺序会变，留着会误导 AI）
+                record['wrong'] = [w for w in record.get('wrong', []) if w != answer_text]
+            record['verified'] = True
+            logger.info(f'题库校验通过: {question[:20]}... -> {record["answer"]}')
+        elif feedback == 'wrong':
+            record['verified'] = False
+            if answer_text:
+                record['answer'] = answer_text
+            wrong = record.setdefault('wrong', [])
+            if answer_text and answer_text not in wrong:
+                wrong.append(answer_text)
+            logger.warning(f'题库校验失败，降级为未验证: {question[:20]}... - {answer_text}')
+        else:
+            logger.warning(f'没读到反馈，题库不做升降级: {question[:20]}...')
+        self.save()
 
     def add_wrong(self, question: str, wrong_text: str) -> None:
         """
@@ -193,19 +249,6 @@ class QuestionBank:
         if wrong_text and wrong_text not in wrong:
             wrong.append(wrong_text)
             logger.info(f'记录错误选项: {question[:20]}...  {wrong_text}')
-            self.save()
-
-    def verify(self, question: str) -> None:
-        """
-        游戏反馈答对时调用，把该题标记为已验证
-        """
-        record, _ = self.find(question)
-        if record is None:
-            return
-        if not record.get('verified'):
-            record['verified'] = True
-            record['wrong'] = []
-            logger.info(f'题库确认: {question[:20]}... -> {record["answer"]}')
             self.save()
 
     # ---------------------------------------------------------------- 生题库

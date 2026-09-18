@@ -170,38 +170,54 @@ class ScriptTask(BaseTask, QuizAssets):
 
     def answer_one(self) -> None:
         """
-        答一题：题库优先 -> AI 兜底 -> 点击 -> 反馈 -> 回写题库
+        答一题：题库命中直接用（答完仍校验）-> 否则先落库再问 AI -> 点击 -> 反馈 -> 回写
         """
         self.screenshot()
         question, options = self.ocr_locally()
         record, score = self.bank.find(question) if question else (None, 0.0)
 
-        # 1) 题库可信，直接用，不花 API 钱
-        if record and record.get('verified') and options:
+        # 1) 题库命中且已验证 -> 直接用，但同样要读反馈校验题库
+        if record and record.get('verified') and record.get('answer') and options:
             letter = self.bank.match_option(options, record['answer'])
             if letter:
                 logger.info(f'题库命中({score:.2f}): {record["answer"]} -> {letter}')
                 self.click_option(letter)
                 feedback = self.read_feedback()
-                self.learn(question, options, record['answer'], feedback, from_bank=True)
+                # 命中也走校验：答对保持/转正，答错降级并记录错误选项
+                self.bank.update_by_feedback(question, record['answer'], feedback)
                 return
 
-        # 2) 问 AI（把本地 OCR 的文字一起给它，模型只负责选）
+        # 2) 未验证但已有答案：如果配置为不重问 AI，就直接用（答完仍校验）
+        if (record and record.get('answer') and options
+                and not self.quiz_config.ask_again_if_unverified):
+            letter = self.bank.match_option(options, record['answer'])
+            if letter:
+                logger.info(f'题库命中(未验证): {record["answer"]} -> {letter}')
+                self.click_option(letter)
+                feedback = self.read_feedback()
+                self.bank.update_by_feedback(question, record['answer'], feedback)
+                return
+
+        # 3) 先把题目落库（API 失败也不丢），再问 AI
+        if question and self.quiz_config.learn_from_llm:
+            self.bank.ensure_entry(question, options)
+
         ai = self.ask_ai(question=question, options=options,
                          wrong_options=record.get('wrong') if record else None)
         if ai is None:
-            if record and options:
+            logger.warning('AI 不可用（题目已落库，下次会重试）')
+            if record and options and record.get('answer'):
                 letter = self.bank.match_option(options, record['answer'])
                 if letter:
-                    logger.warning('API 不可用，退回题库答案')
+                    logger.warning('退回题库已有答案')
                     self.click_option(letter)
                     return
+            self.bank.append_unknown(question, options)
             self.fallback_pick()
             return
 
         answer_text = ai.get('answer_text') or ''
         letter = ai.get('answer', '').strip().upper()
-
         letter = self.bank.match_option(options, answer_text) or letter
         if letter not in OPTION_CLICKS:
             logger.warning(f'无法确定选项: answer_text={answer_text!r} options={options}')
@@ -262,35 +278,20 @@ class ScriptTask(BaseTask, QuizAssets):
 
     # ---------------------------------------------------------------- 学习
     def learn(self, question: str, options: dict, answer_text: str,
-              feedback: str, from_bank: bool = False) -> None:
+              feedback: str) -> None:
         """
-        用游戏反馈回写题库：答对转正，答错记录错误选项
+        用 AI 答案 + 游戏反馈回写题库（不管对错都写）
         """
         if not question:
             return
-
-        if from_bank:
-            if feedback == 'correct':
-                self.bank.verify(question)
-            elif feedback == 'wrong':
-                record, _ = self.bank.find(question)
-                if record:
-                    record['verified'] = False
-                    logger.warning('题库答案被判错，已降级为未验证')
-                self.bank.add_wrong(question, answer_text)
-                self.bank.save()
-            return
-
         if self.quiz_config.learn_from_llm:
             self.bank.upsert(
                 question,
                 [options.get(k, '') for k in ('A', 'B', 'C')],
                 answer_text,
-                verified=(feedback == 'correct'),
             )
-        if feedback == 'wrong':
-            self.bank.add_wrong(question, answer_text)
-        elif feedback is None:
+        self.bank.update_by_feedback(question, answer_text, feedback)
+        if feedback is None:
             self.bank.append_unknown(question, options)
 
     # ---------------------------------------------------------------- OCR / AI
