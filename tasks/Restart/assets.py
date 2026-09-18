@@ -12,22 +12,22 @@ class RestartAssets:
 
 	# Click Rule Assets
 	# 小七版登录页-用户协议勾选框 
-	C_X7_LOGIN_AGREE_CLICK = RuleClick(roi_front=(388,630,30,30), roi_back=(388,630,30,30), name="x7_login_agree_click")
+	C_X7_LOGIN_AGREE_CLICK = RuleClick(roi_front=(390,630,28,29), roi_back=(388,630,30,30), name="x7_login_agree_click")
 	# 小七版选择服务器页-上次登录区服 
-	C_X7_SERVER_LAST_LOGIN = RuleClick(roi_front=(500,178,400,44), roi_back=(500,178,400,44), name="x7_server_last_login")
+	C_X7_SERVER_LAST_LOGIN = RuleClick(roi_front=(546,177,304,45), roi_back=(500,178,400,44), name="x7_server_last_login")
 	# 小七版角色选择页-上次登录角色卡 
-	C_X7_CHARACTER_FIRST = RuleClick(roi_front=(600,140,300,80), roi_back=(600,140,300,80), name="x7_character_first")
+	C_X7_CHARACTER_FIRST = RuleClick(roi_front=(703,162,275,61), roi_back=(694,154,300,80), name="x7_character_first")
 	# 小七版角色确认页-登录角色按钮 
-	C_X7_CHARACTER_LOGIN = RuleClick(roi_front=(245,608,185,55), roi_back=(245,608,185,55), name="x7_character_login")
+	C_X7_CHARACTER_LOGIN = RuleClick(roi_front=(245,608,176,47), roi_back=(245,608,177,47), name="x7_character_login")
 	# 小七版通用弹窗-关闭按钮 
 	C_X7_POPUP_CLOSE_CLICK = RuleClick(roi_front=(1203,20,46,46), roi_back=(1203,20,46,46), name="x7_popup_close_click")
 
 
 	# Image Rule Assets
 	# 小七版登录页-登录游戏按钮 
-	I_X7_LOGIN_ENTER = RuleImage(roi_front=(560,360,170,170), roi_back=(460,280,420,300), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_enter.png")
+	I_X7_LOGIN_ENTER = RuleImage(roi_front=(593,398,93,71), roi_back=(583,391,114,91), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_enter.png")
 	# 小七版登录页-用户协议已勾选 
-	I_X7_LOGIN_AGREE = RuleImage(roi_front=(388,630,30,30), roi_back=(350,610,120,60), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_agree.png")
+	I_X7_LOGIN_AGREE = RuleImage(roi_front=(395,630,23,30), roi_back=(377,617,52,50), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_agree.png")
 	# 小七版登录页-修复按钮 
 	I_X7_LOGIN_REPAIR = RuleImage(roi_front=(1152,622,96,40), roi_back=(1100,600,180,80), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_repair.png")
 	# 小七版登录页-退出账号 
@@ -35,9 +35,9 @@ class RestartAssets:
 	# 小七版选择服务器页-标题 
 	I_X7_SERVER_PAGE = RuleImage(roi_front=(565,76,145,35), roi_back=(500,60,320,70), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_server_page.png")
 	# 小七版角色选择页-小号说明 
-	I_X7_CHARACTER_PAGE = RuleImage(roi_front=(1143,49,88,28), roi_back=(1100,35,180,60), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_page.png")
+	I_X7_CHARACTER_PAGE = RuleImage(roi_front=(1143,49,88,28), roi_back=(1116,35,145,59), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_page.png")
 	# 小七版角色确认页-标题 
-	I_X7_CHARACTER_CONFIRM = RuleImage(roi_front=(580,25,115,34), roi_back=(520,10,240,60), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_confirm.png")
+	I_X7_CHARACTER_CONFIRM = RuleImage(roi_front=(580,25,115,34), roi_back=(550,18,188,51), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_confirm.png")
 	# 小七版通用的弹窗-关闭按钮(在右半屏内搜图) 
 	I_X7_POPUP_CLOSE = RuleImage(roi_front=(1203,20,46,46), roi_back=(640,0,640,720), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_popup_close.png")
 

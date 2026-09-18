@@ -2,8 +2,8 @@
   {
     "itemName": "x7_login_enter",
     "imageName": "res_x7_login_enter.png",
-    "roiFront": "560,360,170,170",
-    "roiBack": "460,280,420,300",
+    "roiFront": "593,398,93,71",
+    "roiBack": "583,391,114,91",
     "method": "Template matching",
     "threshold": 0.8,
     "description": "小七版登录页-登录游戏按钮"
@@ -11,8 +11,8 @@
   {
     "itemName": "x7_login_agree",
     "imageName": "res_x7_login_agree.png",
-    "roiFront": "388,630,30,30",
-    "roiBack": "350,610,120,60",
+    "roiFront": "395,630,23,30",
+    "roiBack": "377,617,52,50",
     "method": "Template matching",
     "threshold": 0.8,
     "description": "小七版登录页-用户协议已勾选"
@@ -48,7 +48,7 @@
     "itemName": "x7_character_page",
     "imageName": "res_x7_character_page.png",
     "roiFront": "1143,49,88,28",
-    "roiBack": "1100,35,180,60",
+    "roiBack": "1116,35,145,59",
     "method": "Template matching",
     "threshold": 0.8,
     "description": "小七版角色选择页-小号说明"
@@ -57,7 +57,7 @@
     "itemName": "x7_character_confirm",
     "imageName": "res_x7_character_confirm.png",
     "roiFront": "580,25,115,34",
-    "roiBack": "520,10,240,60",
+    "roiBack": "550,18,188,51",
     "method": "Template matching",
     "threshold": 0.8,
     "description": "小七版角色确认页-标题"
