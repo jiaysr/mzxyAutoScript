@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "itemName": "option_a",
+    "roiFront": "159,285,439,50",
+    "roiBack": "583,156,100,100",
+    "description": "选项A点击区域"
+  },
+  {
+    "itemName": "option_b",
+    "roiFront": "149,360,373,49",
+    "roiBack": "583,156,100,100",
+    "description": "选项B点击区域"
+  },
+  {
+    "itemName": "option_c",
+    "roiFront": "151,439,385,45",
+    "roiBack": "583,156,100,100",
+    "description": "选项C点击区域"
+  }
+]

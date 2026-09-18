@@ -25,14 +25,19 @@ SYSTEM_PROMPT = (
 
 USER_PROMPT = """这是游戏答题界面截图（单选题，只有 A / B / C 三个选项）。
 
+{question_block}
 要求：
-1. 准确读出题干和三个选项的文字
-2. 从三个选项中选出你认为正确的答案
+1. 优先依据上面给出的文字作答；如果文字有明显缺漏，再结合图片修正
+2. 只能从 A / B / C 三个选项里选一个，不要选其它内容
 3. {exclude_hint}
 4. 只输出如下 JSON，不要有多余文字：
-{{"question": "题干文字", "options": {{"A": "选项A文字", "B": "选项B文字", "C": "选项C文字"}}, "answer": "A", "answer_text": "选项A文字", "confidence": 0.9}}
+{{"answer": "A", "answer_text": "选项A的文字", "reason": "简短理由", "confidence": 0.9}}"""
 
-如果截图看不清，也要给出最可能的答案，confidence 填低一些。"""
+OCR_QUESTION_BLOCK = """题目文字（已由 OCR 识别）：
+题干：{question}
+选项：{options}
+
+"""
 
 
 class DeepSeekClient:
@@ -60,14 +65,19 @@ class DeepSeekClient:
         b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
         return f'data:image/png;base64,{b64}'
 
-    def answer_quiz(self, image: np.ndarray, wrong_options: list = None) -> dict:
+    def answer_quiz(self, image: np.ndarray, question: str = '', options: dict = None,
+                    wrong_options: list = None) -> dict:
         """
         把答题界面截图交给模型，返回结构化结果
 
+        本地 OCR 更稳，所以题干/选项以文字形式一并给出，模型只负责"选哪个"；
+        图片作为补充（文字有缺漏时模型可以看图修正）
+
         :param image: 答题弹窗区域截图（BGR）
+        :param question: 本地 OCR 的题干
+        :param options: 本地 OCR 的选项 {'A': ..., 'B': ..., 'C': ...}
         :param wrong_options: 已验证错误的选项文字，会提示模型排除
-        :return: {'question', 'options', 'answer', 'answer_text', 'confidence'}
-                 失败返回 None
+        :return: {'answer', 'answer_text', 'reason', 'confidence'}，失败返回 None
         """
         if not self.available():
             return None
@@ -78,6 +88,18 @@ class DeepSeekClient:
         else:
             exclude_hint = '没有已知的错误选项'
 
+        options = options or {}
+        if question or options:
+            question_block = OCR_QUESTION_BLOCK.format(
+                question=question or '（未识别）',
+                options='，'.join(f'{k}：{v}' for k, v in sorted(options.items())
+                                if v) or '（未识别）',
+            )
+        else:
+            question_block = ''
+
+        text = USER_PROMPT.format(question_block=question_block,
+                                  exclude_hint=exclude_hint)
         payload = {
             'model': self.model,
             'messages': [
@@ -85,13 +107,13 @@ class DeepSeekClient:
                 {
                     'role': 'user',
                     'content': [
-                        {'type': 'text', 'text': USER_PROMPT.format(exclude_hint=exclude_hint)},
+                        {'type': 'text', 'text': text},
                         {
                             'type': 'image_url',
                             'image_url': {
                                 'url': self.encode_image(image),
-                                # 题目是大字，512x512 足够，更快更省
-                                'detail': 'low',
+                                # 单图 token 上限本来就是 1024，降采样不加分反而糊掉小字
+                                'detail': 'original',
                             },
                         },
                     ],
@@ -132,10 +154,9 @@ class DeepSeekClient:
             logger.error(f'原始响应: {resp.text[:300]}')
             return None
 
-        result.setdefault('options', {})
         result.setdefault('answer', '')
         result.setdefault('answer_text', '')
-        result.setdefault('question', '')
+        result.setdefault('reason', '')
         result['confidence'] = float(result.get('confidence') or 0)
         logger.info(f"AI 作答: {result['answer']} {result['answer_text']} "
                     f"(confidence={result['confidence']:.2f})")

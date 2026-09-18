@@ -1,0 +1,47 @@
+[
+  {
+    "itemName": "quiz_dialog",
+    "imageName": "res_quiz_dialog.png",
+    "roiFront": "930,140,170,44",
+    "roiBack": "900,120,240,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "答题榜标题(判断是否在答题界面)"
+  },
+  {
+    "itemName": "feedback_correct",
+    "imageName": "res_feedback_correct.png",
+    "roiFront": "371,529,185,54",
+    "roiBack": "300,120,500,500",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "回答正确提示"
+  },
+  {
+    "itemName": "feedback_wrong",
+    "imageName": "res_feedback_wrong.png",
+    "roiFront": "371,529,185,54",
+    "roiBack": "300,120,500,500",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "回答错误提示"
+  },
+  {
+    "itemName": "quiz_finish",
+    "imageName": "res_quiz_finish.png",
+    "roiFront": "425,155,81,87",
+    "roiBack": "300,120,500,500",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "答题结束图片"
+  },
+  {
+    "itemName": "close",
+    "imageName": "res_close.png",
+    "roiFront": "1140,76,50,52",
+    "roiBack": "1100,50,140,110",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "关闭答题界面按钮"
+  }
+]

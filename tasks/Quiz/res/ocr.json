@@ -1,0 +1,47 @@
+[
+  {
+    "itemName": "progress",
+    "roiFront": "108,138,173,42",
+    "roiBack": "108,138,173,42",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "第X/20题"
+  },
+  {
+    "itemName": "question",
+    "roiFront": "105,178,705,88",
+    "roiBack": "105,178,705,88",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "题干文字"
+  },
+  {
+    "itemName": "option_a",
+    "roiFront": "190,277,609,63",
+    "roiBack": "190,277,609,63",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "A选项文字(不含前缀)"
+  },
+  {
+    "itemName": "option_b",
+    "roiFront": "190,353,609,62",
+    "roiBack": "190,353,609,62",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "B选项文字(不含前缀)"
+  },
+  {
+    "itemName": "option_c",
+    "roiFront": "190,427,609,62",
+    "roiBack": "190,427,609,62",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "C选项文字(不含前缀)"
+  }
+]
