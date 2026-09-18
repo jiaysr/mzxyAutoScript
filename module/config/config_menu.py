@@ -19,7 +19,7 @@ class ConfigMenu:
         # 脚本设置
         self.menu['Script'] = ['Script', 'Restart']
         # 日常的任务
-        self.menu["Daily Task"] = ['DailyTrifles']
+        self.menu["Daily Task"] = ['DailyTrifles', 'Quiz']
         # 战斗的任务
         self.menu["Battle Task"] = ['Orochi', 'WorldBoss', 'Challenge']
         # 每周任务

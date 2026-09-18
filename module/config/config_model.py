@@ -15,6 +15,7 @@ from module.logger import logger
 # 导入配置的Python文件
 from tasks.Component.config_base import ConfigBase, TimeDelta
 from tasks.Script.config import Script
+from tasks.Quiz.config import Quiz
 from tasks.Restart.config import Restart
 from tasks.DailyTrifles.config import DailyTrifles
 from tasks.Orochi.config import Orochi
@@ -35,6 +36,7 @@ class ConfigModel(ConfigBase):
     rich_man: RichMan = Field(default_factory=RichMan)
     world_boss: WorldBoss = Field(default_factory=WorldBoss)
     challenge: Challenge = Field(default_factory=Challenge)
+    quiz: Quiz = Field(default_factory=Quiz)
 
     def __init__(self, config_name: str=None) -> None:
         """

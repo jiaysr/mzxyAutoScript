@@ -380,6 +380,10 @@ class AssetsExtractor:
             if self.is_list_file(data):
                 result += ListExtractor(file, data).result
                 continue
+            if isinstance(data, dict):
+                # 任务目录下的数据文件（如题库、状态），不是规则文件，跳过
+                logger.debug(f'Skip non-rule json: {file}')
+                continue
             if self.is_image_file(data):
                 result += ImageExtractor(file, data).result
             elif self.is_click_file(data):

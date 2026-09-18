@@ -171,5 +171,21 @@
   "world_boss_wuqing_12_help": "参与无情 12:00 场",
   "world_boss_wuqing_19_help": "参与无情 19:00 场",
   "world_boss_fuwang_14_help": "参与斧王 14:00 场",
-  "world_boss_julian_17_help": "参与巨镰 17:00 场"
+  "world_boss_julian_17_help": "参与巨镰 17:00 场",
+  "Quiz": "每日答题",
+  "quiz": "每日答题",
+  "quiz_config": "答题设置",
+  "quiz_api_key_help": "DeepSeek API Key，留空则读环境变量 DEEPSEEK_API_KEY；只保存在本地配置文件里",
+  "quiz_model_help": "使用的模型名，默认 deepseek-flash（支持图片识别）",
+  "quiz_api_timeout_help": "单次 API 调用超时秒数。每题只有 20 秒，这里留足预算但别太久",
+  "quiz_use_thinking_help": "开启思考模式更准，但更慢更贵；不确定就保持关闭",
+  "quiz_total_questions_help": "一局答题的题目数量",
+  "quiz_time_limit_help": "每题的倒计时秒数，用于兜底抢答",
+  "quiz_ask_again_help": "题库中标记为未验证的题，是否重新交给 AI 判断",
+  "quiz_unknown_fallback_help": "题库未命中且 AI 不可用时的兜底：不作答 / 固定选A / 随机选一个",
+  "skip": "不作答",
+  "first": "固定选A",
+  "random": "随机选一个",
+  "quiz_save_screenshot_help": "保存答题界面截图到 log/quiz，方便事后人工补库",
+  "quiz_learn_from_llm_help": "把 AI 的答案写入题库（标记为未验证，被游戏反馈答对后转为已验证）"
 }

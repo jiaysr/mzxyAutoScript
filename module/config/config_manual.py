@@ -8,7 +8,7 @@ class ConfigManual:
     """
 
     SCHEDULER_PRIORITY = """
-        Restart > DailyTrifles
+        Restart > DailyTrifles > Quiz
         > WorldBoss
         > Challenge
         > Orochi

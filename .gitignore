@@ -277,3 +277,7 @@ oas.bat
 docs/superpowers/
 # mcp test workspace
 tasks/__mcp_test__/
+
+# 答题运行产物
+tasks/Quiz/bank/quiz_unknown.jsonl
+log/quiz/

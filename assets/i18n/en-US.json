@@ -63,5 +63,21 @@
   "world_boss_wuqing_19_help": "Join Wuqing 19:00",
   "world_boss_fuwang_14_help": "Join Fuwang 14:00",
   "world_boss_julian_17_help": "Join Julian 17:00",
-  "world_boss_julian_19_help": "Join Julian 19:00"
+  "world_boss_julian_19_help": "Join Julian 19:00",
+  "Quiz": "Daily Quiz",
+  "quiz": "Daily Quiz",
+  "quiz_config": "Quiz Settings",
+  "quiz_api_key_help": "DeepSeek API key. Leave empty to use the DEEPSEEK_API_KEY environment variable; stored only in the local config file",
+  "quiz_model_help": "Model name, default deepseek-flash (supports image input)",
+  "quiz_api_timeout_help": "Timeout in seconds for one API call. Each question has 20s, keep a reasonable budget",
+  "quiz_use_thinking_help": "Enable thinking mode: more accurate but slower and pricier",
+  "quiz_total_questions_help": "Number of questions in one quiz session",
+  "quiz_time_limit_help": "Countdown seconds per question, used for the fallback pick",
+  "quiz_ask_again_help": "Ask the AI again for questions not verified in the bank",
+  "quiz_unknown_fallback_help": "Fallback when the bank misses and the AI is unavailable: skip / always A / random",
+  "skip": "Skip",
+  "first": "Always A",
+  "random": "Random",
+  "quiz_save_screenshot_help": "Save quiz screenshots to log/quiz for manual bank filling",
+  "quiz_learn_from_llm_help": "Write AI answers into the bank (marked unverified, promoted once the game confirms correct)"
 }
