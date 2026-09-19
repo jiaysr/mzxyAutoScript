@@ -17,9 +17,6 @@ from tasks.Component.config_base import ConfigBase, TimeDelta
 from tasks.Script.config import Script
 from tasks.Quiz.config import Quiz
 from tasks.Restart.config import Restart
-from tasks.DailyTrifles.config import DailyTrifles
-from tasks.Orochi.config import Orochi
-from tasks.RichMan.config import RichMan
 from tasks.Challenge.config import Challenge
 from tasks.WorldBoss.config import WorldBoss
 
@@ -31,9 +28,6 @@ class ConfigModel(ConfigBase):
     restart: Restart = Field(default_factory=Restart)
 
     # 这些是任务的
-    daily_trifles: DailyTrifles = Field(default_factory=DailyTrifles)
-    orochi: Orochi = Field(default_factory=Orochi)
-    rich_man: RichMan = Field(default_factory=RichMan)
     world_boss: WorldBoss = Field(default_factory=WorldBoss)
     challenge: Challenge = Field(default_factory=Challenge)
     quiz: Quiz = Field(default_factory=Quiz)
@@ -129,7 +123,7 @@ class ConfigModel(ConfigBase):
     @staticmethod
     def type(key: str) -> str:
         """
-        输入模型的键值，获取这个字段对象的类型 比如输入是orochi输出是Orochi
+        输入模型的键值，获取这个字段对象的类型 比如输入是quiz输出是Quiz
         :param key:
         :return:
         """
@@ -367,5 +361,5 @@ if __name__ == "__main__":
         print(e)
         c = ConfigModel()
 
-    print(c.script_task('Orochi'))
+    print(c.script_task('Quiz'))
 

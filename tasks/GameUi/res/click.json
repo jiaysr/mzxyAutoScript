@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "page_main_goto_player",
+    "roiFront": "22,20,49,50",
+    "roiBack": "22,20,49,50",
+    "description": "主页面点击头像进入角色面板"
+  },
+  {
+    "itemName": "page_player_back",
+    "roiFront": "1190,6,87,53",
+    "roiBack": "1190,6,87,53",
+    "description": "角色面板点击返回主页面"
+  }
+]

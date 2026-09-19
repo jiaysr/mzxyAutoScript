@@ -1,20 +1,20 @@
 [
   {
-    "itemName": "home_explore",
-    "roiFront": "310,105,858,194",
-    "roiBack": "0,0,100,100",
+    "itemName": "panel_sidebar",
+    "roiFront": "0,110,245,610",
+    "roiBack": "0,110,245,610",
     "mode": "Full",
     "method": "Default",
-    "keyword": "探索",
-    "description": "庭院到探索"
+    "keyword": "",
+    "description": "角色面板左侧模块栏（OCR 识别区）"
   },
   {
-    "itemName": "new",
-    "roiFront": "0,0,100,100",
-    "roiBack": "0,0,100,100",
-    "mode": "Single",
+    "itemName": "panel_tabs",
+    "roiFront": "280,8,765,85",
+    "roiBack": "280,8,765,85",
+    "mode": "Full",
     "method": "Default",
     "keyword": "",
-    "description": "Ocr-description"
+    "description": "角色面板顶部 tab 栏（OCR 识别区）"
   }
 ]

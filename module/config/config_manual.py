@@ -8,11 +8,9 @@ class ConfigManual:
     """
 
     SCHEDULER_PRIORITY = """
-        Restart > DailyTrifles > Quiz
+        Restart > Quiz
         > WorldBoss
         > Challenge
-        > Orochi
-        > RichMan
         """
 
     DEVICE_OVER_HTTP = False

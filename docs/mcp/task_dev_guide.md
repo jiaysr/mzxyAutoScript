@@ -22,7 +22,7 @@ tasks/<TaskName>/
 规则 JSON 的类型靠字段特征识别（`AssetsExtractor`）：`imageName` → image，`keyword` → ocr，
 `duration` → long_click，`mode` → swipe，含 `name`+`list` 的 dict → list，其余 → click。
 
-命名约定：任务目录用大驼峰（`AbyssShadows`），参数类同名，配置访问用下划线（`self.config.abyss_shadows`）。
+命名约定：任务目录用大驼峰（`WorldBoss`），参数类同名，配置访问用下划线（`self.config.world_boss`）。
 
 ## 2. 规则类型与常量
 
@@ -30,12 +30,12 @@ tasks/<TaskName>/
 
 | 类型 | 设备端字段（res JSON） | 常量前缀 | 示例 |
 | --- | --- | --- | --- |
-| image | `itemName` `imageName` `roiFront` `roiBack` `method` `threshold` `description` | `I_` | `I_RYOU_SHENSHE` |
-| click | `itemName` `roiFront` `roiBack` `description` | `C_` | `C_BOSS_CLICK_AREA` |
+| image | `itemName` `imageName` `roiFront` `roiBack` `method` `threshold` `description` | `I_` | `I_CHALLENGE_PAGE` |
+| click | `itemName` `roiFront` `roiBack` `description` | `C_` | `C_ACTIVITY_MENU` |
 | long_click | `itemName` `roiFront` `roiBack` `duration` `description` | `L_` | `L_XXX` |
-| swipe | `itemName` `roiFront` `roiBack` `mode` `description` | `S_` | `S_TO_ABBSY_SHADOWS` |
-| ocr | `itemName` `roiFront` `roiBack` `mode` `method` `keyword` `description` | `O_` | `O_ST_OVERFLOW` |
-| list | `name` `direction` `type` `roiBack` `description` `list[{itemName, roiFront}]` | `L_` | `L_RYOU_ACTIVITY_LIST` |
+| swipe | `itemName` `roiFront` `roiBack` `mode` `description` | `S_` | `S_TO_XXX` |
+| ocr | `itemName` `roiFront` `roiBack` `mode` `method` `keyword` `description` | `O_` | `O_XXX` |
+| list | `name` `direction` `type` `roiBack` `description` `list[{itemName, roiFront}]` | `L_` | `L_XXX` |
 
 要点：
 
@@ -69,18 +69,22 @@ self.list_find(rule, name, max_swipe=10)                # 列表找项（可滑�
 self.list_appear_click(rule, interval=None)             # 列表项出现则点击
 self.swipe(rule)
 
-# 页面跳转
+# 页面跳转（GameUi 引擎，页面注册后可用）
 self.ui_get_current_page()                              # 识别当前页
 self.ui_goto(page_xxx)                                  # 通过页面注册表自动跳转
 ```
 
-页面对象定义在 `tasks/GameUi/page.py`（`Page(check_button, links)`），常用页面常量：
-`page_main`、`page_shikigami_records`、`page_guild`、`page_kekkai_toppa` 等；
-`ui_goto` 会基于各页面的 `links` 自动规划路径。
+`tasks/GameUi/game_ui.py` 保留了通用寻路引擎（页面识别/BFS 最短路径/弹窗清理），
+目前注册了 `page_main`（主页面）、`page_role_detail`（角色-详情）、`page_item_bag`（物品-背包）、
+`page_challenge`（挑战-战场）四个页面，其余页面录制素材后
+按 `tasks/GameUi/page.py` 中的方式注册（或在自己的 `tasks/<Task>/page.py` 扩展），
+`ui_goto` 即可自动寻路。未注册页面的任务直接继承 `BaseTask`，用图像/OCR 规则导航即可
+（当前 `Challenge`、`WorldBoss`、`Quiz`、`Restart` 都是这种方式）。
+弹窗清理和安全点击由任务类覆盖 `GameUi.ui_close`、`GameUi.ui_safe_click` 配置。
 
 ## 4. 任务骨架模板
 
-`config.py`（参数定义，参考 `tasks/SoulsTidy/config.py`）：
+`config.py`（参数定义，参考 `tasks/Challenge/config.py`）：
 
 ```python
 # This Python file uses the following encoding: utf-8
@@ -99,23 +103,19 @@ class MyTask(ConfigBase):
     my_task_config: MyTaskConfig = Field(default_factory=MyTaskConfig)
 ```
 
-`script_task.py`（逻辑，参考 `tasks/SoulsTidy/script_task.py`）：
+`script_task.py`（逻辑，参考 `tasks/Challenge/script_task.py`、`tasks/WorldBoss/script_task.py`）：
 
 ```python
 # This Python file uses the following encoding: utf-8
 from module.exception import TaskEnd
 from module.logger import logger
 
-from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_main
 from tasks.MyTask.assets import MyTaskAssets
+from tasks.base_task import BaseTask
 
 
-class ScriptTask(GameUi, MyTaskAssets):
+class ScriptTask(BaseTask, MyTaskAssets):
     def run(self):
-        self.ui_get_current_page()
-        self.ui_goto(page_main)
-
         self.screenshot()
         if self.appear_then_click(self.I_MY_BUTTON, interval=1):
             logger.info('Clicked my button')
@@ -137,7 +137,8 @@ if __name__ == '__main__':
 
 要点：
 
-- 任务类继承 `GameUi`（页面跳转/断言能力）与 `XxxAssets`（规则常量）；需要战斗时再混入 `GeneralBattle`、`SwitchSoul` 等公共组件。
+- 任务类继承 `BaseTask`（截图/点击/OCR/UI 断言等能力）与 `XxxAssets`（规则常量）；
+  需要“页面自动寻路”时再混入 `GameUi`（需先在 `tasks/GameUi/page.py` 注册页面）。
 - 任务正常结束用 `raise TaskEnd('TaskName')`；`run()` 不要返回 True/False 表示成功（由调度器统一处理）。
 - 结束时调用 `self.set_next_run(task='TaskName', success=True, finish=False)` 刷新排期。
 - 参数通过 `self.config.<task_snake>.xxx` 获取。
@@ -145,15 +146,23 @@ if __name__ == '__main__':
 ## 5. 页面对象
 
 ```python
-from tasks.GameUi.page import page_main, page_shikigami_records
+from tasks.GameUi.page import Page
 
-# 定义新页面（tasks/GameUi/page.py 风格）
-page_x = Page(check_button=XxxAssets.I_PAGE_CHECK, links={XxxAssets.I_ENTRY: page_main})
-page_x.link(button=XxxAssets.I_BACK, destination=page_main)
+# 定义新页面（写在 tasks/GameUi/page.py 或自己的 tasks/<Task>/page.py）
+page_x = Page(check_button=XxxAssets.I_PAGE_CHECK)
+page_x.additional = [XxxAssets.I_AD_CLOSE]              # 可选的进页弹窗清理
+page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 ```
 
 - `check_button` 用于识别页面；`links` 描述页面间可达关系，`ui_goto` 自动寻路。
+- 页面变量名即页面名（由 traceback 反推），保持 `page_xxx` 命名。
 - 不确定当前页时用 `self.ui_get_current_page()`。
+- 角色面板左侧模块栏是可滚动的，用它连线时写 `SidebarTarget('物品')` 作为 button
+  （`GameUi.ui_sidebar_click` 会 OCR 定位、自动滚动并校验切换结果）；任务里也可直接调用
+  `self.ui_sidebar_click('物品')`。
+- 顶部 tab 栏也可以横向滚动，连线时写 `TabTarget('打造')`（跨模块时带上 `module='物品'`）；
+  任务里可直接调用 `self.ui_tab_click('打造')`，会自动校验选中态并重试。
+  各模块的 tab 顺序维护在 `GameUi.PANEL_TABS`。
 
 ## 6. 用 MCP 开发新任务的流程
 

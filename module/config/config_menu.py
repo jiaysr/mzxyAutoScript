@@ -19,11 +19,9 @@ class ConfigMenu:
         # 脚本设置
         self.menu['Script'] = ['Script', 'Restart']
         # 日常的任务
-        self.menu["Daily Task"] = ['DailyTrifles', 'Quiz']
+        self.menu["Daily Task"] = ['Quiz']
         # 战斗的任务
-        self.menu["Battle Task"] = ['Orochi', 'WorldBoss', 'Challenge']
-        # 每周任务
-        self.menu["Weekly Task"] = ['RichMan']
+        self.menu["Battle Task"] = ['WorldBoss', 'Challenge']
         # 开发工具
         self.menu["Tools"] = ['Image Rule', 'Ocr Rule', 'Click Rule', 'Long Click Rule', 'Swipe Rule', 'List Rule']
 

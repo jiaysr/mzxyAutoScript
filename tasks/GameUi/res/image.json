@@ -1,101 +1,38 @@
 [
   {
-    "itemName": "back_bl",
-    "imageName": "res_back_blue.png",
-    "roiFront": "32,31,50,53",
-    "roiBack": "1,2,139,120",
+    "itemName": "page_main",
+    "imageName": "res_page_main.png",
+    "roiFront": "21,676,24,17",
+    "roiBack": "13,658,49,44",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "左上角蓝色的返回"
+    "description": "主页面特征（左下角图标）"
   },
   {
-    "itemName": "home_shikikami",
-    "imageName": "res_home_shikikami.png",
-    "roiFront": "1092,611,73,41",
-    "roiBack": "1092,611,73,41",
+    "itemName": "page_role_detail",
+    "imageName": "res_page_role_detail.png",
+    "roiFront": "632,365,97,44",
+    "roiBack": "597,352,171,74",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "式神录"
+    "description": "角色-详情页特征（培养按钮）"
   },
   {
-    "itemName": "home_omnyouji",
-    "imageName": "res_home_omnyouji.png",
-    "roiFront": "989,613,59,58",
-    "roiBack": "989,613,59,58",
+    "itemName": "page_item_bag",
+    "imageName": "res_page_item_bag.png",
+    "roiFront": "560,580,154,68",
+    "roiBack": "550,570,174,88",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "阴阳术"
+    "description": "物品-背包页特征（整理背包按钮）"
   },
   {
-    "itemName": "home_friend",
-    "imageName": "res_home_friend.png",
-    "roiFront": "876,619,60,53",
-    "roiBack": "876,619,60,53",
+    "itemName": "page_challenge",
+    "imageName": "res_page_challenge.png",
+    "roiFront": "557,123,128,40",
+    "roiBack": "536,113,274,65",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "description"
-  },
-  {
-    "itemName": "home_tsk",
-    "imageName": "res_home_tsk.png",
-    "roiFront": "764,608,66,56",
-    "roiBack": "764,608,66,56",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "花合战"
-  },
-  {
-    "itemName": "home_mall",
-    "imageName": "res_home_mall.png",
-    "roiFront": "654,620,51,55",
-    "roiBack": "654,620,51,55",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "商店"
-  },
-  {
-    "itemName": "home_guild",
-    "imageName": "res_home_guild.png",
-    "roiFront": "540,607,53,50",
-    "roiBack": "540,607,53,50",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "阴阳寮"
-  },
-  {
-    "itemName": "home_team",
-    "imageName": "res_home_team.png",
-    "roiFront": "430,616,49,61",
-    "roiBack": "430,616,49,61",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "组队"
-  },
-  {
-    "itemName": "home_concentric_team",
-    "imageName": "res_home_concentric_team.png",
-    "roiFront": "310,618,67,60",
-    "roiBack": "310,618,67,60",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "同心队"
-  },
-  {
-    "itemName": "home_help",
-    "imageName": "res_home_help.png",
-    "roiFront": "201,617,56,57",
-    "roiBack": "201,617,56,57",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "珍旅居"
-  },
-  {
-    "itemName": "home_collect",
-    "imageName": "res_home_collect.png",
-    "roiFront": "92,607,48,74",
-    "roiBack": "92,607,48,74",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "图鉴"
+    "description": "挑战-战场页特征（你的战斗力文字）"
   }
 ]
