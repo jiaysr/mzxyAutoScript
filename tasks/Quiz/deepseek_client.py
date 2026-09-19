@@ -8,6 +8,7 @@ DeepSeek 答题客户端
 """
 import base64
 import json
+import time
 
 import cv2
 import numpy as np
@@ -42,17 +43,84 @@ OCR_QUESTION_BLOCK = """题目文字（已由 OCR 识别）：
 
 class DeepSeekClient:
     def __init__(self, api_key: str, model: str = 'deepseek-flash',
-                 timeout: int = 8, use_thinking: bool = False):
+                 timeout: int = 8, use_thinking: bool = False, retries: int = 1):
         self.api_key = (api_key or '').strip()
         self.model = model or 'deepseek-flash'
         self.timeout = timeout
         self.use_thinking = use_thinking
+        self.retries = max(0, int(retries))
+
+    def _post(self, payload: dict):
+        """
+        POST 到 chat/completions，超时/网络异常自动重试 retries 次
+        :return: requests.Response，全部失败返回 None
+        """
+        for attempt in range(self.retries + 1):
+            try:
+                return requests.post(
+                    CHAT_ENDPOINT,
+                    headers={
+                        'Authorization': f'Bearer {self.api_key}',
+                        'Content-Type': 'application/json',
+                    },
+                    data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+                    timeout=self.timeout,
+                )
+            except Exception as e:
+                if attempt < self.retries:
+                    logger.warning(f'DeepSeek 请求失败，重试 {attempt + 1}/{self.retries}: {e}')
+                    time.sleep(0.5)
+                    continue
+                if isinstance(e, requests.Timeout):
+                    logger.warning(f'DeepSeek 超时（{self.timeout}s，已重试 {self.retries} 次）')
+                else:
+                    logger.error(f'DeepSeek 请求异常: {e}')
+                return None
 
     def available(self) -> bool:
         if not self.api_key:
             logger.warning('未配置 DeepSeek API Key，跳过 AI 答题')
             return False
         return True
+
+    def test_connection(self) -> tuple:
+        """
+        测试 API 连通性：发一条最小的文本请求，验证 Key / 模型 / 网络
+        :return: (ok, message)
+        """
+        if not self.api_key:
+            return False, '未配置 API Key'
+
+        started = time.time()
+        payload = {
+            'model': self.model,
+            'messages': [{'role': 'user', 'content': 'ping'}],
+            'max_tokens': 1,
+            'stream': False,
+        }
+        try:
+            resp = requests.post(
+                CHAT_ENDPOINT,
+                headers={
+                    'Authorization': f'Bearer {self.api_key}',
+                    'Content-Type': 'application/json',
+                },
+                data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
+                timeout=self.timeout,
+            )
+        except requests.Timeout:
+            return False, f'连接超时（{self.timeout}s），检查网络或代理'
+        except Exception as e:
+            return False, f'请求异常: {e}'
+
+        cost = time.time() - started
+        if resp.status_code != 200:
+            return False, f'HTTP {resp.status_code}: {resp.text[:200]}'
+        try:
+            content = resp.json()['choices'][0]['message']['content']
+        except Exception:
+            return False, f'响应格式异常: {resp.text[:200]}'
+        return True, f'连接正常，模型 {self.model} 用时 {cost:.2f}s，回复: {content!r}'
 
     @staticmethod
     def encode_image(image: np.ndarray, quality: int = 85) -> str:
@@ -125,21 +193,8 @@ class DeepSeekClient:
         if self.use_thinking:
             payload['extra_body'] = {'thinking': {'type': 'enabled'}}
 
-        try:
-            resp = requests.post(
-                CHAT_ENDPOINT,
-                headers={
-                    'Authorization': f'Bearer {self.api_key}',
-                    'Content-Type': 'application/json',
-                },
-                data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-                timeout=self.timeout,
-            )
-        except requests.Timeout:
-            logger.warning(f'DeepSeek 超时（{self.timeout}s）')
-            return None
-        except Exception as e:
-            logger.error(f'DeepSeek 请求异常: {e}')
+        resp = self._post(payload)
+        if resp is None:
             return None
 
         if resp.status_code != 200:
@@ -164,15 +219,42 @@ class DeepSeekClient:
 
 
 if __name__ == '__main__':
-    # 本地自测：把图片路径传进来，验证 API 是否正常
-    import io
+    # 自测：
+    #   python tasks/Quiz/deepseek_client.py --test --config oas1   # 只测连通性（读项目配置里的 Key）
+    #   python tasks/Quiz/deepseek_client.py 截图.png --config oas1 # 走完整答题测试
+    import argparse
     import os
     import sys
+    from pathlib import Path
 
-    path = sys.argv[1] if len(sys.argv) > 1 else ''
-    key = os.environ.get('DEEPSEEK_API_KEY', '')
-    if not path or not key:
-        print('用法: DEEPSEEK_API_KEY=xxx python deepseek_client.py <图片路径>')
-        raise SystemExit(1)
-    img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
-    print(DeepSeekClient(key).answer_quiz(img))
+    parser = argparse.ArgumentParser(description='DeepSeek 客户端自测')
+    parser.add_argument('image', nargs='?', default='', help='答题界面截图路径，给出则走完整答题测试')
+    parser.add_argument('--test', action='store_true', help='只测试 API 连通性')
+    parser.add_argument('--config', default='', help='从 config/<name>.json 读取 api_key / model')
+    parser.add_argument('--api-key', default='', help='直接指定 API Key')
+    parser.add_argument('--model', default='', help='直接指定模型')
+    args = parser.parse_args()
+
+    api_key = args.api_key or os.environ.get('DEEPSEEK_API_KEY', '')
+    model = args.model
+    timeout = 8
+    if args.config:
+        cfg = {}
+        cfg_path = Path.cwd() / 'config' / f'{args.config}.json'
+        if cfg_path.exists():
+            cfg = json.loads(cfg_path.read_text(encoding='utf-8'))
+        cfg = cfg.get('quiz', {}).get('quiz_config', {})
+        api_key = api_key or cfg.get('api_key', '')
+        model = model or cfg.get('model', '')
+        timeout = int(cfg.get('api_timeout', timeout))
+
+    client = DeepSeekClient(api_key, model=model or 'deepseek-flash', timeout=timeout)
+
+    if args.test or not args.image:
+        ok, message = client.test_connection()
+        print(f"{'OK' if ok else 'FAIL'}  {message}")
+        sys.exit(0 if ok else 1)
+
+    img = cv2.imdecode(np.fromfile(args.image, dtype=np.uint8), cv2.IMREAD_COLOR)
+    print(client.answer_quiz(img))
+

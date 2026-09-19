@@ -1,0 +1,2369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>题库控制台 · Quiz Bank</title>
+<style>
+  :root {
+    --bg: #f9fafb;
+    --card: #ffffff;
+    --ink: #111827;
+    --muted: #6b7280;
+    --faint: #9ca3af;
+    --line: #e5e7eb;
+    --line-soft: #f3f4f6;
+    --accent: #6366f1;
+    --accent-soft: rgba(99, 102, 241, .12);
+    --green: #10b981;
+    --green-soft: #ecfdf5;
+    --amber: #f59e0b;
+    --amber-soft: #fffbeb;
+    --red: #ef4444;
+    --red-soft: #fef2f2;
+    --sidebar: #111827;
+    --sidebar-ink: #d1d5db;
+    --sidebar-faint: #6b7280;
+    --sidebar-w: 256px;
+    --r: 12px;
+    --ease: cubic-bezier(.2, 0, 0, 1);
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--bg); }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button { font: inherit; }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .app { min-height: 100vh; }
+
+  /* ---------------------------------------------------------------- 侧边栏 */
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sidebar-w);
+    background: var(--sidebar);
+    color: var(--sidebar-ink);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px;
+    transform: translateX(-100%);
+    transition: transform .2s var(--ease);
+    z-index: 40;
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, .45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s var(--ease);
+    z-index: 30;
+  }
+
+  .backdrop.show { opacity: 1; pointer-events: auto; }
+
+  @media (min-width: 1024px) {
+    .sidebar { transform: none; }
+    .backdrop { display: none; }
+    .main { margin-left: var(--sidebar-w); }
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 8px 20px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    color: #ffffff;
+    font-size: 15px;
+  }
+
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .nav { display: grid; gap: 4px; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--sidebar-ink);
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color .15s var(--ease), color .15s var(--ease);
+  }
+
+  .nav-item svg { flex: 0 0 auto; opacity: .8; }
+
+  .nav-item:hover { background: rgba(255, 255, 255, .06); color: #ffffff; }
+  .nav-item.active { background: rgba(255, 255, 255, .1); color: #ffffff; }
+
+  .side-foot { margin-top: auto; padding-top: 20px; }
+
+  .side-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .04);
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .02em;
+  }
+
+  .side-user .name { color: #ffffff; font-size: 13px; font-weight: 500; }
+  .side-user .sub { color: var(--sidebar-faint); font-size: 11.5px; }
+
+  /* ---------------------------------------------------------------- 顶栏 */
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--card);
+    border-bottom: 1px solid var(--line);
+  }
+
+  @media (min-width: 768px) {
+    .topbar { padding: 12px 24px; gap: 16px; }
+  }
+
+  .topbar-title {
+    font-weight: 600;
+    letter-spacing: -.01em;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+
+  .topbar-title .crumb {
+    display: block;
+    color: var(--faint);
+    font-size: 11.5px;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+
+  .search {
+    position: relative;
+    margin-left: auto;
+    flex: 1 1 220px;
+    max-width: 420px;
+  }
+
+  .search svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--faint);
+    pointer-events: none;
+  }
+
+  .search input {
+    width: 100%;
+    padding: 9px 12px 9px 36px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: var(--ink);
+    transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+    outline: none;
+  }
+
+  .search input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .search input::placeholder { color: var(--faint); }
+
+  .icon-btn {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background-color .15s var(--ease), color .15s var(--ease);
+  }
+
+  .icon-btn:hover { background: var(--bg); color: var(--ink); }
+  .icon-btn:active { transform: scale(.97); }
+
+  .icon-btn .dot {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    background: var(--red);
+  }
+
+  .top-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 4px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    white-space: nowrap;
+  }
+
+  .top-user .avatar { width: 28px; height: 28px; border-radius: 8px; font-size: 11px; }
+  .top-user .name { font-size: 12.5px; font-weight: 500; }
+  .top-user .sub { font-size: 11px; color: var(--faint); }
+
+  @media (max-width: 640px) {
+    .top-user .meta { display: none; }
+    .topbar-title .crumb { display: none; }
+  }
+
+  /* ---------------------------------------------------------------- 内容 */
+  .content {
+    max-width: 1440px;
+    padding: 20px 16px 48px;
+  }
+
+  @media (min-width: 768px) {
+    .content { padding: 24px 24px 56px; }
+  }
+
+  .view[hidden] { display: none; }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    box-shadow: 0 1px 2px rgba(17, 24, 39, .04);
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 16px 16px 0;
+  }
+
+  @media (min-width: 768px) {
+    .panel-head { padding: 20px 20px 0; }
+  }
+
+  .panel-head h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+
+  .panel-head .sub { color: var(--faint); font-size: 12px; margin-top: 2px; }
+
+  .panel-body { padding: 16px; }
+
+  @media (min-width: 768px) {
+    .panel-body { padding: 20px; }
+  }
+
+  /* ---------------------------------------------------------------- KPI */
+  .kpis {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  @media (min-width: 640px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1200px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
+
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    box-shadow: 0 1px 2px rgba(17, 24, 39, .04);
+    padding: 16px;
+    cursor: default;
+    transition: transform .15s var(--ease), box-shadow .15s var(--ease),
+                border-color .15s var(--ease);
+  }
+
+  .kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(17, 24, 39, .08);
+    border-color: var(--line);
+  }
+
+  .kpi .label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  .kpi .value {
+    margin-top: 10px;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1.2;
+    color: var(--ink);
+    transition: color .15s var(--ease), transform .15s var(--ease);
+  }
+
+  .kpi:hover .value { color: var(--accent); }
+
+  .kpi-link {
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .kpi-link .label .hint-link {
+    color: var(--faint);
+    font-size: 11.5px;
+    font-weight: 400;
+  }
+
+  .kpi-link:hover .hint-link { color: var(--accent); }
+
+  .kpi .trend {
+    margin-top: 8px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .kpi .trend .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .up { color: var(--green); }
+  .down { color: var(--red); }
+  .flat { color: var(--amber); }
+
+  .mark.up { background: var(--green-soft); }
+  .mark.down { background: var(--red-soft); }
+  .mark.flat { background: var(--amber-soft); }
+
+  /* ---------------------------------------------------------------- 图表 */
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  @media (min-width: 1024px) {
+    .charts { grid-template-columns: 2fr 1fr; gap: 16px; }
+  }
+
+  .chart-main { display: flex; flex-direction: column; }
+
+  .chart-main .panel-body { flex: 1; display: flex; padding-top: 20px; }
+
+  .bars {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    align-items: end;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 220px;
+  }
+
+  .bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    height: 100%;
+    min-width: 0;
+  }
+
+  .bar-col .num { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .bar-col .bar {
+    width: 100%;
+    max-width: 44px;
+    border-radius: 6px 6px 0 0;
+    background: #c7d2fe;
+    transition: background-color .15s var(--ease);
+  }
+
+  .bar-col:hover .bar { background: #a5b4fc; }
+  .bar-col.today .bar { background: var(--accent); }
+  .bar-col .date { font-size: 11px; color: var(--faint); white-space: nowrap; }
+
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .donut { display: block; }
+
+  .donut circle { transition: none; }
+
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .donut-center .big { font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+  .donut-center .small { font-size: 11.5px; color: var(--faint); }
+
+  .legend { display: grid; gap: 8px; margin-top: 16px; }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .legend-row .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+  }
+
+  .legend-row .count { margin-left: auto; color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  .split {
+    height: 1px;
+    background: var(--line-soft);
+    margin: 16px 0;
+  }
+
+  /* ---------------------------------------------------------------- 表格 */
+  .table-wrap {
+    overflow-x: auto;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  table { width: 100%; border-collapse: collapse; min-width: 860px; }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 13px;
+    vertical-align: middle;
+  }
+
+  tbody tr { transition: background-color .15s var(--ease); }
+  tbody tr:hover { background: #f9fafb; }
+
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .cell-q {
+    max-width: 420px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+
+  .num-cell { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  .dim { color: var(--faint); white-space: nowrap; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+
+  .badge.ok { color: #047857; background: var(--green-soft); border-color: #a7f3d0; }
+  .badge.wait { color: #b45309; background: var(--amber-soft); border-color: #fde68a; }
+  .badge.pending { color: var(--muted); background: var(--line-soft); border-color: var(--line); }
+
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+  .file-state {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--faint);
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+
+  .file-state.dirty { color: var(--amber); }
+  .file-state.saved { color: var(--green); }
+
+  .mini-btn {
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color .15s var(--ease), color .15s var(--ease),
+                border-color .15s var(--ease);
+    white-space: nowrap;
+  }
+
+  .mini-btn:hover { background: var(--line-soft); color: var(--ink); border-color: var(--line); }
+  .mini-btn:active { transform: scale(.97); }
+  .mini-btn.danger:hover { color: var(--red); border-color: #fecaca; background: var(--red-soft); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color .15s var(--ease), color .15s var(--ease),
+                border-color .15s var(--ease), box-shadow .15s var(--ease);
+  }
+
+  .btn:active { transform: scale(.97); }
+
+  .btn.primary { background: var(--accent); color: #ffffff; }
+  .btn.primary:hover { background: #4f46e5; }
+
+  .btn.secondary { background: var(--line-soft); color: #374151; }
+  .btn.secondary:hover { background: var(--line); }
+
+  .btn.ghost { background: var(--card); border-color: var(--line); color: var(--muted); }
+  .btn.ghost:hover { color: var(--ink); background: var(--bg); }
+
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .btn[disabled]:active { transform: none; }
+
+  /* ---------------------------------------------------------------- 筛选 */
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  @media (min-width: 768px) {
+    .filters { padding: 16px 20px; }
+  }
+
+  select.control {
+    appearance: none;
+    background: var(--bg) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    font-size: 13px;
+    padding: 8px 34px 8px 12px;
+    cursor: pointer;
+    transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+    outline: none;
+  }
+
+  select.control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .filters .spacer { flex: 1 1 auto; }
+
+  /* ---------------------------------------------------------------- 分页 */
+  .pager {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  @media (min-width: 768px) {
+    .pager { padding: 14px 20px; }
+  }
+
+  .pager .info { color: var(--faint); font-size: 12px; margin-right: auto; }
+
+  .page-btn {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color .15s var(--ease), color .15s var(--ease),
+                border-color .15s var(--ease);
+  }
+
+  .page-btn:hover { background: var(--line-soft); color: var(--ink); }
+  .page-btn.active { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+  .page-btn[disabled] { opacity: .5; cursor: default; }
+  .page-btn[disabled]:hover { background: var(--card); color: var(--muted); }
+
+  /* ---------------------------------------------------------------- 空/载入 */
+  .state {
+    padding: 56px 24px;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .state .state-icon {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 12px;
+    border-radius: 10px;
+    background: var(--line-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--faint);
+  }
+
+  .state .state-title { color: var(--ink); font-weight: 500; font-size: 13.5px; }
+  .state .state-sub { color: var(--faint); font-size: 12.5px; margin-top: 4px; }
+  .state .btn { margin-top: 16px; }
+
+  .skeleton { padding: 8px 16px 16px; }
+
+  .sk-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 160px 90px;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .sk-row:last-child { border-bottom: 0; }
+
+  .sk {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #eef0f3, #e5e7eb, #eef0f3);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+
+  /* ---------------------------------------------------------------- 表单 */
+  .form-panel { max-width: 760px; }
+
+  .field { margin-top: 18px; }
+  .field:first-child { margin-top: 0; }
+
+  .field .lbl {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  input.control, textarea.control {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13.5px;
+    padding: 10px 12px;
+    transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+    outline: none;
+  }
+
+  input.control:focus, textarea.control:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  input.control::placeholder, textarea.control::placeholder { color: var(--faint); }
+
+  textarea.control { min-height: 80px; resize: vertical; line-height: 1.6; }
+
+  .option-row {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+  }
+
+  .option-row + .option-row { margin-top: 10px; }
+
+  .pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .pick input {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    position: relative;
+    cursor: pointer;
+    transition: border-color .15s var(--ease), background-color .15s var(--ease);
+  }
+
+  .pick input:checked { background: var(--accent); border-color: var(--accent); }
+
+  .pick input:checked::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border-radius: 3px;
+    background: #ffffff;
+  }
+
+  .form-foot {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 22px;
+  }
+
+  .hint { color: var(--faint); font-size: 12px; margin-top: 14px; }
+
+  /* ---------------------------------------------------------------- 弹窗 */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal[hidden] { display: none; }
+
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(17, 24, 39, .45);
+  }
+
+  .modal-card {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+    background: var(--card);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r);
+    box-shadow: 0 12px 32px rgba(17, 24, 39, .18);
+    padding: 18px 20px 20px;
+  }
+
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .modal-head h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+
+  .modal-q {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    max-height: 76px;
+    overflow: auto;
+  }
+
+  .pick-list { display: grid; gap: 8px; margin-top: 16px; }
+
+  .pick-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--ink);
+    font-size: 13.5px;
+    cursor: pointer;
+    transition: background-color .15s var(--ease), border-color .15s var(--ease);
+  }
+
+  .pick-option:hover { background: var(--bg); }
+  .pick-option:active { transform: scale(.99); }
+  .pick-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+
+  .pick-key {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: var(--line-soft);
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pick-option.selected .pick-key { background: var(--accent); color: #ffffff; }
+
+  .pick-text { line-height: 1.5; }
+
+  .modal-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  /* ---------------------------------------------------------------- toast */
+  .toast {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 24px;
+    width: max-content;
+    max-width: calc(100% - 32px);
+    margin: 0 auto;
+    background: var(--sidebar);
+    color: #ffffff;
+    font-size: 12.5px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(17, 24, 39, .18);
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity .15s var(--ease), transform .15s var(--ease);
+    z-index: 60;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: .01ms !important;
+      animation-duration: .01ms !important;
+    }
+    .kpi:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="brand-mark">Q</span>
+      <span>题库控制台</span>
+    </div>
+
+    <nav class="nav" aria-label="主导航">
+      <button class="nav-item active" data-view="overview">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+        概览
+      </button>
+      <button class="nav-item" data-view="questions">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+        题目管理
+      </button>
+      <button class="nav-item" data-view="add">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        新增题目
+      </button>
+    </nav>
+
+    <div class="side-foot">
+      <div class="side-user">
+        <span class="avatar">OA</span>
+        <div>
+          <div class="name">oas1</div>
+          <div class="sub">本地题库 · 只读导出</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn" id="menuBtn" aria-label="打开导航">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+      </button>
+
+      <div class="topbar-title">
+        <span id="viewTitle">概览</span>
+        <span class="crumb">tasks/Quiz/bank · quiz_zh.json</span>
+      </div>
+
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="search" placeholder="搜索题干或选项…" aria-label="搜索题目">
+      </div>
+
+      <button class="icon-btn" id="bellBtn" aria-label="通知">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-2 8-2 8h16s-2-1-2-8"/><path d="M10.5 20a2 2 0 0 0 3 0"/></svg>
+        <span class="dot"></span>
+      </button>
+
+      <div class="top-user">
+        <span class="avatar">OA</span>
+        <div class="meta">
+          <div class="name">本地会话</div>
+          <div class="sub" id="topUpdated">—</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <section class="view" id="view-overview">
+        <div class="kpis">
+          <article class="kpi">
+            <div class="label"><span>题目总数</span></div>
+            <div class="value" id="kpiTotal">0</div>
+            <div class="trend" id="kpiTotalTrend"></div>
+          </article>
+          <article class="kpi">
+            <div class="label"><span>已验证</span></div>
+            <div class="value" id="kpiVerified">0</div>
+            <div class="trend" id="kpiVerifiedTrend"></div>
+          </article>
+          <button class="kpi kpi-link" id="kpiPendingCard" type="button" title="查看全部待验证题目">
+            <div class="label"><span>待验证</span><span class="hint-link">查看全部</span></div>
+            <div class="value" id="kpiPending">0</div>
+            <div class="trend" id="kpiPendingTrend"></div>
+          </button>
+          <article class="kpi">
+            <div class="label"><span>平均命中</span></div>
+            <div class="value" id="kpiHits">0</div>
+            <div class="trend" id="kpiHitsTrend"></div>
+          </article>
+        </div>
+
+        <div class="charts">
+          <section class="panel chart-main">
+            <div class="panel-head">
+              <div>
+                <h2>最近 7 天题库更新</h2>
+                <div class="sub">按题目 updated 字段统计</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="bars" id="barChart"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>验证状态</h2>
+                <div class="sub">已验证 / 待验证占比</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="donut-wrap">
+                <svg class="donut" width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="验证状态占比">
+                  <circle cx="90" cy="90" r="70" fill="none" stroke="#e5e7eb" stroke-width="18"/>
+                  <circle id="donutArc" cx="90" cy="90" r="70" fill="none" stroke="#10b981" stroke-width="18"
+                          stroke-linecap="butt" stroke-dasharray="0 440"
+                          transform="rotate(-90 90 90)"/>
+                </svg>
+                <div class="donut-center">
+                  <span class="big" id="donutRate">0%</span>
+                  <span class="small">验证覆盖率</span>
+                </div>
+              </div>
+              <div class="legend">
+                <div class="legend-row"><span class="swatch" style="background:#10b981"></span>已验证<span class="count" id="legendVerified">0</span></div>
+                <div class="legend-row"><span class="swatch" style="background:#f59e0b"></span>待验证<span class="count" id="legendPending">0</span></div>
+              </div>
+              <div class="split"></div>
+              <div class="legend">
+                <div class="legend-row"><span class="swatch" style="background:#6366f1"></span>AI 作答<span class="count" id="legendLlm">0</span></div>
+                <div class="legend-row"><span class="swatch" style="background:#374151"></span>手动录入<span class="count" id="legendManual">0</span></div>
+                <div class="legend-row"><span class="swatch" style="background:#9ca3af"></span>待作答<span class="count" id="legendSourcePending">0</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel" style="margin-top:16px">
+          <div class="panel-head">
+            <div>
+              <h2>最近更新</h2>
+              <div class="sub">最新 5 条</div>
+            </div>
+            <button class="btn ghost" id="gotoQuestions">查看全部</button>
+          </div>
+          <div class="panel-body" style="padding-top:12px" id="recentWrap"></div>
+        </section>
+      </section>
+
+      <section class="view" id="view-questions" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>题目管理</h2>
+              <div class="sub" id="tableSummary">—</div>
+            </div>
+            <div class="row-actions">
+              <span class="file-state" id="fileState">未连接文件</span>
+              <button class="btn primary" id="btnSaveFile">保存到文件</button>
+              <button class="btn ghost" id="btnExport">导出备份</button>
+              <button class="btn ghost" id="btnLoad">载入题库文件</button>
+              <button class="btn ghost" id="btnReset">放弃本地改动</button>
+              <input type="file" id="file" accept=".json,application/json" hidden>
+            </div>
+          </div>
+
+          <div class="filters">
+            <select class="control" id="filterStatus" aria-label="状态筛选">
+              <option value="all">全部状态</option>
+              <option value="verified">已验证</option>
+              <option value="pending">待验证</option>
+            </select>
+            <select class="control" id="filterSource" aria-label="来源筛选">
+              <option value="all">全部来源</option>
+              <option value="manual">手动录入</option>
+              <option value="llm">AI 作答</option>
+              <option value="pending">待作答</option>
+            </select>
+            <select class="control" id="sortBy" aria-label="排序方式">
+              <option value="updated">按更新时间</option>
+              <option value="hits">按命中次数</option>
+              <option value="q">按题干</option>
+            </select>
+            <div class="spacer"></div>
+            <button class="btn primary" id="btnGotoAdd">新增题目</button>
+          </div>
+
+          <div class="table-wrap" id="tableWrap"></div>
+          <div class="pager" id="pager"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-add" hidden>
+        <div class="panel form-panel">
+          <div class="panel-head">
+            <div>
+              <h2>新增题目</h2>
+              <div class="sub">答案存选项文字，选项顺序变化不影响匹配</div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="field">
+              <label class="lbl" for="nq">题干</label>
+              <textarea class="control" id="nq" placeholder="例如：修真的渡劫任务在哪个地图接取？"></textarea>
+            </div>
+
+            <div class="field">
+              <span class="lbl">选项与答案（勾选左侧圆点选择正确答案）</span>
+              <div class="option-row">
+                <label class="pick"><input type="radio" name="ans" value="0"> A</label>
+                <input type="text" class="control opt-input" data-i="0" placeholder="选项 A 文字" aria-label="选项 A">
+              </div>
+              <div class="option-row">
+                <label class="pick"><input type="radio" name="ans" value="1"> B</label>
+                <input type="text" class="control opt-input" data-i="1" placeholder="选项 B 文字" aria-label="选项 B">
+              </div>
+              <div class="option-row">
+                <label class="pick"><input type="radio" name="ans" value="2"> C</label>
+                <input type="text" class="control opt-input" data-i="2" placeholder="选项 C 文字" aria-label="选项 C">
+              </div>
+            </div>
+
+            <div class="form-foot">
+              <label class="pick"><input type="checkbox" id="nqVerified" checked> 直接标记为已验证</label>
+              <button class="btn primary" id="btnAdd">保存题目</button>
+            </div>
+
+            <p class="hint">改动先存在浏览器；点「保存到文件」可直接写回 quiz_zh.json（两次确认，浏览器会请求文件读写权限），也可「导出备份」后手动覆盖。内置快照如需刷新，运行 <code>python tasks/Quiz/bank/bank_tool.py</code>。</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div class="modal" id="pickModal" hidden>
+  <div class="modal-backdrop" id="pickBackdrop"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+    <div class="modal-head">
+      <h3 id="pickTitle">选择正确答案</h3>
+      <button class="icon-btn" id="pickClose" aria-label="关闭">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <p class="modal-q" id="pickQuestion"></p>
+    <div class="pick-list" id="pickList"></div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="pickUnset">标记为无答案</button>
+      <button class="btn secondary" id="pickCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="saveModal" hidden>
+  <div class="modal-backdrop" id="saveBackdrop"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="saveTitle">
+    <div class="modal-head">
+      <h3 id="saveTitle">保存到 quiz_zh.json</h3>
+      <button class="icon-btn" id="saveClose" aria-label="关闭">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <p class="modal-q" id="saveBody"></p>
+    <div class="modal-foot">
+      <button class="btn ghost" id="saveCancel">取消</button>
+      <button class="btn primary" id="saveNext">继续</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var STORE_KEY = 'quiz-bank-oas1';
+  var OPTION_KEYS = ['A', 'B', 'C'];
+  var PAGE_SIZE = 10;
+
+  var state = {
+    questions: [],
+    updated: '',
+    loaded: false,
+    loading: true,
+    dirty: false,
+    baseline: null,
+    view: 'overview',
+    page: 1,
+    keyword: '',
+    status: 'all',
+    source: 'all',
+    sort: 'updated'
+  };
+
+  var fileHandle = null;
+
+  var VIEW_TITLES = { overview: '概览', questions: '题目管理', add: '新增题目' };
+
+  function $(id) { return document.getElementById(id); }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+
+  function svgIcon(path, size) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var s = size || 14;
+    var node = document.createElementNS(ns, 'svg');
+    node.setAttribute('width', s);
+    node.setAttribute('height', s);
+    node.setAttribute('viewBox', '0 0 24 24');
+    node.setAttribute('fill', 'none');
+    node.setAttribute('stroke', 'currentColor');
+    node.setAttribute('stroke-width', '1.8');
+    node.setAttribute('stroke-linecap', 'round');
+    node.setAttribute('stroke-linejoin', 'round');
+    path.forEach(function (d) {
+      var p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', d);
+      node.appendChild(p);
+    });
+    return node;
+  }
+
+  function toast(message) {
+    var node = $('toast');
+    node.textContent = message;
+    node.classList.add('show');
+    clearTimeout(node._t);
+    node._t = setTimeout(function () { node.classList.remove('show'); }, 2200);
+  }
+
+  function today() {
+    var d = new Date();
+    var m = ('0' + (d.getMonth() + 1)).slice(-2);
+    var day = ('0' + d.getDate()).slice(-2);
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  function normalize(text) {
+    return (text || '').replace(/[\s，。？！、：；·—…“”‘’（）()【】\[\]"'？！,.:;!?\-_/\\|]/g, '').toLowerCase();
+  }
+
+  function makeId(question) {
+    var text = normalize(question);
+    var hash = 5381;
+    for (var i = 0; i < text.length; i++) {
+      hash = ((hash << 5) + hash + text.charCodeAt(i)) >>> 0;
+    }
+    return 'q' + hash.toString(16).padStart(9, '0').slice(0, 9);
+  }
+
+  /* ---------------------------------------------------------------- 统计 */
+  function computeStats() {
+    var questions = state.questions;
+    var total = questions.length;
+    var verified = 0;
+    var pending = 0;
+    var hitsSum = 0;
+    var hitsMax = 0;
+    var todayNew = 0;
+    var sources = { llm: 0, manual: 0, pending: 0, other: 0 };
+    var days = [];
+    var dayMap = {};
+    var i;
+    var todayText = today();
+
+    var now = new Date();
+    for (i = 6; i >= 0; i--) {
+      var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      var key = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+      dayMap[key] = 0;
+      days.push({ key: key, label: key.slice(5), count: 0 });
+    }
+
+    questions.forEach(function (item) {
+      if (item.verified) verified += 1; else pending += 1;
+      var hits = item.hits || 0;
+      hitsSum += hits;
+      if (hits > hitsMax) hitsMax = hits;
+      if (item.updated === todayText) todayNew += 1;
+      var source = item.source || 'manual';
+      if (sources[source] === undefined) sources.other += 1; else sources[source] += 1;
+      if (dayMap[item.updated] !== undefined) dayMap[item.updated] += 1;
+    });
+
+    days.forEach(function (day) { day.count = dayMap[day.key]; });
+
+    return {
+      total: total,
+      verified: verified,
+      pending: pending,
+      hitsAvg: total ? (hitsSum / total) : 0,
+      hitsMax: hitsMax,
+      todayNew: todayNew,
+      rate: total ? Math.round(verified / total * 100) : 0,
+      sources: sources,
+      days: days
+    };
+  }
+
+  function trendNode(markText, markClass, text, textClass) {
+    var wrap = document.createDocumentFragment();
+    if (markText) wrap.appendChild(el('span', 'mark ' + markClass, markText));
+    wrap.appendChild(el('span', textClass || 'flat', text));
+    return wrap;
+  }
+
+  function renderKPIs() {
+    var s = computeStats();
+
+    $('kpiTotal').textContent = s.total;
+    $('kpiTotalTrend').innerHTML = '';
+    $('kpiTotalTrend').appendChild(trendNode(
+      s.todayNew > 0 ? '+' + s.todayNew : '±0',
+      s.todayNew > 0 ? 'up' : 'flat',
+      s.todayNew > 0 ? '今日新增' : '今日暂无更新',
+      s.todayNew > 0 ? 'up' : 'flat'
+    ));
+
+    $('kpiVerified').textContent = s.verified;
+    $('kpiVerifiedTrend').innerHTML = '';
+    $('kpiVerifiedTrend').appendChild(trendNode(
+      s.rate + '%',
+      s.rate >= 80 ? 'up' : (s.rate >= 50 ? 'flat' : 'down'),
+      '验证覆盖率',
+      s.rate >= 80 ? 'up' : (s.rate >= 50 ? 'flat' : 'down')
+    ));
+
+    $('kpiPending').textContent = s.pending;
+    $('kpiPendingTrend').innerHTML = '';
+    $('kpiPendingTrend').appendChild(trendNode(
+      s.pending > 0 ? '待办' : '清零',
+      s.pending > 0 ? 'down' : 'up',
+      s.pending > 0 ? '需要人工复核' : '全部已验证',
+      s.pending > 0 ? 'down' : 'up'
+    ));
+
+    $('kpiHits').textContent = s.hitsAvg.toFixed(1);
+    $('kpiHitsTrend').innerHTML = '';
+    $('kpiHitsTrend').appendChild(trendNode('最高 ' + s.hitsMax, 'flat', '单题命中上限', 'flat'));
+
+    $('topUpdated').textContent = state.updated ? '更新 ' + state.updated : '未载入';
+    return s;
+  }
+
+  function renderCharts(s) {
+    var bars = $('barChart');
+    bars.innerHTML = '';
+    var max = 1;
+    s.days.forEach(function (day) { if (day.count > max) max = day.count; });
+    var todayText = today();
+
+    s.days.forEach(function (day) {
+      var col = el('div', 'bar-col' + (day.key === todayText ? ' today' : ''));
+      col.title = day.key + ' · ' + day.count + ' 题';
+      col.appendChild(el('span', 'num', day.count ? String(day.count) : ''));
+
+      var bar = el('div', 'bar');
+      var ratio = day.count / max;
+      bar.style.height = day.count ? Math.max(6, Math.round(ratio * 100)) + '%' : '2px';
+      col.appendChild(bar);
+      col.appendChild(el('span', 'date', day.label));
+      bars.appendChild(col);
+    });
+
+    var circumference = 2 * Math.PI * 70;
+    var arcLength = (s.rate / 100) * circumference;
+    var dash = arcLength.toFixed(1) + ' ' + circumference.toFixed(1);
+    var arc = $('donutArc');
+    arc.setAttribute('stroke-dasharray', dash);
+    arc.style.strokeDasharray = dash;
+    $('donutRate').textContent = s.rate + '%';
+    $('legendVerified').textContent = s.verified;
+    $('legendPending').textContent = s.pending;
+    $('legendLlm').textContent = s.sources.llm;
+    $('legendManual').textContent = s.sources.manual;
+    $('legendSourcePending').textContent = s.sources.pending;
+  }
+
+  /* ---------------------------------------------------------------- 过滤 */
+  function filtered() {
+    var keyword = normalize(state.keyword);
+    var items = state.questions.filter(function (item) {
+      if (state.status === 'verified' && !item.verified) return false;
+      if (state.status === 'pending' && item.verified) return false;
+      if (state.source !== 'all' && (item.source || '') !== state.source) return false;
+      if (keyword) {
+        var haystack = normalize(item.q) + normalize((item.options || []).join(''));
+        if (haystack.indexOf(keyword) === -1) return false;
+      }
+      return true;
+    });
+
+    items.sort(function (a, b) {
+      if (state.sort === 'hits') return (b.hits || 0) - (a.hits || 0);
+      if (state.sort === 'q') return (a.q || '').localeCompare(b.q || '', 'zh-Hans-CN');
+      return String(b.updated || '').localeCompare(String(a.updated || ''));
+    });
+    return items;
+  }
+
+  /* ---------------------------------------------------------------- 表格 */
+  function badge(item) {
+    if (!item.answer) return el('span', 'badge pending', '待作答');
+    if (item.verified) return el('span', 'badge ok', '已验证');
+    return el('span', 'badge wait', '待验证');
+  }
+
+  function actionButton(text, className, onClick) {
+    var button = el('button', 'mini-btn' + (className ? ' ' + className : ''), text);
+    button.type = 'button';
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function renderTable() {
+    var wrap = $('tableWrap');
+    var pager = $('pager');
+    wrap.innerHTML = '';
+    pager.innerHTML = '';
+
+    if (state.loading) {
+      var skeleton = el('div', 'skeleton');
+      for (var i = 0; i < 5; i++) {
+        var row = el('div', 'sk-row');
+        row.appendChild(el('div', 'sk'));
+        row.appendChild(el('div', 'sk'));
+        row.appendChild(el('div', 'sk'));
+        row.appendChild(el('div', 'sk'));
+        skeleton.appendChild(row);
+      }
+      wrap.appendChild(skeleton);
+      return;
+    }
+
+    if (!state.loaded) {
+      $('tableSummary').textContent = '未载入题库';
+      var stateBox = el('div', 'state');
+      var icon = el('div', 'state-icon');
+      icon.appendChild(svgIcon(['M12 5v14', 'M5 12h14'], 18));
+      stateBox.appendChild(icon);
+      stateBox.appendChild(el('div', 'state-title', '还没有载入题库'));
+      stateBox.appendChild(el('div', 'state-sub', '选择 quiz_zh.json，或直接使用内置快照'));
+      var loadBtn = el('button', 'btn primary', '载入题库文件');
+      loadBtn.type = 'button';
+      loadBtn.addEventListener('click', function () { $('file').click(); });
+      stateBox.appendChild(loadBtn);
+      wrap.appendChild(stateBox);
+      return;
+    }
+
+    var items = filtered();
+    var totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    if (state.page > totalPages) state.page = totalPages;
+    var start = (state.page - 1) * PAGE_SIZE;
+    var pageItems = items.slice(start, start + PAGE_SIZE);
+
+    $('tableSummary').textContent = '共 ' + items.length + ' 条 · 每页 ' + PAGE_SIZE + ' 条';
+
+    if (!items.length) {
+      var empty = el('div', 'state');
+      var emptyIcon = el('div', 'state-icon');
+      emptyIcon.appendChild(svgIcon(['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3 6h.01', 'M3 12h.01', 'M3 18h.01'], 18));
+      empty.appendChild(emptyIcon);
+      empty.appendChild(el('div', 'state-title', '没有符合条件的题目'));
+      empty.appendChild(el('div', 'state-sub', '试试调整筛选或搜索关键词'));
+      var clearBtn = el('button', 'btn secondary', '清除筛选');
+      clearBtn.type = 'button';
+      clearBtn.addEventListener('click', function () {
+        state.keyword = '';
+        state.status = 'all';
+        state.source = 'all';
+        $('search').value = '';
+        $('filterStatus').value = 'all';
+        $('filterSource').value = 'all';
+        state.page = 1;
+        renderTable();
+      });
+      empty.appendChild(clearBtn);
+      wrap.appendChild(empty);
+      return;
+    }
+
+    var table = el('table');
+    var thead = el('thead');
+    var headRow = el('tr');
+    ['题干', '状态', '答案', '来源', '命中', '更新时间', '操作'].forEach(function (title) {
+      var th = el('th', null, title);
+      th.scope = 'col';
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    var tbody = el('tbody');
+    pageItems.forEach(function (item) {
+      var row = el('tr');
+      var q = el('td');
+      q.appendChild(el('div', 'cell-q', item.q || '(无题干)'));
+      q.firstChild.title = item.q || '';
+      row.appendChild(q);
+
+      var status = el('td');
+      status.appendChild(badge(item));
+      row.appendChild(status);
+
+      var answer = el('td', 'cell-q', item.answer || '—');
+      answer.style.maxWidth = '200px';
+      answer.title = item.answer || '';
+      row.appendChild(answer);
+
+      row.appendChild(el('td', 'dim', item.source || 'manual'));
+      row.appendChild(el('td', 'num-cell', String(item.hits || 0)));
+      row.appendChild(el('td', 'dim', item.updated || '—'));
+
+      var actions = el('td');
+      var box = el('div', 'row-actions');
+      box.appendChild(actionButton('设为答案', null, function () { openAnswerPicker(item); }));
+      box.appendChild(actionButton('编辑', null, function () { editQuestion(item); }));
+      box.appendChild(actionButton(item.verified ? '取消验证' : '验证', null, function () {
+        item.verified = !item.verified;
+        item.updated = today();
+        save();
+        renderAll();
+      }));
+      box.appendChild(actionButton('删除', 'danger', function () {
+        if (!window.confirm('删除这道题？')) return;
+        var index = state.questions.indexOf(item);
+        if (index !== -1) state.questions.splice(index, 1);
+        save();
+        renderAll();
+      }));
+      actions.appendChild(box);
+      row.appendChild(actions);
+
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+
+    var info = el('span', 'info', '第 ' + (start + 1) + '–' + (start + pageItems.length) + ' 条，共 ' + items.length + ' 条');
+    pager.appendChild(info);
+
+    var prev = el('button', 'page-btn', '上一页');
+    prev.type = 'button';
+    prev.disabled = state.page <= 1;
+    prev.addEventListener('click', function () { state.page -= 1; renderTable(); });
+    pager.appendChild(prev);
+
+    for (var page = 1; page <= totalPages; page++) {
+      (function (target) {
+        var button = el('button', 'page-btn' + (target === state.page ? ' active' : ''), String(target));
+        button.type = 'button';
+        if (target === state.page) button.setAttribute('aria-current', 'page');
+        button.addEventListener('click', function () { state.page = target; renderTable(); });
+        pager.appendChild(button);
+      })(page);
+    }
+
+    var next = el('button', 'page-btn', '下一页');
+    next.type = 'button';
+    next.disabled = state.page >= totalPages;
+    next.addEventListener('click', function () { state.page += 1; renderTable(); });
+    pager.appendChild(next);
+  }
+
+  /* ---------------------------------------------------------------- 最近 */
+  function renderRecent() {
+    var wrap = $('recentWrap');
+    wrap.innerHTML = '';
+
+    if (state.loading) {
+      var skeleton = el('div', 'skeleton');
+      for (var i = 0; i < 3; i++) {
+        var row = el('div', 'sk-row');
+        row.appendChild(el('div', 'sk'));
+        row.appendChild(el('div', 'sk'));
+        row.appendChild(el('div', 'sk'));
+        row.appendChild(el('div', 'sk'));
+        skeleton.appendChild(row);
+      }
+      wrap.appendChild(skeleton);
+      return;
+    }
+
+    var items = state.questions.slice().sort(function (a, b) {
+      return String(b.updated || '').localeCompare(String(a.updated || ''));
+    }).slice(0, 5);
+
+    if (!items.length) {
+      var empty = el('div', 'state');
+      empty.appendChild(el('div', 'state-title', '还没有题目'));
+      empty.appendChild(el('div', 'state-sub', '在「新增题目」里录入，或导出后覆盖 quiz_zh.json'));
+      wrap.appendChild(empty);
+      return;
+    }
+
+    var table = el('table');
+    table.style.minWidth = '520px';
+    var tbody = el('tbody');
+    items.forEach(function (item) {
+      var row = el('tr');
+      var q = el('td');
+      q.appendChild(el('div', 'cell-q', item.q || '(无题干)'));
+      row.appendChild(q);
+
+      var status = el('td');
+      status.appendChild(badge(item));
+      row.appendChild(status);
+
+      var answer = el('td', 'cell-q', item.answer || '—');
+      answer.style.maxWidth = '220px';
+      row.appendChild(answer);
+
+      row.appendChild(el('td', 'dim', item.updated || '—'));
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  }
+
+  function renderAll() {
+    renderKPIs();
+    renderCharts(computeStats());
+    renderRecent();
+    renderTable();
+    updateFileState();
+  }
+
+  /* ---------------------------------------------------------------- 直接保存 */
+  function supportsFS() {
+    return typeof window.showOpenFilePicker === 'function' && window.isSecureContext;
+  }
+
+  function idb() {
+    if (!window.indexedDB || location.protocol === 'file:') return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var settled = false;
+      var finish = function (db) {
+        if (settled) return;
+        settled = true;
+        resolve(db);
+      };
+      setTimeout(function () { finish(null); }, 800);
+      try {
+        var req = indexedDB.open('quiz-bank', 1);
+        req.onupgradeneeded = function () { req.result.createObjectStore('handles'); };
+        req.onsuccess = function () { finish(req.result); };
+        req.onerror = function () { finish(null); };
+      } catch (e) {
+        finish(null);
+      }
+    });
+  }
+
+  function idbGet(key) {
+    return idb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction('handles', 'readonly').objectStore('handles').get(key);
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    }).catch(function () { return null; });
+  }
+
+  function idbSet(key, value) {
+    return idb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').put(value, key);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    }).catch(function () {});
+  }
+
+  function writable(handle) {
+    if (!handle) return Promise.resolve(null);
+    var options = { mode: 'readwrite' };
+    return handle.queryPermission(options).then(function (permission) {
+      if (permission === 'granted') return handle;
+      return handle.requestPermission(options).then(function (result) {
+        return result === 'granted' ? handle : null;
+      });
+    }).catch(function () { return null; });
+  }
+
+  function ensureFileHandle() {
+    return idbGet('bank').then(function (saved) {
+      return writable(fileHandle || saved).then(function (handle) {
+        if (handle) return handle;
+        return window.showOpenFilePicker({
+          multiple: false,
+          types: [{ description: '题库 JSON', accept: { 'application/json': ['.json'] } }]
+        }).then(function (handles) {
+          return writable(handles[0]);
+        });
+      });
+    }).then(function (handle) {
+      if (!handle) return null;
+      fileHandle = handle;
+      idbSet('bank', handle);
+      updateFileState();
+      return handle;
+    });
+  }
+
+  function bankPayload() {
+    return {
+      version: 1,
+      updated: state.updated || today(),
+      questions: state.questions
+    };
+  }
+
+  function recordKey(item) {
+    return item.id || ('q' + normalize(item.q || ''));
+  }
+
+  function snapshotMap(list) {
+    var map = {};
+    (list || []).forEach(function (item) {
+      map[recordKey(item)] = JSON.stringify(item);
+    });
+    return map;
+  }
+
+  function markBaseline() {
+    state.baseline = snapshotMap(state.questions);
+  }
+
+  function mergeWithLatest(latestList) {
+    var base = state.baseline || {};
+    var current = snapshotMap(state.questions);
+    var latestMap = {};
+    var order = [];
+
+    (latestList || []).forEach(function (item) {
+      var key = recordKey(item);
+      if (latestMap[key] === undefined) order.push(key);
+      latestMap[key] = item;
+    });
+
+    var removed = 0;
+    var external = 0;
+
+    Object.keys(base).forEach(function (key) {
+      if (current[key] === undefined && latestMap[key] !== undefined) {
+        delete latestMap[key];
+        removed += 1;
+      }
+    });
+
+    Object.keys(latestMap).forEach(function (key) {
+      if (base[key] === undefined && current[key] === undefined) external += 1;
+    });
+
+    var added = 0;
+    var updated = 0;
+
+    state.questions.forEach(function (item) {
+      var key = recordKey(item);
+      var existing = latestMap[key];
+      if (existing === undefined) {
+        order.push(key);
+        added += 1;
+      } else if (JSON.stringify(existing) !== JSON.stringify(item)) {
+        updated += 1;
+      }
+      latestMap[key] = item;
+    });
+
+    var merged = [];
+    order.forEach(function (key) {
+      if (latestMap[key] !== undefined) merged.push(latestMap[key]);
+    });
+    return { list: merged, added: added, updated: updated, removed: removed, external: external };
+  }
+
+  function updateFileState() {
+    var node = $('fileState');
+    if (!node) return;
+    if (!supportsFS()) {
+      node.textContent = '当前浏览器不支持直接写入，请用「导出备份」';
+      node.className = 'file-state';
+      return;
+    }
+    var name = fileHandle && fileHandle.name ? fileHandle.name : 'quiz_zh.json';
+    if (state.dirty) {
+      node.textContent = '有未保存改动 · ' + name;
+      node.className = 'file-state dirty';
+    } else if (fileHandle) {
+      node.textContent = '已保存 · ' + name;
+      node.className = 'file-state saved';
+    } else {
+      node.textContent = '未连接 ' + name;
+      node.className = 'file-state';
+    }
+  }
+
+  var saveStep = 0;
+
+  function openSaveModal() {
+    if (!state.loaded || !state.questions.length) { toast('题库为空'); return; }
+    if (!supportsFS()) { toast('当前浏览器不支持直接写入，请用「导出备份」'); return; }
+    var stats = computeStats();
+    saveStep = 1;
+    $('saveTitle').textContent = '保存到 quiz_zh.json';
+    $('saveBody').textContent = '将把当前题库的增删改合并写回 quiz_zh.json（以页面内容为准），'
+      + '文件里由脚本新增的题目会保留。目前 ' + state.questions.length + ' 条（已验证 '
+      + stats.verified + ' / 待验证 ' + stats.pending + '）。';
+    $('saveNext').textContent = '继续';
+    $('saveModal').hidden = false;
+    $('saveNext').focus();
+  }
+
+  function closeSaveModal() {
+    $('saveModal').hidden = true;
+    saveStep = 0;
+  }
+
+  function advanceSave() {
+    if (saveStep === 1) {
+      saveStep = 2;
+      $('saveTitle').textContent = '再次确认';
+      $('saveBody').textContent = '这是第二次确认：确认覆盖原文件 quiz_zh.json？';
+      $('saveNext').textContent = '确认写入';
+      $('saveNext').focus();
+      return;
+    }
+    writeBankFile();
+  }
+
+  function writeBankFile() {
+    $('saveNext').disabled = true;
+    ensureFileHandle().then(function (handle) {
+      if (!handle) {
+        toast('未选择文件');
+        return null;
+      }
+      return handle.getFile().then(function (file) {
+        return file.text();
+      }).then(function (text) {
+        var latest = { version: 1, questions: [] };
+        try {
+          latest = JSON.parse(text) || latest;
+        } catch (e) {
+          latest = { version: 1, questions: [] };
+        }
+        if (!Array.isArray(latest.questions)) latest.questions = [];
+
+        var result = mergeWithLatest(latest.questions);
+        var payload = {
+          version: latest.version || 1,
+          updated: today(),
+          questions: result.list
+        };
+
+        return handle.createWritable().then(function (stream) {
+          return stream.write(JSON.stringify(payload, null, 2) + '\n').then(function () {
+            return stream.close();
+          });
+        }).then(function () {
+          state.questions = result.list;
+          state.updated = payload.updated;
+          state.dirty = false;
+          markBaseline();
+          save(false);
+          updateFileState();
+          renderAll();
+          toast('已写入 ' + handle.name + '：新增 ' + result.added
+            + ' / 更新 ' + result.updated + ' / 删除 ' + result.removed
+            + (result.external ? '，保留文件新增 ' + result.external + ' 条' : ''));
+        });
+      });
+    }).catch(function (error) {
+      if (error && error.name === 'AbortError') {
+        toast('已取消');
+      } else {
+        toast('写入失败：' + (error && error.message ? error.message : error));
+      }
+    }).then(function () {
+      $('saveNext').disabled = false;
+      closeSaveModal();
+    });
+  }
+
+  /* ---------------------------------------------------------------- 视图 */
+  function setView(name) {
+    state.view = name;
+    ['overview', 'questions', 'add'].forEach(function (view) {
+      $('view-' + view).hidden = view !== name;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (item) {
+      item.classList.toggle('active', item.getAttribute('data-view') === name);
+    });
+    $('viewTitle').textContent = VIEW_TITLES[name] || '概览';
+    $('sidebar').classList.remove('open');
+    $('backdrop').classList.remove('show');
+  }
+
+  /* ---------------------------------------------------------------- 操作 */
+  var pickTarget = null;
+
+  function showPending() {
+    state.status = 'pending';
+    state.source = 'all';
+    state.keyword = '';
+    state.page = 1;
+    $('search').value = '';
+    $('filterStatus').value = 'pending';
+    $('filterSource').value = 'all';
+    setView('questions');
+    renderTable();
+  }
+
+  function openAnswerPicker(item) {
+    var options = (item.options || []).filter(function (o) { return o; });
+    if (!options.length) { toast('这道题没有选项'); return; }
+
+    pickTarget = item;
+    $('pickTitle').textContent = '选择正确答案 · ' + options.length + ' 个选项';
+    $('pickQuestion').textContent = item.q || '(无题干)';
+
+    var list = $('pickList');
+    list.innerHTML = '';
+    options.forEach(function (text, index) {
+      var selected = normalize(item.answer) === normalize(text);
+      var button = el('button', 'pick-option' + (selected ? ' selected' : ''));
+      button.type = 'button';
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      button.appendChild(el('span', 'pick-key', OPTION_KEYS[index] || String(index + 1)));
+      button.appendChild(el('span', 'pick-text', text));
+      button.addEventListener('click', function () { applyAnswer(item, text); });
+      list.appendChild(button);
+    });
+
+    $('pickModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    var first = list.querySelector('.pick-option');
+    if (first) first.focus();
+  }
+
+  function closePicker() {
+    $('pickModal').hidden = true;
+    pickTarget = null;
+    document.body.style.overflow = '';
+  }
+
+  function applyAnswer(item, text) {
+    item.answer = text;
+    item.verified = true;
+    item.updated = today();
+    item.wrong = (item.wrong || []).filter(function (w) { return normalize(w) !== normalize(text); });
+    save();
+    renderAll();
+    closePicker();
+    toast('答案已设为：' + text);
+  }
+
+  function clearAnswer(item) {
+    item.answer = '';
+    item.verified = false;
+    item.updated = today();
+    save();
+    renderAll();
+    closePicker();
+    toast('已标记为无答案');
+  }
+
+  function editQuestion(item) {
+    var question = window.prompt('题干', item.q || '');
+    if (question === null) return;
+    item.q = question.trim();
+    (item.options || []).forEach(function (text, index) {
+      var value = window.prompt('选项 ' + (OPTION_KEYS[index] || index + 1), text);
+      if (value !== null) item.options[index] = value.trim();
+    });
+    var answer = window.prompt('答案文字（需与某个选项一致）', item.answer || '');
+    if (answer !== null) item.answer = answer.trim();
+    if (!(item.options || []).length) item.options = [];
+    item.updated = today();
+    save();
+    renderAll();
+  }
+
+  function addQuestion() {
+    var question = $('nq').value.trim();
+    var options = Array.prototype.slice.call(document.querySelectorAll('.opt-input'))
+      .map(function (input) { return input.value.trim(); });
+    var picked = document.querySelector('input[name="ans"]:checked');
+
+    if (!question) { toast('请填写题干'); return; }
+    var filled = options.filter(function (o) { return o; });
+    if (filled.length < 2) { toast('至少填写两个选项'); return; }
+    if (!picked) { toast('请选择正确答案'); return; }
+    var answer = options[Number(picked.value)];
+    if (!answer) { toast('正确答案的选项是空的'); return; }
+
+    var existing = state.questions.filter(function (item) {
+      return normalize(item.q) === normalize(question);
+    })[0];
+
+    if (existing) {
+      existing.options = filled;
+      existing.answer = answer;
+      existing.verified = $('nqVerified').checked;
+      existing.updated = today();
+      save();
+      renderAll();
+      resetForm();
+      toast('已更新同题干题目');
+      setView('questions');
+      return;
+    }
+
+    state.questions.push({
+      id: makeId(question),
+      q: question,
+      options: filled,
+      answer: answer,
+      verified: $('nqVerified').checked,
+      wrong: [],
+      hits: 0,
+      source: 'manual',
+      updated: today()
+    });
+    save();
+    renderAll();
+    resetForm();
+    toast('已添加');
+    setView('questions');
+  }
+
+  function resetForm() {
+    $('nq').value = '';
+    Array.prototype.slice.call(document.querySelectorAll('.opt-input')).forEach(function (input) {
+      input.value = '';
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="ans"]'), function (radio) {
+      radio.checked = false;
+    });
+  }
+
+  /* ---------------------------------------------------------------- 存储 */
+  function save(dirty) {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        version: 1,
+        updated: state.updated || today(),
+        questions: state.questions
+      }));
+    } catch (e) {
+      toast('本地存储失败');
+    }
+    if (dirty !== false) {
+      state.dirty = true;
+      updateFileState();
+    }
+  }
+
+  function loadLocal() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.questions)) return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function applyData(data, message) {
+    if (!data || !Array.isArray(data.questions)) {
+      toast('文件格式不正确');
+      return;
+    }
+    state.questions = data.questions;
+    state.updated = data.updated || today();
+    state.loaded = true;
+    state.loading = false;
+    state.page = 1;
+    state.dirty = false;
+    markBaseline();
+    save(false);
+    updateFileState();
+    renderAll();
+    toast(message || ('已载入 ' + state.questions.length + ' 条'));
+  }
+
+  function exportData() {
+    if (!state.questions.length) { toast('题库为空'); return; }
+    var payload = {
+      version: 1,
+      updated: state.updated || today(),
+      questions: state.questions
+    };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'quiz_zh.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast('已导出，覆盖到 tasks/Quiz/bank/quiz_zh.json');
+  }
+
+  function fetchBank() {
+    var paths = ['quiz_zh.json', '../bank/quiz_zh.json'];
+    return new Promise(function (resolve) {
+      var index = 0;
+      function attempt() {
+        if (index >= paths.length) { resolve(null); return; }
+        fetch(paths[index++], { cache: 'no-store' })
+          .then(function (resp) {
+            if (!resp.ok) throw new Error('http ' + resp.status);
+            return resp.json();
+          })
+          .then(resolve)
+          .catch(attempt);
+      }
+      attempt();
+    });
+  }
+
+  function readSnapshot() {
+    var node = document.getElementById('bank-snapshot');
+    if (!node) return null;
+    try {
+      return JSON.parse(node.textContent);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /* ---------------------------------------------------------------- 事件 */
+  function bind() {
+    Array.prototype.forEach.call(document.querySelectorAll('.nav-item'), function (item) {
+      item.addEventListener('click', function () { setView(item.getAttribute('data-view')); });
+    });
+
+    $('menuBtn').addEventListener('click', function () {
+      $('sidebar').classList.toggle('open');
+      $('backdrop').classList.toggle('show', $('sidebar').classList.contains('open'));
+    });
+    $('backdrop').addEventListener('click', function () {
+      $('sidebar').classList.remove('open');
+      $('backdrop').classList.remove('show');
+    });
+
+    $('bellBtn').addEventListener('click', function () { toast('暂无新通知'); });
+    $('gotoQuestions').addEventListener('click', function () { setView('questions'); });
+    $('btnGotoAdd').addEventListener('click', function () { setView('add'); });
+    $('kpiPendingCard').addEventListener('click', showPending);
+
+    $('pickClose').addEventListener('click', closePicker);
+    $('pickCancel').addEventListener('click', closePicker);
+    $('pickBackdrop').addEventListener('click', closePicker);
+    $('pickUnset').addEventListener('click', function () {
+      if (pickTarget) clearAnswer(pickTarget);
+    });
+
+    $('btnSaveFile').addEventListener('click', openSaveModal);
+    $('saveClose').addEventListener('click', closeSaveModal);
+    $('saveCancel').addEventListener('click', closeSaveModal);
+    $('saveBackdrop').addEventListener('click', closeSaveModal);
+    $('saveNext').addEventListener('click', advanceSave);
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') return;
+      if (!$('pickModal').hidden) closePicker();
+      if (!$('saveModal').hidden) closeSaveModal();
+    });
+
+    $('search').addEventListener('input', function (event) {
+      state.keyword = event.target.value;
+      state.page = 1;
+      if (state.view !== 'questions') setView('questions');
+      renderTable();
+    });
+
+    $('filterStatus').addEventListener('change', function (event) {
+      state.status = event.target.value;
+      state.page = 1;
+      renderTable();
+    });
+    $('filterSource').addEventListener('change', function (event) {
+      state.source = event.target.value;
+      state.page = 1;
+      renderTable();
+    });
+    $('sortBy').addEventListener('change', function (event) {
+      state.sort = event.target.value;
+      state.page = 1;
+      renderTable();
+    });
+
+    $('btnAdd').addEventListener('click', addQuestion);
+    $('btnExport').addEventListener('click', exportData);
+    $('btnLoad').addEventListener('click', function () { $('file').click(); });
+
+    $('file').addEventListener('change', function (event) {
+      var file = event.target.files && event.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          applyData(JSON.parse(reader.result), '已载入 ' + file.name);
+        } catch (e) {
+          toast('JSON 解析失败');
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+      event.target.value = '';
+    });
+
+    $('btnReset').addEventListener('click', function () {
+      if (!window.confirm('放弃本地改动并重新载入题库？')) return;
+      localStorage.removeItem(STORE_KEY);
+      state.loading = true;
+      renderAll();
+      bootstrap(true);
+    });
+  }
+
+  function bootstrap(forceRemote) {
+    var local = forceRemote ? null : loadLocal();
+    if (local) {
+      state.questions = local.questions;
+      state.updated = local.updated || today();
+      state.loaded = true;
+      state.loading = false;
+      markBaseline();
+      renderAll();
+      return;
+    }
+    fetchBank().then(function (data) {
+      if (data) {
+        applyData(data, '已载入题库文件');
+        return;
+      }
+      var snapshot = readSnapshot();
+      if (snapshot && Array.isArray(snapshot.questions)) {
+        state.questions = snapshot.questions;
+        state.updated = snapshot.updated || today();
+        state.loaded = true;
+        state.loading = false;
+        markBaseline();
+        renderAll();
+        toast('已载入内置快照（' + state.questions.length + ' 条）');
+      } else {
+        state.loaded = false;
+        state.loading = false;
+        renderAll();
+        toast('请用「载入题库文件」选择 quiz_zh.json');
+      }
+    });
+  }
+
+  bind();
+  setView('overview');
+  state.loading = true;
+  renderAll();
+  bootstrap(false);
+})();
+</script>
+<script id="bank-snapshot" type="application/json">{"version":1,"updated":"2026-09-19","questions":[{"id":"q608767df5","q":"星级鉴定的星星数量对属性会有怎样的影响？","options":["星星越多属性加成越多","没有影响","星星越少属性加成越多"],"answer":"星星越多属性加成越多","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q3f0d5018e","q":"在轩中通过任务获得的第一个坐骑是什么？","options":["白马","火箭","汽车"],"answer":"白马","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q80c613377","q":"在战斗力排行榜排列中所根据的数据中，不正确的是？","options":["宝石等级","星级鉴定","每日任务的完成度"],"answer":"每日任务的完成度","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q0a777417c","q":"修真的渡劫任务在哪个地图接取？","options":["域外灵岛","昆仑山","忘川"],"answer":"昆仑山","verified":true,"wrong":[],"hits":0,"source":"pending","updated":"2026-09-18"},{"id":"qf43fab533","q":"神雕侠侣的男女主角是？","options":["杨过和郭襄","郭靖和黄蓉","杨过和小龙女"],"answer":"杨过和小龙女","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q286d55808","q":"宋朝徽钦二帝同时被金国士兵掳去.被封为昏德公，昏德侯的事件历史上称为什么？","options":["元丰改制","靖康之耻","金贾之盟"],"answer":"靖康之耻","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q024a03bf5","q":"我国民族节日\"火把节\"还有一个充满诗意的名字，叫什么？","options":["星回节","纳西节","商星节"],"answer":"星回节","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q0289af07a","q":"埃及的国王叫什么？","options":["陛下","法老","亚瑟王"],"answer":"法老","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q0447b8ece","q":"人生自古谁无死，留取丹心照汗青\"的作者是？","options":["夏完淳","文天祥","谭嗣同"],"answer":"文天祥","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qa5649cfb3","q":"托尔斯泰的自传体小说三部曲分别是幼年》？少年》和什么","options":["青年","中年","老年"],"answer":"青年","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q3c55f21b7","q":"三套鸭是我国那个城市的名菜？","options":["扬州","杭州","苏州"],"answer":"扬州","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q8631ee176","q":"亚历山大大帝是古代什么国家的国王？","options":["土耳其","罗马","马其顿"],"answer":"马其顿","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qcc0d59302","q":"参加世界杯次数最多的球队是？","options":["德国","意大利","巴西"],"answer":"巴西","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q3cb227e32","q":"希腊神话中将火种带给人类的神明是谁？","options":["普罗米修斯","阿波罗","阿布罗狄"],"answer":"普罗米修斯","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q1bffd1b32","q":"世界上最早的测定地震方位的仪器叫什么？","options":["地平经仪","玑衡辅辰仪","浑天仪"],"answer":"","verified":false,"wrong":[],"hits":0,"source":"pending","updated":"2026-09-18"},{"id":"q2760e551e","q":"奥林匹克标志中的黄色代表哪个洲？","options":["非洲","美洲","亚洲"],"answer":"亚洲","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q41686205e","q":"跆拳道的最高级别是？","options":["黑带","红带","白带"],"answer":"黑带","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q6e65d28d9","q":"成语”丁解牛\"括号中应该填入什么字？","options":[],"answer":"庖","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q25e44478d","q":"仙盟首领之下是什么官职？","options":["斥候","谋臣","战将"],"answer":"谋臣","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q695f867b1","q":"下面轩三大势力首领中不正确的是？","options":["罗毅","吕绝","薄猎"],"answer":"薄猎","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qf529cdab6","q":"给装备镶嵌宝石能带来什么好处？","options":["让装备变的好着","能够增加属性值","能够带来好运"],"answer":"能够增加属性值","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q004f147a9","q":"轩世界中一个玩家能获得几个称号？","options":["无数个","100个","10个"],"answer":"无数个","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q35a7ccb7d","q":"史诗任务中，雄霸共有几魄？","options":["7魄","9","1魄"],"answer":"7魄","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qb2eab6c07","q":"蟑螂请蜈蚣和壁虎到家中作客，发现没有油了，蜈蚣要去买，却久久未回，究竟发生了什么事？","options":["娱蚣还在门口穿鞋","蜈蚣身上没钱","蜈蚣在路上碰到了美女"],"answer":"蜈蚣还在门口穿鞋","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q6591b317a","q":"地球和太阳所属的星系是什么？","options":["银河系","太阳系","河外星系"],"answer":"银河系","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q0b9fe8690","q":"沧海桑田的\"沧\"是什么意思？","options":["青绿色的","无边际的","深蓝色的"],"answer":"青绿色的","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q734b847da","q":"大气中起吸收紫外线、保护地球生命作用的是哪种成分？","options":["氮气","臭氧","二氧化碳"],"answer":"臭氧","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qe1073df25","q":"爆竹声中一岁除，春风送暖入屠苏\"，这里的\"屠苏\"指的是","options":["苏州","房屋"],"answer":"屠苏酒","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q016d68233","q":"现代物理学的开创者和奠基人，相对论、质能关系的提出者是谁？","options":["居里夫人","爱因斯坦","爱迪生"],"answer":"爱因斯坦","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q95fb3df0f","q":"青丘势力的卫兵的帽子是什么颜色的？","options":["蓝色","红色","白色"],"answer":"蓝色","verified":false,"wrong":["蓝色"],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q8803d0ced","q":"本世纪上银幕出现最多的虚构人物是？","options":["福尔摩斯","阿诺·施瓦辛格","拿破仑"],"answer":"福尔摩斯","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qed215aebb","q":"洛神赋图\"是哪位画家所画？","options":["曹植","顾恺之"],"answer":"顾恺之","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qdd1a1d56e","q":"美国作家海明威的代表作是什么？","options":["老人与海","战争与和平","永别了武器"],"answer":"老人与海","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"qf8b05e25b","q":"马可·波罗游记》是欧洲人撰写的第一部详尽描绘哪个国家的历史、文化和艺术的游记？","options":["印度","中国","日本"],"answer":"中国","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q5d2206479","q":"中国的国鸟是什么？","options":["丹顶鹤","短尾信天翁","黄嘴白鹭"],"answer":"丹顶鹤","verified":true,"wrong":[],"hits":2,"source":"llm","updated":"2026-09-18"},{"id":"q167cf8b2a","q":"江苏\"这个地名，取义于哪两个名称的连称？","options":["江阴-苏州","南京-苏州","镇江-苏州"],"answer":"南京-苏州","verified":true,"wrong":[],"hits":2,"source":"llm","updated":"2026-09-18"},{"id":"q34b4b44cf","q":"“乃以乳为目，以脐为口，操干戚以舞\"是形容哪一个神话人物？","options":["萤尤","刑天","洪H"],"answer":"刑天","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q088a68a47","q":"牛羊肉泡馍是我国哪个省份的著名小吃？","options":["陕西","山西","西安"],"answer":"陕西","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-18"},{"id":"q78385a3f4","q":"轩中哪种任务类型给的金钱最多","options":["史诗","主线","金钱"],"answer":"史诗","verified":false,"wrong":["史诗"],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q622ffd940","q":"灵身可以进行多少次改命？","options":["1次","无限制","10次"],"answer":"","verified":false,"wrong":[],"hits":0,"source":"pending","updated":"2026-09-19"},{"id":"q0ba086159","q":"轩中能够同时放出几个金身参战","options":["1个","5个","3个"],"answer":"1个","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q5ce0e60f1","q":"轩辕中的月下老人在哪个地图？","options":["月老祠","牧野","忘川"],"answer":"月老祠","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q04ed4a3ce","q":"吕绝手持的何兵器？","options":["大刀","灵滴子","齐眉棍"],"answer":"大刀","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q88c648c88","q":"伟大的音乐家贝多芬惠了什么疾病之后依然坚持创作？","options":["心脏病","耳聋","帕金森综合症"],"answer":"耳聋","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"qcddd12b96","q":"杨家将的第一代名将是谁？","options":["杨康","杨业","杨六郎"],"answer":"杨业","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"qb8c7c2de3","q":"我国最大的火山口湖是长白山的什么湖？","options":["天池","滇池","镜泊湖"],"answer":"天池","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"qee4902d4f","q":"古代男子一百岁称为什么？","options":["期颐","古稀"],"answer":"期颐","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q7ddc9d6ee","q":"在天愿作比翼鸟\"的下句是什么？","options":["在地愿为连理枝","君若不离我不弃","两处茫茫皆不见"],"answer":"在地愿为连理枝","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q7bb64b0bb","q":"黄山分为前海，天海，北海，东海，西海等五大景区，所谓的“海\"是指：？","options":["死海","云海","林海"],"answer":"云海","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q6ba31dcc3","q":"汤圆最早叫什么？","options":["云吞","浮元子","元宵"],"answer":"浮元子","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q5b74f1b3e","q":"20世纪哪位艺术家被盗的艺术品次数最多？","options":["毕加索","梵高","罗丹"],"answer":"毕加索","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"qadcd5dd3d","q":"有的“火山\"随着地壳的变动会突然爆发，人们称之为什么？","options":["活火山","休眠火山","富士山"],"answer":"活火山","verified":false,"wrong":["活火山"],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q389216765","q":"千岛湖位于我国哪个省？","options":["海南","云南","浙江"],"answer":"浙江","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"qf9370c733","q":"爱迪生拥有多少个发明专利权，被人们称之为发明之王？","options":["1999个","1211个","1099个"],"answer":"1099个","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"qc96a227f2","q":"在天愿作比翼鸟，在地愿为连理枝\"讲述的是谁的爱情故事","options":["董永和七仙女","杨贵妃和唐玄宗","许仙和白素贞"],"answer":"杨贵妃和唐玄宗","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"},{"id":"q9f620d43e","q":"红娘\"是哪部作品中的人物？","options":["牡丹亭","西厢记","桃花扇"],"answer":"西厢记","verified":true,"wrong":[],"hits":1,"source":"llm","updated":"2026-09-19"}]}</script>
+</body>
+</html>

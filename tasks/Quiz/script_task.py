@@ -60,6 +60,9 @@ PROGRESS_RE = re.compile(r'第?\s*(\d+)\s*[/／]')
 
 
 class ScriptTask(BaseTask, QuizAssets):
+    # 答题界面刚出现时题目还在刷新，等页面稳定再开始读题
+    page_ready_wait = 2
+
     def run(self) -> None:
         self.check_assets()
 
@@ -113,6 +116,9 @@ class ScriptTask(BaseTask, QuizAssets):
             self.screenshot()
             if self.appear(self.I_QUIZ_DIALOG) or self.appear(self.I_QUIZ_FINISH):
                 logger.info('Quiz page appear')
+                # 页面刚出现时题目还没刷新出来，等稳定后再读题干
+                logger.info(f'Wait {self.page_ready_wait}s for the question')
+                self.device.sleep(self.page_ready_wait)
                 return True
             if timer.reached():
                 raise GameStuckError('答题界面没有出现（进入逻辑还未实现）')
@@ -230,7 +236,12 @@ class ScriptTask(BaseTask, QuizAssets):
         self.learn(question, options, answer_text or options.get(letter, ''), feedback)
 
     def click_option(self, letter: str) -> None:
+        """
+        点击选项：答题是连续点 A/B/C，先清掉连点记录，避免误触框架的
+        GameTooManyClickError（同一局里 A、C 各点 6 次就会触发）
+        """
         logger.info(f'Click option {letter}')
+        self.device.click_record_clear()
         self.click(getattr(self, OPTION_CLICKS[letter]))
 
     def read_feedback(self, timeout: int = 10) -> str:
