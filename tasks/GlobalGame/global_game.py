@@ -1,4 +1,5 @@
 # This Python file uses the following encoding: utf-8
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from module.atom.click import RuleClick
@@ -63,8 +64,12 @@ class GlobalGame(GlobalGameAssets):
     def _popup_pairs(self) -> list:
         """
         收集弹窗处理项：显式 popup_close + 按命名约定自动配对
+        素材文件缺失时跳过并告警，避免录制不全导致任务中断
         """
-        pairs = list(self.popup_close)
+        pairs = []
+        for check, close in list(self.popup_close):
+            if self._popup_ready(check):
+                pairs.append((check, close))
         for name in dir(type(self)):
             if not name.startswith('I_POPUP_'):
                 continue
@@ -73,9 +78,17 @@ class GlobalGame(GlobalGameAssets):
                 continue
             close_name = f'C_POPUP_{name[len("I_POPUP_"):]}_CLOSE'
             close = getattr(type(self), close_name, None)
-            if isinstance(close, RuleClick):
+            if isinstance(close, RuleClick) and self._popup_ready(check):
                 pairs.append((check, close))
         return pairs
+
+    @staticmethod
+    def _popup_ready(check) -> bool:
+        """弹窗特征素材是否存在"""
+        if Path(check.file).exists():
+            return True
+        logger.warning(f'Popup image missing: {check.file}')
+        return False
 
     def handle_death(self) -> None:
         """
