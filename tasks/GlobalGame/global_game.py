@@ -1,10 +1,16 @@
 # This Python file uses the following encoding: utf-8
+from typing import TYPE_CHECKING
+
 from module.atom.click import RuleClick
 from module.atom.image import RuleImage
 from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GlobalGame.assets import GlobalGameAssets
+
+if TYPE_CHECKING:
+    from module.config.config import Config
+    from module.device.device import Device
 
 
 class GlobalGame(GlobalGameAssets):
@@ -13,6 +19,15 @@ class GlobalGame(GlobalGameAssets):
     - 角色阵亡时点击「返回村子」复活，保留任务进度并立即重跑当前任务
     - 出现已知弹窗时点击对应的关闭区域，避免弹窗挡住任务操作
     """
+
+    if TYPE_CHECKING:
+        # 以下成员由子类 BaseTask 提供，这里仅作类型声明（运行时不生效）
+        config: Config
+        device: Device
+
+        def appear(self, target, interval: float = None, threshold: float = None): ...
+
+        def click(self, click=None, interval: float = None) -> bool: ...
 
     # 任务重跑时需要保留的进度记录 {(config_name, command): record}
     _task_records: dict = {}
