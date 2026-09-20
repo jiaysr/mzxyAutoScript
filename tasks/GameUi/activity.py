@@ -9,6 +9,7 @@
 
 两者同样是"OCR 定位 -> 目标不可见时按顺序滚动查找 -> 点击"的模式，由 GameUi 混入本类使用。
 """
+import difflib
 from time import sleep
 
 from module.base.timer import Timer
@@ -150,6 +151,11 @@ class ActivityNavigation(BaseTask, GameUiAssets):
         return True
 
     # ------------------------------------------------------------------ 活跃任务列表
+    # 扫描屏数（每屏约 5 行，列表较长；同服竞技/跨服竞技 在列表靠后位置）
+    ACTIVITY_SCAN_ROWS = 12
+    # 行名相似度阈值（容忍 OCR 形近字误识）
+    ACTIVITY_NAME_SIMILARITY = 0.7
+
     def active_task_completed(self, name: str) -> bool:
         """
         进入活动-活跃页，查找指定活跃任务是否已完成
@@ -159,19 +165,12 @@ class ActivityNavigation(BaseTask, GameUiAssets):
         if not self.ui_goto(page_activity_active, timeout=40):
             raise GameStuckError('Activity page does not appear')
 
-        # 列表回到顶部
-        for _ in range(2):
-            self.device.swipe(p1=(370, 300), p2=(370, 550))
-            self.device.click_record_clear()
-            self.device.sleep(0.4)
+        self.activity_list_to_top()
 
-        for _ in range(5):
-            self.screenshot()
-            results = self.O_ACTIVITY_TASK_LIST.detect_and_ocr(self.device.image, logDisplay=False)
-            status = self.parse_active_status(results, name)
-            if status is not None:
-                logger.info(f'Activity task [{name}] {"completed" if status else "not completed"}')
-                return status
+        for _ in range(self.ACTIVITY_SCAN_ROWS):
+            completed = self.activity_task_scan(name)
+            if completed is not None:
+                return completed
             logger.info(f'Activity task [{name}] not visible, scroll down')
             self.device.swipe(p1=(370, 550), p2=(370, 300))
             self.device.click_record_clear()
@@ -180,26 +179,86 @@ class ActivityNavigation(BaseTask, GameUiAssets):
         logger.warning(f'Activity task [{name}] not found')
         return False
 
+    def activity_task_scan(self, name: str):
+        """
+        在当前可见的活跃任务行里查找目标任务（状态没识别出来时重截一张再试）
+        :return: True=完成 / False=未完成 / None=当前屏没有
+        """
+        for _ in range(2):
+            self.screenshot()
+            results = self.O_ACTIVITY_TASK_LIST.detect_and_ocr(self.device.image, logDisplay=False)
+            rows = self.parse_activity_rows(results)
+            logger.info(f'Activity rows: {[row_name for row_name, _ in rows]}')
+            hit = False
+            for row_name, completed in rows:
+                if not self.activity_name_match(row_name, name):
+                    continue
+                hit = True
+                if completed is None:
+                    continue
+                logger.info(f'Activity task [{row_name}] {"completed" if completed else "not completed"}')
+                return completed
+            if not hit:
+                return None
+            logger.warning(f'Activity task [{name}] status not recognized, retry')
+            self.device.sleep(0.3)
+        return None
+
+    def activity_list_to_top(self, max_swipe: int = 6) -> None:
+        """
+        把活跃任务列表滑到顶部（滑动后 OCR 内容不变即认为到顶）
+        """
+        last = None
+        for _ in range(max_swipe):
+            self.screenshot()
+            texts = tuple(item.ocr_text for item in
+                          self.O_ACTIVITY_TASK_LIST.detect_and_ocr(self.device.image, logDisplay=False))
+            if texts == last:
+                return
+            last = texts
+            self.device.swipe(p1=(370, 300), p2=(370, 550))
+            self.device.click_record_clear()
+            self.device.sleep(0.5)
+
     @staticmethod
-    def parse_active_status(results: list, name: str):
+    def parse_activity_rows(results: list) -> list[tuple[str, bool]]:
         """
-        在活跃任务列表的 OCR 结果中查找任务行的状态
-        :return: True=完成 / False=未完成 / None=未找到
+        把活跃列表 OCR 结果按行分组，返回 [(行名, 是否完成)]（按屏幕位置从上到下）
+        行名取每行最左侧文本，状态列取同行的「完成/未完成」
         """
-        name_y = None
+        rows = []  # [[行名, y, 是否完成]]
         for item in results:
-            if name in item.ocr_text:
-                box = item.box
-                name_y = float((box[0][1] + box[2][1]) / 2)
-                break
-        if name_y is None:
-            return None
+            box = item.box
+            x = float((box[0][0] + box[1][0]) / 2)
+            if x < 150:
+                y = float((box[0][1] + box[2][1]) / 2)
+                rows.append([item.ocr_text.strip(), y, None])
         for item in results:
             text = item.ocr_text.strip()
-            if '完成' not in text:
+            if text not in ('完成', '未完成'):
                 continue
             box = item.box
             y = float((box[0][1] + box[2][1]) / 2)
-            if abs(y - name_y) <= 20:
-                return text == '完成'
-        return None
+            for row in rows:
+                if abs(row[1] - y) <= 20:
+                    row[2] = text == '完成'
+                    break
+        rows.sort(key=lambda row: row[1])
+        return [(row[0], row[2]) for row in rows]
+
+    @classmethod
+    def activity_name_match(cls, ocr_text: str, name: str) -> bool:
+        """
+        活跃任务名匹配：完全包含，或「前两字一致 + 相似度达标」（容忍 OCR 形近字误识）
+        前两字必须一致，避免同服竞技/跨服竞技 这类只差一字的名称互相误判
+        """
+        if not ocr_text or not name:
+            return False
+        if name in ocr_text:
+            return True
+        if len(name) < 3 or len(ocr_text) < len(name) - 1:
+            return False
+        if ocr_text[:2] != name[:2]:
+            return False
+        candidate = ocr_text[:len(name)]
+        return difflib.SequenceMatcher(None, candidate, name).ratio() >= cls.ACTIVITY_NAME_SIMILARITY
