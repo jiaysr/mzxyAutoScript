@@ -80,7 +80,8 @@ self.ui_goto(page_xxx)                                  # 通过页面注册表�
 `page.py`（页面注册表与页面定义）、`targets.py`（页面连线目标类型）。
 目前注册了 `page_main`（主页面）、`page_role_detail`（角色-详情）、`page_item_bag`（物品-背包）、
 `page_challenge`（挑战-战场），以及活动弹窗的 `page_activity`（容器）、`page_activity_notice`（公告）、
-`page_activity_list`（活动-推荐）、`page_activity_world_boss`（活动-世界首领），其余页面录制素材后
+`page_activity_list`（活动-推荐）、`page_activity_world_boss`（活动-世界首领）、
+`page_activity_active`（活动-活跃），其余页面录制素材后
 按 `tasks/GameUi/page.py` 中的方式注册（或在自己的 `tasks/<Task>/page.py` 扩展），
 `ui_goto` 即可自动寻路。未注册页面的任务直接继承 `BaseTask`，用图像/OCR 规则导航即可
 （当前 `Challenge`、`WorldBoss`、`Quiz`、`Restart` 都是这种方式）。

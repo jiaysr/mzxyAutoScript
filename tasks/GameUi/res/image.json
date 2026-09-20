@@ -97,5 +97,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "活动弹窗容器特征（右上角绿X）"
+  },
+  {
+    "itemName": "page_activity_active",
+    "imageName": "res_page_activity_active.png",
+    "roiFront": "872,180,88,36",
+    "roiBack": "850,160,150,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-活跃页特征（活跃值标题）"
   }
 ]

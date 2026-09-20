@@ -29,5 +29,7 @@ class ArenaAssets:
 	# Ocr Rule Assets
 	# 角斗场弹窗文案识别区 
 	O_ARENA_DIALOG = RuleOcr(roi=(325,255,640,200), area=(325,255,640,200), mode="Full", method="Default", keyword="", name="arena_dialog")
+	# 活动-活跃页任务列表 
+	O_ARENA_ACTIVE_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="arena_active_list")
 
 

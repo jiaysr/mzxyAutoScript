@@ -42,6 +42,8 @@ class GameUiAssets:
 	I_PAGE_ACTIVITY_WORLD_BOSS = RuleImage(roi_front=(158,554,45,41), roi_back=(135,541,90,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_world_boss.png")
 	# 活动弹窗容器特征（右上角绿X） 
 	I_PAGE_ACTIVITY = RuleImage(roi_front=(1180,28,65,52), roi_back=(1150,10,130,90), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity.png")
+	# 活动-活跃页特征（活跃值标题） 
+	I_PAGE_ACTIVITY_ACTIVE = RuleImage(roi_front=(872,180,88,36), roi_back=(850,160,150,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_active.png")
 
 
 	# Ocr Rule Assets

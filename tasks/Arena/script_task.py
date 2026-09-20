@@ -9,6 +9,8 @@
 5. 匹配成功：点击「确定」参战，等待 2 秒后重启游戏，重启成功记完成 1 次
 6. 匹配超时：重启游戏清掉排队状态，不计次，30 秒后重试
 7. 未达次数则立刻开下一局，达到次数则排到明天 12:00
+8. 勾选「根据活跃度判断」后次数配置失效：每局开始前查活动-活跃页的「同服竞技」是否已完成，
+   已完成则直接收工，未完成才继续打
 """
 from datetime import datetime, time, timedelta
 
@@ -17,7 +19,7 @@ from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.Arena.assets import ArenaAssets
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_challenge, page_main
+from tasks.GameUi.page import page_activity_active, page_challenge, page_main
 from tasks.Restart.script_task import ScriptTask as RestartTask
 
 # 竞技场开放时间
@@ -30,6 +32,8 @@ class ScriptTask(GameUi, ArenaAssets):
     # 报名确认弹窗与匹配成功弹窗的文案
     QUEUE_TEXT = '是否进入2人角斗队列'
     MATCH_TEXT = '角斗场为您找到了对手'
+    # 活跃页里对应的任务名
+    ACTIVE_TASK_NAME = '同服竞技'
 
     def run(self) -> None:
         arena = self.config.arena.arena_config
@@ -41,8 +45,14 @@ class ScriptTask(GameUi, ArenaAssets):
             self.finish_today(now)
             raise TaskEnd('Arena')
 
-        # 今日次数已达上限
-        if arena.completed >= arena.count:
+        if arena.use_activity:
+            # 活跃度模式：活跃任务已完成则今天收工（次数配置失效）
+            if self.active_task_completed(self.ACTIVE_TASK_NAME):
+                logger.info(f'Activity task [{self.ACTIVE_TASK_NAME}] completed, finish today')
+                self.finish_today(now)
+                raise TaskEnd('Arena')
+        elif arena.completed >= arena.count:
+            # 今日次数已达上限
             logger.info(f'Completed count reached: {arena.completed}/{arena.count}')
             self.finish_today(now)
             raise TaskEnd('Arena')
@@ -67,12 +77,8 @@ class ScriptTask(GameUi, ArenaAssets):
         self.config.save()
         logger.attr('Arena completed', f'{arena.completed}/{arena.count}')
 
-        if arena.completed >= arena.count:
-            logger.info('All arena rounds finished today')
-            self.finish_today(datetime.now())
-        else:
-            # 立刻开下一局
-            self.set_next_run(task='Arena', target=datetime.now() + timedelta(seconds=30))
+        # 下一局的检查在下次运行开头（活跃度模式重新查活跃状态，普通模式查次数）
+        self.set_next_run(task='Arena', target=datetime.now() + timedelta(seconds=30))
         raise TaskEnd('Arena')
 
     # ---------------------------------------------------------------- 调度
@@ -118,6 +124,61 @@ class ScriptTask(GameUi, ArenaAssets):
         """
         results = self.O_ARENA_DIALOG.detect_and_ocr(self.device.image, logDisplay=False)
         return any(text in result.ocr_text for result in results)
+
+    # ---------------------------------------------------------------- 活跃度
+    def active_task_completed(self, name: str) -> bool:
+        """
+        进入活动-活跃页，查找指定活跃任务是否已完成
+        :return: 已完成返回 True；未完成或未找到返回 False
+        """
+        logger.hr('Check activity task')
+        if not self.ui_goto(page_activity_active, timeout=40):
+            raise GameStuckError('Activity page does not appear')
+
+        # 列表回到顶部
+        for _ in range(2):
+            self.device.swipe(p1=(370, 300), p2=(370, 550))
+            self.device.click_record_clear()
+            self.device.sleep(0.4)
+
+        for _ in range(5):
+            self.screenshot()
+            results = self.O_ARENA_ACTIVE_LIST.detect_and_ocr(self.device.image, logDisplay=False)
+            status = self.parse_active_status(results, name)
+            if status is not None:
+                logger.info(f'Activity task [{name}] {"completed" if status else "not completed"}')
+                return status
+            logger.info(f'Activity task [{name}] not visible, scroll down')
+            self.device.swipe(p1=(370, 550), p2=(370, 300))
+            self.device.click_record_clear()
+            self.device.sleep(0.6)
+
+        logger.warning(f'Activity task [{name}] not found')
+        return False
+
+    @staticmethod
+    def parse_active_status(results: list, name: str):
+        """
+        在活跃任务列表的 OCR 结果中查找任务行的状态
+        :return: True=完成 / False=未完成 / None=未找到
+        """
+        name_y = None
+        for item in results:
+            if name in item.ocr_text:
+                box = item.box
+                name_y = float((box[0][1] + box[2][1]) / 2)
+                break
+        if name_y is None:
+            return None
+        for item in results:
+            text = item.ocr_text.strip()
+            if '完成' not in text:
+                continue
+            box = item.box
+            y = float((box[0][1] + box[2][1]) / 2)
+            if abs(y - name_y) <= 20:
+                return text == '完成'
+        return None
 
     def sign_up(self, timeout: int = 15) -> None:
         """
