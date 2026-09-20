@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "itemName": "popup_active_reward_close",
+    "roiFront": "944,249,47,44",
+    "roiBack": "942,247,49,49",
+    "description": "活跃值关闭"
+  },
+  {
+    "itemName": "popup_hunt_notice_close",
+    "roiFront": "1016,126,47,44",
+    "roiBack": "999,109,80,73",
+    "description": "上古狩猎关闭"
+  }
+]

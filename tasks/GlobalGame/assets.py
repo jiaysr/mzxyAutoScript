@@ -11,6 +11,20 @@ class GlobalGameAssets:
 
 
 	# Click Rule Assets
+	# 活跃值关闭 
+	C_POPUP_ACTIVE_REWARD_CLOSE = RuleClick(roi_front=(944,249,47,44), roi_back=(942,247,49,49), name="popup_active_reward_close")
+	# 上古狩猎关闭 
+	C_POPUP_HUNT_NOTICE_CLOSE = RuleClick(roi_front=(1016,126,47,44), roi_back=(999,109,80,73), name="popup_hunt_notice_close")
+
+
+	# Image Rule Assets
+	# 活跃值 
+	I_POPUP_ACTIVE_REWARD = RuleImage(roi_front=(338,297,226,46), roi_back=(326,292,252,56), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_active_reward.png")
+	# 上古狩猎 
+	I_POPUP_HUNT_NOTICE = RuleImage(roi_front=(576,199,122,40), roi_back=(559,185,156,69), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_hunt_notice.png")
+
+
+	# Click Rule Assets
 	# 死亡弹窗-返回村子 
 	C_DEATH_RETURN = RuleClick(roi_front=(486,264,310,58), roi_back=(486,264,310,58), name="death_return")
 

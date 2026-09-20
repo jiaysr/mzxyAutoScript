@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "itemName": "popup_active_reward",
+    "imageName": "popup_popup_active_reward.png",
+    "roiFront": "338,297,226,46",
+    "roiBack": "326,292,252,56",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活跃值"
+  },
+  {
+    "itemName": "popup_hunt_notice",
+    "imageName": "popup_popup_hunt_notice.png",
+    "roiFront": "576,199,122,40",
+    "roiBack": "559,185,156,69",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "上古狩猎"
+  }
+]
