@@ -31,6 +31,20 @@ class TopMenuNavigation(BaseTask, GameUiAssets):
         logger.warning('Top-right menu not expanded')
         return False
 
+    def ui_close_menu(self, timeout: float = 6) -> bool:
+        """确保右上角菜单收起（处于展开状态时点击开关收起）"""
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if self.appear(self.I_MENU_COLLAPSED):
+                return True
+            if self.appear(self.I_MENU_EXPANDED):
+                logger.info('Collapse top-right menu')
+                self.appear_then_click(self.I_MENU_EXPANDED, interval=0.5)
+            sleep(0.2)
+        logger.warning('Top-right menu not collapsed')
+        return False
+
     def ui_menu_click(self, icon, timeout: float = 6) -> bool:
         """展开右上角菜单后，查找并点击菜单内的图标"""
         if not self.ui_open_menu(timeout):

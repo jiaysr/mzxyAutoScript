@@ -11,33 +11,13 @@ class WorldBossAssets:
 
 
 	# Click Rule Assets
-	# 主界面-菜单栏折叠按钮 
-	C_MENU_TOGGLE_CLICK = RuleClick(roi_front=(1141,25,46,40), roi_back=(1141,25,46,40), name="menu_toggle_click")
-	# 主界面-活动菜单 
-	C_ACTIVITY_MENU = RuleClick(roi_front=(985,55,60,35), roi_back=(985,55,60,35), name="activity_menu")
-	# 活动弹窗-活动tab 
-	C_ACTIVITY_TAB = RuleClick(roi_front=(431,90,90,50), roi_back=(431,90,90,50), name="activity_tab")
-	# 活动弹窗-世界首领子tab 
-	C_WORLD_BOSS_TAB = RuleClick(roi_front=(1030,448,140,57), roi_back=(1030,448,140,57), name="world_boss_tab")
-	# 活动弹窗-关闭按钮 
-	C_PANEL_CLOSE_CLICK = RuleClick(roi_front=(1210,30,44,44), roi_back=(1210,30,44,44), name="panel_close_click")
 	# 主界面-目标锁定按钮(点文字中心,避开左侧按钮) 
 	C_TARGET_BUTTON_CLICK = RuleClick(roi_front=(1226,270,28,18), roi_back=(1226,270,28,18), name="target_button_click")
 	# 主界面-攻击按钮 
 	C_ATTACK = RuleClick(roi_front=(1146,597,82,60), roi_back=(1146,597,82,60), name="attack")
-	# 角色面板-返回按钮 
-	C_CHARACTER_RETURN = RuleClick(roi_front=(1185,5,80,65), roi_back=(1185,5,80,65), name="character_return")
 
 
 	# Image Rule Assets
-	# 主界面-菜单栏展开按钮 
-	I_MENU_TOGGLE = RuleImage(roi_front=(1150,28,30,34), roi_back=(1100,5,140,80), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_menu_toggle.png")
-	# 主界面-菜单栏已折叠按钮 
-	I_MENU_COLLAPSED = RuleImage(roi_front=(1150,28,30,34), roi_back=(1100,5,140,80), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_menu_collapsed.png")
-	# 活动弹窗-面板已打开标志 
-	I_PANEL_CLOSE = RuleImage(roi_front=(1210,30,44,44), roi_back=(1180,10,100,80), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_panel_close.png")
-	# 活动弹窗-世界首领子tab 
-	I_WORLD_BOSS_TAB = RuleImage(roi_front=(1043,459,116,33), roi_back=(1020,200,170,420), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_world_boss_tab.png")
 	# 世界首领-蛮锤名称 
 	I_BOSS_MANCHUI = RuleImage(roi_front=(211,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_manchui.png")
 	# 世界首领-无情名称 
@@ -48,12 +28,8 @@ class WorldBossAssets:
 	I_BOSS_FUWANG = RuleImage(roi_front=(435,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_fuwang.png")
 	# 世界首领-蝎王名称 
 	I_BOSS_XIEWANG = RuleImage(roi_front=(738,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_xiewang.png")
-	# 世界首领页-刷新时间标签 
-	I_WORLD_BOSS_PAGE = RuleImage(roi_front=(325,505,127,32), roi_back=(300,490,200,60), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_world_boss_page.png")
 	# 主界面-目标锁定按钮 
 	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1199,223,71,69), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_target_button.png")
-	# 角色面板-顶部页签栏 
-	I_CHARACTER_PANEL = RuleImage(roi_front=(300,8,820,62), roi_back=(300,8,820,62), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_character_panel.png")
 
 
 	# Ocr Rule Assets
@@ -68,9 +44,5 @@ class WorldBossAssets:
 	S_BOSS_SCROLL_LEFT = RuleSwipe(roi_front=(700,380,100,80), roi_back=(250,380,100,80), mode="default", name="boss_scroll_left")
 	# 世界首领-向右滚动卡片 
 	S_BOSS_SCROLL_RIGHT = RuleSwipe(roi_front=(250,380,100,80), roi_back=(700,380,100,80), mode="default", name="boss_scroll_right")
-	# 活动弹窗-子tab列表上滑 
-	S_SUBTAB_SCROLL_UP = RuleSwipe(roi_front=(1105,565,20,40), roi_back=(1105,215,20,40), mode="default", name="subtab_scroll_up")
-	# 活动弹窗-子tab列表下滑(回到顶部) 
-	S_SUBTAB_SCROLL_DOWN = RuleSwipe(roi_front=(1105,215,20,40), roi_back=(1105,565,20,40), mode="default", name="subtab_scroll_down")
 
 

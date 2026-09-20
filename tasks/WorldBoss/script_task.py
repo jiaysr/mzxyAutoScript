@@ -5,8 +5,9 @@ from datetime import datetime, time, timedelta
 from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
+from tasks.GameUi.game_ui import GameUi
+from tasks.GameUi.page import page_activity_world_boss
 from tasks.WorldBoss.assets import WorldBossAssets
-from tasks.base_task import BaseTask
 
 # 世界首领：目标地图与坐标来自游戏内「寻」的自动寻路终点（实测值）
 BOSS_LIST = [
@@ -54,7 +55,7 @@ SEEK_OFFSET_Y = 576
 ARRIVE_TOLERANCE = 20
 
 
-class ScriptTask(BaseTask, WorldBossAssets):
+class ScriptTask(GameUi, WorldBossAssets):
     """
     世界首领：按配置的时间段提前出发，自动寻路到首领位置
     角色阵亡由 BaseTask.screenshot 的全局死亡检测处理（复活后重跑本任务）
@@ -198,99 +199,14 @@ class ScriptTask(BaseTask, WorldBossAssets):
         self.device.stuck_record_clear()
         self.device.click_record_clear()
 
-    def ensure_main_page(self, timeout: int = 30) -> bool:
+    def enter_world_boss_page(self, timeout: int = 40) -> bool:
         """
-        等待回到游戏主界面
-        """
-        timer = Timer(timeout).start()
-        while 1:
-            self.reset_records()
-            self.screenshot()
-            if self.appear(self.I_MENU_TOGGLE) or self.appear(self.I_MENU_COLLAPSED):
-                logger.info('Main page appear')
-                return True
-            if self.appear(self.I_CHARACTER_PANEL):
-                logger.info('Character panel appear, close it')
-                self.click(self.C_CHARACTER_RETURN, interval=1)
-                self.device.sleep(0.5)
-                continue
-            if timer.reached():
-                raise GameStuckError('Main page does not appear')
-
-    def ensure_menu_expanded(self, timeout: int = 10) -> bool:
-        """
-        顶部菜单被收起时点击折叠按钮展开
-        """
-        timer = Timer(timeout).start()
-        while 1:
-            self.reset_records()
-            self.screenshot()
-            if self.appear(self.I_MENU_TOGGLE):
-                logger.info('Menu bar is expanded')
-                return True
-            if self.appear(self.I_MENU_COLLAPSED):
-                logger.info('Menu bar is collapsed, expand it')
-                self.click(self.C_MENU_TOGGLE_CLICK, interval=1)
-                continue
-            if timer.reached():
-                raise GameStuckError('Menu bar state unknown')
-
-    def enter_world_boss_page(self, timeout: int = 20) -> bool:
-        """
-        主界面 -> 活动 -> 活动tab -> 上滑子tab -> 世界首领
-        活动弹窗每次打开都是初始状态，所以先关掉已打开的面板再重新打开
+        前往活动-世界首领页面（页面寻路自动处理：展开菜单 -> 活动图标 -> 活动 tab -> 子 tab）
         """
         logger.hr('Enter world boss page')
-        self.ensure_main_page()
-        self.ensure_menu_expanded()
-
-        # 面板已打开时先关闭，保证下次打开是初始状态
-        self.screenshot()
-        if self.appear(self.I_PANEL_CLOSE):
-            logger.info('Close the opened panel first')
-            self.click(self.C_PANEL_CLOSE_CLICK, interval=1)
-            self.device.sleep(1)
-
-        # 打开活动弹窗
-        timer = Timer(timeout).start()
-        while 1:
-            self.reset_records()
-            self.screenshot()
-            if self.appear(self.I_PANEL_CLOSE):
-                logger.info('Activity panel is open')
-                break
-            if timer.reached():
-                raise GameStuckError('Activity panel does not appear')
-            logger.info('Open activity panel')
-            self.click(self.C_ACTIVITY_MENU, interval=1)
-
-        # 切到活动 tab
-        logger.info('Switch to activity tab')
-        self.click(self.C_ACTIVITY_TAB, interval=1)
-        self.device.sleep(1)
-
-        # 子 tab 列表回到顶部
-        logger.info('Scroll sub tab list to top')
-        for _ in range(2):
-            self.swipe(self.S_SUBTAB_SCROLL_DOWN)
-            self.device.sleep(0.5)
-
-        # 上滑查找并点击世界首领子 tab
-        timer = Timer(timeout).start()
-        while 1:
-            self.reset_records()
-            self.screenshot()
-            if self.appear(self.I_WORLD_BOSS_PAGE):
-                logger.info('World boss page appear')
-                return True
-            if timer.reached():
-                raise GameStuckError('World boss page does not appear')
-            if self.appear_then_click(self.I_WORLD_BOSS_TAB, interval=2):
-                logger.info('Click world boss tab')
-                continue
-            logger.info('World boss tab not found, scroll up')
-            self.swipe(self.S_SUBTAB_SCROLL_UP)
-            self.device.sleep(0.5)
+        if not self.ui_goto(page_activity_world_boss, timeout=timeout):
+            raise GameStuckError('World boss page does not appear')
+        return True
 
     def seek_boss(self, boss: dict) -> bool:
         """
@@ -342,11 +258,7 @@ class ScriptTask(BaseTask, WorldBossAssets):
         """
         收起顶部菜单，避免遮挡
         """
-        self.screenshot()
-        if self.appear(self.I_MENU_TOGGLE):
-            logger.info('Collapse menu bar')
-            self.click(self.C_MENU_TOGGLE_CLICK, interval=1)
-            self.device.sleep(0.5)
+        self.ui_close_menu()
 
     def get_target_name(self) -> str:
         """
