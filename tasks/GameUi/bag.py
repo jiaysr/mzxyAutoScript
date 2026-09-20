@@ -13,6 +13,7 @@
 
 滚动使用 `ui_swipe_gentle`（慢速分段 + 滚动后等待布局稳定），每屏滚动约 2 行。
 """
+from module.base.timer import Timer
 from module.exception import GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets
@@ -32,12 +33,16 @@ class BagNavigation(BaseTask, GameUiAssets):
     BAG_SCROLL_CENTER = 345
     BAG_SCAN_SCREENS = 18
     BAG_SETTLE = 1.0
+    # 整理背包后的等待（整理动画 + 重新排布）
+    BAG_SORT_SETTLE = 2.0
     # 物品详情面板的关闭按钮
     BAG_PANEL_CLOSE = (1075, 175)
+    # 物品详情面板里的使用按钮文案（面板还有 设置快捷 / 永久丢弃）
+    BAG_PANEL_USE_TEXTS = ('立即使用', '全部使用')
 
     def bag_find_item(self, name: str):
         """
-        进入物品-背包页查找指定物品
+        进入物品-背包页查找指定物品（进背包先点整理背包）
         :return: (x, y) 物品图标中心；未找到返回 None
         """
         logger.hr('Find bag item')
@@ -45,6 +50,7 @@ class BagNavigation(BaseTask, GameUiAssets):
             raise GameStuckError('Item bag page does not appear')
         self.device.sleep(self.BAG_SETTLE)
         self.bag_close_item_panel()
+        self.bag_sort()
 
         last_rows = None
         for _ in range(self.BAG_SCAN_SCREENS):
@@ -73,6 +79,41 @@ class BagNavigation(BaseTask, GameUiAssets):
         self.device.click(x=coord[0], y=coord[1], control_name=f'bag_item_{name}')
         self.device.click_record_clear()
         return True
+
+    def bag_use_item(self, name: str) -> bool:
+        """
+        查找并点击背包物品，然后在详情面板点「立即使用」
+        :return: 是否点到「立即使用」
+        """
+        if not self.bag_click_item(name):
+            return False
+        self.device.sleep(self.BAG_SETTLE)
+        return self.bag_panel_use()
+
+    def bag_panel_use(self, timeout: int = 5) -> bool:
+        """
+        物品详情面板：OCR 定位「立即使用」并点击
+        （面板文案里有「使用后可参与...」的说明，所以要精确匹配按钮文字）
+        """
+        timer = Timer(timeout).start()
+        while 1:
+            self.screenshot()
+            results = self.O_BAG_GRID.detect_and_ocr(self.device.image, logDisplay=False)
+            for item in results:
+                text = item.ocr_text.strip()
+                if text not in self.BAG_PANEL_USE_TEXTS and not ('立即' in text and len(text) <= 5):
+                    continue
+                box = item.box
+                x = (min(point[0] for point in box) + max(point[0] for point in box)) / 2 + self.O_BAG_GRID.roi[0]
+                y = (min(point[1] for point in box) + max(point[1] for point in box)) / 2 + self.O_BAG_GRID.roi[1]
+                logger.info(f'Click bag panel use [{text}] at ({x:.0f}, {y:.0f})')
+                self.device.click(x=x, y=y, control_name='bag_panel_use')
+                self.device.click_record_clear()
+                return True
+            if timer.reached():
+                logger.warning('Bag panel use button not found')
+                return False
+            self.device.sleep(self.BAG_SETTLE)
 
     def bag_item_scan(self, name: str):
         """
@@ -104,6 +145,15 @@ class BagNavigation(BaseTask, GameUiAssets):
         self.device.click(x=self.BAG_PANEL_CLOSE[0], y=self.BAG_PANEL_CLOSE[1], control_name='bag_panel_close')
         self.device.click_record_clear()
         self.device.sleep(self.BAG_SETTLE)
+
+    def bag_sort(self) -> None:
+        """
+        点击整理背包，等整理动画结束后再开始找物品
+        """
+        logger.info('Click sort bag')
+        self.click(self.C_BAG_SORT)
+        self.device.click_record_clear()
+        self.device.sleep(self.BAG_SORT_SETTLE)
 
     def bag_scroll(self) -> None:
         """

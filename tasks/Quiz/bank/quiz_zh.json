@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-09-19",
+  "updated": "2026-09-21",
   "questions": [
     {
       "id": "q608767df5",
@@ -412,10 +412,12 @@
       ],
       "answer": "屠苏酒",
       "verified": true,
-      "wrong": [],
-      "hits": 1,
+      "wrong": [
+        "房屋"
+      ],
+      "hits": 3,
       "source": "llm",
-      "updated": "2026-09-18"
+      "updated": "2026-09-21"
     },
     {
       "id": "q016d68233",
@@ -428,7 +430,7 @@
       "answer": "爱因斯坦",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-18"
     },
@@ -534,7 +536,7 @@
       "answer": "南京-苏州",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-18"
     },
@@ -579,7 +581,7 @@
       "answer": "金钱",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-19"
     },
@@ -713,7 +715,7 @@
       "answer": "在地愿为连理枝",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-19"
     },
@@ -838,6 +840,517 @@
       "hits": 1,
       "source": "llm",
       "updated": "2026-09-19"
+    },
+    {
+      "id": "q247e73f96",
+      "q": "斗仙阁的最高军阶是什么？",
+      "options": [
+        "天策上将",
+        "兵马大元帅",
+        "总司令"
+      ],
+      "answer": "兵马大元帅",
+      "verified": true,
+      "wrong": [
+        "天策上将"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q9ab8ad3a2",
+      "q": "在轩中3级宝石合成4级宝石需要？",
+      "options": [
+        "五彩泥",
+        "铜贝",
+        "补天石"
+      ],
+      "answer": "五彩泥",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q0e6ed59d1",
+      "q": "白原、青丘、赢土共同的敌人是谁？",
+      "options": [
+        "大自然",
+        "小白兔",
+        "萤尤部族"
+      ],
+      "answer": "萤尤部族",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q8d9416d43",
+      "q": "下列哪种不属于仙体的元素种类？",
+      "options": [
+        "土",
+        "水",
+        "风"
+      ],
+      "answer": "土",
+      "verified": true,
+      "wrong": [
+        "风"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q4ab9d11b8",
+      "q": "英国哪个地区的男子传统服装是裙子？",
+      "options": [
+        "英格兰",
+        "爱尔兰",
+        "苏格兰"
+      ],
+      "answer": "苏格兰",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q06294e131",
+      "q": "中途岛海战，日本损失了几艘航母？",
+      "options": [
+        "4",
+        "5艘",
+        "6艘"
+      ],
+      "answer": "4艘",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q96c77a1fb",
+      "q": "巫妖王阿尔萨斯的武器叫什么名字？",
+      "options": [
+        "霜之哀伤",
+        "毁灭之锤",
+        "灰使者"
+      ],
+      "answer": "霜之哀伤",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "qd18c286a8",
+      "q": "美国牛仔当年最突出的标志是？",
+      "options": [
+        "帽子",
+        "牛仔裤",
+        "养牛"
+      ],
+      "answer": "帽子",
+      "verified": true,
+      "wrong": [
+        "牛仔裤"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q035ba3e1e",
+      "q": "以下哪位英国首相获得果诺贝尔文学奖？",
+      "options": [
+        "布什",
+        "丘吉尔",
+        "布莱尔"
+      ],
+      "answer": "丘吉尔",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q66bc92c71",
+      "q": "北极星在哪个星座中？",
+      "options": [
+        "天琴座",
+        "小熊星座",
+        "射手座"
+      ],
+      "answer": "小熊星座",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q88ef99414",
+      "q": "在泰国最赋盛名、被誉为\"水果之王\"的水果是什么？",
+      "options": [
+        "火龙果",
+        "榴莲",
+        "石榴"
+      ],
+      "answer": "榴莲",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q95701371d",
+      "q": "炎帝是传说上古时期姜姓部洛的首领，又被称为什么？",
+      "options": [
+        "赤帝",
+        "姜帝",
+        "神帝"
+      ],
+      "answer": "赤帝",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q616dbc5b6",
+      "q": "汉王朝的开国元勋，被称为“谋圣\"的是？",
+      "options": [
+        "萧何",
+        "张良",
+        "韩信"
+      ],
+      "answer": "张良",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q7dcf22102",
+      "q": "凯尔特人队创造了美国职业篮球联赛历史上的几连冠？",
+      "options": [
+        "10",
+        "8",
+        "12"
+      ],
+      "answer": "8",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "qf6ec5ef3a",
+      "q": "光合作用膜中的绿色色素.捕获光的主要成分是什么？",
+      "options": [
+        "细胞膜",
+        "细胞核",
+        "叶绿素"
+      ],
+      "answer": "叶绿素",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-20"
+    },
+    {
+      "id": "q1f3df0347",
+      "q": "牧野墨尤统帅的马匹上的飘带是什么颜色的？",
+      "options": [
+        "红色",
+        "绿色",
+        "紫色"
+      ],
+      "answer": "红色",
+      "verified": false,
+      "wrong": [
+        "红色"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "qbc4bbf647",
+      "q": "修炼仙体可以增加什么？",
+      "options": [
+        "额外伤害",
+        "生命",
+        "闪避"
+      ],
+      "answer": "生命",
+      "verified": false,
+      "wrong": [
+        "生命"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q2df3c7178",
+      "q": "炎帝在哪里？",
+      "options": [
+        "牧野",
+        "家里",
+        "火星"
+      ],
+      "answer": "火星",
+      "verified": false,
+      "wrong": [
+        "火星"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q577713386",
+      "q": "在世界聊频道说话需要消耗？",
+      "options": [
+        "五彩泥1个",
+        "铜贝100",
+        "元宝10个"
+      ],
+      "answer": "铜贝100",
+      "verified": false,
+      "wrong": [
+        "铜贝100"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "qdc22de344",
+      "q": "进入的第一张中立地图叫什么名字？",
+      "options": [
+        "太空要塞",
+        "忘川",
+        "牧野"
+      ],
+      "answer": "",
+      "verified": false,
+      "wrong": [],
+      "hits": 0,
+      "source": "pending",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q5ed7f3745",
+      "q": "诗句“每逢佳节倍思亲\"中的\"佳节\"是指那个节日？",
+      "options": [
+        "中秋节",
+        "重阳节",
+        "清明节"
+      ],
+      "answer": "重阳节",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q9e0e742c7",
+      "q": "世界最大的沙漠是什么沙漠？",
+      "options": [
+        "塔克拉玛干沙漠",
+        "撒哈拉沙漠",
+        "毛乌素沙漠"
+      ],
+      "answer": "撒哈拉沙漠",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q1460b1ebd",
+      "q": "中国著名的三星堆遗地位于哪？",
+      "options": [
+        "四川",
+        "贵州",
+        "云南"
+      ],
+      "answer": "四川",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q5a9ab8b2a",
+      "q": "玩家通过己方营地的驿站传送时，需要花费什么？",
+      "options": [
+        "500铜贝",
+        "350铜贝",
+        "100铜贝"
+      ],
+      "answer": "500铜贝",
+      "verified": false,
+      "wrong": [
+        "500铜贝"
+      ],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q11ba1529d",
+      "q": "春秋时的齐国和鲁国，在现在的哪个省？",
+      "options": [
+        "吉林",
+        "山东",
+        "河北"
+      ],
+      "answer": "山东",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q3133de7c4",
+      "q": "万圣节源于古代的哪个民族？",
+      "options": [
+        "日耳曼",
+        "凯尔特",
+        "拉丁人"
+      ],
+      "answer": "凯尔特",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q0e6a7ba5d",
+      "q": "德国男足历史上最大比分失利是输给哪个国家？",
+      "options": [
+        "法国",
+        "意大利",
+        "英国"
+      ],
+      "answer": "英国",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q66bb87fe1",
+      "q": "第一届古代奥运会在哪里举行？",
+      "options": [
+        "中国",
+        "罗马",
+        "雅典"
+      ],
+      "answer": "雅典",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "qce9603144",
+      "q": "阿斯旺水坝建立在哪条河上？",
+      "options": [
+        "亚马逊河",
+        "尼罗河",
+        "底格里斯河"
+      ],
+      "answer": "尼罗河",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "qfa37b4a14",
+      "q": "墨尤是上古时代什么族的部落的酋长？",
+      "options": [
+        "九黎",
+        "轩",
+        "苗疆"
+      ],
+      "answer": "九黎",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q66be6bde1",
+      "q": "中国古汉语对别人母亲的尊称是什么？",
+      "options": [
+        "令尊",
+        "令堂",
+        "令媛"
+      ],
+      "answer": "令堂",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "q01f94a1f3",
+      "q": "相对论主要由哪位科学家创立？",
+      "options": [
+        "爱因斯坦",
+        "华盛顿",
+        "爱迪生"
+      ],
+      "answer": "爱因斯坦",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
+    },
+    {
+      "id": "qd945bd25b",
+      "q": "我国民族节日“火把节\"会持续庆祝多少天？",
+      "options": [
+        "3天",
+        "2天",
+        "1天"
+      ],
+      "answer": "3天",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "source": "llm",
+      "updated": "2026-09-21"
     }
   ]
 }

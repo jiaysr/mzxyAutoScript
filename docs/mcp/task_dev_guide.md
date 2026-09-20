@@ -228,6 +228,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 
 - 背包找物品：`bag_find_item(name)` 返回物品图标中心坐标、`bag_click_item(name)` 查找并点击；
   OCR 物品名 + 慢速滚动逐屏扫描，几何常量（4 列、行距 120px）在 `tasks/GameUi/bag.py`
+- 背包用物品：`bag_use_item(name)` = 查找并点击物品 -> 在详情面板 OCR 定位并点击「立即使用」
+  （面板文案里有「使用后可参与…」的说明，所以按按钮文字精确匹配，不要匹配「使用」两字）
 - 活跃任务状态：`active_task_completed(name)`
 - 弹窗文案：`dialog_appear(rule, text)`；长时间等待：`reset_records()`、`ui_swipe_gentle(p1, p2)`
 
@@ -237,3 +239,5 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - `tasks/Arena` 同服竞技、`tasks/CrossArena` 跨服竞技：报名 -> 匹配 -> 参战 -> 重启计数；
   支持「根据活跃度判断」模式（查活动-活跃页对应任务是否已完成）和等待匹配时给高优先级任务让路
 - `tasks/Challenge`、`tasks/Quiz`：挑战、答题
+  - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
+    -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）

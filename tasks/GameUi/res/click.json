@@ -28,5 +28,11 @@
     "roiFront": "364,363,173,40",
     "roiBack": "364,363,173,40",
     "description": "游戏通用弹窗-取消按钮（备用）"
+  },
+  {
+    "itemName": "bag_sort",
+    "roiFront": "573,591,137,48",
+    "roiBack": "573,591,137,48",
+    "description": "背包-整理背包按钮"
   }
 ]

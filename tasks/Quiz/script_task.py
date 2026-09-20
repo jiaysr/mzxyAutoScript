@@ -27,17 +27,21 @@ import cv2
 
 from module.base.timer import Timer
 from module.base.utils import crop
-from module.exception import GameStuckError, RequestHumanTakeover, TaskEnd
+from module.exception import RequestHumanTakeover, TaskEnd
 from module.logger import logger
+from tasks.GameUi.game_ui import GameUi
+from tasks.GameUi.page import page_main
 from tasks.Quiz.assets import QuizAssets
 from tasks.Quiz.deepseek_client import DeepSeekClient
 from tasks.Quiz.question_bank import QuestionBank
-from tasks.base_task import BaseTask
 
 TASK_DIR = Path(__file__).resolve().parent
 BANK_FILE = str(TASK_DIR / 'bank' / 'quiz_zh.json')
 UNKNOWN_FILE = str(TASK_DIR / 'bank' / 'quiz_unknown.jsonl')
 SHOT_DIR = './log/quiz'
+
+# 背包里的答题券名称（bag_find_item 走 OCR 名字匹配）
+BAG_ITEM_NAME = '趣味答题券'
 
 # 交给 AI 的弹窗区域 (x, y, w, h)：题号 + 题干 + 三个选项，不含右侧答题榜
 DIALOG_AREA = (60, 120, 790, 390)
@@ -59,7 +63,7 @@ OPTION_PREFIX = re.compile(r'^\s*[A-Ca-c]\s*[:：.、]?\s*')
 PROGRESS_RE = re.compile(r'第?\s*(\d+)\s*[/／]')
 
 
-class ScriptTask(BaseTask, QuizAssets):
+class ScriptTask(GameUi, QuizAssets):
     # 答题界面刚出现时题目还在刷新，等页面稳定再开始读题
     page_ready_wait = 2
 
@@ -75,12 +79,13 @@ class ScriptTask(BaseTask, QuizAssets):
         )
         self.device.stuck_record_add('QUIZ')
 
-        # TODO 进入答题界面的导航还没做，目前需要答题界面已经打开
-        self.wait_quiz_page()
+        if self.enter_quiz_by_ticket():
+            self.answer_loop()
+            self.finish_quiz()
+        else:
+            logger.warning('答题券不可用（可能今天已经答过），跳过本次答题')
 
-        self.answer_loop()
-        self.finish_quiz()
-
+        self.back_to_main()
         self.schedule_next_day()
         raise TaskEnd('Quiz')
 
@@ -106,9 +111,27 @@ class ScriptTask(BaseTask, QuizAssets):
         logger.info(f'下次答题: {target.strftime("%Y-%m-%d %H:%M")}')
 
     # ---------------------------------------------------------------- 页面
+    def enter_quiz_by_ticket(self, timeout: int = 15) -> bool:
+        """
+        进入物品-背包页找到「趣味答题券」，点开详情面板后立即使用，进入答题界面
+        :return: 答题界面是否出现
+        """
+        logger.hr('Use quiz ticket')
+        if not self.bag_use_item(BAG_ITEM_NAME):
+            logger.warning(f'背包里没有找到 [{BAG_ITEM_NAME}] 或没有点到立即使用')
+            return False
+        return self.wait_quiz_page(timeout=timeout)
+
+    def back_to_main(self) -> None:
+        """
+        答题结束后回到主页面
+        """
+        if not self.ui_goto(page_main, timeout=30):
+            logger.warning('返回主页面失败')
+
     def wait_quiz_page(self, timeout: int = 30) -> bool:
         """
-        等待答题界面出现（进入逻辑待补，目前假定界面已打开）
+        等待答题界面出现
         """
         logger.hr('Wait quiz page')
         timer = Timer(timeout).start()
@@ -121,7 +144,8 @@ class ScriptTask(BaseTask, QuizAssets):
                 self.device.sleep(self.page_ready_wait)
                 return True
             if timer.reached():
-                raise GameStuckError('答题界面没有出现（进入逻辑还未实现）')
+                logger.warning('答题界面没有出现')
+                return False
             self.device.sleep(0.5)
 
     def finish_quiz(self) -> None:

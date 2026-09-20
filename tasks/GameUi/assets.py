@@ -21,6 +21,8 @@ class GameUiAssets:
 	C_DIALOG_CONFIRM = RuleClick(roi_front=(742,363,173,40), roi_back=(742,363,173,40), name="dialog_confirm")
 	# 游戏通用弹窗-取消按钮（备用） 
 	C_DIALOG_CANCEL = RuleClick(roi_front=(364,363,173,40), roi_back=(364,363,173,40), name="dialog_cancel")
+	# 背包-整理背包按钮 
+	C_BAG_SORT = RuleClick(roi_front=(573,591,137,48), roi_back=(573,591,137,48), name="bag_sort")
 
 
 	# Image Rule Assets
