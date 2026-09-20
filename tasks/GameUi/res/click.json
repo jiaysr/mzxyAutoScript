@@ -16,5 +16,17 @@
     "roiFront": "1191,49,48,45",
     "roiBack": "1191,49,48,45",
     "description": "活动弹窗右上角关闭按钮"
+  },
+  {
+    "itemName": "dialog_confirm",
+    "roiFront": "742,363,173,40",
+    "roiBack": "742,363,173,40",
+    "description": "游戏通用弹窗-确定按钮（报名/参战）"
+  },
+  {
+    "itemName": "dialog_cancel",
+    "roiFront": "364,363,173,40",
+    "roiBack": "364,363,173,40",
+    "description": "游戏通用弹窗-取消按钮（备用）"
   }
 ]

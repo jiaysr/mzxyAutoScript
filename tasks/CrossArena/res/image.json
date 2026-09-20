@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "cross_arena_button_2p",
+    "imageName": "res_cross_arena_button_2p.png",
+    "roiFront": "293,198,102,38",
+    "roiBack": "277,177,142,81",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "2人跨服按钮（跨服竞技选中时）"
+  }
+]

@@ -10,17 +10,5 @@
     "roiFront": "285,190,130,58",
     "roiBack": "285,190,130,58",
     "description": "2人角斗按钮区域（双击报名用）"
-  },
-  {
-    "itemName": "arena_confirm",
-    "roiFront": "742,363,173,40",
-    "roiBack": "742,363,173,40",
-    "description": "弹窗-确定按钮（确认报名/参战）"
-  },
-  {
-    "itemName": "arena_cancel",
-    "roiFront": "364,363,173,40",
-    "roiBack": "364,363,173,40",
-    "description": "弹窗-取消按钮（测试中止用）"
   }
 ]

@@ -15,21 +15,10 @@ class ArenaAssets:
 	C_ARENA_SAME_SERVER = RuleClick(roi_front=(1122,274,123,48), roi_back=(1122,274,123,48), name="arena_same_server")
 	# 2人角斗按钮区域（双击报名用） 
 	C_ARENA_BUTTON_CLICK = RuleClick(roi_front=(285,190,130,58), roi_back=(285,190,130,58), name="arena_button_click")
-	# 弹窗-确定按钮（确认报名/参战） 
-	C_ARENA_CONFIRM = RuleClick(roi_front=(742,363,173,40), roi_back=(742,363,173,40), name="arena_confirm")
-	# 弹窗-取消按钮（测试中止用） 
-	C_ARENA_CANCEL = RuleClick(roi_front=(364,363,173,40), roi_back=(364,363,173,40), name="arena_cancel")
 
 
 	# Image Rule Assets
 	# 2人角斗按钮（同服竞技已选中） 
 	I_ARENA_BUTTON_2P = RuleImage(roi_front=(293,198,102,38), roi_back=(277,177,142,81), threshold=0.8, method="Template matching", file="./tasks/Arena/res/res_arena_button_2p.png")
-
-
-	# Ocr Rule Assets
-	# 角斗场弹窗文案识别区 
-	O_ARENA_DIALOG = RuleOcr(roi=(325,255,640,200), area=(325,255,640,200), mode="Full", method="Default", keyword="", name="arena_dialog")
-	# 活动-活跃页任务列表 
-	O_ARENA_ACTIVE_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="arena_active_list")
 
 

@@ -17,12 +17,11 @@
 from datetime import datetime, time, timedelta
 
 from module.base.timer import Timer
-from module.config.utils import convert_to_underscore
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.Arena.assets import ArenaAssets
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_activity_active, page_challenge, page_main
+from tasks.GameUi.page import page_challenge, page_main
 from tasks.Restart.script_task import ScriptTask as RestartTask
 
 # 竞技场开放时间
@@ -32,13 +31,13 @@ CLOSE_TIME = time(22, 0)
 
 class ScriptTask(GameUi, ArenaAssets):
 
+    # 本任务在调度优先级表中的名字（用于让路判断）
+    SCHEDULER_NAME = 'Arena'
     # 报名确认弹窗与匹配成功弹窗的文案
     QUEUE_TEXT = '是否进入2人角斗队列'
     MATCH_TEXT = '角斗场为您找到了对手'
     # 活跃页里对应的任务名
     ACTIVE_TASK_NAME = '同服竞技'
-    # 调度优先级高于 Arena 的任务（与 ConfigManual.SCHEDULER_PRIORITY 对齐）
-    HIGHER_PRIORITY_TASKS = ['Restart', 'Quiz', 'WorldBoss', 'Challenge']
 
     def run(self) -> None:
         arena = self.config.arena.arena_config
@@ -127,68 +126,6 @@ class ScriptTask(GameUi, ArenaAssets):
                 raise GameStuckError('Same server arena not selected')
             self.click(self.C_ARENA_SAME_SERVER, interval=1)
 
-    def dialog_appear(self, text: str) -> bool:
-        """
-        精确检测弹窗文案（不用 ocr_appear：框架的 OCR filter 有逐字符兜底匹配，会误判）
-        """
-        results = self.O_ARENA_DIALOG.detect_and_ocr(self.device.image, logDisplay=False)
-        return any(text in result.ocr_text for result in results)
-
-    # ---------------------------------------------------------------- 活跃度
-    def active_task_completed(self, name: str) -> bool:
-        """
-        进入活动-活跃页，查找指定活跃任务是否已完成
-        :return: 已完成返回 True；未完成或未找到返回 False
-        """
-        logger.hr('Check activity task')
-        if not self.ui_goto(page_activity_active, timeout=40):
-            raise GameStuckError('Activity page does not appear')
-
-        # 列表回到顶部
-        for _ in range(2):
-            self.device.swipe(p1=(370, 300), p2=(370, 550))
-            self.device.click_record_clear()
-            self.device.sleep(0.4)
-
-        for _ in range(5):
-            self.screenshot()
-            results = self.O_ARENA_ACTIVE_LIST.detect_and_ocr(self.device.image, logDisplay=False)
-            status = self.parse_active_status(results, name)
-            if status is not None:
-                logger.info(f'Activity task [{name}] {"completed" if status else "not completed"}')
-                return status
-            logger.info(f'Activity task [{name}] not visible, scroll down')
-            self.device.swipe(p1=(370, 550), p2=(370, 300))
-            self.device.click_record_clear()
-            self.device.sleep(0.6)
-
-        logger.warning(f'Activity task [{name}] not found')
-        return False
-
-    @staticmethod
-    def parse_active_status(results: list, name: str):
-        """
-        在活跃任务列表的 OCR 结果中查找任务行的状态
-        :return: True=完成 / False=未完成 / None=未找到
-        """
-        name_y = None
-        for item in results:
-            if name in item.ocr_text:
-                box = item.box
-                name_y = float((box[0][1] + box[2][1]) / 2)
-                break
-        if name_y is None:
-            return None
-        for item in results:
-            text = item.ocr_text.strip()
-            if '完成' not in text:
-                continue
-            box = item.box
-            y = float((box[0][1] + box[2][1]) / 2)
-            if abs(y - name_y) <= 20:
-                return text == '完成'
-        return None
-
     def sign_up(self, timeout: int = 15) -> None:
         """
         双击 2人角斗 按钮弹出报名弹窗，点击「确定」报名
@@ -207,13 +144,13 @@ class ScriptTask(GameUi, ArenaAssets):
 
         # 等待报名弹窗出现
         timer = Timer(timeout).start()
-        while not self.dialog_appear(self.QUEUE_TEXT):
+        while not self.dialog_appear(self.O_DIALOG_TEXT, self.QUEUE_TEXT):
             self.screenshot()
             if timer.reached():
                 raise GameStuckError('Queue dialog does not appear')
             self.device.sleep(0.5)
         logger.info('Queue dialog appear, confirm sign up')
-        self.click(self.C_ARENA_CONFIRM)
+        self.click(self.C_DIALOG_CONFIRM)
         # 报名成功后自动回到主页面
         self.ui_wait_until_appear(page_main, timeout=timeout)
 
@@ -229,9 +166,9 @@ class ScriptTask(GameUi, ArenaAssets):
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
-            if self.dialog_appear(self.MATCH_TEXT):
+            if self.dialog_appear(self.O_DIALOG_TEXT, self.MATCH_TEXT):
                 logger.info('Match found, join the battle')
-                self.click(self.C_ARENA_CONFIRM)
+                self.click(self.C_DIALOG_CONFIRM)
                 return 'matched'
             if timer.reached():
                 logger.warning(f'Wait match timeout ({timeout}s)')
@@ -239,22 +176,9 @@ class ScriptTask(GameUi, ArenaAssets):
             if arena.use_activity and self.higher_priority_task_due():
                 logger.warning('Higher priority task is due, give up this round')
                 return 'yield'
+            # 主页面静止等待匹配，需定期清空卡死记录
+            self.reset_records()
             self.device.sleep(2)
-
-    def higher_priority_task_due(self) -> bool:
-        """
-        是否有更高优先级（调度顺序在 Arena 之前）且已使能、已到期的任务
-        """
-        now = datetime.now()
-        for name in self.HIGHER_PRIORITY_TASKS:
-            task = getattr(self.config.model, convert_to_underscore(name), None)
-            scheduler = getattr(task, 'scheduler', None)
-            if scheduler is None or not scheduler.enable:
-                continue
-            if scheduler.next_run <= now:
-                logger.attr('Higher priority task', f'{name} {scheduler.next_run}')
-                return True
-        return False
 
     def restart_game(self) -> None:
         """

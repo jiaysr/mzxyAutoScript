@@ -17,6 +17,10 @@ class GameUiAssets:
 	C_PAGE_PLAYER_BACK = RuleClick(roi_front=(1190,6,87,53), roi_back=(1190,6,87,53), name="page_player_back")
 	# 活动弹窗右上角关闭按钮 
 	C_ACTIVITY_CLOSE = RuleClick(roi_front=(1191,49,48,45), roi_back=(1191,49,48,45), name="activity_close")
+	# 游戏通用弹窗-确定按钮（报名/参战） 
+	C_DIALOG_CONFIRM = RuleClick(roi_front=(742,363,173,40), roi_back=(742,363,173,40), name="dialog_confirm")
+	# 游戏通用弹窗-取消按钮（备用） 
+	C_DIALOG_CANCEL = RuleClick(roi_front=(364,363,173,40), roi_back=(364,363,173,40), name="dialog_cancel")
 
 
 	# Image Rule Assets
@@ -55,5 +59,9 @@ class GameUiAssets:
 	O_ACTIVITY_TABS = RuleOcr(roi=(140,80,950,65), area=(140,80,950,65), mode="Full", method="Default", keyword="", name="activity_tabs")
 	# 活动弹窗右侧子 tab 栏（可上下滚动） 
 	O_ACTIVITY_SUBTABS = RuleOcr(roi=(1045,150,175,480), area=(1045,150,175,480), mode="Full", method="Default", keyword="", name="activity_subtabs")
+	# 游戏通用弹窗文案识别区域（报名/匹配/提示弹窗） 
+	O_DIALOG_TEXT = RuleOcr(roi=(325,255,640,200), area=(325,255,640,200), mode="Full", method="Default", keyword="", name="dialog_text")
+	# 活动-活跃页的任务列表 
+	O_ACTIVITY_TASK_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="activity_task_list")
 
 

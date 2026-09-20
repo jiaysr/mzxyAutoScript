@@ -20,6 +20,7 @@ from tasks.Restart.config import Restart
 from tasks.Challenge.config import Challenge
 from tasks.WorldBoss.config import WorldBoss
 from tasks.Arena.config import Arena
+from tasks.CrossArena.config import CrossArena
 
 
 class ConfigModel(ConfigBase):
@@ -32,6 +33,7 @@ class ConfigModel(ConfigBase):
     world_boss: WorldBoss = Field(default_factory=WorldBoss)
     challenge: Challenge = Field(default_factory=Challenge)
     arena: Arena = Field(default_factory=Arena)
+    cross_arena: CrossArena = Field(default_factory=CrossArena)
     quiz: Quiz = Field(default_factory=Quiz)
 
     def __init__(self, config_name: str=None) -> None:

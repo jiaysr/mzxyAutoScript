@@ -19,6 +19,7 @@
 import importlib
 import sys
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 from time import sleep
 
@@ -30,6 +31,8 @@ from module.atom.list import RuleList
 from module.atom.ocr import RuleOcr
 from module.base.decorator import run_once
 from module.base.timer import Timer
+from module.config.config_manual import ConfigManual
+from module.config.utils import convert_to_underscore
 from module.exception import (GameNotRunningError, GamePageUnknownError)
 from module.logger import logger
 from tasks.GameUi.page import Page, PageRegistry
@@ -41,6 +44,8 @@ from tasks.GameUi.top_menu import TopMenuNavigation
 
 
 class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation):
+    # 本任务在 ConfigManual.SCHEDULER_PRIORITY 中的名字（子类覆盖，用于让路判断）
+    SCHEDULER_NAME: str = ''
     # 各任务的弹窗清理按钮：记录 MZXY 页面素材后根据自己的界面覆盖
     ui_close: list = []
     # 未知页面的兜底安全点击区域：没有配置时不做点击，只等待超时
@@ -384,6 +389,47 @@ class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation):
         elif isinstance(target, RuleClick):
             operated = self.click(target, interval=interval)
         return operated
+
+    # ------------------------------------------------------------------ 通用弹窗与调度
+    def reset_records(self) -> None:
+        """
+        长时间等待或连续滑动前，清空卡死与连点记录
+        """
+        self.device.stuck_record_clear()
+        self.device.click_record_clear()
+
+    def dialog_appear(self, rule: RuleOcr, text: str) -> bool:
+        """
+        精确检测弹窗文案（不用 ocr_appear：框架的 OCR filter 有逐字符兜底匹配，会误判）
+        :param rule: 弹窗文案的 OCR 规则（如 self.O_DIALOG_TEXT）
+        :param text: 要匹配的文案片段
+        """
+        results = rule.detect_and_ocr(self.device.image, logDisplay=False)
+        return any(text in result.ocr_text for result in results)
+
+    def higher_priority_task_due(self) -> bool:
+        """
+        是否有调度优先级高于本任务、且已使能且已到期的任务（用于长时间等待时让路）
+        优先级顺序取自 ConfigManual.SCHEDULER_PRIORITY，本任务名由 SCHEDULER_NAME 指定
+        """
+        now = datetime.now()
+        for name in self.higher_priority_task_names():
+            task = getattr(self.config.model, convert_to_underscore(name), None)
+            scheduler = getattr(task, 'scheduler', None)
+            if scheduler is None or not scheduler.enable:
+                continue
+            if scheduler.next_run <= now:
+                logger.attr('Higher priority task', f'{name} {scheduler.next_run}')
+                return True
+        return False
+
+    @classmethod
+    def higher_priority_task_names(cls) -> list[str]:
+        """调度优先级高于本任务的任务名列表"""
+        names = [name.strip() for name in ConfigManual.SCHEDULER_PRIORITY.split('>') if name.strip()]
+        if cls.SCHEDULER_NAME in names:
+            return names[:names.index(cls.SCHEDULER_NAME)]
+        return names
 
 
 if __name__ == '__main__':

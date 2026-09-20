@@ -34,5 +34,23 @@
     "method": "Default",
     "keyword": "",
     "description": "活动弹窗右侧子 tab 栏（可上下滚动）"
+  },
+  {
+    "itemName": "dialog_text",
+    "roiFront": "325,255,640,200",
+    "roiBack": "325,255,640,200",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "游戏通用弹窗文案识别区域（报名/匹配/提示弹窗）"
+  },
+  {
+    "itemName": "activity_task_list",
+    "roiFront": "105,225,550,370",
+    "roiBack": "105,225,550,370",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "活动-活跃页的任务列表"
   }
 ]

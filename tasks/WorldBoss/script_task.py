@@ -192,13 +192,6 @@ class ScriptTask(GameUi, WorldBossAssets):
         self.set_next_run(task='WorldBoss', target=target, success=None, finish=True, server=False)
 
     # ---------------------------------------------------------------- 页面
-    def reset_records(self) -> None:
-        """
-        长时间等待或连续滑动前，清空卡死与连点记录
-        """
-        self.device.stuck_record_clear()
-        self.device.click_record_clear()
-
     def enter_world_boss_page(self, timeout: int = 40) -> bool:
         """
         前往活动-世界首领页面（页面寻路自动处理：展开菜单 -> 活动图标 -> 活动 tab -> 子 tab）

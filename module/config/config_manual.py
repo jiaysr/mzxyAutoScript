@@ -12,6 +12,7 @@ class ConfigManual:
         > WorldBoss
         > Challenge
         > Arena
+        > CrossArena
         """
 
     DEVICE_OVER_HTTP = False

@@ -12,8 +12,10 @@
 from time import sleep
 
 from module.base.timer import Timer
+from module.exception import GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets
+from tasks.GameUi.page import page_activity_active
 from tasks.base_task import BaseTask
 
 
@@ -146,3 +148,58 @@ class ActivityNavigation(BaseTask, GameUiAssets):
         self.device.swipe(p1=p1, p2=p2, control_name='ui_activity_subtab_scroll')
         sleep(0.5)
         return True
+
+    # ------------------------------------------------------------------ 活跃任务列表
+    def active_task_completed(self, name: str) -> bool:
+        """
+        进入活动-活跃页，查找指定活跃任务是否已完成
+        :return: 已完成返回 True；未完成或未找到返回 False
+        """
+        logger.hr('Check activity task')
+        if not self.ui_goto(page_activity_active, timeout=40):
+            raise GameStuckError('Activity page does not appear')
+
+        # 列表回到顶部
+        for _ in range(2):
+            self.device.swipe(p1=(370, 300), p2=(370, 550))
+            self.device.click_record_clear()
+            self.device.sleep(0.4)
+
+        for _ in range(5):
+            self.screenshot()
+            results = self.O_ACTIVITY_TASK_LIST.detect_and_ocr(self.device.image, logDisplay=False)
+            status = self.parse_active_status(results, name)
+            if status is not None:
+                logger.info(f'Activity task [{name}] {"completed" if status else "not completed"}')
+                return status
+            logger.info(f'Activity task [{name}] not visible, scroll down')
+            self.device.swipe(p1=(370, 550), p2=(370, 300))
+            self.device.click_record_clear()
+            self.device.sleep(0.6)
+
+        logger.warning(f'Activity task [{name}] not found')
+        return False
+
+    @staticmethod
+    def parse_active_status(results: list, name: str):
+        """
+        在活跃任务列表的 OCR 结果中查找任务行的状态
+        :return: True=完成 / False=未完成 / None=未找到
+        """
+        name_y = None
+        for item in results:
+            if name in item.ocr_text:
+                box = item.box
+                name_y = float((box[0][1] + box[2][1]) / 2)
+                break
+        if name_y is None:
+            return None
+        for item in results:
+            text = item.ocr_text.strip()
+            if '完成' not in text:
+                continue
+            box = item.box
+            y = float((box[0][1] + box[2][1]) / 2)
+            if abs(y - name_y) <= 20:
+                return text == '完成'
+        return None

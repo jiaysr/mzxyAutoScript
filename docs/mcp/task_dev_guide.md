@@ -210,3 +210,17 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - `self.click(rule, interval=1)` 首次调用不会点击（等 interval 到时间才点），循环里用没问题，
   只点一次时不要传 interval
 - 修改 `config.py` 参数后需重启脚本进程才会生效（配置在启动时载入）
+- OCR 会把形近字认错（如「手」→「于」、「入」→「人」），精确文案判断要用**不易误识的片段**：
+  跨服竞技匹配弹窗实际识别为「已找到对于，是否进人跨服战场」，所以判断用的是 `已找到对`
+  （参考 `tasks/CrossArena/script_task.py` 的 `MATCH_TEXTS`）
+- 长时间等待（>1 分钟）不动屏幕会被 `device.stuck_record_check()` 判为卡死（Wait too long），
+  循环里要定期 `self.reset_records()`（清卡死 + 连点记录，GameUi 已提供）
+- 弹窗文案识别、让路判断（`higher_priority_task_due`）、活跃页任务状态读取（`active_task_completed`）
+  都是 `GameUi` 的公共方法，新任务直接复用，不要各自实现一份
+
+## 9. 已实现任务
+
+- `tasks/WorldBoss`：世界首领（跑图/寻路/锁定/攻击）
+- `tasks/Arena` 同服竞技、`tasks/CrossArena` 跨服竞技：报名 -> 匹配 -> 参战 -> 重启计数；
+  支持「根据活跃度判断」模式（查活动-活跃页对应任务是否已完成）和等待匹配时给高优先级任务让路
+- `tasks/Challenge`、`tasks/Quiz`：挑战、答题

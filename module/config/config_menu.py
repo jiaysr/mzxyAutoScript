@@ -21,7 +21,7 @@ class ConfigMenu:
         # 日常的任务
         self.menu["Daily Task"] = ['Quiz']
         # 战斗的任务
-        self.menu["Battle Task"] = ['WorldBoss', 'Challenge', 'Arena']
+        self.menu["Battle Task"] = ['WorldBoss', 'Challenge', 'Arena', 'CrossArena']
         # 开发工具
         self.menu["Tools"] = ['Image Rule', 'Ocr Rule', 'Click Rule', 'Long Click Rule', 'Swipe Rule', 'List Rule']
 

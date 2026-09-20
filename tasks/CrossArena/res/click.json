@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "cross_arena_same_server",
+    "roiFront": "1122,375,123,48",
+    "roiBack": "1122,375,123,48",
+    "description": "战场-跨服竞技按钮"
+  },
+  {
+    "itemName": "cross_arena_button_click",
+    "roiFront": "290,196,110,42",
+    "roiBack": "290,196,110,42",
+    "description": "2人跨服按钮（双击报名）"
+  }
+]
