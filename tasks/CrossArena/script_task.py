@@ -7,8 +7,8 @@
 3. 双击 2人跨服 按钮弹出报名弹窗，点击「确定」报名
 4. 报名成功后自动回到主页面，每 2 秒检测一次匹配成功弹窗（超时默认 20 分钟）
 5. 匹配成功：点击「确定」参战，等待 2 秒后重启游戏，重启成功记完成 1 次
-6. 匹配超时：重启游戏清掉排队状态，不计次，30 秒后重试
-7. 未达次数则立刻开下一局，达到次数则今天收工
+6. 匹配超时：重启游戏清掉排队状态，不计次，直接重新报名开下一局
+7. 未达次数则立刻开下一局（同一任务内循环），达到次数则今天收工
 8. 非开放时间：排到下一个开放时段；今天两个时段都过了则排到明天 13:00 并重置计数
 9. 勾选「根据活跃度判断」后次数配置失效：每局开始前查活动-活跃页的「跨服竞技」是否已完成，
    已完成则直接收工，未完成才继续打
@@ -41,61 +41,58 @@ class ScriptTask(GameUi, CrossArenaAssets):
     ACTIVE_TASK_NAME = '跨服竞技'
 
     def run(self) -> None:
-        arena = self.config.cross_arena.cross_arena_config
-        now = datetime.now()
+        # 一局结束后直接在同一任务内开下一局，直到次数/活跃任务完成、时段结束或需要让路
+        while 1:
+            arena = self.config.cross_arena.cross_arena_config
+            now = datetime.now()
 
-        # 开放时段 13:00-14:00 / 17:00-18:00
-        if not self.in_open_time(now):
-            target = self.next_open_time(now)
-            logger.info(f'Cross arena is closed, next open: {target}')
-            if target.date() != now.date():
-                # 今天的场次都结束了
-                if not arena.use_activity and arena.completed < arena.count:
-                    logger.warning(f'Today cross arena not finished: {arena.completed}/{arena.count}')
-                arena.completed = 0
-                self.config.save()
-            self.set_next_run(task='CrossArena', target=target, success=None, server=False)
-            raise TaskEnd('CrossArena')
+            # 开放时段 13:00-14:00 / 17:00-18:00
+            if not self.in_open_time(now):
+                target = self.next_open_time(now)
+                logger.info(f'Cross arena is closed, next open: {target}')
+                if target.date() != now.date():
+                    # 今天的场次都结束了
+                    if not arena.use_activity and arena.completed < arena.count:
+                        logger.warning(f'Today cross arena not finished: {arena.completed}/{arena.count}')
+                    arena.completed = 0
+                    self.config.save()
+                self.set_next_run(task='CrossArena', target=target, success=None, server=False)
+                raise TaskEnd('CrossArena')
 
-        if arena.use_activity:
-            # 活跃度模式：活跃任务已完成则今天收工（次数配置失效）
-            if self.active_task_completed(self.ACTIVE_TASK_NAME):
-                logger.info(f'Activity task [{self.ACTIVE_TASK_NAME}] completed, finish today')
+            if arena.use_activity:
+                # 活跃度模式：活跃任务已完成则今天收工（次数配置失效）
+                if self.active_task_completed(self.ACTIVE_TASK_NAME):
+                    logger.info(f'Activity task [{self.ACTIVE_TASK_NAME}] completed, finish today')
+                    self.finish_today(now)
+                    raise TaskEnd('CrossArena')
+            elif arena.completed >= arena.count:
+                # 今日次数已达上限
+                logger.info(f'Completed count reached: {arena.completed}/{arena.count}')
                 self.finish_today(now)
                 raise TaskEnd('CrossArena')
-        elif arena.completed >= arena.count:
-            # 今日次数已达上限
-            logger.info(f'Completed count reached: {arena.completed}/{arena.count}')
-            self.finish_today(now)
-            raise TaskEnd('CrossArena')
 
-        # 一局：报名 -> 匹配 -> 参战 -> 重启
-        self.enter_arena_page()
-        self.select_cross_server()
-        self.sign_up()
-        result = self.wait_match()
-        if result != 'matched':
-            # 放弃本轮：重启游戏清掉排队状态，避免下次报名弹窗不出现/错过匹配
+            # 一局：报名 -> 匹配 -> 参战 -> 重启
+            self.enter_arena_page()
+            self.select_cross_server()
+            self.sign_up()
+            result = self.wait_match()
             if result == 'yield':
-                delay = 300
-            else:
-                delay = 30
+                # 让路给高优先级任务：重启清掉排队状态，排到 5 分钟后
+                self.restart_game()
+                self.set_next_run(task='CrossArena', target=datetime.now() + timedelta(seconds=300))
+                raise TaskEnd('CrossArena')
+
+            # 匹配成功或超时都重启游戏清掉排队状态（超时不计次，直接重排下一局）
+            if result == 'matched':
+                self.device.sleep(2)
             self.restart_game()
-            self.set_next_run(task='CrossArena', target=datetime.now() + timedelta(seconds=delay))
-            raise TaskEnd('CrossArena')
 
-        self.device.sleep(2)
-        self.restart_game()
-
-        # 重启流程会重载配置，这里重新获取再计数
-        arena = self.config.cross_arena.cross_arena_config
-        arena.completed += 1
-        self.config.save()
-        logger.attr('Cross arena completed', f'{arena.completed}/{arena.count}')
-
-        # 下一局的检查在下次运行开头（活跃度模式重新查活跃状态，普通模式查次数）
-        self.set_next_run(task='CrossArena', target=datetime.now() + timedelta(seconds=30))
-        raise TaskEnd('CrossArena')
+            if result == 'matched':
+                # 重启流程会重载配置，这里重新获取再计数
+                arena = self.config.cross_arena.cross_arena_config
+                arena.completed += 1
+                self.config.save()
+                logger.attr('Cross arena completed', f'{arena.completed}/{arena.count}')
 
     # ---------------------------------------------------------------- 调度
     @staticmethod
