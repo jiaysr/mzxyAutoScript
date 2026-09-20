@@ -16,5 +16,23 @@
     "method": "Default",
     "keyword": "",
     "description": "角色面板顶部 tab 栏（OCR 识别区）"
+  },
+  {
+    "itemName": "activity_tabs",
+    "roiFront": "140,80,950,65",
+    "roiBack": "140,80,950,65",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "活动弹窗顶部 tab 栏（OCR 识别区）"
+  },
+  {
+    "itemName": "activity_subtabs",
+    "roiFront": "1045,150,175,480",
+    "roiBack": "1045,150,175,480",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "活动弹窗右侧子 tab 栏（可上下滚动）"
   }
 ]

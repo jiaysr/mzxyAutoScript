@@ -6,6 +6,7 @@ import random
 import traceback
 from module.atom.click import RuleClick
 from tasks.GameUi.assets import GameUiAssets as G
+from tasks.GameUi.targets import SidebarTarget, MenuTarget, ActivityTabTarget, ActivitySubTabTarget
 
 
 class PageRegistry:
@@ -44,34 +45,12 @@ class Page:
         self.links[destination] = button
 
 
-class SidebarTarget:
-    """
-    页面连线用目标：在角色面板左侧可滚动模块栏中 OCR 查找并点击模块
-    由 GameUi.appear_then_operate 识别处理
-    """
-
-    def __init__(self, name: str):
-        self.name = name
-
-    def __str__(self):
-        return f'sidebar[{self.name}]'
-
-
-class TabTarget:
-    """
-    页面连线用目标：在当前模块顶部可横向滚动的 tab 栏中 OCR 查找并点击 tab
-    由 GameUi.appear_then_operate 识别处理
-    """
-
-    def __init__(self, name: str, module: str = None):
-        self.name = name
-        self.module = module
-
-    def __str__(self):
-        return f'tab[{self.module or ""}{self.name}]'
-
-
 # ************************************* 明珠轩辕页面注册区 *****************************************#
+# 活动弹窗：具体页在前、容器页在后（都要放在 page_main 之前：弹窗打开时主页面特征仍会命中）
+page_activity_list = Page(G.I_PAGE_ACTIVITY_LIST)              # 活动-推荐（顶部"活动"tab 的默认子 tab）
+page_activity_world_boss = Page(G.I_PAGE_ACTIVITY_WORLD_BOSS)  # 活动-世界首领
+page_activity_notice = Page(G.I_PAGE_ACTIVITY_NOTICE)          # 活动-公告
+page_activity = Page(G.I_PAGE_ACTIVITY)                        # 活动弹窗容器（右上角绿X，兜底）
 # 物品-背包
 page_item_bag = Page(G.I_PAGE_ITEM_BAG)
 # 挑战-战场（挑战模块首页）
@@ -87,6 +66,20 @@ page_challenge.module = '挑战'
 page_role_detail.module = '角色'
 
 page_main.link(button=G.C_PAGE_MAIN_GOTO_PLAYER, destination=page_role_detail)
+page_main.link(button=MenuTarget(G.I_ACTIVITY_ICON), destination=page_activity)
+# 活动弹窗内部：顶部 tab 从容器页进入（切"活动"tab 会重置到推荐子 tab）
+page_activity.link(button=ActivityTabTarget('公告'), destination=page_activity_notice)
+page_activity.link(button=ActivityTabTarget('活动'), destination=page_activity_list)
+page_activity_notice.link(button=ActivityTabTarget('活动'), destination=page_activity_list)
+page_activity_list.link(button=ActivityTabTarget('公告'), destination=page_activity_notice)
+# 活动弹窗内部：右侧子 tab（可上下滚动）
+page_activity_list.link(button=ActivitySubTabTarget('世界首领'), destination=page_activity_world_boss)
+page_activity_world_boss.link(button=ActivitySubTabTarget('推荐'), destination=page_activity_list)
+# 关闭弹窗回主页面
+page_activity.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
+page_activity_notice.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
+page_activity_list.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
+page_activity_world_boss.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
 page_role_detail.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
 page_role_detail.link(button=SidebarTarget('物品'), destination=page_item_bag)
 page_role_detail.link(button=SidebarTarget('挑战'), destination=page_challenge)

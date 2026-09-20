@@ -2,11 +2,11 @@
   {
     "itemName": "page_main",
     "imageName": "res_page_main.png",
-    "roiFront": "21,676,24,17",
-    "roiBack": "13,658,49,44",
+    "roiFront": "1229,676,24,17",
+    "roiBack": "1219,662,49,44",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "主页面特征（左下角图标）"
+    "description": "主页面特征（右下角图标）"
   },
   {
     "itemName": "page_role_detail",
@@ -34,5 +34,68 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "挑战-战场页特征（你的战斗力文字）"
+  },
+  {
+    "itemName": "menu_collapsed",
+    "imageName": "res_menu_collapsed.png",
+    "roiFront": "1148,31,18,26",
+    "roiBack": "1136,18,50,54",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右上角菜单收起状态（左箭头）"
+  },
+  {
+    "itemName": "menu_expanded",
+    "imageName": "res_menu_expanded.png",
+    "roiFront": "1153,28,15,32",
+    "roiBack": "1136,18,50,54",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右上角菜单展开状态（右箭头）"
+  },
+  {
+    "itemName": "activity_icon",
+    "imageName": "res_activity_icon.png",
+    "roiFront": "1087,36,31,32",
+    "roiBack": "448,12,685,71",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右上角菜单内的活动图标"
+  },
+  {
+    "itemName": "page_activity_notice",
+    "imageName": "res_page_activity_notice.png",
+    "roiFront": "531,183,655,23",
+    "roiBack": "528,169,672,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-公告页特征（右侧内容面板顶边）"
+  },
+  {
+    "itemName": "page_activity_list",
+    "imageName": "res_page_activity_list.png",
+    "roiFront": "424,534,47,55",
+    "roiBack": "403,515,88,92",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-推荐页特征（活动奖励图标）"
+  },
+  {
+    "itemName": "page_activity_world_boss",
+    "imageName": "res_page_activity_world_boss.png",
+    "roiFront": "158,554,45,41",
+    "roiBack": "135,541,90,65",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-世界首领页特征（奖按钮）"
+  },
+  {
+    "itemName": "page_activity",
+    "imageName": "res_page_activity.png",
+    "roiFront": "1180,28,65,52",
+    "roiBack": "1150,10,130,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动弹窗容器特征（右上角绿X）"
   }
 ]

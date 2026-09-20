@@ -15,17 +15,33 @@ class GameUiAssets:
 	C_PAGE_MAIN_GOTO_PLAYER = RuleClick(roi_front=(22,20,49,50), roi_back=(22,20,49,50), name="page_main_goto_player")
 	# 角色面板点击返回主页面 
 	C_PAGE_PLAYER_BACK = RuleClick(roi_front=(1190,6,87,53), roi_back=(1190,6,87,53), name="page_player_back")
+	# 活动弹窗右上角关闭按钮 
+	C_ACTIVITY_CLOSE = RuleClick(roi_front=(1191,49,48,45), roi_back=(1191,49,48,45), name="activity_close")
 
 
 	# Image Rule Assets
-	# 主页面特征（左下角图标） 
-	I_PAGE_MAIN = RuleImage(roi_front=(21,676,24,17), roi_back=(13,658,49,44), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_main.png")
+	# 主页面特征（右下角图标） 
+	I_PAGE_MAIN = RuleImage(roi_front=(1229,676,24,17), roi_back=(1219,662,49,44), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_main.png")
 	# 角色-详情页特征（培养按钮） 
 	I_PAGE_ROLE_DETAIL = RuleImage(roi_front=(632,365,97,44), roi_back=(597,352,171,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_role_detail.png")
 	# 物品-背包页特征（整理背包按钮） 
 	I_PAGE_ITEM_BAG = RuleImage(roi_front=(560,580,154,68), roi_back=(550,570,174,88), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_item_bag.png")
 	# 挑战-战场页特征（你的战斗力文字） 
 	I_PAGE_CHALLENGE = RuleImage(roi_front=(557,123,128,40), roi_back=(536,113,274,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_challenge.png")
+	# 右上角菜单收起状态（左箭头） 
+	I_MENU_COLLAPSED = RuleImage(roi_front=(1148,31,18,26), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_menu_collapsed.png")
+	# 右上角菜单展开状态（右箭头） 
+	I_MENU_EXPANDED = RuleImage(roi_front=(1153,28,15,32), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_menu_expanded.png")
+	# 右上角菜单内的活动图标 
+	I_ACTIVITY_ICON = RuleImage(roi_front=(1087,36,31,32), roi_back=(448,12,685,71), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_activity_icon.png")
+	# 活动-公告页特征（右侧内容面板顶边） 
+	I_PAGE_ACTIVITY_NOTICE = RuleImage(roi_front=(531,183,655,23), roi_back=(528,169,672,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_notice.png")
+	# 活动-推荐页特征（活动奖励图标） 
+	I_PAGE_ACTIVITY_LIST = RuleImage(roi_front=(424,534,47,55), roi_back=(403,515,88,92), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_list.png")
+	# 活动-世界首领页特征（奖按钮） 
+	I_PAGE_ACTIVITY_WORLD_BOSS = RuleImage(roi_front=(158,554,45,41), roi_back=(135,541,90,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_world_boss.png")
+	# 活动弹窗容器特征（右上角绿X） 
+	I_PAGE_ACTIVITY = RuleImage(roi_front=(1180,28,65,52), roi_back=(1150,10,130,90), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity.png")
 
 
 	# Ocr Rule Assets
@@ -33,5 +49,9 @@ class GameUiAssets:
 	O_PANEL_SIDEBAR = RuleOcr(roi=(0,110,245,610), area=(0,110,245,610), mode="Full", method="Default", keyword="", name="panel_sidebar")
 	# 角色面板顶部 tab 栏（OCR 识别区） 
 	O_PANEL_TABS = RuleOcr(roi=(280,8,765,85), area=(280,8,765,85), mode="Full", method="Default", keyword="", name="panel_tabs")
+	# 活动弹窗顶部 tab 栏（OCR 识别区） 
+	O_ACTIVITY_TABS = RuleOcr(roi=(140,80,950,65), area=(140,80,950,65), mode="Full", method="Default", keyword="", name="activity_tabs")
+	# 活动弹窗右侧子 tab 栏（可上下滚动） 
+	O_ACTIVITY_SUBTABS = RuleOcr(roi=(1045,150,175,480), area=(1045,150,175,480), mode="Full", method="Default", keyword="", name="activity_subtabs")
 
 

@@ -74,9 +74,13 @@ self.ui_get_current_page()                              # 识别当前页
 self.ui_goto(page_xxx)                                  # 通过页面注册表自动跳转
 ```
 
-`tasks/GameUi/game_ui.py` 保留了通用寻路引擎（页面识别/BFS 最短路径/弹窗清理），
+`tasks/GameUi/` 分工：`game_ui.py`（寻路引擎：页面识别/BFS/路径执行/未知页脱困/统一操作入口）、
+`panel.py`（角色面板左侧模块栏与顶部 tab 栏导航）、`top_menu.py`（右上角菜单）、
+`activity.py`（活动弹窗顶部 tab 与右侧可滚动子 tab 导航）、
+`page.py`（页面注册表与页面定义）、`targets.py`（页面连线目标类型）。
 目前注册了 `page_main`（主页面）、`page_role_detail`（角色-详情）、`page_item_bag`（物品-背包）、
-`page_challenge`（挑战-战场）四个页面，其余页面录制素材后
+`page_challenge`（挑战-战场），以及活动弹窗的 `page_activity`（容器）、`page_activity_notice`（公告）、
+`page_activity_list`（活动-推荐）、`page_activity_world_boss`（活动-世界首领），其余页面录制素材后
 按 `tasks/GameUi/page.py` 中的方式注册（或在自己的 `tasks/<Task>/page.py` 扩展），
 `ui_goto` 即可自动寻路。未注册页面的任务直接继承 `BaseTask`，用图像/OCR 规则导航即可
 （当前 `Challenge`、`WorldBoss`、`Quiz`、`Restart` 都是这种方式）。
@@ -163,6 +167,11 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - 顶部 tab 栏也可以横向滚动，连线时写 `TabTarget('打造')`（跨模块时带上 `module='物品'`）；
   任务里可直接调用 `self.ui_tab_click('打造')`，会自动校验选中态并重试。
   各模块的 tab 顺序维护在 `GameUi.PANEL_TABS`。
+- 右上角菜单（可展开/收起）里的图标连线写 `MenuTarget(G.I_ACTIVITY_ICON)`；
+  任务里可调用 `self.ui_open_menu()` / `self.ui_menu_click(icon)`，会自动判断并展开菜单。
+- 活动弹窗：顶部 tab 连线写 `ActivityTabTarget('活动')`，右侧子 tab 连线写
+  `ActivitySubTabTarget('世界首领')`（子 tab 可上下滚动，会自动查找）；
+  任务里可直接调用 `self.ui_activity_tab_click(...)` / `self.ui_activity_subtab_click(...)`。
 
 ## 6. 用 MCP 开发新任务的流程
 

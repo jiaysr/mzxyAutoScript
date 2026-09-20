@@ -10,5 +10,11 @@
     "roiFront": "1190,6,87,53",
     "roiBack": "1190,6,87,53",
     "description": "角色面板点击返回主页面"
+  },
+  {
+    "itemName": "activity_close",
+    "roiFront": "1191,49,48,45",
+    "roiBack": "1191,49,48,45",
+    "description": "活动弹窗右上角关闭按钮"
   }
 ]
