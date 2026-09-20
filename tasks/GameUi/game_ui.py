@@ -398,6 +398,22 @@ class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation):
         self.device.stuck_record_clear()
         self.device.click_record_clear()
 
+    def ui_swipe_gentle(self, p1: tuple, p2: tuple, steps: int = 3, step_delay: float = 0.2) -> None:
+        """
+        慢速滑动：把整段位移拆成多段小滑动，每段之间停顿
+        （minitouch 的滑动速度固定且很快，整段一次滑容易甩过头、滑完立刻截图也认不准）
+        :param p1: 起点
+        :param p2: 终点
+        :param steps: 拆分段数
+        :param step_delay: 每段之间的停顿（秒）
+        """
+        points = [(int(p1[0] + (p2[0] - p1[0]) * i / steps),
+                   int(p1[1] + (p2[1] - p1[1]) * i / steps)) for i in range(steps + 1)]
+        for start, end in zip(points, points[1:]):
+            self.device.swipe(p1=start, p2=end)
+            self.device.click_record_clear()
+            self.device.sleep(step_delay)
+
     def dialog_appear(self, rule: RuleOcr, text: str) -> bool:
         """
         精确检测弹窗文案（不用 ocr_appear：框架的 OCR filter 有逐字符兜底匹配，会误判）

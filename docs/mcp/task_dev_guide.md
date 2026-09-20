@@ -220,6 +220,9 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - 活动-活跃页的任务列表很长（30 行以上，「同服竞技/跨服竞技」在中下段），读取状态必须
   先自适应滑到顶部再逐屏扫描（`activity_list_to_top` + `ACTIVITY_SCAN_ROWS`），只扫几屏会找不到；
   行名匹配用 `activity_name_match`（容忍 OCR 形近字误识，且前两字必须一致以免同服/跨服互相误判）
+- minitouch 的滑动速度固定且很快（`swipe` 的 duration 参数对 minitouch 无效），列表扫描要用
+  `GameUi.ui_swipe_gentle` 拆成多段小滑动（每屏 150px 左右）+ 滚动后等待 0.8s 再截图识别，
+  整段快速滑动会甩过头、滑完立刻截图会识别不准（参考 `tasks/GameUi/activity.py`）
 
 ## 9. 已实现任务
 

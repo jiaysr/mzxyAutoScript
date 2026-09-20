@@ -151,8 +151,15 @@ class ActivityNavigation(BaseTask, GameUiAssets):
         return True
 
     # ------------------------------------------------------------------ 活跃任务列表
-    # 扫描屏数（每屏约 5 行，列表较长；同服竞技/跨服竞技 在列表靠后位置）
-    ACTIVITY_SCAN_ROWS = 12
+    # 扫描屏数（列表 30 行以上，每屏约 5 行；同服竞技/跨服竞技 在列表靠后位置）
+    ACTIVITY_SCAN_ROWS = 20
+    # 每屏滚动距离（px）：行高约 78px，一次滚 2 行以内，避免快速甩动甩过头
+    ACTIVITY_SCROLL_DISTANCE = 150
+    # 滚动拆分段数与段间停顿
+    ACTIVITY_SCROLL_STEPS = 3
+    ACTIVITY_SCROLL_STEP_DELAY = 0.2
+    # 滚动后等列表稳定再截图识别
+    ACTIVITY_SCROLL_SETTLE = 0.8
     # 行名相似度阈值（容忍 OCR 形近字误识）
     ACTIVITY_NAME_SIMILARITY = 0.7
 
@@ -167,14 +174,18 @@ class ActivityNavigation(BaseTask, GameUiAssets):
 
         self.activity_list_to_top()
 
+        last_rows = None
         for _ in range(self.ACTIVITY_SCAN_ROWS):
-            completed = self.activity_task_scan(name)
+            completed, rows = self.activity_task_scan(name)
             if completed is not None:
                 return completed
+            if rows and rows == last_rows:
+                # 滚动后内容没变，说明已经到底
+                logger.warning(f'Activity task [{name}] list reached bottom')
+                break
+            last_rows = rows
             logger.info(f'Activity task [{name}] not visible, scroll down')
-            self.device.swipe(p1=(370, 550), p2=(370, 300))
-            self.device.click_record_clear()
-            self.device.sleep(0.6)
+            self.activity_list_scroll()
 
         logger.warning(f'Activity task [{name}] not found')
         return False
@@ -182,13 +193,14 @@ class ActivityNavigation(BaseTask, GameUiAssets):
     def activity_task_scan(self, name: str):
         """
         在当前可见的活跃任务行里查找目标任务（状态没识别出来时重截一张再试）
-        :return: True=完成 / False=未完成 / None=当前屏没有
+        :return: (True=完成 / False=未完成 / None=当前屏没有, 当前可见行名)
         """
         for _ in range(2):
             self.screenshot()
             results = self.O_ACTIVITY_TASK_LIST.detect_and_ocr(self.device.image, logDisplay=False)
             rows = self.parse_activity_rows(results)
-            logger.info(f'Activity rows: {[row_name for row_name, _ in rows]}')
+            names = [row_name for row_name, _ in rows]
+            logger.info(f'Activity rows: {names}')
             hit = False
             for row_name, completed in rows:
                 if not self.activity_name_match(row_name, name):
@@ -197,16 +209,30 @@ class ActivityNavigation(BaseTask, GameUiAssets):
                 if completed is None:
                     continue
                 logger.info(f'Activity task [{row_name}] {"completed" if completed else "not completed"}')
-                return completed
+                return completed, names
             if not hit:
-                return None
+                return None, names
             logger.warning(f'Activity task [{name}] status not recognized, retry')
             self.device.sleep(0.3)
-        return None
+        return None, names
+
+    def activity_list_scroll(self, up: bool = False) -> None:
+        """
+        慢速滚动活跃任务列表，滚动后等列表稳定
+        :param up: True=向上回顶，False=向下翻
+        """
+        distance = self.ACTIVITY_SCROLL_DISTANCE
+        if up:
+            p1, p2 = (370, 300), (370, 300 + distance)
+        else:
+            p1, p2 = (370, 300 + distance), (370, 300)
+        self.ui_swipe_gentle(p1, p2, steps=self.ACTIVITY_SCROLL_STEPS,
+                             step_delay=self.ACTIVITY_SCROLL_STEP_DELAY)
+        self.device.sleep(self.ACTIVITY_SCROLL_SETTLE)
 
     def activity_list_to_top(self, max_swipe: int = 6) -> None:
         """
-        把活跃任务列表滑到顶部（滑动后 OCR 内容不变即认为到顶）
+        把活跃任务列表滑到顶部（回顶不要求精度，用大步滑动；滑动后 OCR 内容不变即认为到顶）
         """
         last = None
         for _ in range(max_swipe):
@@ -218,7 +244,7 @@ class ActivityNavigation(BaseTask, GameUiAssets):
             last = texts
             self.device.swipe(p1=(370, 300), p2=(370, 550))
             self.device.click_record_clear()
-            self.device.sleep(0.5)
+            self.device.sleep(self.ACTIVITY_SCROLL_SETTLE)
 
     @staticmethod
     def parse_activity_rows(results: list) -> list[tuple[str, bool]]:
