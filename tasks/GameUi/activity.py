@@ -9,7 +9,6 @@
 
 两者同样是"OCR 定位 -> 目标不可见时按顺序滚动查找 -> 点击"的模式，由 GameUi 混入本类使用。
 """
-import difflib
 from time import sleep
 
 from module.base.timer import Timer
@@ -160,8 +159,6 @@ class ActivityNavigation(BaseTask, GameUiAssets):
     ACTIVITY_SCROLL_STEP_DELAY = 0.2
     # 滚动后等列表稳定再截图识别
     ACTIVITY_SCROLL_SETTLE = 0.8
-    # 行名相似度阈值（容忍 OCR 形近字误识）
-    ACTIVITY_NAME_SIMILARITY = 0.7
 
     def active_task_completed(self, name: str) -> bool:
         """
@@ -203,7 +200,7 @@ class ActivityNavigation(BaseTask, GameUiAssets):
             logger.info(f'Activity rows: {names}')
             hit = False
             for row_name, completed in rows:
-                if not self.activity_name_match(row_name, name):
+                if not self.ocr_name_match(row_name, name):
                     continue
                 hit = True
                 if completed is None:
@@ -271,20 +268,3 @@ class ActivityNavigation(BaseTask, GameUiAssets):
                     break
         rows.sort(key=lambda row: row[1])
         return [(row[0], row[2]) for row in rows]
-
-    @classmethod
-    def activity_name_match(cls, ocr_text: str, name: str) -> bool:
-        """
-        活跃任务名匹配：完全包含，或「前两字一致 + 相似度达标」（容忍 OCR 形近字误识）
-        前两字必须一致，避免同服竞技/跨服竞技 这类只差一字的名称互相误判
-        """
-        if not ocr_text or not name:
-            return False
-        if name in ocr_text:
-            return True
-        if len(name) < 3 or len(ocr_text) < len(name) - 1:
-            return False
-        if ocr_text[:2] != name[:2]:
-            return False
-        candidate = ocr_text[:len(name)]
-        return difflib.SequenceMatcher(None, candidate, name).ratio() >= cls.ACTIVITY_NAME_SIMILARITY

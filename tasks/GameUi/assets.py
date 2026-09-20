@@ -63,5 +63,7 @@ class GameUiAssets:
 	O_DIALOG_TEXT = RuleOcr(roi=(325,255,640,200), area=(325,255,640,200), mode="Full", method="Default", keyword="", name="dialog_text")
 	# 活动-活跃页的任务列表 
 	O_ACTIVITY_TASK_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="activity_task_list")
+	# 物品-背包物品格（4 列）识别区 
+	O_BAG_GRID = RuleOcr(roi=(255,105,925,450), area=(255,105,925,450), mode="Full", method="Default", keyword="", name="bag_grid")
 
 

@@ -52,5 +52,14 @@
     "method": "Default",
     "keyword": "",
     "description": "活动-活跃页的任务列表"
+  },
+  {
+    "itemName": "bag_grid",
+    "roiFront": "255,105,925,450",
+    "roiBack": "255,105,925,450",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "物品-背包物品格（4 列）识别区"
   }
 ]

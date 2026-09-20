@@ -16,6 +16,7 @@
 - tasks/GameUi/top_menu.py 右上角菜单
 - tasks/GameUi/targets.py  页面连线目标类型
 """
+import difflib
 import importlib
 import sys
 from collections import deque
@@ -37,13 +38,14 @@ from module.exception import (GameNotRunningError, GamePageUnknownError)
 from module.logger import logger
 from tasks.GameUi.page import Page, PageRegistry
 from tasks.GameUi.activity import ActivityNavigation
+from tasks.GameUi.bag import BagNavigation
 from tasks.GameUi.panel import PanelNavigation
 from tasks.GameUi.targets import (SidebarTarget, TabTarget, MenuTarget,
                                   ActivityTabTarget, ActivitySubTabTarget)
 from tasks.GameUi.top_menu import TopMenuNavigation
 
 
-class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation):
+class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigation):
     # 本任务在 ConfigManual.SCHEDULER_PRIORITY 中的名字（子类覆盖，用于让路判断）
     SCHEDULER_NAME: str = ''
     # 各任务的弹窗清理按钮：记录 MZXY 页面素材后根据自己的界面覆盖
@@ -391,6 +393,26 @@ class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation):
         return operated
 
     # ------------------------------------------------------------------ 通用弹窗与调度
+    # OCR 名称匹配相似度阈值（容忍形近字误识）
+    OCR_NAME_SIMILARITY = 0.7
+
+    @classmethod
+    def ocr_name_match(cls, ocr_text: str, name: str) -> bool:
+        """
+        OCR 名称匹配：完全包含，或「前两字一致 + 相似度达标」（容忍 OCR 形近字误识）
+        前两字必须一致，避免同服竞技/跨服竞技 这类只差一字的名称互相误判
+        """
+        if not ocr_text or not name:
+            return False
+        if name in ocr_text:
+            return True
+        if len(name) < 3 or len(ocr_text) < len(name) - 1:
+            return False
+        if ocr_text[:2] != name[:2]:
+            return False
+        candidate = ocr_text[:len(name)]
+        return difflib.SequenceMatcher(None, candidate, name).ratio() >= cls.OCR_NAME_SIMILARITY
+
     def reset_records(self) -> None:
         """
         长时间等待或连续滑动前，清空卡死与连点记录
