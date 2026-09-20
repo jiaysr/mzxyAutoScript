@@ -64,7 +64,7 @@ class BaseTask(GlobalGame):
         """
         self.device.screenshot()
         self.handle_death()
-        self.handle_popup()
+        self.handle_global_popup()
 
         return self.device.image
 

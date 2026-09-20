@@ -11,6 +11,7 @@ class ConfigManual:
         Restart > Quiz
         > WorldBoss
         > Challenge
+        > Arena
         """
 
     DEVICE_OVER_HTTP = False

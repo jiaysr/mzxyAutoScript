@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 class GlobalGame(GlobalGameAssets):
     """
-    全局处理：所有任务的 screenshot 都会经过 handle_death / handle_popup
+    全局处理：所有任务的 screenshot 都会经过 handle_death / handle_global_popup
     - 角色阵亡时点击「返回村子」复活，保留任务进度并立即重跑当前任务
     - 出现已知弹窗时点击对应的关闭区域，避免弹窗挡住任务操作
     """
@@ -42,9 +42,10 @@ class GlobalGame(GlobalGameAssets):
     # 弹窗检查间隔（秒）：避免每帧截图都做大量模板匹配
     popup_check_interval: float = 1.0
 
-    def handle_popup(self) -> None:
+    def handle_global_popup(self) -> None:
         """
         检测到已知弹窗时点击其关闭区域，调用前 device.image 需为最新截图
+        注意：子类若有自己的 handle_popup（如小七登录弹窗），不会被本方法覆盖
         """
         timer = getattr(self, '_popup_timer', None)
         if timer is None:

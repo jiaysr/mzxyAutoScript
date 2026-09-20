@@ -88,7 +88,7 @@ self.ui_goto(page_xxx)                                  # 通过页面注册表�
 
 全局弹窗清理：`tasks/GlobalGame/popup/` 下记录弹窗素材——特征点
 `itemName=popup_<名字>`（image.json）+ 关闭区域 `itemName=popup_<名字>_close`（click.json）。
-命名配对后所有任务的 `screenshot()` 都会自动检测并关闭（`GlobalGame.handle_popup`，1 秒限频），
+命名配对后所有任务的 `screenshot()` 都会自动检测并关闭（`GlobalGame.handle_global_popup`，1 秒限频），
 新增弹窗只需录素材、无需改代码。
 
 ## 4. 任务骨架模板
@@ -204,4 +204,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - `RuleOcr` 的 `keyword` 与 `mode` 要配套：`Single` 是全等匹配，`Full` 是包含匹配
 - `res/list.json` 是 dict（不是数组），`add_rule` 时传 `rules` + `list_meta`
 - `assets.py` 由脚本生成，手改会在下次 `add_rule`/annotator 保存时被覆盖
+- `ocr_appear` / `RuleOcr.ocr()` 的 Full 模式在整串不匹配时会退化为**逐字符匹配**，几乎总返回 True；
+  需要精确判断文案时用 `rule.detect_and_ocr(image)` + 文本包含判断（参考 `tasks/Arena/script_task.py`）
+- `self.click(rule, interval=1)` 首次调用不会点击（等 interval 到时间才点），循环里用没问题，
+  只点一次时不要传 interval
 - 修改 `config.py` 参数后需重启脚本进程才会生效（配置在启动时载入）

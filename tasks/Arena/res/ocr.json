@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "arena_dialog",
+    "keyword": "",
+    "method": "Default",
+    "mode": "Full",
+    "roiFront": "325,255,640,200",
+    "roiBack": "325,255,640,200",
+    "description": "角斗场弹窗文案识别区"
+  }
+]
