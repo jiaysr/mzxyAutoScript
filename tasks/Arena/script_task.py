@@ -11,10 +11,13 @@
 7. 未达次数则立刻开下一局，达到次数则排到明天 12:00
 8. 勾选「根据活跃度判断」后次数配置失效：每局开始前查活动-活跃页的「同服竞技」是否已完成，
    已完成则直接收工，未完成才继续打
+9. 活跃度模式下等待匹配时，如果有更高优先级的任务（Restart/Quiz/WorldBoss/Challenge）已到期，
+   会放弃本轮（重启清队列）并排到 5 分钟后，给高优先级任务让路；未勾选时按默认等待到超时
 """
 from datetime import datetime, time, timedelta
 
 from module.base.timer import Timer
+from module.config.utils import convert_to_underscore
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.Arena.assets import ArenaAssets
@@ -34,6 +37,8 @@ class ScriptTask(GameUi, ArenaAssets):
     MATCH_TEXT = '角斗场为您找到了对手'
     # 活跃页里对应的任务名
     ACTIVE_TASK_NAME = '同服竞技'
+    # 调度优先级高于 Arena 的任务（与 ConfigManual.SCHEDULER_PRIORITY 对齐）
+    HIGHER_PRIORITY_TASKS = ['Restart', 'Quiz', 'WorldBoss', 'Challenge']
 
     def run(self) -> None:
         arena = self.config.arena.arena_config
@@ -61,11 +66,15 @@ class ScriptTask(GameUi, ArenaAssets):
         self.enter_arena_page()
         self.select_same_server()
         self.sign_up()
-        if not self.wait_match():
-            logger.warning('Match not found, give up this round')
-            # 重启游戏清掉排队状态，避免下次报名弹窗不出现/错过匹配
+        result = self.wait_match()
+        if result != 'matched':
+            # 放弃本轮：重启游戏清掉排队状态，避免下次报名弹窗不出现/错过匹配
+            if result == 'yield':
+                delay = 300
+            else:
+                delay = 30
             self.restart_game()
-            self.set_next_run(task='Arena', target=datetime.now() + timedelta(seconds=30))
+            self.set_next_run(task='Arena', target=datetime.now() + timedelta(seconds=delay))
             raise TaskEnd('Arena')
 
         self.device.sleep(2)
@@ -208,24 +217,44 @@ class ScriptTask(GameUi, ArenaAssets):
         # 报名成功后自动回到主页面
         self.ui_wait_until_appear(page_main, timeout=timeout)
 
-    def wait_match(self) -> bool:
+    def wait_match(self) -> str:
         """
         每 2 秒检测一次匹配成功弹窗，匹配成功后点「确定」参战
-        :return: 匹配成功返回 True，超时返回 False
+        活跃度模式下，若有更高优先级任务已到期则提前让路（重启清队列后重排）
+        :return: 'matched' 匹配成功 / 'timeout' 等待超时 / 'yield' 让路给高优先级任务
         """
         logger.hr('Wait for match')
-        timeout = self.config.arena.arena_config.match_timeout
+        arena = self.config.arena.arena_config
+        timeout = arena.match_timeout
         timer = Timer(timeout).start()
         while 1:
             self.screenshot()
             if self.dialog_appear(self.MATCH_TEXT):
                 logger.info('Match found, join the battle')
                 self.click(self.C_ARENA_CONFIRM)
-                return True
+                return 'matched'
             if timer.reached():
                 logger.warning(f'Wait match timeout ({timeout}s)')
-                return False
+                return 'timeout'
+            if arena.use_activity and self.higher_priority_task_due():
+                logger.warning('Higher priority task is due, give up this round')
+                return 'yield'
             self.device.sleep(2)
+
+    def higher_priority_task_due(self) -> bool:
+        """
+        是否有更高优先级（调度顺序在 Arena 之前）且已使能、已到期的任务
+        """
+        now = datetime.now()
+        for name in self.HIGHER_PRIORITY_TASKS:
+            task = getattr(self.config.model, convert_to_underscore(name), None)
+            scheduler = getattr(task, 'scheduler', None)
+            if scheduler is None or not scheduler.enable:
+                continue
+            if scheduler.next_run <= now:
+                logger.attr('Higher priority task', f'{name} {scheduler.next_run}')
+                return True
+        return False
 
     def restart_game(self) -> None:
         """
