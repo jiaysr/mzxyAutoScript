@@ -5,9 +5,10 @@
 1. 仅开放时间 12:00-22:00 运行，每天最多完成 count 次
 2. 进入挑战-战场页面，确认右侧选中的是「同服竞技」（左侧出现 2人角斗 按钮）
 3. 双击 2人角斗 按钮弹出报名弹窗，点击「确定」报名
-4. 报名成功后自动回到主页面，每 2 秒检测一次匹配成功弹窗
-5. 匹配成功后点击「确定」参战，等待 2 秒后重启游戏
-6. 重启成功记完成 1 次；未达次数则立刻开下一局，达到次数则排到明天 12:00
+4. 报名成功后自动回到主页面，每 2 秒检测一次匹配成功弹窗（超时默认 20 分钟）
+5. 匹配成功：点击「确定」参战，等待 2 秒后重启游戏，重启成功记完成 1 次
+6. 匹配超时：重启游戏清掉排队状态，不计次，30 秒后重试
+7. 未达次数则立刻开下一局，达到次数则排到明天 12:00
 """
 from datetime import datetime, time, timedelta
 
@@ -52,7 +53,9 @@ class ScriptTask(GameUi, ArenaAssets):
         self.sign_up()
         if not self.wait_match():
             logger.warning('Match not found, give up this round')
-            self.set_next_run(task='Arena', target=datetime.now() + timedelta(minutes=5))
+            # 重启游戏清掉排队状态，避免下次报名弹窗不出现/错过匹配
+            self.restart_game()
+            self.set_next_run(task='Arena', target=datetime.now() + timedelta(seconds=30))
             raise TaskEnd('Arena')
 
         self.device.sleep(2)
