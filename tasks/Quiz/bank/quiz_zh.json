@@ -1097,8 +1097,8 @@
         "生命",
         "闪避"
       ],
-      "answer": "生命",
-      "verified": false,
+      "answer": "额外伤害",
+      "verified": true,
       "wrong": [
         "生命"
       ],
@@ -1114,8 +1114,8 @@
         "家里",
         "火星"
       ],
-      "answer": "火星",
-      "verified": false,
+      "answer": "牧野",
+      "verified": true,
       "wrong": [
         "火星"
       ],
@@ -1131,8 +1131,8 @@
         "铜贝100",
         "元宝10个"
       ],
-      "answer": "铜贝100",
-      "verified": false,
+      "answer": "五彩泥1个",
+      "verified": true,
       "wrong": [
         "铜贝100"
       ],
@@ -1148,8 +1148,8 @@
         "忘川",
         "牧野"
       ],
-      "answer": "",
-      "verified": false,
+      "answer": "牧野",
+      "verified": true,
       "wrong": [],
       "hits": 0,
       "source": "pending",
