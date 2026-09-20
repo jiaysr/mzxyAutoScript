@@ -59,11 +59,12 @@ class BaseTask(GlobalGame):
 
     def screenshot(self):
         """
-        截图，并做全局死亡检测：检测到阵亡会复活并重跑当前任务
+        截图，并做全局处理：阵亡检测（复活并重跑）与已知弹窗清理
         :return:
         """
         self.device.screenshot()
         self.handle_death()
+        self.handle_popup()
 
         return self.device.image
 

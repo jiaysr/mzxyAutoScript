@@ -86,6 +86,11 @@ self.ui_goto(page_xxx)                                  # 通过页面注册表�
 （当前 `Challenge`、`WorldBoss`、`Quiz`、`Restart` 都是这种方式）。
 弹窗清理和安全点击由任务类覆盖 `GameUi.ui_close`、`GameUi.ui_safe_click` 配置。
 
+全局弹窗清理：`tasks/GlobalGame/popup/` 下记录弹窗素材——特征点
+`itemName=popup_<名字>`（image.json）+ 关闭区域 `itemName=popup_<名字>_close`（click.json）。
+命名配对后所有任务的 `screenshot()` 都会自动检测并关闭（`GlobalGame.handle_popup`，1 秒限频），
+新增弹窗只需录素材、无需改代码。
+
 ## 4. 任务骨架模板
 
 `config.py`（参数定义，参考 `tasks/Challenge/config.py`）：
