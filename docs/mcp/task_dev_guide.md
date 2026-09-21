@@ -223,6 +223,14 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - minitouch 的滑动速度固定且很快（`swipe` 的 duration 参数对 minitouch 无效），列表扫描要用
   `GameUi.ui_swipe_gentle` 拆成多段小滑动（每屏 150px 左右）+ 滚动后等待 0.8s 再截图识别，
   整段快速滑动会甩过头、滑完立刻截图会识别不准（参考 `tasks/GameUi/activity.py`）
+- **页面缓存失效**：`ui_goto` 依赖 `GameUi.ui_current` 算路径，界面在 `ui_goto` 之外发生变化后
+  （重启游戏、角色自动寻路离开活动页、任务弹窗关闭回主页面等）必须调用
+  `self.ui_reset_current_page()` 作废缓存，让下次导航重新识别，否则：
+  - 缓存正好等于目标页时 `ui_goto` 直接返回 True（连截图都不做），后续步骤在错误的界面上操作，
+    例如世界首领同一时段打第二个首领时在野外地图上找首领卡片，最后 `Unable to seek` 静默跳过；
+  - 缓存是别的页面时会按旧路径点错按钮，例如在主页面点角色面板的返回键而打开了地图，
+    随后 `Unknown ui page` + `GamePageUnknownError`（参考 `tasks/CrossArena/script_task.py` 的重启流程）
+  重启游戏统一用 `GameUi.ui_restart_game()`（内部已作废缓存），不要自己 new `RestartTask`
 
 ## 9. 公共能力（GameUi）
 
@@ -232,6 +240,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   （面板文案里有「使用后可参与…」的说明，所以按按钮文字精确匹配，不要匹配「使用」两字）
 - 活跃任务状态：`active_task_completed(name)`
 - 弹窗文案：`dialog_appear(rule, text)`；长时间等待：`reset_records()`、`ui_swipe_gentle(p1, p2)`
+- 重启游戏：`ui_restart_game()`（跑一遍重启+登录流程，并作废页面缓存）
+- 作废页面缓存：`ui_reset_current_page()`（界面在 `ui_goto` 之外变化后、下次寻路前调用）
 
 ## 10. 已实现任务
 

@@ -125,7 +125,9 @@ class ScriptTask(GameUi, QuizAssets):
     def back_to_main(self) -> None:
         """
         答题结束后回到主页面
+        关掉答题弹窗后界面已经不在背包页（缓存里还留着背包页），先作废再重新识别
         """
+        self.ui_reset_current_page()
         if not self.ui_goto(page_main, timeout=30):
             logger.warning('返回主页面失败')
 

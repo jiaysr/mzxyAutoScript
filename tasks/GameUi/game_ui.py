@@ -168,16 +168,23 @@ class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigati
         logger.critical("Please switch to a supported page before starting oas")
         raise GamePageUnknownError
 
+    def ui_reset_current_page(self) -> None:
+        """
+        作废缓存的当前页面/模块
+        界面在 ui_goto 之外发生变化后（重启游戏、角色寻路离开活动页、任务弹窗关闭回主页面等）调用，
+        让下次导航重新识别页面，否则会按旧页面走错路径
+        （如在主页面点角色面板的返回按钮而打开了地图）
+        """
+        self.ui_current = None
+        self.ui_current_module = None
+
     def ui_restart_game(self) -> None:
         """
-        复用重启任务的登录流程重启游戏
-        重启后界面回到主页面，缓存的当前页面/模块已经失效，必须清空后让下次导航重新识别，
-        否则会按重启前的页面走错路径（如在主页面点角色面板的返回按钮而打开了地图）
+        复用重启任务的登录流程重启游戏（重启后界面回到主页面，页面缓存随之作废）
         """
         from tasks.Restart.script_task import ScriptTask as RestartTask
         RestartTask(self.config, self.device).app_restart()
-        self.ui_current = None
-        self.ui_current_module = None
+        self.ui_reset_current_page()
 
     def ui_button_interval_reset(self, button):
         """

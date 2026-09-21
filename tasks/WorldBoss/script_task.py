@@ -195,8 +195,11 @@ class ScriptTask(GameUi, WorldBossAssets):
     def enter_world_boss_page(self, timeout: int = 40) -> bool:
         """
         前往活动-世界首领页面（页面寻路自动处理：展开菜单 -> 活动图标 -> 活动 tab -> 子 tab）
+        同一个时间段可能有多个首领，上一个首领流程里角色已经寻路离开活动页，
+        缓存的当前页面已经失效，必须先作废再重新识别，否则 ui_goto 会以为还在活动页而直接返回
         """
         logger.hr('Enter world boss page')
+        self.ui_reset_current_page()
         if not self.ui_goto(page_activity_world_boss, timeout=timeout):
             raise GameStuckError('World boss page does not appear')
         return True
