@@ -43,7 +43,7 @@ class GameUiAssets:
 	# 活动-公告页特征（右侧内容面板顶边） 
 	I_PAGE_ACTIVITY_NOTICE = RuleImage(roi_front=(531,183,655,23), roi_back=(528,169,672,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_notice.png")
 	# 活动-推荐页特征（活动奖励图标） 
-	I_PAGE_ACTIVITY_LIST = RuleImage(roi_front=(424,534,47,55), roi_back=(403,515,88,92), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_list.png")
+	I_PAGE_ACTIVITY_LIST = RuleImage(roi_front=(1059,207,67,40), roi_back=(1045,197,92,59), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_list.png")
 	# 活动-世界首领页特征（奖按钮） 
 	I_PAGE_ACTIVITY_WORLD_BOSS = RuleImage(roi_front=(158,554,45,41), roi_back=(135,541,90,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_world_boss.png")
 	# 活动弹窗容器特征（右上角绿X） 

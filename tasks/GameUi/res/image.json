@@ -74,8 +74,8 @@
   {
     "itemName": "page_activity_list",
     "imageName": "res_page_activity_list.png",
-    "roiFront": "424,534,47,55",
-    "roiBack": "403,515,88,92",
+    "roiFront": "1059,207,67,40",
+    "roiBack": "1045,197,92,59",
     "method": "Template matching",
     "threshold": 0.8,
     "description": "活动-推荐页特征（活动奖励图标）"
