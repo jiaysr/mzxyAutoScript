@@ -31,6 +31,7 @@ from module.exception import RequestHumanTakeover, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.page import page_main
+from tasks.Quiz import bank_sync
 from tasks.Quiz.assets import QuizAssets
 from tasks.Quiz.deepseek_client import DeepSeekClient
 from tasks.Quiz.question_bank import QuestionBank
@@ -71,6 +72,7 @@ class ScriptTask(GameUi, QuizAssets):
         self.check_assets()
 
         self.bank = QuestionBank(BANK_FILE, UNKNOWN_FILE).load()
+        self.bank_pull()
         self.client = DeepSeekClient(
             api_key=self.quiz_config.api_key or os.environ.get('DEEPSEEK_API_KEY', ''),
             model=self.quiz_config.model,
@@ -85,9 +87,41 @@ class ScriptTask(GameUi, QuizAssets):
         else:
             logger.warning('答题券不可用（可能今天已经答过），跳过本次答题')
 
+        self.bank_push()
         self.back_to_main()
         self.schedule_next_day()
         raise TaskEnd('Quiz')
+
+    # ---------------------------------------------------------------- 题库同步
+    def bank_pull(self) -> None:
+        """
+        答题前把别的设备学到的题合并进来（同步失败只告警，不影响答题）
+        """
+        repo_dir = self.quiz_config.bank_repo_dir.strip()
+        if not repo_dir:
+            return
+        try:
+            stats = bank_sync.pull(BANK_FILE, repo_dir,
+                                   url=self.quiz_config.bank_repo_url.strip())
+        except Exception as e:
+            logger.warning(f'题库同步失败（不影响答题）: {e}')
+            return
+        if stats.get('changed'):
+            self.bank.load()
+
+    def bank_push(self) -> None:
+        """
+        答题后把本机新学的题推到交换仓库（同步失败只告警）
+        """
+        repo_dir = self.quiz_config.bank_repo_dir.strip()
+        if not repo_dir:
+            return
+        try:
+            bank_sync.push(BANK_FILE, repo_dir,
+                           url=self.quiz_config.bank_repo_url.strip(),
+                           device=self.config.config_name)
+        except Exception as e:
+            logger.warning(f'题库同步失败（本机题库不受影响）: {e}')
 
     # ---------------------------------------------------------------- 基础
     @property

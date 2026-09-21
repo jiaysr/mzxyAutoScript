@@ -79,5 +79,7 @@
   "first": "Always A",
   "random": "Random",
   "quiz_save_screenshot_help": "Save quiz screenshots to log/quiz for manual bank filling",
-  "quiz_learn_from_llm_help": "Write AI answers into the bank (marked unverified, promoted once the game confirms correct)"
+  "quiz_learn_from_llm_help": "Write AI answers into the bank (marked unverified, promoted once the game confirms correct)",
+  "quiz_bank_repo_dir_help": "Git repo dir sharing the question bank (default: quiz-db next to the project; clear = local only)",
+  "quiz_bank_repo_url_help": "Repo url (prefilled by default, cloned automatically when the directory is missing)"
 }

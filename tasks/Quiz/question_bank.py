@@ -74,15 +74,24 @@ class QuestionBank:
             self._index[self.normalize(item['q'])] = item
 
     def save(self) -> None:
+        self.dump(self.bank_path, self.questions)
+        self._build_index()
+
+    @staticmethod
+    def dump(path: str, questions: list) -> None:
+        """
+        按主库文件格式写入题目列表（题库同步/合并工具复用，保证两边格式一致）
+        """
         data = {
             'version': 1,
             'updated': datetime.now().strftime('%Y-%m-%d'),
-            'questions': self.questions,
+            'questions': questions,
         }
-        os.makedirs(os.path.dirname(self.bank_path), exist_ok=True)
-        with io.open(self.bank_path, 'w', encoding='utf-8', newline='\n') as f:
+        folder = os.path.dirname(path)
+        if folder:
+            os.makedirs(folder, exist_ok=True)
+        with io.open(path, 'w', encoding='utf-8', newline='\n') as f:
             json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=False)
-        self._build_index()
 
     # ---------------------------------------------------------------- 工具
     @staticmethod
@@ -166,6 +175,7 @@ class QuestionBank:
             'verified': False,
             'wrong': [],
             'hits': 0,
+            'correct': 0,
             'source': 'pending',
             'updated': datetime.now().strftime('%Y-%m-%d'),
         }
@@ -191,6 +201,7 @@ class QuestionBank:
                 'verified': False,
                 'wrong': [],
                 'hits': 0,
+                'correct': 0,
                 'source': source,
                 'updated': today,
             }
@@ -225,6 +236,8 @@ class QuestionBank:
                 # 该答案已被游戏确认，从排除列表里移除（选项顺序会变，留着会误导 AI）
                 record['wrong'] = [w for w in record.get('wrong', []) if w != answer_text]
             record['verified'] = True
+            # 答对次数：多设备同步合并时作为答案可信度的依据
+            record['correct'] = int(record.get('correct', 0) or 0) + 1
             logger.info(f'题库校验通过: {question[:20]}... -> {record["answer"]}')
         elif feedback == 'wrong':
             record['verified'] = False

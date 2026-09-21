@@ -187,5 +187,7 @@
   "first": "固定选A",
   "random": "随机选一个",
   "quiz_save_screenshot_help": "保存答题界面截图到 log/quiz，方便事后人工补库",
-  "quiz_learn_from_llm_help": "把 AI 的答案写入题库（标记为未验证，被游戏反馈答对后转为已验证）"
+  "quiz_learn_from_llm_help": "把 AI 的答案写入题库（标记为未验证，被游戏反馈答对后转为已验证）",
+  "quiz_bank_repo_dir_help": "多设备共用题库的 git 交换仓库目录（默认项目同级的 quiz-db，一般不用改；清空=只用本机题库）",
+  "quiz_bank_repo_url_help": "交换仓库地址（默认已填好，目录不存在时自动 clone）"
 }
