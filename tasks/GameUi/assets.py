@@ -62,7 +62,7 @@ class GameUiAssets:
 	# 活动弹窗右侧子 tab 栏（可上下滚动） 
 	O_ACTIVITY_SUBTABS = RuleOcr(roi=(1045,150,175,480), area=(1045,150,175,480), mode="Full", method="Default", keyword="", name="activity_subtabs")
 	# 游戏通用弹窗文案识别区域（报名/匹配/提示弹窗） 
-	O_DIALOG_TEXT = RuleOcr(roi=(325,255,640,200), area=(325,255,640,200), mode="Full", method="Default", keyword="", name="dialog_text")
+	O_DIALOG_TEXT = RuleOcr(roi=(314,235,649,249), area=(331,234,622,259), mode="Full", method="Default", keyword="", name="dialog_text")
 	# 活动-活跃页的任务列表 
 	O_ACTIVITY_TASK_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="activity_task_list")
 	# 物品-背包物品格（4 列）识别区 

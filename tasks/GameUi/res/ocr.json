@@ -37,8 +37,8 @@
   },
   {
     "itemName": "dialog_text",
-    "roiFront": "325,255,640,200",
-    "roiBack": "325,255,640,200",
+    "roiFront": "314,235,649,249",
+    "roiBack": "331,234,622,259",
     "mode": "Full",
     "method": "Default",
     "keyword": "",
