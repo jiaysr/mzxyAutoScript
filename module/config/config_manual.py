@@ -8,7 +8,8 @@ class ConfigManual:
     """
 
     SCHEDULER_PRIORITY = """
-        Restart > Quiz
+        Restart > WarChariot
+        > Quiz
         > WorldBoss
         > Challenge
         > Arena

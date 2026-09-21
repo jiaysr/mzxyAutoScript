@@ -251,3 +251,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - `tasks/Challenge`、`tasks/Quiz`：挑战、答题
   - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
+- `tasks/WarChariot`：参与战车（仙盟战车）
+  - 每天 20:00 开放，提前 `advance_time`（默认 5 分钟）把游戏启动/登录到主页面
+  - 到点后每 2s 检测主页面文字区域（OCR 规则 `O_CHARIOT_TEXT`）是否含「仙盟战车」，
+    识别到就点击参与区域（`C_CHARIOT_JOIN`）-> 等 2s 关游戏 -> 离线 5 分钟 -> 重启回主页面
+  - 检测超时 20 分钟按完成处理；无论结果如何都排到第二天的准备时间（`set_next_run(target=...)`）

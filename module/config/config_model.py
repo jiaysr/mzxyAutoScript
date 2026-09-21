@@ -21,6 +21,7 @@ from tasks.Challenge.config import Challenge
 from tasks.WorldBoss.config import WorldBoss
 from tasks.Arena.config import Arena
 from tasks.CrossArena.config import CrossArena
+from tasks.WarChariot.config import WarChariot
 
 
 class ConfigModel(ConfigBase):
@@ -34,6 +35,7 @@ class ConfigModel(ConfigBase):
     challenge: Challenge = Field(default_factory=Challenge)
     arena: Arena = Field(default_factory=Arena)
     cross_arena: CrossArena = Field(default_factory=CrossArena)
+    war_chariot: WarChariot = Field(default_factory=WarChariot)
     quiz: Quiz = Field(default_factory=Quiz)
 
     def __init__(self, config_name: str=None) -> None:

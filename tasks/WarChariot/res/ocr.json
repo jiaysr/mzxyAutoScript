@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "chariot_text",
+    "roiFront": "343,274,598,72",
+    "roiBack": "343,274,598,72",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "仙盟战车",
+    "description": "主页面-仙盟战车文字检测区域（343,274,941,346）"
+  }
+]
