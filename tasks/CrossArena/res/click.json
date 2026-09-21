@@ -10,5 +10,11 @@
     "roiFront": "290,196,110,42",
     "roiBack": "290,196,110,42",
     "description": "2人跨服按钮（双击报名）"
+  },
+  {
+    "itemName": "cross_arena_join_confirm",
+    "roiFront": "739,418,173,40",
+    "roiBack": "739,418,173,40",
+    "description": "跨服竞技匹配成功-参战确定按钮（与报名弹窗的通用确定按钮位置不同）"
   }
 ]

@@ -15,6 +15,8 @@ class CrossArenaAssets:
 	C_CROSS_ARENA_SAME_SERVER = RuleClick(roi_front=(1122,375,123,48), roi_back=(1122,375,123,48), name="cross_arena_same_server")
 	# 2人跨服按钮（双击报名） 
 	C_CROSS_ARENA_BUTTON_CLICK = RuleClick(roi_front=(290,196,110,42), roi_back=(290,196,110,42), name="cross_arena_button_click")
+	# 跨服竞技匹配成功-参战确定按钮（与报名弹窗的通用确定按钮位置不同） 
+	C_CROSS_ARENA_JOIN_CONFIRM = RuleClick(roi_front=(739,418,173,40), roi_back=(739,418,173,40), name="cross_arena_join_confirm")
 
 
 	# Image Rule Assets

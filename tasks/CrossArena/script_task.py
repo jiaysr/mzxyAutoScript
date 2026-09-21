@@ -23,7 +23,6 @@ from module.logger import logger
 from tasks.CrossArena.assets import CrossArenaAssets
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.page import page_challenge
-from tasks.Restart.script_task import ScriptTask as RestartTask
 
 # 跨服竞技开放时段（每天两场）
 OPEN_TIMES = [(time(13, 0), time(14, 0)), (time(17, 0), time(18, 0))]
@@ -192,7 +191,7 @@ class ScriptTask(GameUi, CrossArenaAssets):
             self.screenshot()
             if any(self.dialog_appear(self.O_DIALOG_TEXT, text) for text in self.MATCH_TEXTS):
                 logger.info('Match found, join the battle')
-                self.click(self.C_DIALOG_CONFIRM)
+                self.click(self.C_CROSS_ARENA_JOIN_CONFIRM)
                 return 'matched'
             if timer.reached():
                 logger.warning(f'Wait match timeout ({timeout}s)')
@@ -209,10 +208,10 @@ class ScriptTask(GameUi, CrossArenaAssets):
 
     def restart_game(self) -> None:
         """
-        复用重启任务的登录流程重启游戏
+        复用重启任务的登录流程重启游戏（重启后清空页面缓存）
         """
         logger.hr('Restart game after cross arena')
-        RestartTask(self.config, self.device).app_restart()
+        self.ui_restart_game()
 
 
 if __name__ == '__main__':

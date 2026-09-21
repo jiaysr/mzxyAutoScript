@@ -22,7 +22,6 @@ from module.logger import logger
 from tasks.Arena.assets import ArenaAssets
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.page import page_challenge, page_main
-from tasks.Restart.script_task import ScriptTask as RestartTask
 
 # 竞技场开放时间
 OPEN_TIME = time(12, 0)
@@ -179,10 +178,10 @@ class ScriptTask(GameUi, ArenaAssets):
 
     def restart_game(self) -> None:
         """
-        复用重启任务的登录流程重启游戏
+        复用重启任务的登录流程重启游戏（重启后清空页面缓存）
         """
         logger.hr('Restart game after arena')
-        RestartTask(self.config, self.device).app_restart()
+        self.ui_restart_game()
 
 
 if __name__ == '__main__':
