@@ -15,3 +15,5 @@
 *.html text eol=lf
 
 .github/workflows/*.lock.yml linguist-generated=true
+*.onnx binary
+

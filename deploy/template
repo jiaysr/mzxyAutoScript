@@ -80,6 +80,16 @@ Deploy:
     # Address of ocr server for alas instance to connect
     # [Default] 127.0.0.1:22268
     OcrClientAddress: 127.0.0.1:22268
+    # Version of local ocr model
+    # [Default] PP-OCRv5 (best accuracy, recommended)
+    # [Options] PP-OCRv4 (lighter), default (builtin PP-OCRv3 det + PP-OCRv2 rec, lowest accuracy)
+    OcrModelVersion: PP-OCRv5
+    # Directory of local ocr model
+    # [Default] ./bin/ocr_model
+    OcrModelDir: ./bin/ocr_model
+    # Whether to download the ocr model when it's missing
+    # [Default] true
+    OcrModelAutoDownload: true
 
   Update:
     # Use auto update and builtin updater feature

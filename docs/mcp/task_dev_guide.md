@@ -213,6 +213,11 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - OCR 会把形近字认错（如「手」→「于」、「入」→「人」），精确文案判断要用**不易误识的片段**：
   跨服竞技匹配弹窗实际识别为「已找到对于，是否进人跨服战场」，所以判断用的是 `已找到对`
   （参考 `tasks/CrossArena/script_task.py` 的 `MATCH_TEXTS`）
+- 本地 OCR 模型在 `config/deploy.yaml` 的 `OcrModelVersion` 切换：`PP-OCRv5`（默认，小字/形近字识别更好）、
+  `PP-OCRv4`（更快更省内存）、`default`（旧的 PP-OCRv3 检测 + PP-OCRv2 识别，便于回滚）；
+  模型存放在 `bin/ocr_model`，缺失时按 `OcrModelAutoDownload` 自动从 ModelScope 下载，
+  手动补模型用 `python -m module.ocr.download PP-OCRv5`。v5 偶尔会输出繁体/异体字（如「別」「奧」「屆」），
+  做严格等值匹配时留意，必要时改用 v4
 - 长时间等待（>1 分钟）不动屏幕会被 `device.stuck_record_check()` 判为卡死（Wait too long），
   循环里要定期 `self.reset_records()`（清卡死 + 连点记录，GameUi 已提供）
 - 弹窗文案识别、让路判断（`higher_priority_task_due`）、活跃页任务状态读取（`active_task_completed`）
