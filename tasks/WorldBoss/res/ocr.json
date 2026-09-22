@@ -1,14 +1,5 @@
 [
   {
-    "itemName": "position",
-    "roiFront": "1085,85,190,35",
-    "roiBack": "1085,85,190,35",
-    "mode": "Full",
-    "method": "Default",
-    "keyword": "",
-    "description": "主界面-当前坐标"
-  },
-  {
     "itemName": "target_name",
     "roiFront": "426,5,240,36",
     "roiBack": "424,9,240,36",

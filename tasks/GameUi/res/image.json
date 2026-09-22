@@ -106,5 +106,50 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "活动-活跃页特征（活跃值标题）"
+  },
+  {
+    "itemName": "map_minimap_world_map",
+    "imageName": "res_map_minimap_world_map.png",
+    "roiFront": "971,118,126,42",
+    "roiBack": "794,9,1210,314",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小地图页-世界地图按钮（小地图页特征，也是进入世界地图的入口，位置随地图大小变化）"
+  },
+  {
+    "itemName": "map_world_map_list_button",
+    "imageName": "res_map_world_map_list_button.png",
+    "roiFront": "1008,587,73,45",
+    "roiBack": "988,570,114,84",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界地图页-列表按钮（世界地图页特征，点击进入世界地图列表）"
+  },
+  {
+    "itemName": "map_world_map_list_page",
+    "imageName": "res_map_world_map_list_page.png",
+    "roiFront": "591,92,95,37",
+    "roiBack": "559,73,159,79",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界地图列表页-「请选择」标题（列表页特征）"
+  },
+  {
+    "itemName": "map_popup_close",
+    "imageName": "res_map_popup_close.png",
+    "roiFront": "1131,44,41,51",
+    "roiBack": "1007,0,245,223",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小地图-右上角关闭按钮（通用绿X，位置随弹窗大小变化）"
+  },
+  {
+    "itemName": "map_dialog_confirm_button",
+    "imageName": "res_map_dialog_confirm_button.png",
+    "roiFront": "768,358,117,61",
+    "roiBack": "760,350,140,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px）"
   }
 ]

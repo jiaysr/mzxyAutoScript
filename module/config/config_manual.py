@@ -14,6 +14,7 @@ class ConfigManual:
         > Challenge
         > Arena
         > CrossArena
+        > AncientHunt
         """
 
     DEVICE_OVER_HTTP = False

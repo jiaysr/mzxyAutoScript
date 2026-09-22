@@ -2,6 +2,7 @@
 from module.atom.image import RuleImage
 from module.base.timer import Timer
 from module.logger import logger
+from tasks.GameUi.assets import GameUiAssets as GA
 from tasks.Restart.restart_base import RestartBase
 
 
@@ -28,8 +29,9 @@ class RestartX7(RestartBase):
         while 1:
             self.screenshot()
 
-            # 主界面：识别到「聊天」即登录成功
-            if self.ocr_appear(self.O_CHAT):
+            # 主界面：命中主页面特征即登录成功（与 page_main 共用同一素材，
+            # 登录期间会有公告栏等弹窗，主页面特征在右下角不受遮挡）
+            if self.appear(GA.I_PAGE_MAIN):
                 logger.info('Main page appear')
                 self.handle_popup()
                 logger.info('Login to main confirm')

@@ -23,6 +23,14 @@ class GameUiAssets:
 	C_DIALOG_CANCEL = RuleClick(roi_front=(364,363,173,40), roi_back=(364,363,173,40), name="dialog_cancel")
 	# 背包-整理背包按钮 
 	C_BAG_SORT = RuleClick(roi_front=(573,591,137,48), roi_back=(573,591,137,48), name="bag_sort")
+	# 主页面-点击右上角小地图打开小地图弹窗 
+	C_MAP_MINIMAP_ENTRY = RuleClick(roi_front=(1208,18,62,54), roi_back=(1208,18,62,54), name="map_minimap_entry")
+	# 世界地图-右上角关闭按钮（固定位置，关闭后回主页面） 
+	C_MAP_WORLD_MAP_CLOSE = RuleClick(roi_front=(968,40,43,62), roi_back=(968,40,43,62), name="map_world_map_close")
+	# 世界地图列表-右上角关闭按钮（关闭后回世界地图） 
+	C_MAP_WORLD_MAP_LIST_CLOSE = RuleClick(roi_front=(983,45,46,53), roi_back=(983,45,46,53), name="map_world_map_list_close")
+	# 传送确认弹窗-确定按钮（两种弹窗确认位置有偏差，这里取公共区域） 
+	C_MAP_TELEPORT_CONFIRM = RuleClick(roi_front=(790,380,72,36), roi_back=(790,380,72,36), name="map_teleport_confirm")
 
 
 	# Image Rule Assets
@@ -50,6 +58,16 @@ class GameUiAssets:
 	I_PAGE_ACTIVITY = RuleImage(roi_front=(1180,28,65,52), roi_back=(1150,10,130,90), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity.png")
 	# 活动-活跃页特征（活跃值标题） 
 	I_PAGE_ACTIVITY_ACTIVE = RuleImage(roi_front=(872,180,88,36), roi_back=(850,160,150,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_active.png")
+	# 小地图页-世界地图按钮（小地图页特征，也是进入世界地图的入口，位置随地图大小变化） 
+	I_MAP_MINIMAP_WORLD_MAP = RuleImage(roi_front=(971,118,126,42), roi_back=(794,9,1210,314), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_minimap_world_map.png")
+	# 世界地图页-列表按钮（世界地图页特征，点击进入世界地图列表） 
+	I_MAP_WORLD_MAP_LIST_BUTTON = RuleImage(roi_front=(1008,587,73,45), roi_back=(988,570,114,84), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_world_map_list_button.png")
+	# 世界地图列表页-「请选择」标题（列表页特征） 
+	I_MAP_WORLD_MAP_LIST_PAGE = RuleImage(roi_front=(591,92,95,37), roi_back=(559,73,159,79), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_world_map_list_page.png")
+	# 小地图-右上角关闭按钮（通用绿X，位置随弹窗大小变化） 
+	I_MAP_POPUP_CLOSE = RuleImage(roi_front=(1131,44,41,51), roi_back=(1007,0,245,223), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_popup_close.png")
+	# 传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px） 
+	I_MAP_DIALOG_CONFIRM_BUTTON = RuleImage(roi_front=(768,358,117,61), roi_back=(760,350,140,100), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_dialog_confirm_button.png")
 
 
 	# Ocr Rule Assets
@@ -67,5 +85,13 @@ class GameUiAssets:
 	O_ACTIVITY_TASK_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="activity_task_list")
 	# 物品-背包物品格（4 列）识别区 
 	O_BAG_GRID = RuleOcr(roi=(255,105,925,450), area=(255,105,925,450), mode="Full", method="Default", keyword="", name="bag_grid")
+	# 主页面右上角-当前地点与坐标（如 沼泽427,59） 
+	O_MAP_LOCATION = RuleOcr(roi=(1072,84,208,35), area=(1072,84,208,35), mode="Full", method="Default", keyword="", name="map_location")
+	# 世界地图列表-地点条目识别区（供按名称点击传送使用） 
+	O_MAP_WORLD_MAP_LIST = RuleOcr(roi=(280,140,720,475), area=(280,140,720,475), mode="Full", method="Default", keyword="", name="map_world_map_list")
+	# 传送确认弹窗-文案区（免费传送与花费铜贝两种弹窗都含「传送」） 
+	O_MAP_TELEPORT_DIALOG = RuleOcr(roi=(300,240,680,140), area=(300,240,680,140), mode="Full", method="Default", keyword="传送", name="map_teleport_dialog")
+	# 传送确认弹窗-确定按钮（OCR 定位后点击，兼容两种弹窗） 
+	O_MAP_DIALOG_CONFIRM = RuleOcr(roi=(700,340,300,120), area=(700,340,300,120), mode="Full", method="Default", keyword="确定", name="map_dialog_confirm")
 
 

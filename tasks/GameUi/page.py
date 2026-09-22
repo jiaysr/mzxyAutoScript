@@ -46,6 +46,13 @@ class Page:
 
 
 # ************************************* 明珠轩辕页面注册区 *****************************************#
+# 地图相关：列表页在 世界地图 之前（列表页也会显示「列表」按钮）；都要放在 page_main 之前
+# 传送确认弹窗：识别「确定」按钮素材（OCR 规则在 keyword 整串不匹配时会退化成逐字符匹配，
+# 会把带「送」字的任何界面都误判成本页，所以页面识别一律用图片素材）
+page_teleport_dialog = Page(G.I_MAP_DIALOG_CONFIRM_BUTTON)        # 传送确认弹窗（免费/铜贝）
+page_world_map_list = Page(G.I_MAP_WORLD_MAP_LIST_PAGE)           # 世界地图列表（请选择）
+page_world_map = Page(G.I_MAP_WORLD_MAP_LIST_BUTTON)              # 世界地图（列表按钮）
+page_minimap = Page(G.I_MAP_MINIMAP_WORLD_MAP)                    # 小地图弹窗（世界地图按钮）
 # 活动弹窗：具体页在前、容器页在后（都要放在 page_main 之前：弹窗打开时主页面特征仍会命中）
 page_activity_list = Page(G.I_PAGE_ACTIVITY_LIST)              # 活动-推荐（顶部"活动"tab 的默认子 tab）
 page_activity_world_boss = Page(G.I_PAGE_ACTIVITY_WORLD_BOSS)  # 活动-世界首领
@@ -68,6 +75,14 @@ page_role_detail.module = '角色'
 
 page_main.link(button=G.C_PAGE_MAIN_GOTO_PLAYER, destination=page_role_detail)
 page_main.link(button=MenuTarget(G.I_ACTIVITY_ICON), destination=page_activity)
+# 地图：主页面 -> 小地图 -> 世界地图 -> 列表；传送弹窗「确定」后回主页面
+page_main.link(button=G.C_MAP_MINIMAP_ENTRY, destination=page_minimap)
+page_minimap.link(button=G.I_MAP_MINIMAP_WORLD_MAP, destination=page_world_map)
+page_minimap.link(button=G.I_MAP_POPUP_CLOSE, destination=page_main)
+page_world_map.link(button=G.I_MAP_WORLD_MAP_LIST_BUTTON, destination=page_world_map_list)
+page_world_map.link(button=G.C_MAP_WORLD_MAP_CLOSE, destination=page_main)
+page_world_map_list.link(button=G.C_MAP_WORLD_MAP_LIST_CLOSE, destination=page_world_map)
+page_teleport_dialog.link(button=G.I_MAP_DIALOG_CONFIRM_BUTTON, destination=page_main)
 # 活动弹窗内部：顶部 tab 从容器页进入（切"活动"tab 会重置到推荐子 tab）
 page_activity.link(button=ActivityTabTarget('公告'), destination=page_activity_notice)
 page_activity.link(button=ActivityTabTarget('活动'), destination=page_activity_list)

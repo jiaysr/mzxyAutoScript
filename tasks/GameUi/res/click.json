@@ -34,5 +34,29 @@
     "roiFront": "573,591,137,48",
     "roiBack": "573,591,137,48",
     "description": "背包-整理背包按钮"
+  },
+  {
+    "itemName": "map_minimap_entry",
+    "roiFront": "1208,18,62,54",
+    "roiBack": "1208,18,62,54",
+    "description": "主页面-点击右上角小地图打开小地图弹窗"
+  },
+  {
+    "itemName": "map_world_map_close",
+    "roiFront": "968,40,43,62",
+    "roiBack": "968,40,43,62",
+    "description": "世界地图-右上角关闭按钮（固定位置，关闭后回主页面）"
+  },
+  {
+    "itemName": "map_world_map_list_close",
+    "roiFront": "983,45,46,53",
+    "roiBack": "983,45,46,53",
+    "description": "世界地图列表-右上角关闭按钮（关闭后回世界地图）"
+  },
+  {
+    "itemName": "map_teleport_confirm",
+    "roiFront": "790,380,72,36",
+    "roiBack": "790,380,72,36",
+    "description": "传送确认弹窗-确定按钮（两种弹窗确认位置有偏差，这里取公共区域）"
   }
 ]

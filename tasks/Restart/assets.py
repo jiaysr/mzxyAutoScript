@@ -42,8 +42,3 @@ class RestartAssets:
 	I_X7_POPUP_CLOSE = RuleImage(roi_front=(1203,20,46,46), roi_back=(640,0,640,720), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_popup_close.png")
 
 
-	# Ocr Rule Assets
-	# 主界面-聊天按钮文字 
-	O_CHAT = RuleOcr(roi=(760,676,80,36), area=(760,676,80,36), mode="Full", method="Default", keyword="聊天", name="chat")
-
-

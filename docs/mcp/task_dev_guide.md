@@ -213,6 +213,10 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - OCR 会把形近字认错（如「手」→「于」、「入」→「人」），精确文案判断要用**不易误识的片段**：
   跨服竞技匹配弹窗实际识别为「已找到对于，是否进人跨服战场」，所以判断用的是 `已找到对`
   （参考 `tasks/CrossArena/script_task.py` 的 `MATCH_TEXTS`）
+- 页面 `check_button` 不要用 OCR 规则：Full 模式在整串不匹配时会退化成**逐字符匹配**
+  （keyword「传送」在含「送」字的任意界面都会命中），页面识别会被误判——曾把活动弹窗识别成
+  传送确认弹窗，`ui_goto` 直接走错路径。页面特征一律用图片素材
+  （传送弹窗改用「确定」按钮素材 `I_MAP_DIALOG_CONFIRM_BUTTON`）
 - 本地 OCR 模型在 `config/deploy.yaml` 的 `OcrModelVersion` 切换：`PP-OCRv5`（默认，小字/形近字识别更好）、
   `PP-OCRv4`（更快更省内存）、`default`（旧的 PP-OCRv3 检测 + PP-OCRv2 识别，便于回滚）；
   模型存放在 `bin/ocr_model`，缺失时按 `OcrModelAutoDownload` 自动从 ModelScope 下载，
@@ -247,6 +251,14 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - 弹窗文案：`dialog_appear(rule, text)`；长时间等待：`reset_records()`、`ui_swipe_gentle(p1, p2)`
 - 重启游戏：`ui_restart_game()`（跑一遍重启+登录流程，并作废页面缓存）
 - 作废页面缓存：`ui_reset_current_page()`（界面在 `ui_goto` 之外变化后、下次寻路前调用）
+- 世界地图传送（`tasks/GameUi/map.py`，任务直接 `self.map_xxx()` 调用，不要各自实现）：
+  - `map_current_location()` 读主页面右上角地点与坐标（如 `('沼泽', 427, 59)`），
+    含 OCR 形近字兼容（万剑家→万剑冢、或外灵岛→域外灵岛，维护在 `MAP_NAME_FIXES`）
+  - `map_teleport(name)` 按名称传送（小地图 -> 世界地图 -> 列表 -> 确认弹窗，兼容免费/铜贝两种弹窗）
+  - `map_ensure_location_initial(name)` 确保站在某地点的传送落点上；落点是真机实测值，
+    维护在 `MAP_INITIAL_POS`（新增地点后需实测补上）
+  - `map_close_main_popup()` 关闭会盖住小地图入口的主页面弹窗（活动弹窗）；
+    注意 `ui_goto(page_main)` 只看主页面右下角特征，弹窗开着也会判定「到达主页面」
 
 ## 10. 已实现任务
 
@@ -261,3 +273,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   - 到点后每 2s 检测主页面文字区域（OCR 规则 `O_CHARIOT_TEXT`）是否含「仙盟战车」，
     识别到就点击参与区域（`C_CHARIOT_JOIN`）-> 等 2s 关游戏 -> 离线 5 分钟 -> 重启回主页面
   - 检测超时 20 分钟按完成处理；无论结果如何都排到第二天的准备时间（`set_next_run(target=...)`）
+- `tasks/AncientHunt`：上古狩猎
+  - 第一步：确保角色站在目标地点（默认牧野，配置 `ancient_hunt_config.target_location`）的传送落点上，
+    用 `map_ensure_location_initial`（已在该落点不动 / 在该地点但不在落点先传走再传回 / 不在该地点直接传送）
+  - 后续狩猎流程（寻找目标 / 战斗等）待补充

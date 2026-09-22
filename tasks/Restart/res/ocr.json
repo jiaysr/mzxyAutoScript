@@ -1,11 +1,1 @@
-[
-  {
-    "itemName": "chat",
-    "roiFront": "760,676,80,36",
-    "roiBack": "760,676,80,36",
-    "mode": "Full",
-    "method": "Default",
-    "keyword": "聊天",
-    "description": "主界面-聊天按钮文字"
-  }
-]
+[]

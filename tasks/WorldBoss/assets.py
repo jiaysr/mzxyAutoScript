@@ -33,8 +33,6 @@ class WorldBossAssets:
 
 
 	# Ocr Rule Assets
-	# 主界面-当前坐标 
-	O_POSITION = RuleOcr(roi=(1085,85,190,35), area=(1085,85,190,35), mode="Full", method="Default", keyword="", name="position")
 	# 主界面-当前锁定目标名称 
 	O_TARGET_NAME = RuleOcr(roi=(426,5,240,36), area=(424,9,240,36), mode="Full", method="Default", keyword="", name="target_name")
 

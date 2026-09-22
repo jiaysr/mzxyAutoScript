@@ -1,5 +1,4 @@
 # This Python file uses the following encoding: utf-8
-import re
 from datetime import datetime, time, timedelta
 
 import cv2
@@ -387,21 +386,11 @@ class ScriptTask(GameUi, WorldBossAssets):
                 self.device.sleep(self.attack_interval - elapsed)
 
     # ---------------------------------------------------------------- 到达
-    def get_position(self):
-        """
-        读取小地图下方的当前坐标，返回 (地图名, (x, y))
-        """
-        results = self.O_POSITION.detect_and_ocr(self.device.image, logDisplay=False)
-        text = ''.join(result.ocr_text for result in results)
-        match = re.search(r'([^\d]+?)(\d+)[,.](\d+)', text)
-        if not match:
-            return None, None
-        map_name = re.sub(r'[^\u4e00-\u9fa5]', '', match.group(1))
-        return map_name, (int(match.group(2)), int(match.group(3)))
-
     def wait_until_arrive(self, boss: dict, timeout: int = 180) -> bool:
         """
         等待自动寻路到达首领坐标
+        地点与坐标统一由 GameUi.map_current_location 读取（含 OCR 形近字兼容），
+        地点名用 map_name_match 比较（万剑冢 常被识别成 万剑家）
         """
         logger.hr('Wait until arrive')
         target_map = boss['target_map']
@@ -410,21 +399,21 @@ class ScriptTask(GameUi, WorldBossAssets):
 
         while 1:
             self.reset_records()
-            self.screenshot()
-            map_name, coord = self.get_position()
-            if map_name is None:
+            location = self.map_current_location()
+            if location is None:
                 if timer.reached():
                     raise GameStuckError('Unable to read character position')
                 self.device.sleep(1)
                 continue
 
-            distance = abs(coord[0] - target_coord[0]) + abs(coord[1] - target_coord[1])
-            logger.attr('Position', f'{map_name}{coord[0]},{coord[1]} distance {distance}')
-            if target_map in map_name and distance <= ARRIVE_TOLERANCE:
-                logger.info(f"Arrived at {map_name}{coord[0]},{coord[1]}")
+            map_name, coord_x, coord_y = location
+            distance = abs(coord_x - target_coord[0]) + abs(coord_y - target_coord[1])
+            logger.attr('Position', f'{map_name}{coord_x},{coord_y} distance {distance}')
+            if self.map_name_match(map_name, target_map) and distance <= ARRIVE_TOLERANCE:
+                logger.info(f"Arrived at {map_name}{coord_x},{coord_y}")
                 return True
             if timer.reached():
-                logger.warning(f"Arrive timeout, now at {map_name}{coord[0]},{coord[1]}")
+                logger.warning(f"Arrive timeout, now at {map_name}{coord_x},{coord_y}")
                 return False
             self.device.sleep(1)
 
