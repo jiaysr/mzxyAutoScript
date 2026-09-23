@@ -10,8 +10,11 @@
 """
 from time import sleep
 
+import cv2
+
 from module.base.timer import Timer
 from module.logger import logger
+from module.ocr.base_ocr import enlarge_canvas
 from tasks.GameUi.assets import GameUiAssets
 from tasks.GameUi.page import Page
 from tasks.base_task import BaseTask
@@ -39,6 +42,8 @@ class PanelNavigation(BaseTask, GameUiAssets):
     }
     # 当前所在模块（ui_sidebar_click 时记录，供 tab 滚动方向判断）
     ui_current_module: str = None
+    # 侧栏 OCR 放大倍数（描边蓝字原尺寸识别易丢字）
+    SIDEBAR_OCR_SCALE: int = 3
 
     # ------------------------------------------------------------------ 左侧模块栏
     def ui_sidebar_click(self, name: str, max_swipe: int = 4, interval: float = None) -> bool:
@@ -97,8 +102,23 @@ class PanelNavigation(BaseTask, GameUiAssets):
         return False
 
     def ui_sidebar_ocr(self) -> list:
-        """OCR 角色面板左侧模块栏，返回识别结果（坐标相对 roi 裁剪）"""
-        return self.O_PANEL_SIDEBAR.detect_and_ocr(self.device.image, logDisplay=False)
+        """
+        OCR 角色面板左侧模块栏，返回识别结果（坐标相对 roi 裁剪，已还原到原图尺寸）
+
+        侧栏是带描边的蓝字，原尺寸识别会丢字（「物品」只识别出「品」），
+        先把 roi 放大再识别（参考 WorldBoss 读目标名的做法）
+        """
+        rule = self.O_PANEL_SIDEBAR
+        image = rule.crop(self.device.image, rule.roi)
+        image = cv2.resize(image, None, fx=self.SIDEBAR_OCR_SCALE, fy=self.SIDEBAR_OCR_SCALE,
+                           interpolation=cv2.INTER_CUBIC)
+        items = []
+        for item in rule.model.detect_and_ocr(enlarge_canvas(image)):
+            if float(item.score) < rule.score:
+                continue
+            item.box = item.box / self.SIDEBAR_OCR_SCALE
+            items.append(item)
+        return items
 
     def ui_sidebar_visible(self) -> list[str]:
         """当前侧栏可见的模块名，按屏幕位置从上到下排序"""
@@ -113,7 +133,7 @@ class PanelNavigation(BaseTask, GameUiAssets):
         """返回模块文字中心坐标，未找到返回 None"""
         roi = self.O_PANEL_SIDEBAR.roi
         for item in self.ui_sidebar_ocr():
-            if item.ocr_text != name:
+            if self.ocr_name_pick(item.ocr_text, self.PANEL_SIDEBAR_ORDER) != name:
                 continue
             box = item.box
             x = int((box[0][0] + box[1][0]) / 2) + roi[0]
@@ -163,7 +183,7 @@ class PanelNavigation(BaseTask, GameUiAssets):
             coord = None
             for _ in range(max_swipe + 1):
                 self.screenshot()
-                coord = self.ui_tab_find(name)
+                coord = self.ui_tab_find(name, module)
                 if coord:
                     break
                 if not self.ui_tab_scroll(name, module):
@@ -176,7 +196,7 @@ class PanelNavigation(BaseTask, GameUiAssets):
             # 点击后校验 tab 是否选中，失败则重试
             sleep(0.4)
             self.screenshot()
-            if self.ui_tab_selected(name):
+            if self.ui_tab_selected(name, module):
                 if interval:
                     self.interval_timer[f'ui_tab_{name}'].reset()
                 return True
@@ -196,11 +216,12 @@ class PanelNavigation(BaseTask, GameUiAssets):
         items.sort(key=lambda x: x[1])
         return [name for name, _ in items]
 
-    def ui_tab_find(self, name: str) -> tuple | None:
+    def ui_tab_find(self, name: str, module: str = None) -> tuple | None:
         """返回 tab 文字中心坐标，未找到返回 None"""
         roi = self.O_PANEL_TABS.roi
+        tabs = self.PANEL_TABS.get(self.ui_tab_module(module)) or []
         for item in self.ui_tab_ocr():
-            if item.ocr_text != name:
+            if self.ocr_name_pick(item.ocr_text, tabs) != name:
                 continue
             box = item.box
             x = int((box[0][0] + box[1][0]) / 2) + roi[0]
@@ -208,11 +229,12 @@ class PanelNavigation(BaseTask, GameUiAssets):
             return x, y
         return None
 
-    def ui_tab_selected(self, name: str) -> bool:
+    def ui_tab_selected(self, name: str, module: str = None) -> bool:
         """判断某 tab 是否处于选中态（选中 tab 文字更大、位置更靠下）"""
         roi = self.O_PANEL_TABS.roi
+        tabs = self.PANEL_TABS.get(self.ui_tab_module(module)) or []
         for item in self.ui_tab_ocr():
-            if item.ocr_text != name:
+            if self.ocr_name_pick(item.ocr_text, tabs) != name:
                 continue
             box = item.box
             y = int((box[0][1] + box[2][1]) / 2) + roi[1]

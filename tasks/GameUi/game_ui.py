@@ -37,7 +37,7 @@ from module.config.config_manual import ConfigManual
 from module.config.utils import convert_to_underscore
 from module.exception import (GameNotRunningError, GamePageUnknownError)
 from module.logger import logger
-from tasks.GameUi.page import Page, PageRegistry
+from tasks.GameUi.page import Page, PageRegistry, page_item_bag
 from tasks.GameUi.activity import ActivityNavigation
 from tasks.GameUi.bag import BagNavigation
 from tasks.GameUi.map import MapNavigation
@@ -433,6 +433,35 @@ class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigati
         candidate = ocr_text[:len(name)]
         return difflib.SequenceMatcher(None, candidate, name).ratio() >= cls.OCR_NAME_SIMILARITY
 
+    @classmethod
+    def ocr_name_pick(cls, ocr_text: str, names: list) -> str | None:
+        """
+        在已知名称列表里为 OCR 文本挑出最接近的名称（容忍 OCR 形近字、丢字）
+
+        名称列表都是固定的小集合，取相似度最高的一个；相似度不达标返回 None。
+        用「取最接近」而不是「逐个包含判断」，避免 任务/任务特权 这类互相包含的名称误判。
+        """
+        if not ocr_text:
+            return None
+        best, best_score = None, 0.0
+        for name in names:
+            if not name:
+                continue
+            if ocr_text == name:
+                return name
+            window = ocr_text[:len(name)]
+            ratio = difflib.SequenceMatcher(None, window, name).ratio()
+            if name in ocr_text:
+                ratio = max(ratio, 0.9)
+            elif ocr_text in name and len(ocr_text) >= len(name) - 1:
+                # 丢了 1 个字（如「物品」识别成「品」）
+                ratio = max(ratio, 0.9)
+            if ratio > best_score:
+                best, best_score = name, ratio
+        if best_score >= cls.OCR_NAME_SIMILARITY:
+            return best
+        return None
+
     def reset_records(self) -> None:
         """
         长时间等待或连续滑动前，清空卡死与连点记录
@@ -499,5 +528,5 @@ if __name__ == '__main__':
     d = Device(c)
     game = GameUi(config=c, device=d)
     game.ui_get_current_page()
-    game.ui_goto(page_activity_notice)
+    game.ui_goto(page_item_bag)
     logger.info(f'Registered pages: {[str(page) for page in game.ui_pages]}')

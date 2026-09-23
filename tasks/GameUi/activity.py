@@ -51,7 +51,7 @@ class ActivityNavigation(BaseTask, GameUiAssets):
         """返回顶部 tab 文字中心坐标，未找到返回 None"""
         roi = self.O_ACTIVITY_TABS.roi
         for item in self.ui_activity_tab_ocr():
-            if item.ocr_text != name:
+            if self.ocr_name_pick(item.ocr_text, self.ACTIVITY_TABS) != name:
                 continue
             box = item.box
             x = int((box[0][0] + box[1][0]) / 2) + roi[0]
@@ -112,7 +112,7 @@ class ActivityNavigation(BaseTask, GameUiAssets):
         """返回子 tab 文字中心坐标，未找到返回 None"""
         roi = self.O_ACTIVITY_SUBTABS.roi
         for item in self.ui_activity_subtab_ocr():
-            if item.ocr_text != name:
+            if self.ocr_name_pick(item.ocr_text, self.ACTIVITY_SUBTABS) != name:
                 continue
             box = item.box
             x = int((box[0][0] + box[1][0]) / 2) + roi[0]
