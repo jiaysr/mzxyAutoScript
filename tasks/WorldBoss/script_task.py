@@ -17,7 +17,7 @@ BOSS_LIST = [
         'name': '蛮锤',
         'target_map': '牧野',
         'target_coord': (272, 70),
-        'times': [('time_09', time(9, 0)), ('time_13', time(13, 0))],
+        'times': [('time_09', time(9, 0)), ('time_11', time(11, 0)), ('time_13', time(13, 0))],
     },
     {
         'key': 'wuqing',

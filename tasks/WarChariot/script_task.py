@@ -48,9 +48,16 @@ class ScriptTask(GameUi, WarChariotAssets):
 
     def run(self) -> None:
         event_time = self.event_datetime()
+        prepare_time = event_time - self.advance()
         deadline = event_time + timedelta(seconds=self.config.war_chariot.war_chariot_config.check_timeout)
         now = datetime.now()
         logger.attr('War chariot', f'{event_time.strftime("%Y-%m-%d %H:%M:%S")}')
+
+        if now < prepare_time:
+            # 任务被提前排到（如隔天启动脚本、任务长期未运行），排到准备时间再跑，避免提前等待
+            logger.info(f'未到准备时间 {prepare_time.strftime("%H:%M:%S")}，先排期')
+            self.set_next_run(task='WarChariot', target=prepare_time, success=None, finish=True, server=False)
+            raise TaskEnd('WarChariot')
 
         if now >= deadline:
             logger.warning(f'已超过检测截止时间 {deadline.strftime("%H:%M:%S")}，今天跳过')
