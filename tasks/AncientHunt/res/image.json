@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "enter_hunt",
+    "imageName": "res_enter_hunt.png",
+    "roiFront": "527,323,218,53",
+    "roiBack": "505,305,262,89",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "上古狩猎-交互框「进入上古狩猎场」按钮"
+  },
+  {
+    "itemName": "target_button",
+    "imageName": "res_target_button.png",
+    "roiFront": "1217,235,33,43",
+    "roiBack": "1199,223,71,69",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主界面-目标锁定按钮（与世界首领同一个按钮）"
+  }
+]

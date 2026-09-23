@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "target_button_click",
+    "roiFront": "1226,270,28,18",
+    "roiBack": "1226,270,28,18",
+    "description": "主界面-目标锁定按钮(点文字中心,避开左侧按钮)"
+  },
+  {
+    "itemName": "attack",
+    "roiFront": "1146,597,82,60",
+    "roiBack": "1146,597,82,60",
+    "description": "主界面-攻击/交互按钮（锁定目标后点它弹出交互框）"
+  }
+]

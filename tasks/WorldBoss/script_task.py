@@ -1,8 +1,6 @@
 # This Python file uses the following encoding: utf-8
 from datetime import datetime, time, timedelta
 
-import cv2
-
 from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
@@ -265,36 +263,12 @@ class ScriptTask(GameUi, WorldBossAssets):
         """
         读取当前锁定目标的名称
 
-        名字是带描边的彩色字，按规则默认的「检测框 + 拼串」在真机上经常一个框都检不出来
-        （实测「妖化蟹将」-> 空串），或者把名字拆成两段各读错一个字（妖件 + 化蟹将）。
-        这里只对目标名改成：ROI 转灰度 -> 放大 2x/3x -> 整行识别，取置信度高的一份。
+        名字是带描边的彩色字，规则默认的「检测框 + 拼串」在真机上经常检不出来，
+        统一走 GameUi.ocr_color_name（ROI 转灰度 -> 放大 2x/3x -> 整行识别，取置信度高的一份）
         """
-        x, y, w, h = self.O_TARGET_NAME.roi
-        image = self.device.image[y:y + h, x:x + w]
-        if image is None or image.size == 0:
-            return ''
-        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
-        best_text, best_score, readings = '', 0.0, []
-        for scale in self.target_name_scales:
-            resized = cv2.resize(cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB), None, fx=scale, fy=scale,
-                                 interpolation=cv2.INTER_CUBIC)
-            result = self.O_TARGET_NAME.model.ocr_single_line(resized)
-            if not result:
-                continue
-            text, score = result
-            score = float(score) if score is not None else 0.0
-            if score != score:  # nan：模型没识别出任何字符
-                score = 0.0
-            readings.append((scale, text, round(score, 3)))
-            if score > best_score:
-                best_text, best_score = text, score
-
-        if best_score < self.target_name_score:
-            logger.warning(f'Target name not recognized: {readings}')
-            return ''
-        logger.attr('Target name', f'{best_text} ({best_score:.2f})')
-        return best_text.strip()
+        return self.ocr_color_name(self.O_TARGET_NAME,
+                                   scales=self.target_name_scales,
+                                   min_score=self.target_name_score)
 
     def target_keywords(self, boss: dict) -> list:
         """

@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "target_name",
+    "roiFront": "426,5,240,36",
+    "roiBack": "426,5,240,36",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "主界面-当前锁定目标名称（彩色描边字，用灰度放大整行识别）"
+  }
+]

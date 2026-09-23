@@ -25,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 from time import sleep
 
+import cv2
 import random
 from module.atom.click import RuleClick
 from module.atom.gif import RuleGif
@@ -461,6 +462,46 @@ class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigati
         if best_score >= cls.OCR_NAME_SIMILARITY:
             return best
         return None
+
+    def ocr_color_name(self, rule, scales: tuple = (2, 3), min_score: float = 0.5) -> str:
+        """
+        读取带描边的彩色文字（如锁定的目标名）
+
+        规则默认的「检测框 + 拼串」在真机上经常一个框都检不出来（实测「妖化蟹将」-> 空串），
+        或者把名字拆成两段各读错一个字（妖件 + 化蟹将）。
+        这里改成：ROI 转灰度 -> 放大 2x/3x -> 整行识别，取置信度高的一份。
+
+        :param rule: RuleOcr（使用它的 roi 与 ocr model）
+        :param scales: 放大倍数
+        :param min_score: 置信度下限，低于此值视为没读到
+        :return: 识别到的文字，读不到返回空串
+        """
+        x, y, w, h = rule.roi
+        image = self.device.image[y:y + h, x:x + w]
+        if image is None or image.size == 0:
+            return ''
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+        best_text, best_score, readings = '', 0.0, []
+        for scale in scales:
+            resized = cv2.resize(cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB), None, fx=scale, fy=scale,
+                                 interpolation=cv2.INTER_CUBIC)
+            result = rule.model.ocr_single_line(resized)
+            if not result:
+                continue
+            text, score = result
+            score = float(score) if score is not None else 0.0
+            if score != score:  # nan：模型没识别出任何字符
+                score = 0.0
+            readings.append((scale, text, round(score, 3)))
+            if score > best_score:
+                best_text, best_score = text, score
+
+        if best_score < min_score:
+            logger.warning(f'Color name not recognized: {readings}')
+            return ''
+        logger.attr('Color name', f'{best_text} ({best_score:.2f})')
+        return best_text.strip()
 
     def reset_records(self) -> None:
         """

@@ -259,6 +259,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     维护在 `MAP_INITIAL_POS`（新增地点后需实测补上）
   - `map_close_main_popup()` 关闭会盖住小地图入口的主页面弹窗（活动弹窗）；
     注意 `ui_goto(page_main)` 只看主页面右下角特征，弹窗开着也会判定「到达主页面」
+- 彩色描边字（锁定的目标名等）：`ocr_color_name(rule, scales=(2,3), min_score=0.5)`
+  （ROI 转灰度 -> 放大 -> 整行识别取置信度最高的一份；规则默认的「检测框 + 拼串」对彩色描边字经常读不出）
 
 ## 10. 已实现任务
 
@@ -274,6 +276,9 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     识别到就点击参与区域（`C_CHARIOT_JOIN`）-> 等 2s 关游戏 -> 离线 5 分钟 -> 重启回主页面
   - 检测超时 20 分钟按完成处理；无论结果如何都排到第二天的准备时间（`set_next_run(target=...)`）
 - `tasks/AncientHunt`：上古狩猎
-  - 第一步：确保角色站在目标地点（默认牧野，配置 `ancient_hunt_config.target_location`）的传送落点上，
-    用 `map_ensure_location_initial`（已在该落点不动 / 在该地点但不在落点先传走再传回 / 不在该地点直接传送）
-  - 后续狩猎流程（寻找目标 / 战斗等）待补充
+  - 开放时间 `open_times`（默认 12:35-12:45、17:05-17:15），提前 `advance_time` 把游戏准备到主页面，
+    每天参与一次即可（参与成功后跳过当天剩下的时间段，排到第二天）
+  - 流程：准备主页面（含关遮挡弹窗）-> 查活动-活跃页「上古狩猎」是否已完成（完成则跳过）
+    -> 等开放时间 -> 传送到牧野的传送落点 -> 收起菜单 -> 点「目标」锁定「上古狩猎神」
+    -> 点攻击键弹出交互框 -> 点「进入上古狩猎场」-> 等 `enter_wait` 秒 -> 重启游戏
+  - 目标名（彩色描边字）读取统一用 `GameUi.ocr_color_name`，WorldBoss 的目标名读取同样走它
