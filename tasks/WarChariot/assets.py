@@ -15,6 +15,11 @@ class WarChariotAssets:
 	C_CHARIOT_JOIN = RuleClick(roi_front=(757,368,148,44), roi_back=(757,368,148,44), name="chariot_join")
 
 
+	# Image Rule Assets
+	# 仙盟战车-接受按钮（在 685,303,958,481 区域内寻找） 
+	I_CHARIOT_ACCEPT = RuleImage(roi_front=(757,368,138,43), roi_back=(685,303,273,178), threshold=0.8, method="Template matching", file="./tasks/WarChariot/res/res_chariot_accept.png")
+
+
 	# Ocr Rule Assets
 	# 主页面-仙盟战车文字检测区域（343,274,941,346） 
 	O_CHARIOT_TEXT = RuleOcr(roi=(343,274,598,72), area=(343,274,598,72), mode="Full", method="Default", keyword="仙盟战车", name="chariot_text")

@@ -4,17 +4,21 @@
 
 1. 每天 start_time（默认 20:00）开放，提前 advance_time（默认 5 分钟）开始准备：
    游戏不在线就启动并登录，在线就切回主页面，保证开放时游戏在线且停留在主页面
-2. 到点后每 check_interval 秒（默认 2s）检测一次主页面文字区域，
-   识别到 keyword（默认「仙盟战车」）就点击参与区域
-3. 点击后等待 2 秒关闭游戏，离线 offline_time（默认 5 分钟）后重新启动游戏并登录到主页面
-4. 检测超时 check_timeout 秒（默认 20 分钟）视为错过，同样标记任务完成
-5. 无论是否参与成功，任务都算完成，并排到第二天的准备时间
+2. 到点后每 check_interval 秒（默认 2s）检测一次文字区域，
+   识别到 keyword（默认「仙盟战车」）后进入参与流程（见 join_chariot）
+3. 参与流程：在按钮区域里寻找「接受」按钮图片并点击，然后确认当前地图已变成仙盟战车；
+   不是战车地图就重新识别文字重试，超过 enter_timeout 秒（默认 15s）直接报错
+4. 进入战车地图后等待 2 秒关闭游戏，离线 offline_time（默认 5 分钟）后重新启动游戏并登录到主页面
+5. 检测超时 check_timeout 秒（默认 20 分钟）视为错过，同样标记任务完成
+6. 无论是否参与成功，任务都算完成，并排到第二天的准备时间
 """
 import difflib
 from datetime import datetime, timedelta
 
+from module.base.timer import Timer
 from module.exception import (GameNotRunningError,
                               GamePageUnknownError,
+                              GameStuckError,
                               TaskEnd)
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
@@ -43,8 +47,12 @@ def text_match(text: str, keyword: str) -> bool:
 
 
 class ScriptTask(GameUi, WarChariotAssets):
-    # 点击参与后等待关闭游戏的间隔（秒）
+    # 点击接受按钮后等待关闭游戏的间隔（秒）
     click_wait = 2
+    # 识别到战车文字后，找到接受按钮并进入战车地图的超时时间（秒）
+    enter_timeout = 15
+    # 进入战车地图后的地点名
+    chariot_map_name = '仙盟战车'
 
     def run(self) -> None:
         event_time = self.event_datetime()
@@ -141,13 +149,35 @@ class ScriptTask(GameUi, WarChariotAssets):
         logger.info(f'开放时间到 {event_time.strftime("%H:%M:%S")}')
 
     # ---------------------------------------------------------------- 检测与参与
-    def detect_texts(self) -> list:
+    def ocr_texts(self) -> list:
         """
-        识别检测区域的文字
+        识别当前帧检测区域的文字
         """
-        self.screenshot()
         return [result.ocr_text
                 for result in self.O_CHARIOT_TEXT.detect_and_ocr(self.device.image, logDisplay=False)]
+
+    def detect_texts(self) -> list:
+        """
+        截图并识别检测区域的文字
+        """
+        self.screenshot()
+        return self.ocr_texts()
+
+    def text_appear(self) -> bool:
+        """
+        当前帧里是否出现关键字
+        """
+        keyword = self.config.war_chariot.war_chariot_config.keyword
+        return any(text_match(text, keyword) for text in self.ocr_texts())
+
+    def in_chariot_map(self) -> bool:
+        """
+        当前地图是否为仙盟战车
+        """
+        location = self.map_current_location()
+        if location is None:
+            return False
+        return self.map_name_match(location[0], self.chariot_map_name)
 
     def wait_chariot(self, deadline: datetime) -> bool:
         """
@@ -175,12 +205,25 @@ class ScriptTask(GameUi, WarChariotAssets):
 
     def join_chariot(self) -> None:
         """
-        点击参与区域 -> 等待 2 秒关闭游戏 -> 等待离线时长 -> 启动游戏到主页面
+        识别到战车文字后的参与流程：
+
+        1. 在按钮区域（I_CHARIOT_ACCEPT 的 roiBack）里寻找「接受」按钮并点击
+        2. 检测当前地图是否已变成仙盟战车：是就进入关闭游戏流程，
+           不是就重新识别战车文字走一遍上面的流程
+        3. 超过 enter_timeout 秒还没进入战车地图直接报错
         """
         logger.hr('参与战车')
-        x, y = self.C_CHARIOT_JOIN.coord()
-        logger.info(f'点击参与区域 ({x}, {y})')
-        self.device.click(x=x, y=y, control_name=self.C_CHARIOT_JOIN.name)
+        timer = Timer(self.enter_timeout).start()
+        while 1:
+            self.screenshot()
+            if self.text_appear() and self.appear_then_click(self.I_CHARIOT_ACCEPT, interval=1):
+                logger.info(f'点击接受按钮 {self.I_CHARIOT_ACCEPT.roi_front}')
+            if self.in_chariot_map():
+                logger.info(f'已进入「{self.chariot_map_name}」地图')
+                break
+            if timer.reached():
+                raise GameStuckError(f'{self.enter_timeout}s 内没有进入「{self.chariot_map_name}」地图')
+            self.device.sleep(1)
 
         self.device.sleep(self.click_wait)
         logger.info('关闭游戏')

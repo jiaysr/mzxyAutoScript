@@ -272,9 +272,13 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
 - `tasks/WarChariot`：参与战车（仙盟战车）
   - 每天 20:00 开放，提前 `advance_time`（默认 5 分钟）把游戏启动/登录到主页面
-  - 到点后每 2s 检测主页面文字区域（OCR 规则 `O_CHARIOT_TEXT`）是否含「仙盟战车」，
-    识别到就点击参与区域（`C_CHARIOT_JOIN`）-> 等 2s 关游戏 -> 离线 5 分钟 -> 重启回主页面
+  - 到点后每 2s 检测文字区域（OCR 规则 `O_CHARIOT_TEXT`）是否含「仙盟战车」；
+    识别到后在按钮区域（`I_CHARIOT_ACCEPT` 的 roiBack）里找「接受」按钮点击，
+    再确认地图已变成仙盟战车（`O_MAP_LOCATION` + `map_name_match`），
+    15s 内没进战车地图直接报错（`GameStuckError`）
+  - 进入战车地图后等 2s 关游戏 -> 离线 5 分钟 -> 重启回主页面
   - 检测超时 20 分钟按完成处理；无论结果如何都排到第二天的准备时间（`set_next_run(target=...)`）
+  - 图片测试：`tests/test_war_chariot.py`（用 `image-test` 里 09-17 20:00 的真机截图）
 - `tasks/AncientHunt`：上古狩猎
   - 开放时间 `open_times`（默认 12:35-12:45、17:05-17:15），提前 `advance_time` 把游戏准备到主页面，
     每天参与一次即可（参与成功后跳过当天剩下的时间段，排到第二天）

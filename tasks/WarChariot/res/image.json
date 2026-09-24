@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "chariot_accept",
+    "imageName": "res_chariot_accept.png",
+    "roiFront": "757,368,138,43",
+    "roiBack": "685,303,273,178",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙盟战车-接受按钮（在 685,303,958,481 区域内寻找）"
+  }
+]
