@@ -15,6 +15,7 @@ class ConfigManual:
         > Arena
         > CrossArena
         > AncientHunt
+        > XianfuJiuchongtian
         """
 
     DEVICE_OVER_HTTP = False

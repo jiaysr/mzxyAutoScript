@@ -1,0 +1,92 @@
+[
+  {
+    "itemName": "xianfu_page",
+    "imageName": "res_xianfu_page.png",
+    "roiFront": "1100,638,146,46",
+    "roiBack": "1100,638,146,46",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙府九重天-页面特征(仙府说明按钮)"
+  },
+  {
+    "itemName": "zengzhang",
+    "imageName": "res_zengzhang.png",
+    "roiFront": "325,172,120,54",
+    "roiBack": "325,172,120,54",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙府九重天-增长天按钮"
+  },
+  {
+    "itemName": "stage_1",
+    "imageName": "res_stage_1.png",
+    "roiFront": "555,455,95,90",
+    "roiBack": "555,455,95,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙府九重天-增长天第一关岛屿"
+  },
+  {
+    "itemName": "start_challenge",
+    "imageName": "res_start_challenge.png",
+    "roiFront": "845,585,130,55",
+    "roiBack": "845,585,130,55",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "关卡详情-开始挑战按钮"
+  },
+  {
+    "itemName": "reward_panel",
+    "imageName": "res_reward_panel.png",
+    "roiFront": "640,185,180,45",
+    "roiBack": "640,185,180,45",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "过关奖励面板标题"
+  },
+  {
+    "itemName": "daguan_1",
+    "imageName": "res_daguan_1.png",
+    "roiFront": "549,444,109,84",
+    "roiBack": "549,444,109,84",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "大关1-增长天特征(回纹)"
+  },
+  {
+    "itemName": "daguan_2",
+    "imageName": "res_daguan_2.png",
+    "roiFront": "563,321,152,132",
+    "roiBack": "563,321,152,132",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "大关2-多闻天特征(云纹)"
+  },
+  {
+    "itemName": "daguan_3",
+    "imageName": "res_daguan_3.png",
+    "roiFront": "548,206,143,129",
+    "roiBack": "548,206,143,129",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "大关3-持国天特征(太极棕)"
+  },
+  {
+    "itemName": "daguan_4",
+    "imageName": "res_daguan_4.png",
+    "roiFront": "554,402,157,121",
+    "roiBack": "554,402,157,121",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "大关4-广目天特征(太极黑白)"
+  },
+  {
+    "itemName": "bag_empty",
+    "imageName": "res_bag_empty.png",
+    "roiFront": "266,115,76,81",
+    "roiBack": "255,105,925,450",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "背包-空物品格特征（整页出现说明下面没物品了）"
+  }
+]

@@ -6,6 +6,9 @@ ACTION:
 - check    只做页面开关校验（不传送，不消耗铜贝）
 - teleport 传送到 TELEPORT_TARGET
 - sweep    依次传送到所有地点，记录各地点的传送落点坐标（真机实测）
+- calibrate 校准移动轮盘的方向/速度（会让角色移动几秒）
+- move     走到 MOVE_TARGET（为 None 时走到「当前位置 + MOVE_OFFSET」的就近点）
+- bounds   朝四个方向各长按 BOUNDS_HOLD 秒，测量当前地图的范围（用于决定绘图网格）
 """
 import time
 
@@ -18,6 +21,11 @@ TELEPORT_TARGET = '牧野'
 # sweep 只测这些地点（空列表 = 全部地点）；SWEEP_RETURN 是 sweep 结束后要回到的地点（空 = 回到开始时所在地点）
 SWEEP_ONLY = []
 SWEEP_RETURN = ''
+# move: 目标地图坐标（x, y）；为 None 时走到「当前位置 + MOVE_OFFSET」的就近点
+MOVE_TARGET = None
+MOVE_OFFSET = (-30, 0)
+# bounds: 每个方向长按的时间（秒）
+BOUNDS_HOLD = 8
 
 
 class ScriptTask(GameUi):
@@ -29,6 +37,12 @@ class ScriptTask(GameUi):
             self.map_teleport_check()
         elif ACTION == 'sweep':
             self.map_sweep()
+        elif ACTION == 'calibrate':
+            self.map_move_calibrate_check()
+        elif ACTION == 'move':
+            self.map_move_check()
+        elif ACTION == 'bounds':
+            self.map_bounds_check()
         raise TaskEnd('MapTest')
 
     # ------------------------------------------------------------------ 校验
@@ -126,6 +140,50 @@ class ScriptTask(GameUi):
         lines.append('}')
         for line in lines:
             logger.info(line)
+
+    def map_move_calibrate_check(self) -> None:
+        logger.hr('Map move calibrate')
+        if not self.map_move_ensure_main_page():
+            logger.error('Not on main page, cannot calibrate')
+            return
+        self.log_state('before')
+        result = self.map_move_calibrate()
+        logger.info(f'MAPTEST calibration -> {result}')
+        self.log_state('after')
+
+    def map_move_check(self) -> None:
+        logger.hr('Map move check')
+        self.log_state('before')
+        current = self.map_move_read_pos()
+        if current is None:
+            logger.error('Cannot read current position')
+            return
+        if MOVE_TARGET:
+            target = MOVE_TARGET
+        else:
+            target = (current[1] + MOVE_OFFSET[0], current[2] + MOVE_OFFSET[1])
+        logger.info(f'MAPTEST move [{current[0]}] {current[1]},{current[2]} -> {target}')
+        ok = self.map_move_to(target[0], target[1], map_name=current[0])
+        logger.info(f'MAPTEST move [{target}] -> {ok}')
+        self.log_state('after')
+
+    def map_bounds_check(self) -> None:
+        logger.hr('Map bounds check')
+        if not self.map_move_ensure_main_page():
+            logger.error('Not on main page, cannot probe bounds')
+            return
+        start = self.map_move_read_pos()
+        logger.info(f'MAPTEST bounds start {start}')
+        extremes = {}
+        for direction, key in (((1, 0), 'max_x'), ((-1, 0), 'min_x'),
+                               ((0, -1), 'min_y'), ((0, 1), 'max_y')):
+            pos = self.map_move_read_pos()
+            self.map_hold_direction(direction, BOUNDS_HOLD)
+            self.device.sleep(self.MOVE_SETTLE)
+            after = self.map_move_read_pos()
+            extremes[key] = after
+            logger.info(f'MAPTEST bounds {key}: {pos} -> {after}')
+        logger.info(f'MAPTEST BOUNDS RESULT: {extremes}')
 
 
 if __name__ == '__main__':

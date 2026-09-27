@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "xianfu_stone",
+    "roiFront": "755,620,270,60",
+    "roiBack": "755,620,270,60",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "仙府九重天-剩余仙石(X/40)"
+  },
+  {
+    "itemName": "xianfu_reward",
+    "roiFront": "560,528,420,42",
+    "roiBack": "560,528,420,42",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "过关奖励-恭喜您获得 XXX（翻牌结果）"
+  }
+]

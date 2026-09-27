@@ -52,9 +52,16 @@ class MapNavigation(BaseTask, GameUiAssets):
     MAP_NAME_FIXES = (
         ('万剑家', '万剑冢'),
         ('或外灵岛', '域外灵岛'),
-        # 「岛」常被识别成异体字「島」
+        # 「岛」常被识别成异体字「島」，「莱」常被识别成「菜」
         ('域外灵島', '域外灵岛'),
+        ('島', '岛'),
+        ('蓬菜', '蓬莱'),
+        # 「仙府九重天」的「仙」常被识别成「山」
+        ('山府', '仙府'),
     )
+
+    # 最近一次成功解析的位置（用于 OCR 漏掉分隔符时的坐标拆分消歧，见 map_split_digits）
+    _last_map_location = None
 
     # ------------------------------------------------------------------ 地点识别
     @classmethod
@@ -70,21 +77,55 @@ class MapNavigation(BaseTask, GameUiAssets):
         return text
 
     @classmethod
-    def map_parse_location(cls, text: str):
+    def map_parse_location(cls, text: str, hint=None):
         """
         解析地点文字（如 沼泽427,59 / 古碑林70,112），并修正形近字误识
+
+        :param hint: 上一次的位置 (name, x, y)，OCR 漏掉分隔符时用来自动拆分数字
         :return: (地点名, x, y)；解析失败返回 None
         """
         if not text:
             return None
         match = re.search(r'(\d{1,3})\s*[,，.．:：]\s*(\d{1,3})', text)
+        if match:
+            name = re.sub(r'[^\u4e00-\u9fa5]', '', text[:match.start()])
+            name = cls.map_fix_name(name)
+            if not name:
+                return None
+            return name, int(match.group(1)), int(match.group(2))
+        # 没有分隔符：OCR 有时把逗号漏掉（如 122,212 读成 122212），尝试拆分末尾数字串
+        match = re.search(r'(\d{1,6})\s*$', text)
         if not match:
             return None
         name = re.sub(r'[^\u4e00-\u9fa5]', '', text[:match.start()])
         name = cls.map_fix_name(name)
         if not name:
             return None
-        return name, int(match.group(1)), int(match.group(2))
+        return cls.map_split_digits(name, match.group(1), hint)
+
+    @staticmethod
+    def map_split_digits(name: str, digits: str, hint=None):
+        """
+        把没有分隔符的数字串拆成 (x, y)
+        - 优先用 hint（上一次坐标）选最接近的拆法（角色是连续移动的，几乎不会错）
+        - 没有 hint 时优先两个方向位数相近的拆法（坐标 x/y 量级通常接近）
+        """
+        candidates = []
+        for k in range(1, len(digits)):
+            left, right = digits[:k], digits[k:]
+            if len(left) > 3 or len(right) > 3:
+                continue
+            if left[0] == '0' or right[0] == '0':
+                continue
+            candidates.append((int(left), int(right)))
+        if not candidates:
+            return None
+        if hint is not None:
+            hx, hy = hint[1], hint[2]
+            best = min(candidates, key=lambda c: abs(c[0] - hx) + abs(c[1] - hy))
+        else:
+            best = min(candidates, key=lambda c: abs(len(str(c[0])) - len(str(c[1]))))
+        return name, best[0], best[1]
 
     def map_current_location(self):
         """
@@ -94,8 +135,10 @@ class MapNavigation(BaseTask, GameUiAssets):
         self.screenshot()
         results = self.O_MAP_LOCATION.detect_and_ocr(self.device.image, logDisplay=False)
         text = ''.join(item.ocr_text for item in results)
-        location = self.map_parse_location(text)
+        location = self.map_parse_location(text, hint=self._last_map_location)
         logger.attr('Map current location', f'{text} -> {location}')
+        if location is not None:
+            self._last_map_location = location
         return location
 
     def map_in_location(self, name: str) -> bool:

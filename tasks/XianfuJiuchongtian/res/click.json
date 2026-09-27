@@ -1,0 +1,134 @@
+[
+  {
+    "itemName": "popup_close",
+    "roiFront": "1174,133,45,52",
+    "roiBack": "1174,133,45,52",
+    "description": "仙府九重天-弹窗关闭(绿X, x,y,w,h)"
+  },
+  {
+    "itemName": "reward_card",
+    "roiFront": "840,300,80,170",
+    "roiBack": "840,300,80,170",
+    "description": "过关奖励-翻牌(第5张)"
+  },
+  {
+    "itemName": "daguan_tab_1",
+    "roiFront": "325,172,120,54",
+    "roiBack": "325,172,120,54",
+    "description": "大关按钮-增长天"
+  },
+  {
+    "itemName": "daguan_tab_2",
+    "roiFront": "325,252,120,54",
+    "roiBack": "325,252,120,54",
+    "description": "大关按钮-多闻天"
+  },
+  {
+    "itemName": "daguan_tab_3",
+    "roiFront": "325,332,120,54",
+    "roiBack": "325,332,120,54",
+    "description": "大关按钮-持国天"
+  },
+  {
+    "itemName": "daguan_tab_4",
+    "roiFront": "325,412,120,54",
+    "roiBack": "325,412,120,54",
+    "description": "大关按钮-广目天"
+  },
+  {
+    "itemName": "s1_1",
+    "roiFront": "572,463,65,62",
+    "roiBack": "572,463,65,62",
+    "description": "增长天-第1小关"
+  },
+  {
+    "itemName": "s1_2",
+    "roiFront": "819,458,68,66",
+    "roiBack": "819,458,68,66",
+    "description": "增长天-第2小关"
+  },
+  {
+    "itemName": "s1_3",
+    "roiFront": "741,258,73,67",
+    "roiBack": "741,258,73,67",
+    "description": "增长天-第3小关"
+  },
+  {
+    "itemName": "s1_4",
+    "roiFront": "970,222,90,66",
+    "roiBack": "970,222,90,66",
+    "description": "增长天-第4小关"
+  },
+  {
+    "itemName": "s2_1",
+    "roiFront": "595,357,86,61",
+    "roiBack": "595,357,86,61",
+    "description": "多闻天-第1小关"
+  },
+  {
+    "itemName": "s2_2",
+    "roiFront": "782,466,80,53",
+    "roiBack": "782,466,80,53",
+    "description": "多闻天-第2小关"
+  },
+  {
+    "itemName": "s2_3",
+    "roiFront": "828,237,82,64",
+    "roiBack": "828,237,82,64",
+    "description": "多闻天-第3小关"
+  },
+  {
+    "itemName": "s2_4",
+    "roiFront": "1010,310,83,64",
+    "roiBack": "1010,310,83,64",
+    "description": "多闻天-第4小关"
+  },
+  {
+    "itemName": "s3_1",
+    "roiFront": "586,229,80,55",
+    "roiBack": "586,229,80,55",
+    "description": "持国天-第1小关"
+  },
+  {
+    "itemName": "s3_2",
+    "roiFront": "691,444,85,56",
+    "roiBack": "691,444,85,56",
+    "description": "持国天-第2小关"
+  },
+  {
+    "itemName": "s3_3",
+    "roiFront": "853,250,70,63",
+    "roiBack": "853,250,70,63",
+    "description": "持国天-第3小关"
+  },
+  {
+    "itemName": "s3_4",
+    "roiFront": "1027,426,71,54",
+    "roiBack": "1027,426,71,54",
+    "description": "持国天-第4小关"
+  },
+  {
+    "itemName": "s4_1",
+    "roiFront": "588,425,84,57",
+    "roiBack": "588,425,84,57",
+    "description": "广目天-第1小关"
+  },
+  {
+    "itemName": "s4_2",
+    "roiFront": "710,242,90,59",
+    "roiBack": "710,242,90,59",
+    "description": "广目天-第2小关"
+  },
+  {
+    "itemName": "s4_3",
+    "roiFront": "851,435,101,61",
+    "roiBack": "851,435,101,61",
+    "description": "广目天-第3小关"
+  },
+  {
+    "itemName": "s4_4",
+    "roiFront": "1006,255,101,55",
+    "roiBack": "1006,255,101,55",
+    "description": "广目天-第4小关"
+  }
+]

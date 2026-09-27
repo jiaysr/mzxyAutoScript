@@ -16,6 +16,8 @@
 - tasks/GameUi/top_menu.py 右上角菜单
 - tasks/GameUi/targets.py  页面连线目标类型
 - tasks/GameUi/map.py      世界地图（小地图/大地图/列表/传送）
+- tasks/GameUi/move.py     虚拟摇杆移动（主页面轮盘走到地图坐标）
+- tasks/GameUi/battle.py   简单战斗系统（技能栏循环释放）
 """
 import difflib
 import importlib
@@ -42,13 +44,15 @@ from tasks.GameUi.page import Page, PageRegistry, page_item_bag
 from tasks.GameUi.activity import ActivityNavigation
 from tasks.GameUi.bag import BagNavigation
 from tasks.GameUi.map import MapNavigation
+from tasks.GameUi.battle import SimpleBattle
+from tasks.GameUi.move import MapMove
 from tasks.GameUi.panel import PanelNavigation
 from tasks.GameUi.targets import (SidebarTarget, TabTarget, MenuTarget,
                                   ActivityTabTarget, ActivitySubTabTarget)
 from tasks.GameUi.top_menu import TopMenuNavigation
 
 
-class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigation, MapNavigation):
+class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigation, MapNavigation, MapMove, SimpleBattle):
     # 本任务在 ConfigManual.SCHEDULER_PRIORITY 中的名字（子类覆盖，用于让路判断）
     SCHEDULER_NAME: str = ''
     # 各任务的弹窗清理按钮：记录 MZXY 页面素材后根据自己的界面覆盖
