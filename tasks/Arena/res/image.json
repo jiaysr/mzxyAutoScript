@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "arena_button_2p",
+    "imageName": "res_arena_button_2p.png",
+    "roiFront": "293,198,102,38",
+    "roiBack": "277,177,142,81",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "2人角斗按钮（同服竞技已选中）"
+  }
+]

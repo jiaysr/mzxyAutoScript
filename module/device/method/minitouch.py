@@ -378,8 +378,10 @@ def retry(func):
             # AdbError
             except AdbError as e:
                 if handle_adb_error(e):
+                    err = e  # except 块结束后 e 会被删除，闭包需要单独持有
+
                     def init():
-                        self.adb_reconnect()
+                        self.adb_reconnect(err)
                 else:
                     break
             except BrokenPipeError as e:
@@ -608,6 +610,27 @@ class Minitouch(Connection):
             builder.move(*point).commit().wait(random.randint(6, 15))
         self.minitouch_send()
 
+        builder.up().commit()
+        self.minitouch_send()
+
+    @retry
+    def hold_drag_minitouch(self, p1, p2, hold=1.0, steps=8):
+        """
+        按下 p1 -> 直线拖动到 p2 -> 在 p2 保持按住 hold 秒 -> 抬起
+
+        虚拟摇杆移动用：手指停在 p2 期间角色持续朝该方向移动。
+        普通 swipe 是一滑即抬，摇杆随即归位、角色立刻停下，走不了远路。
+        """
+        hold = max(0.05, float(hold))
+        p1 = np.array(p1, dtype=float)
+        p2 = np.array(p2, dtype=float)
+        builder = self.minitouch_builder
+
+        builder.down(int(p1[0]), int(p1[1])).commit().wait(random.randint(40, 90))
+        for i in range(1, steps + 1):
+            point = p1 + (p2 - p1) * i / steps
+            builder.move(int(point[0]), int(point[1])).commit().wait(random.randint(6, 15))
+        builder.wait(int(hold * 1000))
         builder.up().commit()
         self.minitouch_send()
 

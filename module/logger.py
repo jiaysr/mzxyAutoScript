@@ -15,6 +15,14 @@ from rich.logging import RichHandler
 from rich.rule import Rule
 from typing import Callable, List
 
+# Windows 控制台编码可能不是 UTF-8（如 GBK），日志里出现 ✓/✗/emoji 之类字符会抛
+# UnicodeEncodeError 直接把任务搞崩，这里统一改为用替换字符兜底
+try:
+    sys.stdout.reconfigure(errors='replace')
+    sys.stderr.reconfigure(errors='replace')
+except Exception:
+    pass
+
 
 def cleanup_logs(log_dir: str = "./log", keep_days: int = 14):
     """删除 log_dir 下所有早于 keep_days 的文件夹和文件"""

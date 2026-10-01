@@ -1,229 +1,417 @@
 # This Python file uses the following encoding: utf-8
-# @author runhey
-# github https://github.com/runhey
+"""
+每日答题
+
+一局 20 题、每题 20 秒；点完选项会弹出「回答正确 / 回答错误」贴纸（约 5~7 秒），
+贴纸消失后才出下一题；20 题结束出现「答题结束」图。
+
+每题流程：
+    1. 本地 OCR 题干 + 三个选项（免费）
+    2. 题库命中且已验证 -> 直接用题库答案，不调 API
+    3. 否则交给 DeepSeek（deepseek-flash）看图作答，返回结构化 JSON
+    4. 点击对应选项 -> 等贴纸 -> 判定正确/错误
+    5. 回写题库：答对转正、答错记录错误选项供下次排除，不管对错都入库
+
+素材（tasks/Quiz/res，已由标注工具生成）：
+    I_QUIZ_DIALOG / I_FEEDBACK_CORRECT / I_FEEDBACK_WRONG / I_QUIZ_FINISH / I_CLOSE
+    C_OPTION_A / C_OPTION_B / C_OPTION_C
+    O_PROGRESS / O_QUESTION / O_OPTION_A / O_OPTION_B / O_OPTION_C
+"""
+import os
 import random
-import time
-from cached_property import cached_property
+import re
+from datetime import datetime, timedelta
+from pathlib import Path
 
-from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_realm_raid, page_main
-from tasks.Quiz.assets import QuizAssets
-from tasks.ActivityShikigami.assets import ActivityShikigamiAssets
-from tasks.DemonEncounter.data.answer import Answer
-from tasks.Quiz.debug import Debugger, remove_symbols
+import cv2
 
-from module.logger import logger
-from module.exception import TaskEnd
 from module.base.timer import Timer
-from module.atom.image_grid import ImageGrid
-from module.atom.image import RuleImage
-from module.atom.click import RuleClick
-from module.device.screenshot import Screenshot
+from module.base.utils import crop
+from module.exception import RequestHumanTakeover, TaskEnd
+from module.logger import logger
+from tasks.GameUi.game_ui import GameUi
+from tasks.GameUi.page import page_main
+from tasks.Quiz import bank_sync
+from tasks.Quiz.assets import QuizAssets
+from tasks.Quiz.deepseek_client import DeepSeekClient
+from tasks.Quiz.question_bank import QuestionBank
+
+TASK_DIR = Path(__file__).resolve().parent
+BANK_FILE = str(TASK_DIR / 'bank' / 'quiz_zh.json')
+UNKNOWN_FILE = str(TASK_DIR / 'bank' / 'quiz_unknown.jsonl')
+SHOT_DIR = './log/quiz'
+
+# 背包里的答题券名称（bag_find_item 走 OCR 名字匹配）
+BAG_ITEM_NAME = '趣味答题券'
+
+# 交给 AI 的弹窗区域 (x, y, w, h)：题号 + 题干 + 三个选项，不含右侧答题榜
+DIALOG_AREA = (60, 120, 790, 390)
+
+REQUIRED_ASSETS = [
+    'I_QUIZ_DIALOG',
+    'I_FEEDBACK_CORRECT',
+    'I_FEEDBACK_WRONG',
+    'I_QUIZ_FINISH',
+    'C_OPTION_A',
+    'C_OPTION_B',
+    'C_OPTION_C',
+    'O_PROGRESS',
+]
+
+OPTION_CLICKS = {'A': 'C_OPTION_A', 'B': 'C_OPTION_B', 'C': 'C_OPTION_C'}
+OPTION_OCR = {'A': 'O_OPTION_A', 'B': 'O_OPTION_B', 'C': 'O_OPTION_C'}
+OPTION_PREFIX = re.compile(r'^\s*[A-Ca-c]\s*[:：.、]?\s*')
+PROGRESS_RE = re.compile(r'第?\s*(\d+)\s*[/／]')
 
 
-class NoTicket(Exception):
-    pass
+class ScriptTask(GameUi, QuizAssets):
+    # 答题界面刚出现时题目还在刷新，等页面稳定再开始读题
+    page_ready_wait = 2
 
+    def run(self) -> None:
+        self.check_assets()
 
-class ScriptTask(GameUi, QuizAssets, ActivityShikigamiAssets, Debugger):
+        self.bank = QuestionBank(BANK_FILE, UNKNOWN_FILE).load()
+        self.bank_pull()
+        self.client = DeepSeekClient(
+            api_key=self.quiz_config.api_key or os.environ.get('DEEPSEEK_API_KEY', ''),
+            model=self.quiz_config.model,
+            timeout=self.quiz_config.api_timeout,
+            use_thinking=self.quiz_config.use_thinking,
+        )
+        self.device.stuck_record_add('QUIZ')
 
-    answer_cnt = 0
-    last_select_1 = ''
-    last_select_2 = ''
-    last_select_3 = ''
-    last_select_4 = ''
-    # 添加倒计时状态变量
-    last_countdown = None
-    runalone = False
+        if self.enter_quiz_by_ticket():
+            self.answer_loop()
+            self.finish_quiz()
+        else:
+            logger.warning('答题券不可用（可能今天已经答过），跳过本次答题')
 
-    @cached_property
-    def anwser(self) -> Answer:
-        # Misspelling
-        return Answer()
-
-    @cached_property
-    def click_options(self) -> list:
-        return [self.O_ANSWER1, self.O_ANSWER2, self.O_ANSWER3, self.O_ANSWER4]
-
-    @cached_property
-    def _config(self):
-        return self.config.model.quiz.quiz_config
-
-    def run(self):
-        self.ui_get_current_page()
-        self.ui_goto(page_main)
-        _config = self.config.model.quiz.quiz_config
-        self.enter()
-
-        quiz_cnt = 0
-        while 1:
-            if quiz_cnt >= _config.quiz_cnt:
-                break
-            try:
-                self.once()
-                quiz_cnt += 1
-            except NoTicket:
-                break
-
-        self.ui_click(self.I_UI_BACK_YELLOW, self.I_CHECK_MAIN, interval=2)
-        self.set_next_run(task='Quiz', success=True, finish=True)
+        self.bank_push()
+        self.back_to_main()
+        self.schedule_next_day()
         raise TaskEnd('Quiz')
 
-    def enter(self):
-        while 1:
-            self.screenshot()
-            if self.appear(self.I_START):
-                break
-            if self.appear_then_click(self.I_SHI, interval=1):
-                continue
-            if self.appear_then_click(self.I_ENTRY, interval=1):
-                continue
-        logger.info('Quiz start')
+    # ---------------------------------------------------------------- 题库同步
+    def bank_pull(self) -> None:
+        """
+        答题前把别的设备学到的题合并进来（同步失败只告警，不影响答题）
+        """
+        repo_dir = self.quiz_config.bank_repo_dir.strip()
+        if not repo_dir:
+            return
+        try:
+            stats = bank_sync.pull(BANK_FILE, repo_dir,
+                                   url=self.quiz_config.bank_repo_url.strip())
+        except Exception as e:
+            logger.warning(f'题库同步失败（不影响答题）: {e}')
+            return
+        if stats.get('changed'):
+            self.bank.load()
 
-    def once(self) -> bool:
-        logger.hr('Quiz', 3)
-        start_cnt = 0
-        self.answer_cnt = 0
-        # 重置倒计时状态
-        self.last_countdown = None
-        while 1:
-            self.screenshot()
-            if self.appear(self.I_MESSAGE):
-                break
-            if start_cnt >= 4:
-                logger.error('No ticket')
-                raise NoTicket('No ticket')
-            if self.appear_then_click(self.I_START, interval=1.5):
-                start_cnt += 1
-                continue
-        self.last_select_1, self.last_select_2, self.last_select_3, self.last_select_4 = '', '', '', ''
+    def bank_push(self) -> None:
+        """
+        答题后把本机新学的题推到交换仓库（同步失败只告警）
+        """
+        repo_dir = self.quiz_config.bank_repo_dir.strip()
+        if not repo_dir:
+            return
+        try:
+            bank_sync.push(BANK_FILE, repo_dir,
+                           url=self.quiz_config.bank_repo_url.strip(),
+                           device=self.config.config_name)
+        except Exception as e:
+            logger.warning(f'题库同步失败（本机题库不受影响）: {e}')
 
-        quiz_timer = Timer(1.4)
-        quiz_timer.start()
-        while 1:
-            self.screenshot()
+    # ---------------------------------------------------------------- 基础
+    @property
+    def quiz_config(self):
+        return self.config.quiz.quiz_config
 
-            if self.ui_reward_appear_click():
-                continue
-            if self.appear(self.I_FAIL_QUIT):
-                # 失败
-                logger.info('Quiz Fail and exit')
-                self.ui_click(self.I_FAIL_QUIT, self.I_START)
-                break
-            if self.appear(self.I_SHARE):
-                # 结算
-                logger.info('Quiz Victory and exit')
-                self.ui_click(self.I_UI_BACK_RED, self.I_START)
-                break
-            if quiz_timer.reached():
-                quiz_timer.reset()
-                self._deal_quiz()
-                continue
-        self.close_fn()
+    def check_assets(self) -> None:
+        missing = [name for name in REQUIRED_ASSETS if not hasattr(self, name)]
+        if missing:
+            logger.critical('答题素材缺失，请在 tasks/Quiz/res 里补齐：')
+            for name in missing:
+                logger.critical(f'  {name}')
+            raise RequestHumanTakeover
+        lacking = [name for name in OPTION_OCR.values() if not hasattr(self, name)]
+        if not hasattr(self, 'O_QUESTION') or lacking:
+            logger.warning(f'题干/选项 OCR 素材缺失，只能走 AI 识别：{lacking}')
 
-    def detect_new(self, select_1, select_2, select_3, select_4) -> bool:
-        # 计算不同答案的数量
-        diff_count = 0
-        if self.last_select_1 != select_1:
-            diff_count += 1
-        if self.last_select_2 != select_2:
-            diff_count += 1
-        if self.last_select_3 != select_3:
-            diff_count += 1
-        if self.last_select_4 != select_4:
-            diff_count += 1
-            
-        # 如果有3个或以上答案不同，则认为是新问题
-        new = diff_count >= 3
-        
-        self.last_select_1, self.last_select_2, self.last_select_3, self.last_select_4 = \
-            select_1, select_2, select_3, select_4
-        return new
+    def schedule_next_day(self) -> None:
+        target = (datetime.now() + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        self.set_next_run(task='Quiz', target=target, success=True, finish=True)
+        logger.info(f'下次答题: {target.strftime("%Y-%m-%d %H:%M")}')
 
-    def _deal_quiz(self):
-        countdown = self.O_COUNTDOWN.ocr(self.device.image)
-        
-        """  # 检查倒计时状态变化：从大于0变为0时进入下一题
-        if self.last_countdown is not None and self.last_countdown > 0 and countdown == 0:
-            logger.info("Countdown changed from greater than 0 to 0, moving to next question")
+    # ---------------------------------------------------------------- 页面
+    def enter_quiz_by_ticket(self, timeout: int = 15) -> bool:
+        """
+        进入物品-背包页找到「趣味答题券」，点开详情面板后立即使用，进入答题界面
+        :return: 答题界面是否出现
+        """
+        logger.hr('Use quiz ticket')
+        if not self.bag_use_item(BAG_ITEM_NAME):
+            logger.warning(f'背包里没有找到 [{BAG_ITEM_NAME}] 或没有点到立即使用')
             return False
-        
-        self.last_countdown = countdown """
-        
-        if countdown < 2 or countdown > 5:
-            # 最后两秒钟的时候 进行选择
-            if countdown >100:
-                self.runalone = True
-            else:
+        return self.wait_quiz_page(timeout=timeout)
+
+    def back_to_main(self) -> None:
+        """
+        答题结束后回到主页面
+        关掉答题弹窗后界面已经不在背包页（缓存里还留着背包页），先作废再重新识别
+        """
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_main, timeout=30):
+            logger.warning('返回主页面失败')
+
+    def wait_quiz_page(self, timeout: int = 30) -> bool:
+        """
+        等待答题界面出现
+        """
+        logger.hr('Wait quiz page')
+        timer = Timer(timeout).start()
+        while 1:
+            self.screenshot()
+            if self.appear(self.I_QUIZ_DIALOG) or self.appear(self.I_QUIZ_FINISH):
+                logger.info('Quiz page appear')
+                # 页面刚出现时题目还没刷新出来，等稳定后再读题干
+                logger.info(f'Wait {self.page_ready_wait}s for the question')
+                self.device.sleep(self.page_ready_wait)
+                return True
+            if timer.reached():
+                logger.warning('答题界面没有出现')
                 return False
+            self.device.sleep(0.5)
 
-        question, answer_1, answer_2, answer_3, answer_4 = self.detect_question_and_answers()
-        if answer_1 == '' and answer_2 == '' and answer_3 == '' and answer_4 == '':
-            return False
-        question = remove_symbols(question)
+    def finish_quiz(self) -> None:
+        """
+        结束：关掉答题界面
+        """
+        logger.hr('Finish quiz')
+        self.screenshot()
+        if self.appear(self.I_QUIZ_FINISH):
+            logger.info('答题结束图片出现')
+        if hasattr(self, 'I_CLOSE') and self.appear_then_click(self.I_CLOSE, interval=1):
+            logger.info('Close quiz dialog')
+            self.device.sleep(1)
 
-        new_question = self.detect_new(answer_1, answer_2, answer_3, answer_4)
-        if not new_question:
-            if self.runalone:
-                self.appear_then_click(self.I_ALONE_ENSURE, interval=1)
-                pass
-            return False
-        self.answer_cnt += 1
-        logger.info(f'Question count: {self.answer_cnt}')
+    # ---------------------------------------------------------------- 答题循环
+    def answer_loop(self) -> None:
+        logger.hr('Answer loop')
+        total = self.quiz_config.total_questions
+        answered = 0
 
-        index = self.anwser.answer_one(question=question,  options=[answer_1, answer_2, answer_3, answer_4])
-        if index is None:
-            logger.error('Now question has no answer, please check')
-            self.append_one(question=question, options=[answer_1, answer_2, answer_3, answer_4])
-            self.config.notifier.push(title='Quiz',
-                                      content=f"New question: \n{question} \n{[answer_1, answer_2, answer_3, answer_4]}")
-            index = 1
+        while answered < total:
+            if not self.wait_question_ready(timeout=30):
+                logger.warning('等不到下一题，结束答题')
+                break
+            answered += 1
+            logger.hr(f'第 {answered}/{total} 题', level=2)
+            self.answer_one()
+            self.wait_feedback_done(timeout=15)
 
-        if self._config.quiz_per_round < 150 and self.answer_cnt > self._config.quiz_per_round:
-            index_options = {1, 2, 3, 4}
-            index_options.remove(index)
-            index = random.choice(list(index_options))
-        logger.attr(index, 'Answer')
-        self.click(self.click_options[index-1], interval=1)
-        time.sleep(0.5)
-        if index == 1:
-            self.click(self.C_ANSWER_ENSURE_1)
-        if index == 2:
-            self.click(self.C_ANSWER_ENSURE_2)
-        if index == 3:
-            self.click(self.C_ANSWER_ENSURE_3)
-        if index == 4:
-            self.click(self.C_ANSWER_ENSURE_4)
+        logger.info(f'共作答 {answered} 题')
+
+    def wait_question_ready(self, timeout: int = 30) -> bool:
+        """
+        等待可作答状态：在答题界面、且没有贴纸挡着
+        """
+        timer = Timer(timeout).start()
+        while 1:
+            self.screenshot()
+            if self.appear(self.I_QUIZ_FINISH):
+                return False
+            if self.appear(self.I_FEEDBACK_CORRECT) or self.appear(self.I_FEEDBACK_WRONG):
+                # 上一题的贴纸还在，等它消失
+                if timer.reached():
+                    return False
+                self.device.sleep(0.3)
+                continue
+            if self.appear(self.I_QUIZ_DIALOG):
+                return True
+            if timer.reached():
+                return False
+            self.device.sleep(0.3)
+
+    def answer_one(self) -> None:
+        """
+        答一题：题库命中直接用（答完仍校验）-> 否则先落库再问 AI -> 点击 -> 反馈 -> 回写
+        """
+        self.screenshot()
+        question, options = self.ocr_locally()
+        record, score = self.bank.find(question) if question else (None, 0.0)
+
+        # 1) 题库命中且已验证 -> 直接用，但同样要读反馈校验题库
+        if record and record.get('verified') and record.get('answer') and options:
+            letter = self.bank.match_option(options, record['answer'])
+            if letter:
+                logger.info(f'题库命中({score:.2f}): {record["answer"]} -> {letter}')
+                self.click_option(letter)
+                feedback = self.read_feedback()
+                # 命中也走校验：答对保持/转正，答错降级并记录错误选项
+                self.bank.update_by_feedback(question, record['answer'], feedback)
+                return
+
+        # 2) 未验证但已有答案：如果配置为不重问 AI，就直接用（答完仍校验）
+        if (record and record.get('answer') and options
+                and not self.quiz_config.ask_again_if_unverified):
+            letter = self.bank.match_option(options, record['answer'])
+            if letter:
+                logger.info(f'题库命中(未验证): {record["answer"]} -> {letter}')
+                self.click_option(letter)
+                feedback = self.read_feedback()
+                self.bank.update_by_feedback(question, record['answer'], feedback)
+                return
+
+        # 3) 先把题目落库（API 失败也不丢），再问 AI
+        if question and self.quiz_config.learn_from_llm:
+            self.bank.ensure_entry(question, options)
+
+        ai = self.ask_ai(question=question, options=options,
+                         wrong_options=record.get('wrong') if record else None)
+        if ai is None:
+            logger.warning('AI 不可用（题目已落库，下次会重试）')
+            if record and options and record.get('answer'):
+                letter = self.bank.match_option(options, record['answer'])
+                if letter:
+                    logger.warning('退回题库已有答案')
+                    self.click_option(letter)
+                    return
+            self.bank.append_unknown(question, options)
+            self.fallback_pick()
+            return
+
+        answer_text = ai.get('answer_text') or ''
+        letter = ai.get('answer', '').strip().upper()
+        letter = self.bank.match_option(options, answer_text) or letter
+        if letter not in OPTION_CLICKS:
+            logger.warning(f'无法确定选项: answer_text={answer_text!r} options={options}')
+            self.bank.append_unknown(question, options)
+            self.fallback_pick()
+            return
+
+        self.click_option(letter)
+        feedback = self.read_feedback()
+        self.learn(question, options, answer_text or options.get(letter, ''), feedback)
+
+    def click_option(self, letter: str) -> None:
+        """
+        点击选项：答题是连续点 A/B/C，先清掉连点记录，避免误触框架的
+        GameTooManyClickError（同一局里 A、C 各点 6 次就会触发）
+        """
+        logger.info(f'Click option {letter}')
         self.device.click_record_clear()
-        return True
+        self.click(getattr(self, OPTION_CLICKS[letter]))
 
-    def detect_question_and_answers(self) -> tuple:
-        results = self.O_QUESTION.detect_and_ocr(self.device.image)
-        question = ''
-        answer_1 = remove_symbols(self.O_ANSWER1.ocr(self.device.image))
-        answer_2 = remove_symbols(self.O_ANSWER2.ocr(self.device.image))
-        answer_3 = remove_symbols(self.O_ANSWER3.ocr(self.device.image))
-        answer_4 = remove_symbols(self.O_ANSWER4.ocr(self.device.image))  
-        for result in results:
-            # box 是四个点坐标 左上， 右上， 右下， 左下
-            # x1, y1, x2, y2 = result.box[0][0], result.box[0][1], result.box[2][0], result.box[2][1]
-            # w, h = x2 - x1, y2 - y1
-            y_start = result.box[0][1]
-            y_end = result.box[2][1]
-            text = result.ocr_text
-            if y_start >= 0 and y_end <= 150:
-                question += text
-        
-        return question, answer_1, answer_2, answer_3, answer_4
+    def read_feedback(self, timeout: int = 10) -> str:
+        """
+        等贴纸出现并判定
+        :return: 'correct' / 'wrong' / None
+        """
+        timer = Timer(timeout).start()
+        while 1:
+            self.screenshot()
+            if self.appear(self.I_FEEDBACK_CORRECT):
+                logger.info('回答正确')
+                return 'correct'
+            if self.appear(self.I_FEEDBACK_WRONG):
+                logger.info('回答错误')
+                return 'wrong'
+            if timer.reached():
+                logger.warning('没有读到答题反馈')
+                return None
+            self.device.sleep(0.3)
+
+    def wait_feedback_done(self, timeout: int = 15) -> bool:
+        """
+        等贴纸消失（5~7 秒），贴纸消失后才会出下一题
+        """
+        timer = Timer(timeout).start()
+        while 1:
+            self.screenshot()
+            if self.appear(self.I_QUIZ_FINISH):
+                return True
+            if not self.appear(self.I_FEEDBACK_CORRECT) and not self.appear(self.I_FEEDBACK_WRONG):
+                return True
+            if timer.reached():
+                return False
+            self.device.sleep(0.3)
+
+    def fallback_pick(self) -> None:
+        mode = self.quiz_config.unknown_fallback
+        if mode == 'skip':
+            logger.warning('兜底策略：不作答')
+            return
+        letter = 'A' if mode == 'first' else random.choice(['A', 'B', 'C'])
+        logger.warning(f'兜底策略：{mode} -> {letter}')
+        self.click_option(letter)
+
+    # ---------------------------------------------------------------- 学习
+    def learn(self, question: str, options: dict, answer_text: str,
+              feedback: str) -> None:
+        """
+        用 AI 答案 + 游戏反馈回写题库（不管对错都写）
+        """
+        if not question:
+            return
+        if self.quiz_config.learn_from_llm:
+            self.bank.upsert(
+                question,
+                [options.get(k, '') for k in ('A', 'B', 'C')],
+                answer_text,
+            )
+        self.bank.update_by_feedback(question, answer_text, feedback)
+        if feedback is None:
+            self.bank.append_unknown(question, options)
+
+    # ---------------------------------------------------------------- OCR / AI
+    def ocr_locally(self) -> tuple:
+        """
+        本地 OCR 题干和三个选项，缺素材就返回空走 AI
+        """
+        def read(rule):
+            results = rule.detect_and_ocr(self.device.image, logDisplay=False)
+            return ''.join(r.ocr_text for r in results).strip()
+
+        question = read(self.O_QUESTION) if hasattr(self, 'O_QUESTION') else ''
+        options = {}
+        for letter, name in OPTION_OCR.items():
+            if hasattr(self, name):
+                text = OPTION_PREFIX.sub('', read(getattr(self, name)))
+                if text:
+                    options[letter] = text
+        if question:
+            logger.attr('Question(OCR)', question)
+        return question, options
+
+    def ask_ai(self, question: str = '', options: dict = None,
+               wrong_options: list = None) -> dict:
+        """
+        截取弹窗区域交给 DeepSeek，题干/选项以文字一并给出
+        """
+        image = crop(self.device.image, DIALOG_AREA)
+        if self.quiz_config.save_unknown_screenshot:
+            os.makedirs(SHOT_DIR, exist_ok=True)
+            path = f'{SHOT_DIR}/{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
+            cv2.imwrite(path, image)
+        return self.client.answer_quiz(image, question=question, options=options,
+                                       wrong_options=wrong_options)
+
+    def current_index(self) -> int:
+        """
+        读「第 X/20 题」里的 X，读不到返回 0
+        """
+        results = self.O_PROGRESS.detect_and_ocr(self.device.image, logDisplay=False)
+        text = ''.join(r.ocr_text for r in results)
+        match = PROGRESS_RE.search(text)
+        return int(match.group(1)) if match else 0
 
 
 if __name__ == '__main__':
     from module.config.config import Config
     from module.device.device import Device
 
-    c = Config('oas1')
-    d = Device(c)
-    t = ScriptTask(c, d)
-    t.screenshot()
-
-    t.run()
+    config = Config('oas1')
+    device = Device(config)
+    ScriptTask(config, device).run()

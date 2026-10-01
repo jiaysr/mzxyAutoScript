@@ -8,12 +8,8 @@ from pydantic import BaseModel, ValidationError, Field
 from module.logger import logger
 
 class PackageName(str, Enum):
-    AUTO = 'auto'
-    NETEASE_ONMYOJI = 'com.netease.onmyoji.wyzymnqsd_cps'  # 网易自家的阴阳师
-    NETEASE_MI = 'com.netease.onmyoji.mi'  # 小米
-    NETEASE = 'com.netease.onmyoji'
-    NETEASE_HUAWEI = 'com.netease.onmyoji.huawei'
-    NETEASE_BILIBILI = 'com.netease.onmyoji.bili'
+    X7 = 'pip.com.xuanyuan.x7sy'  # 小七版明珠轩辕
+    OFFICIAL = 'com.pip.android.xuanyuan'  # 官方版明珠轩辕
 
 class ScreenshotMethod(str, Enum):
     AUTO = 'auto'
@@ -55,7 +51,7 @@ class Device(BaseModel):
     handle: str = Field(default='',
                         description='handle_help')
     package_name: PackageName = Field(title='Package Name',
-                                      default=PackageName.AUTO,
+                                      default=PackageName.X7,
                                       description='package_name_help')
     screenshot_method: ScreenshotMethod = Field(default=ScreenshotMethod.AUTO,
                                                 description='screenshot_method_help')

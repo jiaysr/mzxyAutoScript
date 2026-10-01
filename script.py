@@ -406,12 +406,14 @@ class Script:
         method = self.config.script.optimization.when_task_queue_empty
         strategy_map = {
             "close_game": self._wait_close_game,
-            "goto_main": self._wait_goto_main,
+            # 挂机：不做任何游戏内操作（含老配置的 stay_there）
+            "goto_main": self._wait_idle,
+            "stay_there": self._wait_idle,
         }
         func = strategy_map.get(method)
         if func is None:
-            logger.warning(f"Invalid Optimization_WhenTaskQueueEmpty: {method}, fallback to stay_there")
-            func = self._wait_stay_there
+            logger.warning(f"Invalid Optimization_WhenTaskQueueEmpty: {method}, fallback to idle")
+            func = self._wait_idle
         return func(next_run)
 
     @staticmethod
@@ -493,9 +495,13 @@ class Script:
             return False
         return True
 
-    def _wait_goto_main(self, next_run: datetime) -> bool:
+    def _wait_idle(self, next_run: datetime) -> bool:
+        """
+        挂机：不做任何游戏内操作，只保持当前画面等待
+        等待时间较长时可按配置关闭模拟器省资源
+        """
         if self._emulator_down:
-            logger.info("Emulator is down, skip goto_main and wait with preheat")
+            logger.info("Idle during wait (emulator is down, with preheat)")
             return self._wait_until_with_emulator_preheat(next_run)
 
         close_emulator_wait_duration = self.config.script.optimization.close_emulator_wait_duration
@@ -511,31 +517,9 @@ class Script:
             self.run("Restart")
             return True
 
-        logger.info("Goto main page during wait")
-        self.run("GotoMain")
+        logger.info("Idle (no action) during wait")
         self.device.release_during_wait()
         return self.wait_until(next_run)
-
-    def _wait_stay_there(self, next_run: datetime) -> bool:
-        if self._emulator_down:
-            logger.info("Stay_there during wait (emulator is down, with preheat)")
-            return self._wait_until_with_emulator_preheat(next_run)
-
-        logger.info("Stay_there (no action) during wait")
-        self.device.release_during_wait()
-        return self.wait_until(next_run)
-
-    def exception_handler(self, e: Exception, command: str) -> None:
-        # 处理御魂溢出
-        from tasks.Utils.post_diagnotor import PostDiagnotor, AnalyzeType
-        image = getattr(self.device, 'image', None)
-        # image为None则不做处理
-        if image is None:
-            return
-        analyse_type = PostDiagnotor().handle(e=e, command=command, image=image)
-        if analyse_type == AnalyzeType.SoulOverflow:
-            self.config.task_call('SoulsTidy')
-            time.sleep(1)
 
     def run(self, command: str) -> bool:
         """
@@ -569,13 +553,11 @@ class Script:
             return True
         except GameNotRunningError as e:
             logger.warning(e)
-            self.exception_handler(e=e, command=command)
             self.config.task_call('Restart')
             return True
         except (GameStuckError, GameTooManyClickError) as e:
             logger.error(e)
             self.save_error_log()
-            self.exception_handler(e=e, command=command)
             logger.warning(f'Game stuck, {self.device.package} will be restarted in 10 seconds')
             logger.warning('If you are playing by hand, please stop Alas')
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> GameStuckError or GameTooManyClickError")
@@ -585,8 +567,7 @@ class Script:
         except GameBugError as e:
             logger.warning(e)
             self.save_error_log()
-            self.exception_handler(e=e, command=command)
-            logger.warning('An error has occurred in Azur Lane game client, Alas is unable to handle')
+            logger.warning('An error has occurred in game client, unable to handle')
             logger.warning(f'Restarting {self.device.package} to fix it')
             self.config.task_call('Restart')
             self.device.sleep(10)
@@ -596,26 +577,22 @@ class Script:
             # 这个还不重要 留着坑填
             logger.critical('Game page unknown')
             self.save_error_log()
-            self.exception_handler(e=e, command=command)
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> GamePageUnknownError")
             self.config.task_call('Restart')
             self.device.sleep(10)
             return False
         except ScriptError as e:
             logger.critical(e)
-            self.exception_handler(e=e, command=command)
             logger.critical('This is likely to be a mistake of developers, but sometimes just random issues')
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> ScriptError")
             exit(1)
         except RequestHumanTakeover as e:
             logger.critical(e)
-            self.exception_handler(e=e, command=command)
             logger.critical('Request human takeover')
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> RequestHumanTakeover")
             exit(1)
         except Exception as e:
             logger.exception(e)
-            self.exception_handler(e=e, command=command)
             self.save_error_log()
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> Exception occured")
             exit(1)

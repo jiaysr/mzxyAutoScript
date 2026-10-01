@@ -1,101 +1,155 @@
 [
   {
-    "itemName": "back_bl",
-    "imageName": "res_back_blue.png",
-    "roiFront": "32,31,50,53",
-    "roiBack": "1,2,139,120",
+    "itemName": "page_main",
+    "imageName": "res_page_main.png",
+    "roiFront": "1229,676,24,17",
+    "roiBack": "1219,662,49,44",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "左上角蓝色的返回"
+    "description": "主页面特征（右下角图标）"
   },
   {
-    "itemName": "home_shikikami",
-    "imageName": "res_home_shikikami.png",
-    "roiFront": "1092,611,73,41",
-    "roiBack": "1092,611,73,41",
+    "itemName": "page_role_detail",
+    "imageName": "res_page_role_detail.png",
+    "roiFront": "632,365,97,44",
+    "roiBack": "597,352,171,74",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "式神录"
+    "description": "角色-详情页特征（培养按钮）"
   },
   {
-    "itemName": "home_omnyouji",
-    "imageName": "res_home_omnyouji.png",
-    "roiFront": "989,613,59,58",
-    "roiBack": "989,613,59,58",
+    "itemName": "page_item_bag",
+    "imageName": "res_page_item_bag.png",
+    "roiFront": "560,580,154,68",
+    "roiBack": "550,570,174,88",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "阴阳术"
+    "description": "物品-背包页特征（整理背包按钮）"
   },
   {
-    "itemName": "home_friend",
-    "imageName": "res_home_friend.png",
-    "roiFront": "876,619,60,53",
-    "roiBack": "876,619,60,53",
+    "itemName": "page_challenge",
+    "imageName": "res_page_challenge.png",
+    "roiFront": "557,123,128,40",
+    "roiBack": "536,113,274,65",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "description"
+    "description": "挑战-战场页特征（你的战斗力文字）"
   },
   {
-    "itemName": "home_tsk",
-    "imageName": "res_home_tsk.png",
-    "roiFront": "764,608,66,56",
-    "roiBack": "764,608,66,56",
+    "itemName": "menu_collapsed",
+    "imageName": "res_menu_collapsed.png",
+    "roiFront": "1148,31,18,26",
+    "roiBack": "1136,18,50,54",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "花合战"
+    "description": "右上角菜单收起状态（左箭头）"
   },
   {
-    "itemName": "home_mall",
-    "imageName": "res_home_mall.png",
-    "roiFront": "654,620,51,55",
-    "roiBack": "654,620,51,55",
+    "itemName": "menu_expanded",
+    "imageName": "res_menu_expanded.png",
+    "roiFront": "1153,28,15,32",
+    "roiBack": "1136,18,50,54",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "商店"
+    "description": "右上角菜单展开状态（右箭头）"
   },
   {
-    "itemName": "home_guild",
-    "imageName": "res_home_guild.png",
-    "roiFront": "540,607,53,50",
-    "roiBack": "540,607,53,50",
+    "itemName": "activity_icon",
+    "imageName": "res_activity_icon.png",
+    "roiFront": "1087,36,31,32",
+    "roiBack": "448,12,685,71",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "阴阳寮"
+    "description": "右上角菜单内的活动图标"
   },
   {
-    "itemName": "home_team",
-    "imageName": "res_home_team.png",
-    "roiFront": "430,616,49,61",
-    "roiBack": "430,616,49,61",
+    "itemName": "page_activity_notice",
+    "imageName": "res_page_activity_notice.png",
+    "roiFront": "531,183,655,23",
+    "roiBack": "528,169,672,80",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "组队"
+    "description": "活动-公告页特征（右侧内容面板顶边）"
   },
   {
-    "itemName": "home_concentric_team",
-    "imageName": "res_home_concentric_team.png",
-    "roiFront": "310,618,67,60",
-    "roiBack": "310,618,67,60",
+    "itemName": "page_activity_list",
+    "imageName": "res_page_activity_list.png",
+    "roiFront": "1059,207,67,40",
+    "roiBack": "1045,197,92,59",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "同心队"
+    "description": "活动-推荐页特征（活动奖励图标）"
   },
   {
-    "itemName": "home_help",
-    "imageName": "res_home_help.png",
-    "roiFront": "201,617,56,57",
-    "roiBack": "201,617,56,57",
+    "itemName": "page_activity_world_boss",
+    "imageName": "res_page_activity_world_boss.png",
+    "roiFront": "158,554,45,41",
+    "roiBack": "135,541,90,65",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "珍旅居"
+    "description": "活动-世界首领页特征（奖按钮）"
   },
   {
-    "itemName": "home_collect",
-    "imageName": "res_home_collect.png",
-    "roiFront": "92,607,48,74",
-    "roiBack": "92,607,48,74",
+    "itemName": "page_activity",
+    "imageName": "res_page_activity.png",
+    "roiFront": "1180,28,65,52",
+    "roiBack": "1150,10,130,90",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "图鉴"
+    "description": "活动弹窗容器特征（右上角绿X）"
+  },
+  {
+    "itemName": "page_activity_active",
+    "imageName": "res_page_activity_active.png",
+    "roiFront": "872,180,88,36",
+    "roiBack": "850,160,150,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-活跃页特征（活跃值标题）"
+  },
+  {
+    "itemName": "map_minimap_world_map",
+    "imageName": "res_map_minimap_world_map.png",
+    "roiFront": "971,118,126,42",
+    "roiBack": "794,9,1210,314",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小地图页-世界地图按钮（小地图页特征，也是进入世界地图的入口，位置随地图大小变化）"
+  },
+  {
+    "itemName": "map_world_map_list_button",
+    "imageName": "res_map_world_map_list_button.png",
+    "roiFront": "1008,587,73,45",
+    "roiBack": "988,570,114,84",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界地图页-列表按钮（世界地图页特征，点击进入世界地图列表）"
+  },
+  {
+    "itemName": "map_world_map_list_page",
+    "imageName": "res_map_world_map_list_page.png",
+    "roiFront": "591,92,95,37",
+    "roiBack": "559,73,159,79",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界地图列表页-「请选择」标题（列表页特征）"
+  },
+  {
+    "itemName": "map_popup_close",
+    "imageName": "res_map_popup_close.png",
+    "roiFront": "1131,44,41,51",
+    "roiBack": "1007,0,245,223",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小地图-右上角关闭按钮（通用绿X，位置随弹窗大小变化）"
+  },
+  {
+    "itemName": "map_dialog_confirm_button",
+    "imageName": "res_map_dialog_confirm_button.png",
+    "roiFront": "768,358,117,61",
+    "roiBack": "760,350,140,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px）"
   }
 ]

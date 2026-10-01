@@ -15,7 +15,6 @@ from module.base.timer import Timer
 
 from tasks.Script.config_device import ScreenshotMethod, ControlMethod
 from tasks.base_task import BaseTask
-from tasks.Exploration.version import highlight
 
 class GetAnimation(BaseTask):
 
@@ -39,8 +38,6 @@ class GetAnimation(BaseTask):
             if sho_timer.reached():
                 sho_timer.reset()
                 image = self.device.screenshot_window_background()
-                # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                image = highlight(image)
                 time_now1 = int(time.time() * 1000)
                 save_images[time_now1] = image
         for time_now, image in save_images.items():

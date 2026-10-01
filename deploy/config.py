@@ -38,6 +38,10 @@ class ConfigModel:
     StartOcrServer: bool = False
     OcrServerPort: int = 22268
     OcrClientAddress: str = "127.0.0.1:22268"
+    # PP-OCRv5 / PP-OCRv4 / default(builtin PP-OCRv3 det + PP-OCRv2 rec)
+    OcrModelVersion: str = "PP-OCRv5"
+    OcrModelDir: str = "./bin/ocr_model"
+    OcrModelAutoDownload: bool = True
 
     # Update
     EnableReload: bool = True

@@ -1,20 +1,101 @@
 [
   {
-    "itemName": "home_explore",
-    "roiFront": "310,105,858,194",
-    "roiBack": "0,0,100,100",
+    "itemName": "panel_sidebar",
+    "roiFront": "0,110,245,610",
+    "roiBack": "0,110,245,610",
     "mode": "Full",
     "method": "Default",
-    "keyword": "探索",
-    "description": "庭院到探索"
+    "keyword": "",
+    "description": "角色面板左侧模块栏（OCR 识别区）"
   },
   {
-    "itemName": "new",
-    "roiFront": "0,0,100,100",
-    "roiBack": "0,0,100,100",
-    "mode": "Single",
+    "itemName": "panel_tabs",
+    "roiFront": "280,8,765,85",
+    "roiBack": "280,8,765,85",
+    "mode": "Full",
     "method": "Default",
     "keyword": "",
-    "description": "Ocr-description"
+    "description": "角色面板顶部 tab 栏（OCR 识别区）"
+  },
+  {
+    "itemName": "activity_tabs",
+    "roiFront": "140,80,950,65",
+    "roiBack": "140,80,950,65",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "活动弹窗顶部 tab 栏（OCR 识别区）"
+  },
+  {
+    "itemName": "activity_subtabs",
+    "roiFront": "1045,150,175,480",
+    "roiBack": "1045,150,175,480",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "活动弹窗右侧子 tab 栏（可上下滚动）"
+  },
+  {
+    "itemName": "dialog_text",
+    "roiFront": "314,235,649,249",
+    "roiBack": "331,234,622,259",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "游戏通用弹窗文案识别区域（报名/匹配/提示弹窗）"
+  },
+  {
+    "itemName": "activity_task_list",
+    "roiFront": "105,225,550,370",
+    "roiBack": "105,225,550,370",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "活动-活跃页的任务列表"
+  },
+  {
+    "itemName": "bag_grid",
+    "roiFront": "255,105,925,450",
+    "roiBack": "255,105,925,450",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "物品-背包物品格（4 列）识别区"
+  },
+  {
+    "itemName": "map_location",
+    "roiFront": "1072,84,208,35",
+    "roiBack": "1072,84,208,35",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "主页面右上角-当前地点与坐标（如 沼泽427,59）"
+  },
+  {
+    "itemName": "map_world_map_list",
+    "roiFront": "280,140,720,475",
+    "roiBack": "280,140,720,475",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "世界地图列表-地点条目识别区（供按名称点击传送使用）"
+  },
+  {
+    "itemName": "map_teleport_dialog",
+    "roiFront": "300,240,680,140",
+    "roiBack": "300,240,680,140",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "传送",
+    "description": "传送确认弹窗-文案区（免费传送与花费铜贝两种弹窗都含「传送」）"
+  },
+  {
+    "itemName": "map_dialog_confirm",
+    "roiFront": "700,340,300,120",
+    "roiBack": "700,340,300,120",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "确定",
+    "description": "传送确认弹窗-确定按钮（OCR 定位后点击，兼容两种弹窗）"
   }
 ]

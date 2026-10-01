@@ -1,0 +1,56 @@
+[
+  {
+    "itemName": "boss_manchui",
+    "imageName": "res_boss_manchui.png",
+    "roiFront": "211,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-蛮锤名称"
+  },
+  {
+    "itemName": "boss_wuqing",
+    "imageName": "res_boss_wuqing.png",
+    "roiFront": "515,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-无情名称"
+  },
+  {
+    "itemName": "boss_julian",
+    "imageName": "res_boss_julian.png",
+    "roiFront": "823,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-巨镰名称"
+  },
+  {
+    "itemName": "boss_fuwang",
+    "imageName": "res_boss_fuwang.png",
+    "roiFront": "435,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-斧王名称"
+  },
+  {
+    "itemName": "boss_xiewang",
+    "imageName": "res_boss_xiewang.png",
+    "roiFront": "738,198,68,40",
+    "roiBack": "90,190,800,50",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-蝎王名称"
+  },
+  {
+    "itemName": "target_button",
+    "imageName": "res_target_button.png",
+    "roiFront": "1217,235,33,43",
+    "roiBack": "1199,223,71,69",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主界面-目标锁定按钮"
+  }
+]

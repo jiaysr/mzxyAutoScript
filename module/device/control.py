@@ -197,6 +197,35 @@ class Control(Minitouch, Adb, Scrcpy, Window):
         else:
             self.swipe_adb(p1, p2, duration=duration)
 
+    def hold_drag(self, p1, p2, hold: float = 1.0, control_name='HOLD_DRAG') -> None:
+        """
+        按下 p1，拖动到 p2 并保持按住 hold 秒后抬起（虚拟摇杆移动用）
+
+        与 swipe 的区别：swipe 一滑即抬，摇杆会立刻归位；hold_drag 在终点停留，
+        角色持续朝该方向移动。
+
+        :param p1: 起点（摇杆圆心）
+        :param p2: 终点（摇杆方向偏移点）
+        :param hold: 终点保持按住的时间，单位 s
+        :param control_name: 控制名（卡死/连点记录用）
+        """
+        self.handle_control_check(control_name)
+        p1, p2 = ensure_int(p1, p2)
+        hold = ensure_time(hold)
+        method = self.config.script.device.control_method
+        logger.info('Hold drag %s -> %s, hold %.2fs' % (point2str(*p1), point2str(*p2), hold))
+        if method == 'minitouch':
+            self.hold_drag_minitouch(p1, p2, hold=hold)
+        elif method == 'window_message':
+            self.swipe_window_message(p1, p2)
+        elif method == 'uiautomator2':
+            self.swipe_uiautomator2(p1, p2, duration=hold)
+        elif method == 'scrcpy':
+            self.swipe_scrcpy(p1, p2)
+        else:
+            # ADB 没有按住语义，退化成慢速滑动（滑动过程相当于持续移动）
+            self.swipe_adb(p1, p2, duration=hold)
+
     def swipe_vector(self, vector, box=(123, 159, 1175, 628), random_range=(0, 0, 0, 0), padding=15,
                      duration=(0.1, 0.2), whitelist_area=None, blacklist_area=None, name='SWIPE', distance_check=True):
         """Method to swipe.

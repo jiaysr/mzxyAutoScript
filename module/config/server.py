@@ -6,24 +6,10 @@ server = 'cn'  # Setting default to cn, will avoid errors when using dev_tools
 
 VALID_SERVER = ['cn', 'en', 'jp', 'tw']
 VALID_PACKAGE = {
-    'com.netease.onmyoji.wyzymnqsd_cps': 'cn'
+    'pip.com.xuanyuan.x7sy': 'cn',
+    'com.pip.android.xuanyuan': 'cn'
 }
 VALID_CHANNEL_PACKAGE = {
-    # App stores
-    'com.bilibili.blhx.huawei': ('cn', '华为'),
-    'com.bilibili.blhx.mi': ('cn', '小米'),
-    'com.tencent.tmgp.bilibili.blhx': ('cn', '腾讯应用宝'),
-    'com.bilibili.blhx.baidu': ('cn', '百度'),
-    'com.bilibili.blhx.qihoo': ('cn', '360'),
-    'com.bilibili.blhx.nearme.gamecenter': ('cn', 'oppo'),
-    'com.bilibili.blhx.vivo': ('cn', 'vivo'),
-    'com.bilibili.blhx.mz': ('cn', '魅族'),
-
-    # 3rd party gaming platforms
-    'com.bilibili.blhx.uc': ('cn', 'UC九游'),
-    'com.bilibili.blhx.mzw': ('cn', '拇指玩'),
-    'com.yiwu.blhx.yx15': ('cn', '一五游戏'),
-    'com.bilibili.blhx.m4399': ('cn', '4399')
 }
 VALID_SERVER_LIST = {
     'cn_android': [

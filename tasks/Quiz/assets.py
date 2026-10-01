@@ -11,47 +11,37 @@ class QuizAssets:
 
 
 	# Click Rule Assets
-	# description 
-	C_ANSWER_ENSURE_1 = RuleClick(roi_front=(1219,185,21,34), roi_back=(1218,184,23,37), name="answer_ensure_1")
-	# description 
-	C_ANSWER_ENSURE_2 = RuleClick(roi_front=(1223,298,19,26), roi_back=(1222,297,22,29), name="answer_ensure_2")
-	# description 
-	C_ANSWER_ENSURE_3 = RuleClick(roi_front=(1224,414,18,23), roi_back=(1223,413,21,26), name="answer_ensure_3")
-	# description 
-	C_ANSWER_ENSURE_4 = RuleClick(roi_front=(1226,524,13,29), roi_back=(1224,523,15,31), name="answer_ensure_4")
+	# 选项A点击区域 
+	C_OPTION_A = RuleClick(roi_front=(159,285,439,50), roi_back=(583,156,100,100), name="option_a")
+	# 选项B点击区域 
+	C_OPTION_B = RuleClick(roi_front=(149,360,373,49), roi_back=(583,156,100,100), name="option_b")
+	# 选项C点击区域 
+	C_OPTION_C = RuleClick(roi_front=(151,439,385,45), roi_back=(583,156,100,100), name="option_c")
 
 
 	# Image Rule Assets
-	# description 
-	I_ENTRY = RuleImage(roi_front=(770,373,33,139), roi_back=(745,281,142,329), threshold=0.8, method="Template matching", file="./tasks/Quiz/quiz/entry.png")
-	# 开始 
-	I_START = RuleImage(roi_front=(1149,608,66,41), roi_back=(1136,574,100,100), threshold=0.8, method="Template matching", file="./tasks/Quiz/quiz/quiz_start.png")
-	# 标志 
-	I_MESSAGE = RuleImage(roi_front=(73,483,53,46), roi_back=(51,450,170,136), threshold=0.8, method="Template matching", file="./tasks/Quiz/quiz/message.png")
-	# 失败然后离开 
-	I_FAIL_QUIT = RuleImage(roi_front=(612,534,67,31), roi_back=(375,484,524,163), threshold=0.8, method="Template matching", file="./tasks/Quiz/quiz/fail_quit.png")
-	# 结算分享 
-	I_SHARE = RuleImage(roi_front=(1171,625,53,44), roi_back=(1152,592,100,100), threshold=0.8, method="Template matching", file="./tasks/Quiz/quiz/quiz_share.png")
-	# description 
-	I_ALONE_ENSURE = RuleImage(roi_front=(1216,405,30,41), roi_back=(1138,148,140,435), threshold=0.7, method="Template matching", file="./tasks/Quiz/quiz/alone_ensure.png")
+	# 答题榜标题(判断是否在答题界面) 
+	I_QUIZ_DIALOG = RuleImage(roi_front=(930,140,170,44), roi_back=(900,120,240,90), threshold=0.8, method="Template matching", file="./tasks/Quiz/res/res_quiz_dialog.png")
+	# 回答正确提示 
+	I_FEEDBACK_CORRECT = RuleImage(roi_front=(371,529,185,54), roi_back=(300,120,500,500), threshold=0.8, method="Template matching", file="./tasks/Quiz/res/res_feedback_correct.png")
+	# 回答错误提示 
+	I_FEEDBACK_WRONG = RuleImage(roi_front=(371,529,185,54), roi_back=(300,120,500,500), threshold=0.8, method="Template matching", file="./tasks/Quiz/res/res_feedback_wrong.png")
+	# 答题结束图片 
+	I_QUIZ_FINISH = RuleImage(roi_front=(425,155,81,87), roi_back=(300,120,500,500), threshold=0.8, method="Template matching", file="./tasks/Quiz/res/res_quiz_finish.png")
+	# 关闭答题界面按钮 
+	I_CLOSE = RuleImage(roi_front=(1140,76,50,52), roi_back=(1100,50,140,110), threshold=0.8, method="Template matching", file="./tasks/Quiz/res/res_close.png")
 
 
 	# Ocr Rule Assets
-	# Ocr-description 
-	O_QUESTION = RuleOcr(roi=(903,32,322,101), area=(0,0,100,100), mode="Full", method="Default", keyword="", name="question")
-	# Ocr-description 
-	O_ANSWER1 = RuleOcr(roi=(951,188,228,31), area=(949,187,231,34), mode="Single", method="Default", keyword="", name="answer1")
-	# Ocr-description 
-	O_ANSWER2 = RuleOcr(roi=(960,301,208,26), area=(959,300,211,29), mode="Single", method="Default", keyword="", name="answer2")
-	# Ocr-description 
-	O_ANSWER3 = RuleOcr(roi=(955,417,228,26), area=(953,415,231,29), mode="Single", method="Default", keyword="", name="answer3")
-	# Ocr-description 
-	O_ANSWER4 = RuleOcr(roi=(964,527,208,23), area=(963,526,211,26), mode="Single", method="Default", keyword="", name="answer4")
-	# 倒计时 
-	O_COUNTDOWN = RuleOcr(roi=(1030,9,61,25), area=(1029,7,63,27), mode="Digit", method="Default", keyword="4", name="countdown")
-	# 倒计时 
-	O_COUNTDOWN3 = RuleOcr(roi=(1045,6,27,30), area=(1045,6,27,30), mode="Digit", method="Default", keyword="3", name="countdown3")
-	# Ocr-description 
-	O_QUESTION_AND_ANSWER = RuleOcr(roi=(902,34,325,534), area=(0,0,100,100), mode="Full", method="Default", keyword="", name="question_and_answer")
+	# 第X/20题 
+	O_PROGRESS = RuleOcr(roi=(108,138,173,42), area=(108,138,173,42), mode="Full", method="Default", keyword="", name="progress")
+	# 题干文字 
+	O_QUESTION = RuleOcr(roi=(105,178,705,88), area=(105,178,705,88), mode="Full", method="Default", keyword="", name="question")
+	# A选项文字(不含前缀) 
+	O_OPTION_A = RuleOcr(roi=(190,277,609,63), area=(190,277,609,63), mode="Full", method="Default", keyword="", name="option_a")
+	# B选项文字(不含前缀) 
+	O_OPTION_B = RuleOcr(roi=(190,353,609,62), area=(190,353,609,62), mode="Full", method="Default", keyword="", name="option_b")
+	# C选项文字(不含前缀) 
+	O_OPTION_C = RuleOcr(roi=(190,427,609,62), area=(190,427,609,62), mode="Full", method="Default", keyword="", name="option_c")
 
 

@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "arena_same_server",
+    "roiFront": "1122,274,123,48",
+    "roiBack": "1122,274,123,48",
+    "description": "战场-同服竞技按钮"
+  },
+  {
+    "itemName": "arena_button_click",
+    "roiFront": "285,190,130,58",
+    "roiBack": "285,190,130,58",
+    "description": "2人角斗按钮区域（双击报名用）"
+  }
+]

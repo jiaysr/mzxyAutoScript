@@ -17,17 +17,14 @@ from module.atom.swipe import RuleSwipe
 from module.base.timer import Timer
 from module.config.config import Config
 from module.device.device import Device
-from module.exception import ScriptError
 from module.logger import logger
 from module.ocr.base_ocr import OcrMode
-from tasks.Component.Costume.costume_base import CostumeBase
 from tasks.Component.config_base import Time
-from tasks.GlobalGame.assets import GlobalGameAssets
-from tasks.GlobalGame.config_emergency import FriendInvitation
+from tasks.GlobalGame.global_game import GlobalGame
 from typing import Union
 
 
-class BaseTask(GlobalGameAssets, CostumeBase):
+class BaseTask(GlobalGame):
     config: Config = None
     device: Device = None
 
@@ -50,7 +47,6 @@ class BaseTask(GlobalGameAssets, CostumeBase):
         self.interval_timer = {}  # 这个是用来记录每个匹配的运行间隔的，用于控制运行频率
         self.animates = {}  # 保存缓存
         self.start_time = datetime.now()  # 启动的时间
-        self.check_costume(self.config.global_game.costume_config)
         # self.friend_timer = None  # 这个是用来记录勾协的时间的
         # if self.config.global_game.emergency.invitation_detect_interval:
         #     self.interval_time = self.config.global_game.emergency.invitation_detect_interval
@@ -61,79 +57,14 @@ class BaseTask(GlobalGameAssets, CostumeBase):
         self.current_count = 0  # 战斗次数
         self._boss_mark_flag = False
 
-    def _burst(self) -> bool:
-        """
-        游戏界面突发异常检测
-        :return: 没有出现返回False, 其他True
-        """
-        image = self.device.image
-        appear_invitation = self.appear(self.I_G_ACCEPT)
-        if not appear_invitation:
-            return False
-        logger.info('Invitation appearing')
-        invite_type = self.config.global_game.emergency.friend_invitation
-        detect_record = self.device.detect_record
-        match invite_type:
-            case FriendInvitation.ACCEPT:
-                logger.info(f"Accept friend invitation")
-                click_button = self.I_G_ACCEPT
-            case FriendInvitation.REJECT:
-                logger.info(f"Reject friend invitation")
-                click_button = self.I_G_REJECT
-            case FriendInvitation.ONLY_JADE:
-                # 勾协
-                logger.info(f"Only accept jade invitation")
-                if self.appear(self.I_G_JADE):
-                    click_button = self.I_G_ACCEPT
-                else:
-                    click_button = self.I_G_IGNORE
-            case FriendInvitation.JADE_AND_FOOD:
-                # 如果是接受勾协和粮协
-                logger.info(f"Accept jade and food invitation")
-                if self.appear(self.I_G_JADE) or self.appear(self.I_G_CAT_FOOD) or self.appear(self.I_G_DOG_FOOD):
-                    click_button = self.I_G_ACCEPT
-                else:
-                    click_button = self.I_G_IGNORE
-            case FriendInvitation.IGNORE:
-                # 如果是忽略
-                logger.info(f"Ignore friend invitation")
-                click_button = self.I_G_IGNORE
-            case _:
-                raise ScriptError(f'Unknown friend invitation type: {invite_type}')
-        if not click_button:
-            raise ScriptError(f'Unknown click button type: {invite_type}')
-        while 1:
-            self.device.screenshot()
-            if not self.appear(target=click_button):
-                logger.info('Deal with invitation done')
-                break
-            if self.appear_then_click(click_button, interval=0.8):
-                continue
-        # 有的时候长战斗 点击后会取消战斗状态
-        self.device.detect_record = detect_record
-        # 如果接受邀请则立即执行悬赏任务
-        if click_button == self.I_G_ACCEPT:
-            self.set_next_run(task='WantedQuests', target=datetime.now().replace(microsecond=0))
-        return True
-
     def screenshot(self):
         """
-        截图 引入中间函数的目的是 为了解决如协作的这类突发的事件
+        截图，并做全局处理：阵亡检测（复活并重跑）与已知弹窗清理
         :return:
         """
         self.device.screenshot()
-        # 判断勾协
-        self._burst()
-
-        # # 判断网络异常
-        # if self.appear(self.I_NETWORK_ABNORMAL):
-        #     logger.warning(f"Network abnormal")
-        #     raise GameStuckError
-        #
-        # # 判断网络错误
-        # if self.appear(self.I_NETWORK_ERROR):
-        #     logger.warning(f"Network error")
-        #     raise GameStuckError
+        self.handle_death()
+        self.handle_global_popup()
 
         return self.device.image
 
@@ -679,57 +610,6 @@ class BaseTask(GlobalGameAssets, CostumeBase):
     #  ---------------------------------------------------------------------------------------------------------------
     #
     #  ---------------------------------------------------------------------------------------------------------------
-    def ui_reward_appear_click(self, screenshot=False) -> bool:
-        """
-        如果出现 ‘获得奖励’ 就点击
-        :return:
-        """
-        if screenshot:
-            self.screenshot()
-        return self.appear_then_click(self.I_UI_REWARD, action=self.C_UI_REWARD, interval=0.4, threshold=0.6)
-
-    def ui_get_reward(self, click_image: RuleImage or RuleOcr or RuleClick, click_interval: float = 1):
-        """
-        传进来一个点击图片 或是 一个ocr， 会点击这个图片，然后等待‘获得奖励’，
-        最后当获得奖励消失后 退出
-        :param click_interval:
-        :param click_image:
-        :return:
-        """
-        _timer = Timer(10)
-        _timer.start()
-        while 1:
-            self.screenshot()
-
-            if self.ui_reward_appear_click():
-                sleep(0.5)
-                while 1:
-                    self.screenshot()
-                    # 等待动画结束
-                    if not self.appear(self.I_UI_REWARD, threshold=0.6):
-                        logger.info('Get reward success')
-                        break
-
-                    # 一直点击
-                    if self.ui_reward_appear_click():
-                        continue
-                break
-            if _timer.reached():
-                logger.warning('Get reward timeout')
-                break
-
-            if isinstance(click_image, RuleImage):
-                if self.appear_then_click(click_image, interval=click_interval):
-                    continue
-            elif isinstance(click_image, RuleOcr):
-                if self.ocr_appear_click(click_image, interval=click_interval):
-                    continue
-            elif isinstance(click_image, RuleClick):
-                if self.click(click_image, interval=click_interval):
-                    continue
-
-        return True
-
     def ui_click(self, click, stop, interval=1, timeout=None):
         """
         循环的一个操作，直到出现stop

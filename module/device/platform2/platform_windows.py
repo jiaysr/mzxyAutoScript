@@ -326,7 +326,7 @@ class PlatformWindows(PlatformBase, EmulatorManager):
 
         @run_once
         def show_package(m):
-            logger.info(f'Found azurlane packages: {m}')
+            logger.info(f'Found game packages: {m}')
 
         interval = Timer(1).start()
         timeout = Timer(120).start()

@@ -1,16 +1,34 @@
 # This Python file uses the following encoding: utf-8
 # @author runhey
 # github https://github.com/runhey
-import time
+"""
+明珠轩辕页面寻路引擎
 
+职责：
+- 页面识别（ui_get_current_page）
+- 页面图最短路径（反向 BFS：build_reverse_path_dict）
+- 路径执行（_execute_path：点连线按钮 -> 等目标页出现）
+- 未知页面脱困（ui_close / ui_safe_click）
+- 统一操作入口（appear_then_operate，支持 Rule* 与 SidebarTarget/TabTarget/MenuTarget）
+
+拆分出的导航能力（本类混入使用）：
+- tasks/GameUi/panel.py    角色面板左侧模块栏 / 顶部 tab 栏
+- tasks/GameUi/top_menu.py 右上角菜单
+- tasks/GameUi/targets.py  页面连线目标类型
+- tasks/GameUi/map.py      世界地图（小地图/大地图/列表/传送）
+- tasks/GameUi/move.py     虚拟摇杆移动（主页面轮盘走到地图坐标）
+- tasks/GameUi/battle.py   简单战斗系统（技能栏循环释放）
+"""
+import difflib
 import importlib
-from pathlib import Path
-
+import sys
+from collections import deque
 from datetime import datetime
+from pathlib import Path
 from time import sleep
 
+import cv2
 import random
-from collections import deque
 from module.atom.click import RuleClick
 from module.atom.gif import RuleGif
 from module.atom.image import RuleImage
@@ -18,25 +36,29 @@ from module.atom.list import RuleList
 from module.atom.ocr import RuleOcr
 from module.base.decorator import run_once
 from module.base.timer import Timer
+from module.config.config_manual import ConfigManual
+from module.config.utils import convert_to_underscore
 from module.exception import (GameNotRunningError, GamePageUnknownError)
 from module.logger import logger
-from tasks.Component.GeneralBattle.assets import GeneralBattleAssets
-from tasks.GameUi.assets import GameUiAssets
-from tasks.GameUi.page import Page, PageRegistry, page_main, random_click
-from tasks.Restart.assets import RestartAssets
-from tasks.SixRealms.assets import SixRealmsAssets
-from tasks.base_task import BaseTask
-from tasks.ActivityShikigami.assets import ActivityShikigamiAssets
+from tasks.GameUi.page import Page, PageRegistry, page_item_bag
+from tasks.GameUi.activity import ActivityNavigation
+from tasks.GameUi.bag import BagNavigation
+from tasks.GameUi.map import MapNavigation
+from tasks.GameUi.battle import SimpleBattle
+from tasks.GameUi.move import MapMove
+from tasks.GameUi.panel import PanelNavigation
+from tasks.GameUi.targets import (SidebarTarget, TabTarget, MenuTarget,
+                                  ActivityTabTarget, ActivitySubTabTarget)
+from tasks.GameUi.top_menu import TopMenuNavigation
 
 
-class GameUi(BaseTask, GameUiAssets):
-    ui_current: Page = None
-    ui_close = [GameUiAssets.I_BACK_MALL, GeneralBattleAssets.I_CONFIRM,
-                BaseTask.I_UI_BACK_RED, BaseTask.I_UI_BACK_YELLOW,
-                GameUiAssets.I_BACK_FRIENDS, GameUiAssets.I_BACK_DAILY,
-                GameUiAssets.I_REALM_RAID_GOTO_EXPLORATION,
-                GameUiAssets.I_SIX_GATES_GOTO_EXPLORATION, SixRealmsAssets.I_EXIT_SIXREALMS,
-                ActivityShikigamiAssets.I_SKIP_BUTTON, ActivityShikigamiAssets.I_RED_EXIT, BaseTask.I_UI_BACK_BLUE]
+class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigation, MapNavigation, MapMove, SimpleBattle):
+    # 本任务在 ConfigManual.SCHEDULER_PRIORITY 中的名字（子类覆盖，用于让路判断）
+    SCHEDULER_NAME: str = ''
+    # 各任务的弹窗清理按钮：记录 MZXY 页面素材后根据自己的界面覆盖
+    ui_close: list = []
+    # 未知页面的兜底安全点击区域：没有配置时不做点击，只等待超时
+    ui_safe_click: list = []
 
     def __init__(self, config, device):
         super().__init__(config, device)
@@ -54,6 +76,9 @@ class GameUi(BaseTask, GameUiAssets):
             if not page_file.exists():
                 continue
             module_name = f"tasks.{task_dir.name}.page"
+            # 已被正常 import 过的 page 模块不再重复执行，避免页面重复注册
+            if module_name in sys.modules:
+                continue
             spec = importlib.util.spec_from_file_location(module_name, page_file)
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
@@ -63,10 +88,9 @@ class GameUi(BaseTask, GameUiAssets):
     def ui_pages(self) -> list[Page]:
         return PageRegistry.all()
 
+    # ------------------------------------------------------------------ 页面识别
     def ui_page_appear(self, page: Page, skip_first_screenshot: bool = True, interval: float = None):
-        """
-        判断当前页面是否为page
-        """
+        """判断当前页面是否为page"""
         self.maybe_screenshot(skip_first_screenshot)
         if isinstance(page.check_button, list):
             for button in page.check_button:
@@ -133,9 +157,9 @@ class GameUi(BaseTask, GameUiAssets):
             # Try to close unknown page
             if self.try_close_unknown_page():
                 timeout = Timer(10, count=20).start()
-            else:
+            elif self.ui_safe_click:
                 # entirely unknown page, click safe random area
-                self.click(random_click(), interval=4)
+                self.click(random.choice(self.ui_safe_click), interval=4)
             # wait to ui
             sleep(0.3)
             app_check()
@@ -151,6 +175,24 @@ class GameUi(BaseTask, GameUiAssets):
         logger.critical("Please switch to a supported page before starting oas")
         raise GamePageUnknownError
 
+    def ui_reset_current_page(self) -> None:
+        """
+        作废缓存的当前页面/模块
+        界面在 ui_goto 之外发生变化后（重启游戏、角色寻路离开活动页、任务弹窗关闭回主页面等）调用，
+        让下次导航重新识别页面，否则会按旧页面走错路径
+        （如在主页面点角色面板的返回按钮而打开了地图）
+        """
+        self.ui_current = None
+        self.ui_current_module = None
+
+    def ui_restart_game(self) -> None:
+        """
+        复用重启任务的登录流程重启游戏（重启后界面回到主页面，页面缓存随之作废）
+        """
+        from tasks.Restart.script_task import ScriptTask as RestartTask
+        RestartTask(self.config, self.device).app_restart()
+        self.ui_reset_current_page()
+
     def ui_button_interval_reset(self, button):
         """
         Reset interval of some button to avoid mistaken clicks
@@ -161,6 +203,7 @@ class GameUi(BaseTask, GameUiAssets):
         if getattr(button, 'name', None) and button.name in self.interval_timer:
             self.interval_timer[button.name].reset()
 
+    # ------------------------------------------------------------------ 寻路
     def build_reverse_path_dict(self, destination: Page) -> dict[Page, list[Page]]:
         """
         构建从每个页面到目标页面的最短路径（反向 BFS）
@@ -290,7 +333,7 @@ class GameUi(BaseTask, GameUiAssets):
                 if isinstance(button, list):
                     for idx, btn in enumerate(button):
                         click_interval = 2.5 if attempts_list[idx] >= max_attempts_per_button else 0.8
-                        attempt =  self.appear_then_operate(btn, interval=click_interval, skip_first_screenshot=False)
+                        attempt = self.appear_then_operate(btn, interval=click_interval, skip_first_screenshot=False)
                         if attempt:
                             attempts_list[idx] += 1
                         # 只要第一个成功就跳出
@@ -342,18 +385,29 @@ class GameUi(BaseTask, GameUiAssets):
                 logger.info(f'Page {page} additional {btn} clicked')
                 skip_first_screenshot = False
 
+    # ------------------------------------------------------------------ 统一操作入口
     def appear_then_operate(self, target: RuleList | RuleImage | RuleGif | RuleOcr | RuleClick,
                             interval: float = None, skip_first_screenshot: bool = True):
         """
         出现对应目标执行操作(点击图像, 滑动列表至array第一个元素并点击, 点击OCR, 点击)
-        :param target: 目标
+        :param target: 目标（Rule* 或连线目标 SidebarTarget/TabTarget/MenuTarget）
         :param interval: 间隔
         :param skip_first_screenshot: 是否跳过首次截图
         :return: 是否成功操作
         """
         self.maybe_screenshot(skip_first_screenshot)
         operated = False
-        if isinstance(target, RuleList):
+        if isinstance(target, SidebarTarget):
+            operated = self.ui_sidebar_click(target.name, interval=interval)
+        elif isinstance(target, TabTarget):
+            operated = self.ui_tab_click(target.name, module=target.module, interval=interval)
+        elif isinstance(target, MenuTarget):
+            operated = self.ui_menu_click(target.icon)
+        elif isinstance(target, ActivityTabTarget):
+            operated = self.ui_activity_tab_click(target.name)
+        elif isinstance(target, ActivitySubTabTarget):
+            operated = self.ui_activity_subtab_click(target.name)
+        elif isinstance(target, RuleList):
             operated = self.list_appear_click(target, interval=interval)
         elif isinstance(target, (RuleImage, RuleGif)):
             operated = self.appear_then_click(target, interval=interval)
@@ -363,17 +417,161 @@ class GameUi(BaseTask, GameUiAssets):
             operated = self.click(target, interval=interval)
         return operated
 
+    # ------------------------------------------------------------------ 通用弹窗与调度
+    # OCR 名称匹配相似度阈值（容忍形近字误识）
+    OCR_NAME_SIMILARITY = 0.7
+
+    @classmethod
+    def ocr_name_match(cls, ocr_text: str, name: str) -> bool:
+        """
+        OCR 名称匹配：完全包含，或「前两字一致 + 相似度达标」（容忍 OCR 形近字误识）
+        前两字必须一致，避免同服竞技/跨服竞技 这类只差一字的名称互相误判
+        """
+        if not ocr_text or not name:
+            return False
+        if name in ocr_text:
+            return True
+        if len(name) < 3 or len(ocr_text) < len(name) - 1:
+            return False
+        if ocr_text[:2] != name[:2]:
+            return False
+        candidate = ocr_text[:len(name)]
+        return difflib.SequenceMatcher(None, candidate, name).ratio() >= cls.OCR_NAME_SIMILARITY
+
+    @classmethod
+    def ocr_name_pick(cls, ocr_text: str, names: list) -> str | None:
+        """
+        在已知名称列表里为 OCR 文本挑出最接近的名称（容忍 OCR 形近字、丢字）
+
+        名称列表都是固定的小集合，取相似度最高的一个；相似度不达标返回 None。
+        用「取最接近」而不是「逐个包含判断」，避免 任务/任务特权 这类互相包含的名称误判。
+        """
+        if not ocr_text:
+            return None
+        best, best_score = None, 0.0
+        for name in names:
+            if not name:
+                continue
+            if ocr_text == name:
+                return name
+            window = ocr_text[:len(name)]
+            ratio = difflib.SequenceMatcher(None, window, name).ratio()
+            if name in ocr_text:
+                ratio = max(ratio, 0.9)
+            elif ocr_text in name and len(ocr_text) >= len(name) - 1:
+                # 丢了 1 个字（如「物品」识别成「品」）
+                ratio = max(ratio, 0.9)
+            if ratio > best_score:
+                best, best_score = name, ratio
+        if best_score >= cls.OCR_NAME_SIMILARITY:
+            return best
+        return None
+
+    def ocr_color_name(self, rule, scales: tuple = (2, 3), min_score: float = 0.5) -> str:
+        """
+        读取带描边的彩色文字（如锁定的目标名）
+
+        规则默认的「检测框 + 拼串」在真机上经常一个框都检不出来（实测「妖化蟹将」-> 空串），
+        或者把名字拆成两段各读错一个字（妖件 + 化蟹将）。
+        这里改成：ROI 转灰度 -> 放大 2x/3x -> 整行识别，取置信度高的一份。
+
+        :param rule: RuleOcr（使用它的 roi 与 ocr model）
+        :param scales: 放大倍数
+        :param min_score: 置信度下限，低于此值视为没读到
+        :return: 识别到的文字，读不到返回空串
+        """
+        x, y, w, h = rule.roi
+        image = self.device.image[y:y + h, x:x + w]
+        if image is None or image.size == 0:
+            return ''
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+        best_text, best_score, readings = '', 0.0, []
+        for scale in scales:
+            resized = cv2.resize(cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB), None, fx=scale, fy=scale,
+                                 interpolation=cv2.INTER_CUBIC)
+            result = rule.model.ocr_single_line(resized)
+            if not result:
+                continue
+            text, score = result
+            score = float(score) if score is not None else 0.0
+            if score != score:  # nan：模型没识别出任何字符
+                score = 0.0
+            readings.append((scale, text, round(score, 3)))
+            if score > best_score:
+                best_text, best_score = text, score
+
+        if best_score < min_score:
+            logger.warning(f'Color name not recognized: {readings}')
+            return ''
+        logger.attr('Color name', f'{best_text} ({best_score:.2f})')
+        return best_text.strip()
+
+    def reset_records(self) -> None:
+        """
+        长时间等待或连续滑动前，清空卡死与连点记录
+        """
+        self.device.stuck_record_clear()
+        self.device.click_record_clear()
+
+    def ui_swipe_gentle(self, p1: tuple, p2: tuple, steps: int = 3, step_delay: float = 0.2) -> None:
+        """
+        慢速滑动：把整段位移拆成多段小滑动，每段之间停顿
+        （minitouch 的滑动速度固定且很快，整段一次滑容易甩过头、滑完立刻截图也认不准）
+        :param p1: 起点
+        :param p2: 终点
+        :param steps: 拆分段数
+        :param step_delay: 每段之间的停顿（秒）
+        """
+        points = [(int(p1[0] + (p2[0] - p1[0]) * i / steps),
+                   int(p1[1] + (p2[1] - p1[1]) * i / steps)) for i in range(steps + 1)]
+        for start, end in zip(points, points[1:]):
+            self.device.swipe(p1=start, p2=end)
+            self.device.click_record_clear()
+            self.device.sleep(step_delay)
+
+    def dialog_appear(self, rule: RuleOcr, text: str) -> bool:
+        """
+        精确检测弹窗文案（不用 ocr_appear：框架的 OCR filter 有逐字符兜底匹配，会误判）
+        :param rule: 弹窗文案的 OCR 规则（如 self.O_DIALOG_TEXT）
+        :param text: 要匹配的文案片段
+        """
+        results = rule.detect_and_ocr(self.device.image, logDisplay=False)
+        return any(text in result.ocr_text for result in results)
+
+    def higher_priority_task_due(self) -> bool:
+        """
+        是否有调度优先级高于本任务、且已使能且已到期的任务（用于长时间等待时让路）
+        优先级顺序取自 ConfigManual.SCHEDULER_PRIORITY，本任务名由 SCHEDULER_NAME 指定
+        """
+        now = datetime.now()
+        for name in self.higher_priority_task_names():
+            task = getattr(self.config.model, convert_to_underscore(name), None)
+            scheduler = getattr(task, 'scheduler', None)
+            if scheduler is None or not scheduler.enable:
+                continue
+            if scheduler.next_run <= now:
+                logger.attr('Higher priority task', f'{name} {scheduler.next_run}')
+                return True
+        return False
+
+    @classmethod
+    def higher_priority_task_names(cls) -> list[str]:
+        """调度优先级高于本任务的任务名列表"""
+        names = [name.strip() for name in ConfigManual.SCHEDULER_PRIORITY.split('>') if name.strip()]
+        if cls.SCHEDULER_NAME in names:
+            return names[:names.index(cls.SCHEDULER_NAME)]
+        return names
+
 
 if __name__ == '__main__':
     from module.config.config import Config
     from module.device.device import Device
-    from tasks.GameUi.page import page_guild
+    from tasks.GameUi.page import page_activity_notice
 
     c = Config('oas1')
     d = Device(c)
     game = GameUi(config=c, device=d)
-    for i in range(10):
-        game.ui_get_current_page()
-        game.ui_goto(page_guild)
-        game.ui_get_current_page()
-        game.ui_goto(page_main)
+    game.ui_get_current_page()
+    game.ui_goto(page_item_bag)
+    logger.info(f'Registered pages: {[str(page) for page in game.ui_pages]}')

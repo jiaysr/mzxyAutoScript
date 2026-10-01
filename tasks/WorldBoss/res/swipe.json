@@ -1,0 +1,16 @@
+[
+  {
+    "itemName": "boss_scroll_left",
+    "roiFront": "700,380,100,80",
+    "roiBack": "250,380,100,80",
+    "mode": "default",
+    "description": "世界首领-向左滚动卡片"
+  },
+  {
+    "itemName": "boss_scroll_right",
+    "roiFront": "250,380,100,80",
+    "roiBack": "700,380,100,80",
+    "mode": "default",
+    "description": "世界首领-向右滚动卡片"
+  }
+]
