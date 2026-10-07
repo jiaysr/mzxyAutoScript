@@ -24,6 +24,7 @@ from tasks.CrossArena.config import CrossArena
 from tasks.WarChariot.config import WarChariot
 from tasks.AncientHunt.config import AncientHunt
 from tasks.XianfuJiuchongtian.config import XianfuJiuchongtian
+from tasks.YuwaiMimang.config import YuwaiMimang
 
 
 class ConfigModel(ConfigBase):
@@ -40,6 +41,7 @@ class ConfigModel(ConfigBase):
     war_chariot: WarChariot = Field(default_factory=WarChariot)
     ancient_hunt: AncientHunt = Field(default_factory=AncientHunt)
     xianfu_jiuchongtian: XianfuJiuchongtian = Field(default_factory=XianfuJiuchongtian)
+    yuwai_mimang: YuwaiMimang = Field(default_factory=YuwaiMimang)
     quiz: Quiz = Field(default_factory=Quiz)
 
     def __init__(self, config_name: str=None) -> None:

@@ -263,16 +263,50 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   在主页面用左下角圆形轮盘（圆心 `MOVE_WHEEL_CENTER = (193, 520)`）走到指定地图坐标，
   读右上角坐标闭环校正直到到达；只有主页面有轮盘，`map_move_to` 默认先
   `map_move_ensure_main_page()`，跨地图仍用 `map_teleport` 传送
-  - `map_move_calibrate()` 校准「屏幕拖动方向 -> 地图坐标变化」的映射（会让角色移动几秒），
-    实测后把结果填到 `MOVE_CALIBRATION` 常量即可免校准；地图是 2.5D 斜视角，屏幕方向与
-    坐标轴不是直接对应，映射由校准得出
-- 简单战斗系统（`tasks/GameUi/battle.py`，任务直接 `self.battle_simple_loop(...)` 调用）：
-  一组 = 现有技能按钮 + 普通攻击按钮，**每个按钮都用一次、顺序每组随机**；
-  每个按钮在区域内随机取点、连点 3 次（间隔 200ms），按钮之间停 300ms；
-  `battle_simple_loop(stop_check=..., timeout=..., groups_max=...)` 循环打组，
-  直到 stop_check 命中（如出现「过关奖励」面板）/ 超时 / 到组数上限。
-  按钮区域常量：`BATTLE_SKILL_REGIONS`（现有技能，**空技能位不要放进来**）、
-  `BATTLE_ATTACK_REGION`（普通攻击）；全部技能位（含空的）在 `BATTLE_SKILL_REGIONS_ALL` 里备查
+  - `map_move_to(x, y, tolerance=)` 走到坐标；`map_move_path(points)` 依次走多个点
+  - `map_move_calibrate()` 校准「屏幕拖动方向 -> 地图坐标变化」的映射（会让角色移动几秒）；
+    **校准值按地图分别保存**（`MOVE_CALIBRATION_MAP`），不同地图缩放比例/斜视角不同不通用，
+    实测后把日志打印的常量粘进去即可免校准。地图是 2.5D 斜视角，屏幕方向与坐标轴不是
+    直接对应，映射由校准得出
+  - **精度下限（真机实测，硬物理限制）**：单步最小可控位移约 **2 个坐标单位**，
+    做不到 1 个单位的定向微调。根因是 `hold_drag_minitouch`
+    （`module/device/method/minitouch.py:624`）的 `hold = max(0.05, hold)` 硬下限
+    加上摇杆起步加速。实测（域外迷窟）：
+    `ratio=1.00 hold=0.05 -> 0 格`、`0.50/0.05 -> 1.4`、`0.35/0.05 -> 2.0`、
+    `0.25/0.05 -> 2.0`、`0.25/0.10 -> 2.2`、`0.25/0.20 -> 4.1`
+    → **偏转比例几乎不降速**（摇杆死区，`ratio 0.25` 与 `0.5` 单步位移相同），
+    唯一调节手段是 hold 时长，且时长是量化档位
+    → 收敛要求 `tolerance >= 单步位移 x 1.5`，即 **tolerance 至少给 3**；
+    传更小的容差会打警告并快速失败（继续重试只是在目标两侧来回跨，浪费超时预算）
+  - 精调是**单向锁存**的：进入后不再退回满偏。否则会在 `MOVE_FINE_DISTANCE` 阈值边界
+    反复横跳（3.2 格进精调 -> 挪过头成 4.1 -> 退出精调 -> 又过头），每跳一次都花一轮
+    截图+拖动，最后 2~3 格磨不完（实测 30s 空转）
+  - `step_scale` 在明显更接近时要**回升**（`MOVE_SCALE_RESET_RATIO`）。原先只降不升，
+    一次震荡后就会锁在最小步长上慢慢磨，是隐藏的性能坑
+  - OCR 会把坐标分隔符 `,` 认成 `;`（真机实测 `338,105` -> `338;105`）。
+    `map_parse_location` 的分隔符正则必须含 `;；~`，否则会掉进 `map_split_digits`
+    的无分隔符分支，把坐标拆成 `10,5`（dist 瞬间变 349，往反方向跑）
+- 简单战斗系统（`tasks/GameUi/battle.py`，任务直接调用，**不要自己再录素材**）：
+  - 目标锁定（主页面通用能力，WorldBoss / 上古狩猎 / 域外迷窟共用）：
+    - `ui_lock_target(interval=)` 点右侧竖排「目标」按钮（锁定/切换目标）。
+      **必须先 `ui_close_menu()` 收起右上角菜单**，否则那一列被菜单图标盖住
+    - `ui_target_name(scales=, min_score=)` 读锁定目标名，走 `ocr_color_name`
+      整行放大识别（彩色描边字用默认检测框读不出来）
+  - 单次点击（按冷却节奏逐次攻击时用，别用连点）：
+    - `battle_click_attack()` 点一次普通攻击
+    - `battle_click_skill(index=0)` 点一次技能，0 = 技能1
+    - `battle_click_once(region, name)` 在任意区域随机取点点一次
+  - `battle_simple_loop()` 循环放技能：一组 = 现有技能 + 普通攻击，
+    **每个按钮都用一次、顺序每组随机**；每个按钮在区域内随机取点、连点 3 次
+    （间隔 200ms），按钮之间停 300ms；循环打组直到 stop_check 命中
+    （如出现「过关奖励」面板）/ 超时 / 到组数上限
+  - 按钮区域常量（真机实测，1280x720）：`BATTLE_SKILL_REGIONS`（现有技能，
+    **空技能位不要放进来**）、`BATTLE_ATTACK_REGION`（普通攻击）；
+    全部技能位（含空的）在 `BATTLE_SKILL_REGIONS_ALL` 里备查。
+    **迷窟里实测这套坐标逐个吻合，直接复用**
+  - 普通攻击与技能1 冷却都在 1 秒以上，连点没有意义 —— 要按冷却打就用
+    `battle_click_attack / battle_click_skill` 配 `sleep(interval)`，
+    只有 `battle_simple_loop` 才是连点
 - 彩色描边字（锁定的目标名等）：`ocr_color_name(rule, scales=(2,3), min_score=0.5)`
   （ROI 转灰度 -> 放大 -> 整行识别取置信度最高的一份；规则默认的「检测框 + 拼串」对彩色描边字经常读不出）
 
@@ -310,6 +344,58 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   - 结束后渲染 `log/map/<地图名>_grid<G>_<时间>.png`（可行走=浅绿、障碍=暗红、
     采样点=绿、起点=黄）并保存 JSON（格子列表 + 原始坐标）
   - 前置：需要 `MOVE_CALIBRATION` 有效（见上），并且当前在主页面；换地图后速度不同需重新校准
+- `tasks/YuwaiMimang`：域外迷窟（怪物只在 10:30-11:30、15:30-16:30 刷新）
+  - 进图流程：确保在主页面 -> 传送到中转地图（默认沼泽）-> 开小地图
+    -> 右侧 NPC 列表滑动找「迷窟守卫」-> 点击（人物自动寻路）-> 等对话弹窗
+    -> 点「进入域外迷窟」-> 校验右上角地点 == 域外迷窟 且坐标 ≈ 306,41
+  - 坑：世界地图列表**不包含当前所在地点**，已经在沼泽时再调`map_teleport('沼泽')`
+    必然报`Teleport target [沼泽] not found`。要先读坐标判断，不在才传送
+  - 坑：**上一次运行残留的 NPC 对话弹窗会盖住右上角小地图入口**，
+    `map_open_minimap` 会连点 6 次都无效并报 `Minimap does not appear`。
+    流程开头必须先关遗留弹窗（认`I_NPC_DIALOG_X` 素材，点 `C_DIALOG_CLOSE`）
+  - NPC 列表在迷窟守卫之前约 2 屏，需要 `ui_swipe_gentle` 慢滑（minitouch 整段快滑会甩过头），
+    用「当前屏文本签名没变」判断到底（列表较短，滑过头也不会空）
+  - NPC 名 OCR 用 `detect_and_ocr` 拿全部文本框自己判，不要用 `ocr_appear`：
+    Full 模式整串不匹配时会退化成逐字符匹配，几乎总True
+  - 素材：`I_NPC_DIALOG_X`（弹窗存在性）、`I_NPC_DIALOG_TITLE`（确认是迷窟守卫）、
+    `I_NPC_DIALOG_ENTER_TEXT`（「进入域外迷窟」文字）、`C_NPC_DIALOG_ENTER`（点整行）、
+    `O_MINIMAP_NPC_TEXT`（NPC 列表 OCR）、`I_INSIDE_REMAINING`（迷窟内特征）
+  - 素材 `roiBack` 要放宽：弹窗位置随场景有几十像素抖动（实测标题区偏移 30px）
+  - **时段调度**（`monster_times` = `10:30-11:30,15:30-16:30`，`advance_time` 提前量）
+    - 排期一律 `set_next_run(..., server=False)`：**必须**。`server_update != 09:00` 时
+      `Config.task_delay` 会把 `next_run` 整体覆盖成「每天固定那一刻」（config.py:359-362），
+      时段排期会被冲掉
+    - `parse_time_windows` 支持跨零点（`23:00-01:00`）；`pick_slot` 要同时检查
+      「昨天的时段跨到今天」这一段，否则 `00:30` 匹配不到
+    - **优先级最高**：本任务 `YuwaiMimangScheduler.priority = 1`（Restart 是 0），
+      且在 `ConfigManual.SCHEDULER_PRIORITY` 里排在 `Restart` 之后第一位。
+      Restart 必须留在最前——游戏崩了要先重启，它是恢复机制，不能被业务任务压住。
+      调度循环启动时首个 Restart 会被跳过并重排（script.py:648-652），之后本任务第一个跑
+    - **重排必须放`finally`**：本任务优先级最高，一旦 `next_run` 停在过去就会一直霸占
+      pending 第一位、把其他任务全堵死；异常路径（GameStuckError）下 `task_delay`
+      根本不会被调用，只靠正常结束时的 `set_next_run` 兜不住
+    - 坑：`run()` 里不要用 `return` 提前退出（会跳过 `raise TaskEnd`，
+      调度器认为任务没结束），要么走完流程要么 `raise TaskEnd`
+    - 坑：pydantic 模型的字段**不能直接赋字符串**（绕过校验），
+      `Time` 字段存了 str 后 `save()` 序列化会报 `'str' object has no attribute 'strftime'`。
+      改配置要重建整个子模型（`Config(...)= XxxConfig(...)`）或直接改 json
+  - **打怪流程**（`battle_coord=304,76` 容差 2）
+    - 进图 -> `recover_position` 走到基准点 -> `ui_close_menu()` 收起菜单
+      （收起后右侧竖排才露出「目标」按钮）-> 循环「锁定 -> 击杀」
+    - 迷窟的「目标/攻击/技能1」按钮与 WorldBoss、上古狩猎**用的是同一批素材**，
+      已统一收进 GameUi：`self.ui_lock_target()` / `self.ui_target_name()` /
+      `self.battle_click_attack()` / `self.battle_click_skill(0)`。
+      迷窟里实测坐标逐个吻合，**不要再在各任务 res/ 里重复录一遍**
+    - 锁定目标用 `ocr_color_name(self.O_TARGET_NAME)` 读彩色描边字（沿用 WorldBoss 的做法），
+      再用 `ocr_name_match` / `ocr_name_pick` 匹配 `小鬼,鬼将,鬼王`
+    - 攻击只用普通攻击 + 技能1，两者冷却都在 1 秒以上，所以 `attack_interval` 默认 1.5s；
+      `鬼王` 普通攻击打两下才死（`boss_monster` + `boss_hits`），其余一下秒杀
+    - 怪会追踪带着角色跑偏，每轮击杀后 `recover_position` 回基准点；
+      回位用 `map_move_to(tolerance=2)` 的闭环精调，**失败不阻塞后续攻击**（只记日志继续）
+    - 连续 `max_lock_fail`（默认 10）次锁定不到目标 -> `GameStuckError`
+    - **单步位移下限约 2 个坐标单位**（见上面 move.py 实测），与容差 2 同量级，
+      `map_move_to` 会在目标附近震荡；实测 `306,41 -> 302,76` 能在 4 步内收敛到 `dist 2.0`，
+      但要稳定命中最好把 `battle_tolerance` 设为 3
 - `tasks/XianfuJiuchongtian`：仙府九重天（清仙石 + 收集仙玉碎片）
   - 配置（`config/oas1.json` 的 `xianfu_jiuchongtian.xianfu_config`）：
     - `stage` 1-4：阶段＝打各大关的第几小关；小关N 大概率掉颜色N（1南极/2北极/3东极/4西极）

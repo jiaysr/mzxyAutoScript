@@ -8,7 +8,9 @@ class ConfigManual:
     """
 
     SCHEDULER_PRIORITY = """
-        Restart > WarChariot
+        Restart
+        > YuwaiMimang
+        > WarChariot
         > Quiz
         > WorldBoss
         > Challenge

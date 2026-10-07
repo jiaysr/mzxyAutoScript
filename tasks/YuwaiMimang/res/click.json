@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "npc_dialog_enter",
+    "roiFront": "277,318,726,60",
+    "roiBack": "277,318,726,60",
+    "description": "NPC对话弹窗-「进入域外迷窟」选项行点击区域（277,318,1003,378）"
+  },
+  {
+    "itemName": "minimap_npc_list",
+    "roiFront": "950,180,170,420",
+    "roiBack": "950,180,170,420",
+    "description": "小地图-NPC列表点击区域（950,180,1120,600），OCR定位迷窟守卫后点这里不行，实际点OCR坐标"
+  },
+  {
+    "itemName": "dialog_close",
+    "roiFront": "995,45,80,80",
+    "roiBack": "995,45,80,80",
+    "description": "NPC对话弹窗-绿色关闭按钮区域（995,45,1075,125）"
+  }
+]

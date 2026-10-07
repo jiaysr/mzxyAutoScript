@@ -1,0 +1,65 @@
+[
+  {
+    "itemName": "minimap_panel",
+    "imageName": "res_minimap_panel.png",
+    "roiFront": "953,108,168,60",
+    "roiBack": "900,80,300,180",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "小地图弹窗-「世界地图」按钮（弹窗存在性特征）"
+  },
+  {
+    "itemName": "npc_dialog_x",
+    "imageName": "res_npc_dialog_x.png",
+    "roiFront": "995,45,80,80",
+    "roiBack": "940,20,150,150",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "NPC对话弹窗-右上角绿色关闭按钮（弹窗存在性特征）"
+  },
+  {
+    "itemName": "npc_dialog_title",
+    "imageName": "res_npc_dialog_title.png",
+    "roiFront": "490,105,300,55",
+    "roiBack": "400,60,520,140",
+    "method": "Template matching",
+    "threshold": 0.75,
+    "description": "NPC对话弹窗-标题区（确认是迷窟守卫而不是别的NPC；弹窗位置会随分辨率有几十像素抖动，roiBack 放宽）"
+  },
+  {
+    "itemName": "npc_dialog_enter_text",
+    "imageName": "res_npc_dialog.png",
+    "roiFront": "548,328,185,50",
+    "roiBack": "277,280,726,130",
+    "method": "Template matching",
+    "threshold": 0.75,
+    "description": "NPC对话弹窗-「进入域外迷窟」选项文字（点之前用它确认该行存在）"
+  },
+  {
+    "itemName": "dialog_confirm",
+    "imageName": "res_dialog_confirm.png",
+    "roiFront": "806,542,190,62",
+    "roiBack": "760,520,260,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "NPC对话弹窗-「确定」按钮"
+  },
+  {
+    "itemName": "inside_remaining",
+    "imageName": "res_inside_remaining.png",
+    "roiFront": "430,578,260,45",
+    "roiBack": "380,560,360,80",
+    "method": "Template matching",
+    "threshold": 0.75,
+    "description": "域外迷窟-剩余怪物数量条（确认已进入迷窟地图）"
+  },
+  {
+    "itemName": "inside_task",
+    "imageName": "res_inside_task.png",
+    "roiFront": "55,128,300,55",
+    "roiBack": "20,110,400,90",
+    "method": "Template matching",
+    "threshold": 0.75,
+    "description": "域外迷窟-击败守卫者任务进度条（备用确认特征）"
+  }
+]
