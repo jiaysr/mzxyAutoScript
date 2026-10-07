@@ -31,6 +31,8 @@ class GameUiAssets:
 	C_MAP_WORLD_MAP_LIST_CLOSE = RuleClick(roi_front=(983,45,46,53), roi_back=(983,45,46,53), name="map_world_map_list_close")
 	# 传送确认弹窗-确定按钮（两种弹窗确认位置有偏差，这里取公共区域） 
 	C_MAP_TELEPORT_CONFIRM = RuleClick(roi_front=(790,380,72,36), roi_back=(790,380,72,36), name="map_teleport_confirm")
+	# 主页面-「目标」文字标签点击区域（点文字比点图标更稳，图标区域小容易抖） 
+	C_TARGET_BUTTON_CLICK = RuleClick(roi_front=(1222,268,40,24), roi_back=(1200,230,70,70), name="target_button_click")
 
 
 	# Image Rule Assets
@@ -68,6 +70,10 @@ class GameUiAssets:
 	I_MAP_POPUP_CLOSE = RuleImage(roi_front=(1131,44,41,51), roi_back=(1007,0,245,223), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_popup_close.png")
 	# 传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px） 
 	I_MAP_DIALOG_CONFIRM_BUTTON = RuleImage(roi_front=(768,358,117,61), roi_back=(760,350,140,100), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_dialog_confirm_button.png")
+	# 主页面-右侧竖排「目标」按钮图标（点它锁定/切换目标；收起右上角菜单后才露出，WorldBoss/域外迷窟共用） 
+	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1180,200,100,120), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_target_button.png")
+	# 主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION） 
+	I_ATTACK_BUTTON = RuleImage(roi_front=(1146,597,82,60), roi_back=(1120,575,120,100), threshold=0.75, method="Template matching", file="./tasks/GameUi/res/res_attack_button.png")
 
 
 	# Ocr Rule Assets
@@ -93,5 +99,7 @@ class GameUiAssets:
 	O_MAP_TELEPORT_DIALOG = RuleOcr(roi=(300,240,680,140), area=(300,240,680,140), mode="Full", method="Default", keyword="传送", name="map_teleport_dialog")
 	# 传送确认弹窗-确定按钮（OCR 定位后点击，兼容两种弹窗） 
 	O_MAP_DIALOG_CONFIRM = RuleOcr(roi=(700,340,300,120), area=(700,340,300,120), mode="Full", method="Default", keyword="确定", name="map_dialog_confirm")
+	# 主页面-当前锁定目标名（彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出） 
+	O_TARGET_NAME = RuleOcr(roi=(426,5,240,36), area=(424,9,240,36), mode="Full", method="Default", keyword="", name="target_name")
 
 

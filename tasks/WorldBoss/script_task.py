@@ -261,13 +261,9 @@ class ScriptTask(GameUi, WorldBossAssets):
 
     def get_target_name(self) -> str:
         """
-        读取当前锁定目标的名称
-
-        名字是带描边的彩色字，规则默认的「检测框 + 拼串」在真机上经常检不出来，
-        统一走 GameUi.ocr_color_name（ROI 转灰度 -> 放大 2x/3x -> 整行识别，取置信度高的一份）
+        读取当前锁定目标的名称（复用 GameUi.ui_target_name）
         """
-        return self.ocr_color_name(self.O_TARGET_NAME,
-                                   scales=self.target_name_scales,
+        return self.ui_target_name(scales=self.target_name_scales,
                                    min_score=self.target_name_score)
 
     def target_keywords(self, boss: dict) -> list:
@@ -305,9 +301,7 @@ class ScriptTask(GameUi, WorldBossAssets):
             if timer.reached():
                 logger.warning(f"Boss name not matched, last target: {target_name}")
                 return False
-            if self.appear_then_click(self.I_TARGET_BUTTON,
-                                      action=self.C_TARGET_BUTTON_CLICK,
-                                      interval=1):
+            if self.ui_lock_target(interval=1):
                 logger.info('Click target button')
                 continue
             self.device.sleep(0.5)
@@ -343,7 +337,7 @@ class ScriptTask(GameUi, WorldBossAssets):
         for attack_count in range(done + 1, times + 1):
             started = datetime.now()
             self.reset_records()
-            self.click(self.C_ATTACK)
+            self.battle_click_attack()
             self.screenshot()
             self.attack_count = attack_count
 

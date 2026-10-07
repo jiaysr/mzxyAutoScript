@@ -151,5 +151,23 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px）"
+  },
+  {
+    "itemName": "target_button",
+    "imageName": "res_target_button.png",
+    "roiFront": "1217,235,33,43",
+    "roiBack": "1180,200,100,120",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主页面-右侧竖排「目标」按钮图标（点它锁定/切换目标；收起右上角菜单后才露出，WorldBoss/域外迷窟共用）"
+  },
+  {
+    "itemName": "attack_button",
+    "imageName": "res_attack_button.png",
+    "roiFront": "1146,597,82,60",
+    "roiBack": "1120,575,120,100",
+    "method": "Template matching",
+    "threshold": 0.75,
+    "description": "主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION）"
   }
 ]
