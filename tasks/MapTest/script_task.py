@@ -8,6 +8,7 @@ ACTION:
 - sweep    依次传送到所有地点，记录各地点的传送落点坐标（真机实测）
 - calibrate 校准移动轮盘的方向/速度（会让角色移动几秒）
 - move     走到 MOVE_TARGET（为 None 时走到「当前位置 + MOVE_OFFSET」的就近点）
+- path     依次走到 MOVE_PATH 里的每个坐标点
 - bounds   朝四个方向各长按 BOUNDS_HOLD 秒，测量当前地图的范围（用于决定绘图网格）
 """
 import time
@@ -16,7 +17,7 @@ from module.exception import TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
 
-ACTION = 'check'
+ACTION = 'path'
 TELEPORT_TARGET = '牧野'
 # sweep 只测这些地点（空列表 = 全部地点）；SWEEP_RETURN 是 sweep 结束后要回到的地点（空 = 回到开始时所在地点）
 SWEEP_ONLY = []
@@ -24,12 +25,20 @@ SWEEP_RETURN = ''
 # move: 目标地图坐标（x, y）；为 None 时走到「当前位置 + MOVE_OFFSET」的就近点
 MOVE_TARGET = None
 MOVE_OFFSET = (-30, 0)
+# move: 到达容差
+# 单步可控位移下限约 2 个坐标单位（见 move.py MOVE_FINE_MIN_STEP_UNITS 实测），
+# 容差需大于「单步位移 x 1.5」才有收敛希望，即 >= 3；
+# 小于它会看到警告并快速失败（继续重试也只是在目标两侧来回跨）
+MOVE_TOLERANCE = 3
+# move: 超时（秒）。精调最后一步可能落在目标相邻格，需要多试几次才压得中
+MOVE_TIMEOUT = 30
+# path: 依次走到的一串坐标点（ACTION = 'path' 时用）
+MOVE_PATH = [(340, 120), (280, 60), (303, 79)]
 # bounds: 每个方向长按的时间（秒）
 BOUNDS_HOLD = 8
 
 
 class ScriptTask(GameUi):
-
     def run(self):
         if ACTION == 'check':
             self.map_check()
@@ -41,6 +50,8 @@ class ScriptTask(GameUi):
             self.map_move_calibrate_check()
         elif ACTION == 'move':
             self.map_move_check()
+        elif ACTION == 'path':
+            self.map_move_path_check()
         elif ACTION == 'bounds':
             self.map_bounds_check()
         raise TaskEnd('MapTest')
@@ -162,9 +173,18 @@ class ScriptTask(GameUi):
             target = MOVE_TARGET
         else:
             target = (current[1] + MOVE_OFFSET[0], current[2] + MOVE_OFFSET[1])
-        logger.info(f'MAPTEST move [{current[0]}] {current[1]},{current[2]} -> {target}')
-        ok = self.map_move_to(target[0], target[1], map_name=current[0])
+        logger.info(f'MAPTEST move [{current[0]}] {current[1]},{current[2]} -> {target} '
+                    f'(tolerance {MOVE_TOLERANCE}, timeout {MOVE_TIMEOUT}s)')
+        ok = self.map_move_to(target[0], target[1], map_name=current[0],
+                              tolerance=MOVE_TOLERANCE, timeout=MOVE_TIMEOUT)
         logger.info(f'MAPTEST move [{target}] -> {ok}')
+        self.log_state('after')
+
+    def map_move_path_check(self) -> None:
+        logger.hr('Map move path')
+        self.log_state('before')
+        done = self.map_move_path(MOVE_PATH, tolerance=MOVE_TOLERANCE, timeout=MOVE_TIMEOUT)
+        logger.info(f'MAPTEST path {done}/{len(MOVE_PATH)} -> {done == len(MOVE_PATH)}')
         self.log_state('after')
 
     def map_bounds_check(self) -> None:

@@ -5,6 +5,7 @@
 在主页面用左下角的圆形移动轮盘，把角色走到指定的地图坐标点。
 
 - `map_move_to(x, y)`          朝目标地图坐标移动（读右上角坐标闭环校正，直到到达）
+- `map_move_path(points)`      按顺序走到多个坐标点，中途可被 stop_check 打断
 - `map_move_calibrate()`       校准「屏幕拖动方向 -> 地图坐标变化」的关系（会让角色移动几秒）
 - `map_move_ensure_main_page()` 移动前确保在主页面（只有主页面有轮盘）
 
@@ -15,7 +16,16 @@
 「屏幕单位方向 -> 地图坐标每秒变化」的 2x2 线性映射，再反解出目标方向对应的屏幕拖动
 方向与持续时间，循环逼近目标。
 
-真机实测后把 MOVE_CALIBRATION 常量填上，任务里就无需每次校准。
+**校准值按地图分别保存**（MOVE_CALIBRATION_MAP）：不同地图的缩放比例与斜视角不同，
+校准值不通用（如蓬莱仙岛 y 轴 18 单位/s，域外迷窟实测约 24 单位/s），
+用错地图的校准值会把角色走偏。真机实测后把常量填上，任务里就无需每次校准。
+
+**精调（小距离）靠摇杆半偏降速**：满偏存在最小步长——`hold_drag_minitouch`
+（module/device/method/minitouch.py:624）有 `hold = max(0.05, hold)` 硬下限，
+加上 down 等待与 8 段拖动开销，满偏最小有效移动时间约 0.13~0.2s，
+在 18~24 单位/s 下相当于一步 2.4~4.8 个坐标单位。所以距离小于 MOVE_FINE_DISTANCE
+时改用 MOVE_FINE_RATIO 的偏转比例（速度按比例下降），把最小步长压到容差以内，
+否则在目标两侧来回震荡永远收敛不了。
 """
 import math
 
@@ -50,13 +60,64 @@ class MapMove(BaseTask, GameUiAssets):
     # 读取坐标的重试次数（标签偶尔读不出来）
     MOVE_READ_RETRY = 3
 
-    # 校准结果：((a, b), (c, d)) = 「屏幕 +X（右）」「屏幕 +Y（下）」方向满偏时
-    # 每秒的地图坐标变化 (dx, dy)。为 None 时 map_move_to 会自动校准。
-    # 下面是在「蓬莱仙岛」两次实测的平均值（2026-09-26）：
-    #   屏幕右  -> 地图 (+10.0, -0.33)/s
-    #   屏幕下  -> 地图 (-1.0, +18.0)/s
-    # 即地图 x 向右、y 向下，但 x/y 的像素速度不同（y 明显更快）。
-    MOVE_CALIBRATION = ((10.0, -1.0), (-0.33, 18.0))
+    # ------------------------------------------------------------------ 精调（小距离）
+    # 距离小于该值时进入精调：改用小比例摇杆偏转降速
+    MOVE_FINE_DISTANCE = 6
+    # 精调时的轮盘偏转比例（相对 MOVE_WHEEL_RADIUS）
+    MOVE_FINE_RATIO = 0.25
+    # 偏转比例下限：低于这个值游戏摇杆进死区，角色不动
+    MOVE_RATIO_MIN_DEAD = 0.15
+    # 单次拖动的时间下限（秒），对齐 hold_drag_minitouch 的 0.05s 硬下限
+    MOVE_HOLD_FLOOR = 0.05
+
+    # ---------------------------------------------------------------- 精调能力边界（真机实测，重要）
+    # 单步可控位移下限约 2 个坐标单位，**做不到 1 个单位的定向微调**。
+    # 实测记录（tests/probe_fine_step.py，域外迷窟 2026-10-07，探测方向=屏幕 +X）：
+    #   ratio=1.00 hold=0.05 -> 0.0 单位（满偏+最短时长落在起步加速期，角色不动）
+    #   ratio=0.50 hold=0.05 -> 1.4 单位
+    #   ratio=0.35 hold=0.05 -> 2.0 单位
+    #   ratio=0.25 hold=0.05 -> 2.0 单位
+    #   ratio=0.25 hold=0.10 -> 2.2 单位
+    #   ratio=0.25 hold=0.20 -> 4.1 单位
+    # 偏转比例在 0.25~0.5 之间对单步位移几乎无影响（下限由摇杆起步加速 +
+    # hold_drag_minitouch 的 0.05s 硬下限决定），要更细只能靠 hold 时长，
+    # 而时长是量化档位（0.05/0.10/0.20 之间跳 2 个单位）。
+    MOVE_FINE_MIN_STEP_UNITS = 2.0
+    # 收敛条件：最小步长必须明显小于容差，否则几何上追不上。
+    # 取「单步位移 x 该系数 < 容差」作为精调可达的下限，
+    # 即容差至少要比单步位移大 50% 才有收敛希望（2 单位步长 -> 容差需 > 3）。
+    # 容差不满足时 map_move_to 会警告并按最佳距离返回 False，而不是空转到超时。
+    MOVE_FINE_STEP_SAFETY = 1.5
+
+    # 精调阶段的步长保守系数
+    MOVE_FINE_GAIN = 0.8
+    # 距离明显变小（比上一轮近了一半以上）时把步长系数恢复，避免一次震荡后
+    # 一直锁在最小步长上磨（step_scale 原先只降不升，是个隐藏的性能坑）
+    MOVE_SCALE_RESET_RATIO = 0.5
+
+    # 校准结果（按地图分别保存）：((a, b), (c, d)) = 「屏幕 +X（右）」「屏幕 +Y（下）」
+    # 方向满偏时每秒的地图坐标变化 (dx, dy)，即 matrix[0]=∂(x,y)/∂sx、matrix[1]=∂(x,y)/∂sy。
+    #
+    # 不同地图的缩放比例/斜视角不同，校准值不通用，必须分别实测：
+    # - 蓬莱仙岛（2026-09-26 两次实测平均）：
+    #     屏幕右 -> 地图 (+10.0, -0.33)/s
+    #     屏幕下 -> 地图 (-1.0, +18.0)/s
+    #   即地图 x 向右、y 向下，但 x/y 的移动速度不同（y 明显更快）。
+    # - 域外迷窟（2026-10-07 实测 map_move_calibrate）：
+    #     屏幕右 -> 地图 (+17.33, 0.00)/s
+    #     屏幕下 -> 地图 (+0.67, +19.33)/s
+    #
+    # 新地图首次使用时跑 map_move_calibrate()，把日志打印的常量粘到这里即可免校准。
+    MOVE_CALIBRATION_MAP = {
+        '蓬莱仙岛': ((10.0, -1.0), (-0.33, 18.0)),
+        '域外迷窟': ((17.33, 0.67), (0.0, 19.33)),
+    }
+    # 兜底校准（地图名未记录在上面时用）；None = 无兜底，必须现场校准
+    MOVE_CALIBRATION = None
+
+    # 本次进程内现场校准得到的矩阵：{地图名: 矩阵}
+    # 只在内存里，不落类常量（校准值按地图区分，跨进程复用请填 MOVE_CALIBRATION_MAP）
+    _runtime_calibration: dict = {}
 
     # ------------------------------------------------------------------ 基础操作
     def map_move_ensure_main_page(self, timeout: int = 30) -> bool:
@@ -91,37 +152,47 @@ class MapMove(BaseTask, GameUiAssets):
             self.device.sleep(0.2)
         return None
 
-    def map_hold_direction(self, direction, hold: float) -> None:
+    def map_hold_direction(self, direction, hold: float, ratio: float = 1.0) -> None:
         """
-        把轮盘朝 direction 方向满偏拖动并按住 hold 秒
+        把轮盘朝 direction 方向拖动并按住 hold 秒
+
         :param direction: 屏幕方向 (dx, dy)，只取方向，长度归一化
         :param hold: 按住时长（秒）
+        :param ratio: 轮盘偏转比例（相对 MOVE_WHEEL_RADIUS），1.0 = 满偏。
+                      小于 1 时摇杆偏转角变小，移动速度按比例下降，
+                      用来做小距离精调（满偏最小步长太大，见 MOVE_FINE_RATIO 注释）
         """
         dx, dy = direction
         norm = math.hypot(dx, dy)
         if norm < 1e-6:
             return
+        ratio = max(0.0, min(1.0, ratio))
         cx, cy = self.MOVE_WHEEL_CENTER
-        px = int(round(cx + self.MOVE_WHEEL_RADIUS * dx / norm))
-        py = int(round(cy + self.MOVE_WHEEL_RADIUS * dy / norm))
+        px = int(round(cx + self.MOVE_WHEEL_RADIUS * ratio * dx / norm))
+        py = int(round(cy + self.MOVE_WHEEL_RADIUS * ratio * dy / norm))
         self.device.hold_drag((cx, cy), (px, py), hold=hold, control_name='MAP_MOVE')
         self.device.click_record_clear()
 
     # ------------------------------------------------------------------ 校准
-    def map_move_calibrate(self, probe_time: float = None):
+    def map_move_calibrate(self, probe_time: float = None, map_name: str = None):
         """
         校准轮盘方向与地图坐标的关系（会让角色移动几秒）
 
         朝屏幕 +X（右）和 +Y（下）各满偏移动 probe_time 秒，记录坐标变化，
-        得到 2x2 映射矩阵，并打印可直接粘贴到 MOVE_CALIBRATION 的常量。
+        得到 2x2 映射矩阵，并打印可直接粘贴到 MOVE_CALIBRATION_MAP 的常量。
 
+        :param probe_time: 单个方向的探测时长（秒）
+        :param map_name: 校准结果归属的地图名，默认用当前所在地图
         :return: ((a, b), (c, d))；失败返回 None
         """
         logger.hr('Calibrate movement wheel')
         probe_time = probe_time or self.MOVE_PROBE_TIME
-        if self.map_move_read_pos() is None:
+        start = self.map_move_read_pos()
+        if start is None:
             logger.error('Cannot read position for calibration')
             return None
+        map_name = map_name or start[0]
+        logger.attr('Calibrate on map', f'{start[0]} ({start[1]},{start[2]})')
 
         columns = []
         for direction, label in (((1, 0), 'screen +X (right)'), ((0, 1), 'screen +Y (down)')):
@@ -147,8 +218,26 @@ class MapMove(BaseTask, GameUiAssets):
         # columns[0] = +X 探测的 (dx, dy)/s，columns[1] = +Y 探测的 (dx, dy)/s
         # 映射矩阵按 map_move_to 的约定存成 ((∂x/∂sx, ∂x/∂sy), (∂y/∂sx, ∂y/∂sy))
         (ax, ay), (bx, by) = columns
-        self.MOVE_CALIBRATION = ((ax, bx), (ay, by))
-        logger.info(f'MOVE_CALIBRATION = {self.MOVE_CALIBRATION}')
+        matrix = ((ax, bx), (ay, by))
+        # 只存进 runtime 字典（本次进程内该地图直接复用），不写 MOVE_CALIBRATION 兜底常量，
+        # 否则这次校准的值会被当成通用兜底套用到别的地图上
+        self._runtime_calibration[map_name] = matrix
+        logger.info(f'MOVE_CALIBRATION = {matrix}')
+        logger.info(f"# 粘到 MOVE_CALIBRATION_MAP: '{map_name}': {matrix},")
+        return matrix
+
+    def map_move_calibration_for(self, map_name: str):
+        """
+        取指定地图的校准矩阵：优先本次进程实测结果，其次 MOVE_CALIBRATION_MAP 常量，
+        最后兜底 MOVE_CALIBRATION。都没有返回 None。
+        """
+        if map_name:
+            matrix = self._runtime_calibration.get(map_name)
+            if matrix is not None:
+                return matrix
+            matrix = self.MOVE_CALIBRATION_MAP.get(map_name)
+            if matrix is not None:
+                return matrix
         return self.MOVE_CALIBRATION
 
     @staticmethod
@@ -172,10 +261,13 @@ class MapMove(BaseTask, GameUiAssets):
         :param x: 目标地图坐标 x
         :param y: 目标地图坐标 y
         :param map_name: 期望所在地图名，不匹配直接失败（可选）
-        :param tolerance: 到达容差，默认 MOVE_TOLERANCE
+        :param tolerance: 到达容差，默认 MOVE_TOLERANCE。传 0 表示精确到达
+                          （会启用精调，但注意单步位移下限约 2 个坐标单位，
+                          容差 < 2 时不保证命中，见 MOVE_FINE_MIN_STEP_UNITS 实测记录；
+                          容差 >= 1 时距离已在容差内会直接返回 True）
         :param timeout: 超时（秒）
         :param ensure_main: 移动前先确保在主页面
-        :param calibrate: 没有 MOVE_CALIBRATION 时是否自动校准
+        :param calibrate: 该地图没有校准值时是否自动校准
         :param on_position: 每读到一个位置就回调 on_position(name, x, y)（探索地图用，
                             任何角色站过的坐标都是可行走的）
         :param stall_limit: 连续多少步没更接近就放弃，默认 MOVE_STALL_LIMIT
@@ -184,13 +276,22 @@ class MapMove(BaseTask, GameUiAssets):
         logger.hr(f'Move to ({x},{y})')
         tolerance = tolerance if tolerance is not None else self.MOVE_TOLERANCE
         stall_limit = stall_limit if stall_limit is not None else self.MOVE_STALL_LIMIT
-
         if ensure_main and not self.map_move_ensure_main_page():
             return False
 
-        matrix = self.MOVE_CALIBRATION
+        # 已在容差内直接返回，不做任何移动（避免默认容差 5 时「站在 1 格外也判定到达」）
+        # 先记录起点，循环里第一次读到位置时会用同一个判据再确认一次
+        origin = self.map_move_read_pos()
+
+        # 校准值按地图取（不同地图缩放/斜视角不同，不能跨地图套用）
+        if origin is None:
+            logger.error('Cannot read current position, cannot move')
+            return False
+        current_map = origin[0]
+        matrix = self.map_move_calibration_for(current_map)
         if matrix is None and calibrate:
-            matrix = self.map_move_calibrate()
+            logger.warning(f'No calibration for [{current_map}], calibrating now')
+            matrix = self.map_move_calibrate(map_name=current_map)
         if matrix is None:
             logger.error('No movement calibration available')
             return False
@@ -199,10 +300,26 @@ class MapMove(BaseTask, GameUiAssets):
             logger.error(f'Movement calibration matrix is singular: {matrix}')
             return False
 
+        # 收敛性预检：精调的单步位移约 MOVE_FINE_MIN_STEP_UNITS，容差必须明显大于它，
+        # 否则每步都会从目标上跨过去，只能空转到超时（实测 tolerance=2 时
+        # 在 dist 2.2~5.0 之间无限震荡 30s）。这里直接告知可行的最小容差。
+        min_needed = self.MOVE_FINE_MIN_STEP_UNITS * self.MOVE_FINE_STEP_SAFETY
+        fine_will_work = tolerance >= min_needed
+        if not fine_will_work and math.hypot(x - origin[1], y - origin[2]) > tolerance:
+            logger.warning(
+                f'Tolerance {tolerance} is smaller than the minimum controllable step '
+                f'({self.MOVE_FINE_MIN_STEP_UNITS} units), reaching exactly ({x},{y}) is '
+                f'not reliable. Use tolerance >= {min_needed:.0f}, or expect best-effort '
+                f'retry until timeout.')
+
         timer = Timer(timeout).start()
         best = float('inf')
         stall = 0
         step_scale = 1.0
+        # 精调是单向锁存的：一旦进入就不再退回满偏。
+        # 否则会在 MOVE_FINE_DISTANCE 阈值边界反复横跳（3.2 进精调 -> 挪过头成 4.1
+        # -> 退出精调 -> 又挪过头），每次横跳都要花掉一轮截图+拖动，最后 2~3 格磨不完。
+        fine_locked = False
         while not timer.reached():
             self.reset_records()
             pos = self.map_move_read_pos()
@@ -225,14 +342,42 @@ class MapMove(BaseTask, GameUiAssets):
                 logger.info(f'Arrived at ({cx},{cy})')
                 return True
 
+            # 精调：距离很小时改用小比例摇杆偏转降速。满偏存在最小步长
+            # （hold_drag_minitouch 有 0.05s 硬下限 + 摇杆起步加速，约 2 个坐标单位，
+            # 实测见 MOVE_FINE_MIN_STEP_UNITS），目标只剩 1~2 格时一步就会冲过头。
+            # 锁存后不再退回满偏，避免在阈值边界来回横跳浪费步数。
+            if distance <= self.MOVE_FINE_DISTANCE:
+                fine_locked = True
+            fine = fine_locked
+            # 剩余距离小于最小步长时，已经没有更细的拖动档位可选
+            fine_step = distance <= self.MOVE_FINE_MIN_STEP_UNITS
+
             # 越走越远或原地打转：缩小步长重试，连续多步没有更接近就判定走不到
             if distance < best - 0.3:
+                # 明显更接近了就把步长系数往回提，否则一次震荡后会一直锁在
+                # 最小步长上慢慢磨（step_scale 只降不升会拖垮整段移动的耗时）
+                if best != float('inf') and distance < best * self.MOVE_SCALE_RESET_RATIO:
+                    step_scale = min(1.0, step_scale * 2)
+                    logger.info(f'Closer, restore step scale to {step_scale:.2f}')
                 best = distance
                 stall = 0
             else:
                 stall += 1
                 step_scale = max(0.4, step_scale * self.MOVE_SHRINK)
                 if stall >= stall_limit:
+                    # 精调阶段：单步位移 >= 容差时继续重试也只是在目标两侧来回跨，
+                    # 每轮都要花一次截图 + 拖动，纯浪费超时预算（实测 30s 空转）。
+                    # 此时按当前实际距离判定一次就收工。
+                    if fine:
+                        if distance <= tolerance:
+                            logger.info(f'Arrived at ({cx},{cy}) after fine retries')
+                            return True
+                        logger.warning(f'Fine move gave up at {name}{cx},{cy}, '
+                                       f'distance {distance:.1f} > tolerance {tolerance} '
+                                       f'(min step {self.MOVE_FINE_MIN_STEP_UNITS} units). '
+                                       f'Use tolerance >= '
+                                       f'{self.MOVE_FINE_MIN_STEP_UNITS * self.MOVE_FINE_STEP_SAFETY:.0f}.')
+                        return False
                     logger.warning(f'Move stalled at {name}{cx},{cy}, best distance {best:.1f}')
                     return best <= tolerance
 
@@ -245,24 +390,79 @@ class MapMove(BaseTask, GameUiAssets):
                 return False
             sx, sy = sx / norm, sy / norm
 
+            # 满偏时该方向上的移动速度（地图单位/秒）
             speed = math.hypot(matrix[0][0] * sx + matrix[0][1] * sy,
                                matrix[1][0] * sx + matrix[1][1] * sy)
             if speed < 1e-6:
                 logger.warning('Zero movement speed')
                 return False
 
-            hold = distance / speed * self.MOVE_GAIN * step_scale
-            hold = max(self.MOVE_STEP_MIN, min(self.MOVE_STEP_MAX, hold))
+            if fine:
+                # 精调：唯一能调的是 hold 时长，不是偏转比例——实测小偏转几乎不降速
+                # （摇杆死区，ratio 0.25 + hold 0.66s 实测走了 13 个单位），
+                # 所以不做 speed *= ratio，那会让 hold 被严重低估而一步冲过头。
+                ratio = max(self.MOVE_RATIO_MIN_DEAD, self.MOVE_FINE_RATIO)
+                if distance <= fine_step:
+                    # 已进入最小步长：只有「最短拖动」这一个选项，要么进去要么放弃，
+                    # 按比例算 hold 只会更大。能否命中完全取决于 tolerance
+                    # 是否大于单步位移（tolerance <= 单步位移 时几何上不可能收敛）。
+                    hold = self.MOVE_HOLD_FLOOR
+                else:
+                    hold = distance / speed * self.MOVE_FINE_GAIN * step_scale
+                    hold = max(self.MOVE_HOLD_FLOOR, min(self.MOVE_STEP_MAX, hold))
+            else:
+                ratio = 1.0
+                hold = distance / speed * self.MOVE_GAIN * step_scale
+                hold = max(self.MOVE_STEP_MIN, min(self.MOVE_STEP_MAX, hold))
             logger.info(f'Move direction ({sx:.2f},{sy:.2f}) speed {speed:.1f}/s '
-                        f'hold {hold:.2f}s scale {step_scale:.2f}')
-            self.map_hold_direction((sx, sy), hold)
+                        f'hold {hold:.2f}s ratio {ratio:.2f} scale {step_scale:.2f}'
+                        f'{" [fine]" if fine else ""}'
+                        f'{" (fine min-step, may overshoot)" if fine and hold <= self.MOVE_HOLD_FLOOR + 1e-6 else ""}')
+            self.map_hold_direction((sx, sy), hold, ratio=ratio)
             self.device.sleep(self.MOVE_SETTLE)
 
         pos = self.map_move_read_pos()
         if pos is None:
             logger.warning(f'Move to ({x},{y}) timeout, position unknown')
-        else:
-            if on_position:
-                on_position(*pos)
-            logger.warning(f'Move to ({x},{y}) timeout, now at {pos[0]}{pos[1]},{pos[2]}')
+            return False
+        if on_position:
+            on_position(*pos)
+        # 超时后按实际距离判定：容差内算到达（精调阶段最后一步可能正好压中）
+        if math.hypot(x - pos[1], y - pos[2]) <= tolerance:
+            logger.info(f'Arrived at ({pos[1]},{pos[2]}) on timeout')
+            return True
+        logger.warning(f'Move to ({x},{y}) timeout, now at {pos[0]}{pos[1]},{pos[2]}, '
+                       f'best distance {min(best, math.hypot(x - pos[1], y - pos[2])):.1f}')
         return False
+
+    def map_move_path(self, points: list, tolerance: int = None, timeout: int = 30,
+                      ensure_main: bool = True, on_position=None) -> int:
+        """
+        按顺序走到多个坐标点（每点独立寻路，任一点失败即停止）
+
+        用于「跑多个目标点」的场景（如依次巡逻若干位置），
+        与 MapExplore 的前沿探索不同：这里点与点之间不做可达性判断。
+
+        :param points: [(x, y), ...] 目标点列表
+        :param tolerance: 到达容差，默认 MOVE_TOLERANCE
+        :param timeout: 单个点的超时（秒）
+        :param ensure_main: 移动前先确保在主页面
+        :param on_position: 每读到一个位置就回调 on_position(name, x, y)
+        :return: 成功走到的点数；中途失败返回已完成的点数
+        """
+        if not points:
+            return 0
+        logger.hr(f'Move path with {len(points)} point(s)')
+        done = 0
+        for index, (x, y) in enumerate(points):
+            logger.attr(f'Path point {index + 1}/{len(points)}', f'({x},{y})')
+            # 第一步才需要回主页面，后续点已经在主页面上了
+            ok = self.map_move_to(x, y, tolerance=tolerance, timeout=timeout,
+                                  ensure_main=ensure_main if index == 0 else False,
+                                  on_position=on_position)
+            if not ok:
+                logger.warning(f'Path stopped at point {index + 1} ({x},{y}), done {done}')
+                return done
+            done += 1
+        logger.info(f'Path finished, all {done} point(s) reached')
+        return done
