@@ -112,8 +112,16 @@ class MapMove(BaseTask, GameUiAssets):
         '蓬莱仙岛': ((10.0, -1.0), (-0.33, 18.0)),
         '域外迷窟': ((17.33, 0.67), (0.0, 19.33)),
     }
-    # 兜底校准（地图名未记录在上面时用）；None = 无兜底，必须现场校准
-    MOVE_CALIBRATION = None
+    # 兜底校准：地图名未记录在上面时用（如仙府九重天副本内）。
+    #
+    # **必须是有效值，不要设成 None** —— 设 None 时，凡是没在上面登记过地图名、
+    # 且调用方又传了 calibrate=False（限时副本不想花时间校准）的场景，
+    # map_move_to 会直接返回 False 一步不走（曾导致仙府九重天进副本后原地放技能）。
+    #
+    # 用蓬莱仙岛的实测值当兜底是安全的：闭环每轮都会重新读坐标反解方向，
+    # 速度估计偏差只会让单步走长/走短，下一步就自己纠正，不会走错方向。
+    # 只是比精确校准多绕几步，总比不动强。
+    MOVE_CALIBRATION = ((10.0, -1.0), (-0.33, 18.0))
 
     # 本次进程内现场校准得到的矩阵：{地图名: 矩阵}
     # 只在内存里，不落类常量（校准值按地图区分，跨进程复用请填 MOVE_CALIBRATION_MAP）
@@ -228,8 +236,11 @@ class MapMove(BaseTask, GameUiAssets):
 
     def map_move_calibration_for(self, map_name: str):
         """
-        取指定地图的校准矩阵：优先本次进程实测结果，其次 MOVE_CALIBRATION_MAP 常量，
-        最后兜底 MOVE_CALIBRATION。都没有返回 None。
+        取指定地图**精确**的校准矩阵：优先本次进程实测结果，其次 MOVE_CALIBRATION_MAP 常量。
+
+        刻意不含 MOVE_CALIBRATION 兜底：兜底值只适合「不想花时间校准」的场景，
+        调用方（map_move_to）在拿不到精确值时会自行决定是现场校准还是退回兜底。
+        这里混进兜底会让 calibrate=True 的任务也退化成用近似值。
         """
         if map_name:
             matrix = self._runtime_calibration.get(map_name)
@@ -238,7 +249,7 @@ class MapMove(BaseTask, GameUiAssets):
             matrix = self.MOVE_CALIBRATION_MAP.get(map_name)
             if matrix is not None:
                 return matrix
-        return self.MOVE_CALIBRATION
+        return None
 
     @staticmethod
     def map_move_det(m):
@@ -293,7 +304,21 @@ class MapMove(BaseTask, GameUiAssets):
             logger.warning(f'No calibration for [{current_map}], calibrating now')
             matrix = self.map_move_calibrate(map_name=current_map)
         if matrix is None:
-            logger.error('No movement calibration available')
+            # 走到这里说明调用方不想花时间校准（限时副本传 calibrate=False）而该地图又没登记过。
+            # 先退回兜底常量：闭环每轮都会重新读坐标反解方向，速度估计偏一点也能收敛，
+            # **绝不能直接返回 False 一步不走** —— 不动等于任务白跑（原地放技能）。
+            matrix = self.MOVE_CALIBRATION
+            if matrix is not None:
+                logger.warning(f'No calibration for [{current_map}], '
+                               f'use fallback MOVE_CALIBRATION {matrix}')
+            else:
+                # 兜底也没配：现场校准，总比不动强
+                logger.warning(f'No calibration for [{current_map}] and no fallback, '
+                               f'calibrating now')
+                matrix = self.map_move_calibrate(map_name=current_map)
+        if matrix is None:
+            # 连校准都失败了（读不到坐标/角色没动），此时只能放弃
+            logger.error(f'No movement calibration available for [{current_map}]')
             return False
         det = self.map_move_det(matrix)
         if abs(det) < 1e-6:
