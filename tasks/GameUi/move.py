@@ -181,7 +181,64 @@ class MapMove(BaseTask, GameUiAssets):
         self.device.hold_drag((cx, cy), (px, py), hold=hold, control_name='MAP_MOVE')
         self.device.click_record_clear()
 
-    # ------------------------------------------------------------------ 校准
+    def map_move_nudge(self, x: int, y: int, map_name: str = None,
+                       tolerance: int = None, ratio: float = 1.0) -> bool:
+        """
+        朝目标坐标做**一次**短促的摇杆推动，不闭环
+
+        给「一边攻击一边回位」用：整段 map_move_to 是闭环的，会阻塞好几秒
+        （还要在容差附近反复逼近），连续战斗中插进去会把攻击节奏打断。
+        这里只推一下（约 0.3s）就返回，由调用方按自己的节奏反复调用，
+        逐步把角色带回目标点。
+
+        代价是单次可能过冲/走偏：调用方下一轮会重新读坐标再推，闭环在外层。
+
+        :return: 推了返回 True；已在容差内/读不到坐标/无校准时返回 False
+        """
+        tolerance = self.MOVE_TOLERANCE if tolerance is None else tolerance
+        location = self.map_move_read_pos()
+        if location is None:
+            return False
+        if map_name is None:
+            map_name = location[0]
+        dx, dy = x - location[1], y - location[2]
+        distance = math.hypot(dx, dy)
+        if distance <= tolerance:
+            return False
+
+        matrix = self.map_move_calibration_for(map_name)
+        if matrix is None:
+            matrix = self.MOVE_CALIBRATION
+        if matrix is None:
+            return False
+        det = self.map_move_det(matrix)
+        if abs(det) < 1e-6:
+            return False
+
+        # 反解屏幕方向：M * s = (dx, dy)  =>  s = M^-1 * (dx, dy)
+        sx = (matrix[1][1] * dx - matrix[0][1] * dy) / det
+        sy = (-matrix[1][0] * dx + matrix[0][0] * dy) / det
+        norm = math.hypot(sx, sy)
+        if norm < 1e-6:
+            return False
+        sx, sy = sx / norm, sy / norm
+
+        speed = math.hypot(matrix[0][0] * sx + matrix[0][1] * sy,
+                           matrix[1][0] * sx + matrix[1][1] * sy)
+        if speed < 1e-6:
+            return False
+
+        # 单次最多推 MOVE_NUDGE_MAX_HOLD，剩余距离下一轮再推
+        hold = min(self.MOVE_NUDGE_MAX_HOLD, distance / speed * self.MOVE_GAIN)
+        hold = max(self.MOVE_HOLD_FLOOR, hold)
+        logger.info(f'Nudge back to ({x},{y}): now {location[1]},{location[2]} '
+                    f'dist {distance:.1f}, direction ({sx:.2f},{sy:.2f}) hold {hold:.2f}s')
+        self.map_hold_direction((sx, sy), hold, ratio=ratio)
+        return True
+
+    # 单次轻推的最长按住时间（秒）：再长就接近一次完整移动了，
+    # 「一边打一边回位」要的是小步快跑，不是一次冲到位
+    MOVE_NUDGE_MAX_HOLD = 0.35
     def map_move_calibrate(self, probe_time: float = None, map_name: str = None):
         """
         校准轮盘方向与地图坐标的关系（会让角色移动几秒）

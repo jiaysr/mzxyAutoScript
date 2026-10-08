@@ -289,6 +289,35 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         self.screenshot()
         return self.target_locked(names)
 
+    # 战斗中回位的「大偏差」阈值：超过它就放弃轻推、走完整闭环 move。
+    # 单次轻推最多推 0.35s（约 5~6 格），偏差在十几格以内反复轻推就能收敛；
+    # 只有被怪带得很远（比如 20 格以上）才值得花几秒走一次闭环。
+    RECOVER_FULL_DISTANCE = 15
+
+    def recover_in_battle(self, coord, tolerance: int) -> bool:
+        """
+        战斗中的回位：小偏差轻推、大偏差走完整闭环
+
+        为什么不用单一策略：
+        - 每次都走 map_move_to（闭环）：容差 2 与单步最小位移（约 2 格）同量级，
+          最后几格会反复震荡，实测一次要 8~14s，把攻击节奏全占了
+        - 每次都只轻推：偏差十几格时要推很多次，且没有收敛保证
+
+        所以按偏差大小分流；轻推返回 False（已在容差内/读不到坐标）时不做别的。
+        """
+        location = self.map_move_read_pos()
+        if location is None:
+            return False
+        distance = math.hypot(location[1] - coord[0], location[2] - coord[1])
+        if distance <= tolerance:
+            return True
+        if distance > self.RECOVER_FULL_DISTANCE:
+            logger.info(f'Drifted {distance:.1f} (> {self.RECOVER_FULL_DISTANCE}), '
+                        f'move back to {coord} with closed loop')
+            return self.recover_position(coord, tolerance)
+        return self.map_move_nudge(coord[0], coord[1], map_name=self.MAP_NAME,
+                                   tolerance=tolerance)
+
     def read_remaining(self):
         """
         读「剩余怪物数量：N」，读不到返回 None
@@ -355,8 +384,11 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         - 循环体：点「目标」锁定/切换 -> 停 attack_interval -> 点一次攻击 -> 停 -> 下一轮
         - 攻击只用普通攻击 + 技能1，两者轮换
         - **不判断单轮耗时**，一直打到时段结束（如 11:30 / 16:30）或怪物清完
-        - 每 LOCK_CHECK_EVERY 次抽查一次：怪清完（剩余 0）正常收工；
-          连续 max_lock_fail 次抽查都没锁到目标 -> 报错
+        - 每 LOCK_CHECK_EVERY 次抽查一次，抽查做两件事（顺序不能反）：
+          1. `recover_position` 回基准点 —— 怪会把角色追着带跑偏，
+             必须在循环内回位，否则越打越远、能锁到的怪越来越少
+          2. 读目标名 + 剩余数量：怪清完（剩余 0）正常收工；
+             连续 max_lock_fail 次抽查都没锁到目标 -> 报错
 
         已知限制：快速循环每轮都会点「目标」，所以**打不死的怪会被切换掉**
         （小鬼/鬼将秒杀没问题；鬼王要两下普通攻击，靠下次再遇到它继续磨）。
@@ -406,6 +438,10 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             # 秒杀账号下逐轮读目标名太慢，抽查即可（连点期间本来就是盲打）。
             if rounds % self.LOCK_CHECK_EVERY:
                 continue
+            # 位置检查：怪会追踪把角色带着跑偏，跑偏后能锁到的怪变少，
+            # 所以每次抽查都顺带回一次基准点。必须在循环内做，放到循环外等于整轮都不回位。
+            # 偏差小就轻推一下（约 0.3s，不打断攻击节奏）；偏差大才走完整闭环。
+            self.recover_in_battle(coord, tolerance)
             self.screenshot()
             locked, name = self.target_locked(names)
             if locked:
@@ -423,9 +459,6 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                 raise GameStuckError(f'{max_fail} times in a row no target locked')
 
         logger.attr('打怪结束', f'共 {rounds} 轮')
-
-        # 怪会追踪带着跑偏，收工前回一次基准点
-        self.recover_position(coord, tolerance)
 
     # ---------------------------------------------------------------- 进入
     def enter_mimang(self, cfg) -> bool:
