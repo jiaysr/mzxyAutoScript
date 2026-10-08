@@ -76,13 +76,16 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                                    f'skip this round')
                     # 用异常统一走 finally 的重排 + TaskEnd，避免 return 跳过收尾
                     raise TaskEnd('YuwaiMimang')
+            # 时段已经过了大半就别进图了（进图流程本身要几十秒）
+            remain = (end - datetime.now()).total_seconds()
+            if remain < self.MIN_WINDOW_REMAIN:
+                logger.warning(f'Window {start:%H:%M}-{end:%H:%M} only {int(remain)}s left, skip')
+                raise TaskEnd('YuwaiMimang')
 
             if not self.enter_mimang(cfg):
                 logger.warning('Enter mimang failed')
 
-            # === 打怪流程（下一步实现）===
-            # 时段内「尽可能多打」：打完后如果时段还剩很多时间且还没到点，
-            # 应排到本时段内稍后再跑一轮，而不是把时段剩余时间让给其他任务。
+            # 时段内一直打怪，直到时段结束（如 11:30 / 16:30）或怪物清完
             self.handle_window(windows, slot, cfg)
         finally:
             # 先重排再抛 TaskEnd：TaskEnd 会被 script.py 捕获并 return True，
@@ -259,29 +262,46 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             return False, ''
         return True, name
 
-    def lock_target(self, names: list) -> tuple:
+    def lock_target(self, names: list, already_checked: bool = False) -> tuple:
         """
         点「目标」按钮锁定一个怪；每次只点一下然后读一次目标名
 
         不做成死循环去等——调用方按 max_lock_fail 计数，连续锁定不到就报错，
         这里只负责「点一次 + 判断」。
 
+        :param already_checked: 调用方已经确认过「当前没锁目标」，
+                               跳过开头那次重复的目标名读取
         :return: (是否锁定, 怪物名)
         """
         self.reset_records()
         self.screenshot()
-        # 已经锁着目标就不用再点（点「目标」会切换到下一个目标）
-        locked, name = self.target_locked(names)
-        if locked:
-            return True, name
+        if not already_checked:
+            # 已经锁着目标就不用再点（点「目标」会切换到下一个目标）
+            locked, name = self.target_locked(names)
+            if locked:
+                return True, name
         if not self.appear(self.I_TARGET_BUTTON):
             logger.warning('Target button does not appear')
             return False, ''
         # 复用 GameUi 的目标锁定（点图标下方「目标」文字，比点图标稳）
         self.ui_lock_target()
-        self.device.sleep(0.4)
+        self.device.sleep(0.3)
         self.screenshot()
         return self.target_locked(names)
+
+    def read_remaining(self):
+        """
+        读「剩余怪物数量：N」，读不到返回 None
+
+        用途：怪全清完时该值变 0，此时应该正常结束而不是继续锁定/报错。
+        """
+        results = self.O_INSIDE_REMAINING_TEXT.detect_and_ocr(self.device.image, logDisplay=False)
+        text = ''.join(item.ocr_text for item in results)
+        match = re.search(r'(\d+)', text)
+        if not match:
+            logger.warning(f'读不到剩余怪物数量：{text!r}')
+            return None
+        return int(match.group(1))
 
     def click_attack(self, use_skill: bool) -> None:
         """
@@ -319,28 +339,44 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                                 tolerance=tolerance, timeout=timeout,
                                 ensure_main=False, calibrate=False)
 
-    def handle_window(self, windows: list, slot: tuple, cfg) -> None:
+    # 每打这么多次做一次检查（读目标名，没锁到时再读剩余怪物数量）
+    # 秒杀账号下攻击与锁定都是连点，逐轮 OCR 太慢；抽查即可发现「没怪了/锁不上」。
+    LOCK_CHECK_EVERY = 3
+    # 时段剩余时间少于这个秒数就不进图了（进图流程本身要几十秒，
+    # 进去也打不了多久，还把时段尾部白白占住）
+    MIN_WINDOW_REMAIN = 60
+
+    def handle_window(self, windows: list, slot: tuple, cfg, deadline: datetime = None) -> None:
         """
-        时段内打怪：反复「锁定目标 -> 击杀目标」，直到超时
+        时段内打怪：反复「切换/锁定目标 -> 攻击」，一直循环到时段结束
 
         - 进图后先走到基准坐标（304,76），容差 2
         - 收起菜单（收起后右侧竖排才露出「目标」按钮）
-        - 每次锁定：已锁定就直接打，没锁定就点「目标」
-        - 攻击只用普通攻击 + 技能1；boss_monster（鬼王）普通攻击打两下才死
-        - 攻击时怪会追踪导致坐标跑偏，每轮之后检查并回基准点
-        - 连续 max_lock_fail 次锁定不到目标 -> 报错
+        - 循环体：点「目标」锁定/切换 -> 停 attack_interval -> 点一次攻击 -> 停 -> 下一轮
+        - 攻击只用普通攻击 + 技能1，两者轮换
+        - **不判断单轮耗时**，一直打到时段结束（如 11:30 / 16:30）或怪物清完
+        - 每 LOCK_CHECK_EVERY 次抽查一次：怪清完（剩余 0）正常收工；
+          连续 max_lock_fail 次抽查都没锁到目标 -> 报错
+
+        已知限制：快速循环每轮都会点「目标」，所以**打不死的怪会被切换掉**
+        （小鬼/鬼将秒杀没问题；鬼王要两下普通攻击，靠下次再遇到它继续磨）。
+        config 里的 boss_monster / boss_hits 就是为这种情况预留的，
+        当前连点循环没有逐轮读目标名（读一次 ~0.3s，会把循环拖慢三倍），
+        所以暂不使用；等实测确认鬼王确实磨不掉再按类型分流。
+
+        :param deadline: 覆盖时段结束时间（调试短测用）
         """
         logger.hr('迷窟内打怪')
         names = [n.strip() for n in cfg.monster_names.split(',') if n.strip()]
-        boss_name = cfg.boss_monster.strip()
         coord = self.parse_coord(cfg.battle_coord)
         tolerance = int(cfg.battle_tolerance)
         interval = float(cfg.attack_interval)
         max_fail = int(cfg.max_lock_fail)
+        end = deadline if deadline is not None else slot[1]
 
         logger.attr('打怪配置', f'基准={coord} 容差={tolerance} 怪物={names} '
-                               f'boss={boss_name}x{cfg.boss_hits} '
-                               f'间隔={interval}s 最多连续失败={max_fail}')
+                               f'点击间隔={interval}s 最多连续失败={max_fail} '
+                               f'打到={end.strftime("%H:%M")}')
 
         # 进图后先站到基准点
         if not self.recover_position(coord, tolerance, timeout=60):
@@ -350,48 +386,46 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         self.ui_close_menu()
         self.device.sleep(0.5)
 
-        timer = Timer(cfg.battle_timeout).start()
-        killed = 0
+        rounds = 0
         fail = 0
         use_skill = False
-        while not timer.reached():
+        while datetime.now() < end:
             self.reset_records()
-            self.screenshot()
 
-            locked, name = self.target_locked(names)
-            if not locked:
-                locked, name = self.lock_target(names)
-            if not locked:
-                fail += 1
-                logger.info(f'Lock target failed ({fail}/{max_fail})')
-                if fail >= max_fail:
-                    raise GameStuckError(f'{max_fail} times in a row no target locked')
-                self.device.sleep(0.5)
-                continue
+            # 点「目标」锁定/切换到下一个怪
+            self.ui_lock_target()
+            self.device.sleep(interval)
 
-            fail = 0
-            hits = int(cfg.boss_hits) if name == boss_name else 1
-            # boss 必须用普通攻击（用户说明：鬼王普通攻击打两下；技能1不确定能否破防）
-            for hit in range(1, hits + 1):
-                self.screenshot()
-                self.click_attack(use_skill=False)
-                self.device.sleep(interval)
-                if hit < hits:
-                    # 中途确认目标还在（没被追踪跑掉/已死）
-                    self.screenshot()
-                    still, now_name = self.target_locked(names)
-                    if not still:
-                        logger.info(f'Target {name} gone after {hit} hit(s)')
-                        break
-            killed += 1
-            logger.attr('击杀进度', f'killed={killed} last={name}')
-
-            # 怪会被追踪带着跑偏，打完回基准点
-            self.recover_position(coord, tolerance)
-            # 小鬼/鬼将一下就死，普通攻击与技能1轮换即可
+            # 点一次攻击（普通攻击与技能1 轮换；鬼王只用普通攻击）
+            self.click_attack(use_skill=use_skill)
             use_skill = not use_skill
+            rounds += 1
+            self.device.sleep(interval)
 
-        logger.attr('打怪结束', f'本轮击杀 {killed} 只')
+            # 抽查：确认还能锁到怪、以及怪有没有清完。
+            # 秒杀账号下逐轮读目标名太慢，抽查即可（连点期间本来就是盲打）。
+            if rounds % self.LOCK_CHECK_EVERY:
+                continue
+            self.screenshot()
+            locked, name = self.target_locked(names)
+            if locked:
+                fail = 0
+                logger.attr('打怪进度', f'rounds={rounds} target={name}')
+                continue
+            # 没锁到目标：可能是怪清完了，也可能只是点偏了 -> 读剩余数量区分
+            remaining = self.read_remaining()
+            if remaining == 0:
+                logger.info(f'剩余怪物数量为 0，本时段已清完（共 {rounds} 轮）')
+                break
+            fail += 1
+            logger.info(f'Lock target failed ({fail}/{max_fail}), remaining={remaining}')
+            if fail >= max_fail:
+                raise GameStuckError(f'{max_fail} times in a row no target locked')
+
+        logger.attr('打怪结束', f'共 {rounds} 轮')
+
+        # 怪会追踪带着跑偏，收工前回一次基准点
+        self.recover_position(coord, tolerance)
 
     # ---------------------------------------------------------------- 进入
     def enter_mimang(self, cfg) -> bool:
