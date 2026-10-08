@@ -318,6 +318,50 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         return self.map_move_nudge(coord[0], coord[1], map_name=self.MAP_NAME,
                                    tolerance=tolerance)
 
+    # 小地图右侧列表第一行「前往 <中转地图>」的点击坐标
+    # 列表从上到下是：世界地图(y≈142) / 前往 沼泽(y≈222) / 前往 沼泽(y≈301) / 前往 沼泽(y≈379)
+    # 这里只点第一个「前往」（y≈222），x 取按钮行中心避开左右边框
+    LEAVE_ROW = (1013, 222)
+    # 点「前往 沼泽」只是让角色**自动走到出口传送点**（不是瞬移），
+    # 小地图很大，走过去要十几秒到几十秒
+    LEAVE_TIMEOUT = 120
+
+    def leave_mimang(self, cfg) -> bool:
+        """
+        离开迷窟、回中转地图（沼泽）：
+
+        开小地图 -> 点右侧列表第一行「前往 沼泽」 -> 关小地图 -> 等角色走到出口传送
+
+        两个坑：
+        - 点「前往」只触发自动寻路，不会立刻传送，必须给它走的时间
+        - 小地图开着时它盖住右上角地点文字，`map_current_location` 读不到，
+          所以点完要先关掉小地图才能判断有没有真的离开
+        """
+        logger.hr(f'离开迷窟回 {cfg.relay_location}')
+        if not self.map_open_minimap():
+            logger.warning('Minimap does not open, cannot leave mimang')
+            return False
+        self.device.sleep(0.8)
+
+        x, y = self.LEAVE_ROW
+        logger.info(f'Click first leave entry at ({x},{y})')
+        self.device.click(x=x, y=y, control_name='mimang_leave')
+        self.device.click_record_clear()
+        self.device.sleep(1.0)
+        self.map_close_minimap()
+        self.device.sleep(0.5)
+
+        timer = Timer(self.LEAVE_TIMEOUT).start()
+        while not timer.reached():
+            self.reset_records()
+            location = self.map_move_read_pos()
+            if location is not None and not self.map_name_match(location[0], self.MAP_NAME):
+                logger.info(f'Left mimang, now at [{location[0]}] {location[1]},{location[2]}')
+                return True
+            self.device.sleep(1)
+        logger.warning(f'Still in mimang after {self.LEAVE_TIMEOUT}s')
+        return False
+
     def read_remaining(self):
         """
         读「剩余怪物数量：N」，读不到返回 None
@@ -418,6 +462,21 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         self.ui_close_menu()
         self.device.sleep(0.5)
 
+        try:
+            self.battle_loop(names, coord, tolerance, interval, max_fail, end)
+        finally:
+            # 不管正常收工还是中途报错，都要离开迷窟回中转地图，
+            # 别把角色留在迷窟里（报错路径更要清场，否则下次进来还得先找出口）
+            try:
+                self.leave_mimang(cfg)
+            except Exception as e:  # noqa: BLE001
+                # 清场失败不能盖掉原始异常
+                logger.warning(f'Leave mimang failed: {e}')
+
+    def battle_loop(self, names: list, coord, tolerance: int,
+                    interval: float, max_fail: int, end: datetime) -> None:
+        """打怪主循环：点「目标」锁定/切换 -> 点攻击，一直连点到时段结束"""
+        logger.hr('开始连点打怪')
         rounds = 0
         fail = 0
         use_skill = False
@@ -478,15 +537,23 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         elif not self.map_teleport(cfg.relay_location):
             raise GameStuckError(f'Cannot teleport to relay location [{cfg.relay_location}]')
 
-        if not self.open_minimap_and_click_npc(cfg.npc_name, cfg.dialog_timeout):
-            raise GameStuckError('NPC dialog does not appear')
+        # 点 NPC 后人物要走过去，路远或画面抖动都可能错过弹窗；重试一次
+        # （实测失败过一次：NPC 列表第 3 屏找到并点了，但 60s 内弹窗没出来）
+        for attempt in (1, 2):
+            if self.open_minimap_and_click_npc(cfg.npc_name, cfg.dialog_timeout):
+                if self.click_enter_mimang(cfg.enter_text, cfg.enter_wait):
+                    self.verify_inside()
+                    logger.info('Now in yuwei mimang')
+                    return True
+                logger.warning(f'Enter option failed (attempt {attempt})')
+            else:
+                logger.warning(f'NPC dialog does not appear (attempt {attempt})')
+            # 重试前清掉可能残留的弹窗/小地图，避免它们盖住入口
+            self.close_leftover_dialog()
+            self.map_close_minimap()
+            self.device.sleep(0.5)
 
-        if not self.click_enter_mimang(cfg.enter_text, cfg.enter_wait):
-            raise GameStuckError('Cannot enter yuwei mimang')
-
-        self.verify_inside()
-        logger.info('Now in yuwei mimang')
-        return True
+        raise GameStuckError('Cannot enter yuwei mimang after 2 attempts')
 
     # ---------------------------------------------------------------- 进入
     def ui_goto_main_page(self) -> bool:
@@ -526,6 +593,11 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         :param dialog_timeout: 等对话弹窗的超时（秒）
         """
         logger.hr(f'Find NPC [{npc_name}] in minimap')
+        # 先关掉残留的 NPC 对话弹窗：它盖住小地图右上角的「世界地图」按钮，
+        # 会让 map_open_minimap 的识别一直失败（连点入口也没用，实测踩过）
+        self.close_leftover_dialog()
+        self.map_close_minimap()
+        self.device.sleep(0.3)
         if not self.map_open_minimap():
             logger.error('Minimap does not open')
             return False

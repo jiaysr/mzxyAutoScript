@@ -11,11 +11,11 @@
   {
     "itemName": "npc_dialog_x",
     "imageName": "res_npc_dialog_x.png",
-    "roiFront": "995,45,80,80",
-    "roiBack": "940,20,150,150",
+    "roiFront": "985,68,75,70",
+    "roiBack": "940,30,180,140",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "NPC对话弹窗-右上角绿色关闭按钮（弹窗存在性特征）"
+    "description": "NPC对话弹窗-右上角绿色关闭按钮（弹窗存在性特征；位置随场景会偏，roiBack 放宽）"
   },
   {
     "itemName": "npc_dialog_title",

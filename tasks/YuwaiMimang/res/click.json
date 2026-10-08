@@ -13,8 +13,8 @@
   },
   {
     "itemName": "dialog_close",
-    "roiFront": "995,45,80,80",
-    "roiBack": "995,45,80,80",
-    "description": "NPC对话弹窗-绿色关闭按钮区域（995,45,1075,125）"
+    "roiFront": "985,68,75,70",
+    "roiBack": "985,68,75,70",
+    "description": "NPC对话弹窗-绿色关闭按钮点击区域（与素材同区域）"
   }
 ]

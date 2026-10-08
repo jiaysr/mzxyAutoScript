@@ -15,15 +15,15 @@ class YuwaiMimangAssets:
 	C_NPC_DIALOG_ENTER = RuleClick(roi_front=(277,318,726,60), roi_back=(277,318,726,60), name="npc_dialog_enter")
 	# 小地图-NPC列表点击区域（950,180,1120,600），OCR定位迷窟守卫后点这里不行，实际点OCR坐标 
 	C_MINIMAP_NPC_LIST = RuleClick(roi_front=(950,180,170,420), roi_back=(950,180,170,420), name="minimap_npc_list")
-	# NPC对话弹窗-绿色关闭按钮区域（995,45,1075,125） 
-	C_DIALOG_CLOSE = RuleClick(roi_front=(995,45,80,80), roi_back=(995,45,80,80), name="dialog_close")
+	# NPC对话弹窗-绿色关闭按钮点击区域（与素材同区域） 
+	C_DIALOG_CLOSE = RuleClick(roi_front=(985,68,75,70), roi_back=(985,68,75,70), name="dialog_close")
 
 
 	# Image Rule Assets
 	# 小地图弹窗-「世界地图」按钮（弹窗存在性特征） 
 	I_MINIMAP_PANEL = RuleImage(roi_front=(953,108,168,60), roi_back=(900,80,300,180), threshold=0.8, method="Template matching", file="./tasks/YuwaiMimang/res/res_minimap_panel.png")
-	# NPC对话弹窗-右上角绿色关闭按钮（弹窗存在性特征） 
-	I_NPC_DIALOG_X = RuleImage(roi_front=(995,45,80,80), roi_back=(940,20,150,150), threshold=0.8, method="Template matching", file="./tasks/YuwaiMimang/res/res_npc_dialog_x.png")
+	# NPC对话弹窗-右上角绿色关闭按钮（弹窗存在性特征；位置随场景会偏，roiBack 放宽） 
+	I_NPC_DIALOG_X = RuleImage(roi_front=(985,68,75,70), roi_back=(940,30,180,140), threshold=0.8, method="Template matching", file="./tasks/YuwaiMimang/res/res_npc_dialog_x.png")
 	# NPC对话弹窗-标题区（确认是迷窟守卫而不是别的NPC；弹窗位置会随分辨率有几十像素抖动，roiBack 放宽） 
 	I_NPC_DIALOG_TITLE = RuleImage(roi_front=(490,105,300,55), roi_back=(400,60,520,140), threshold=0.75, method="Template matching", file="./tasks/YuwaiMimang/res/res_npc_dialog_title.png")
 	# NPC对话弹窗-「进入域外迷窟」选项文字（点之前用它确认该行存在） 
