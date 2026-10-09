@@ -102,6 +102,16 @@ class GlobalGame(GlobalGameAssets):
         self.revive()
         self.rerun_task()
 
+    # 「返回村子」按钮区域相对死亡弹窗特征块左上角的偏移
+    # （弹窗会随提示文案行数上下移动，如多一行「击败者：xxx」时按钮整体下移约 20px）
+    DEATH_RETURN_OFFSET = (0, 9)
+
+    def death_return_roi(self) -> tuple:
+        """「返回村子」按钮区域左上角：跟随死亡弹窗特征块的实际匹配位置"""
+        x, y = self.I_DEATH_DIALOG.roi_front[0], self.I_DEATH_DIALOG.roi_front[1]
+        dx, dy = self.DEATH_RETURN_OFFSET
+        return int(x + dx), int(y + dy)
+
     def revive(self, retry: int = 3, timeout: int = 30) -> bool:
         """
         点击「返回村子」直到死亡弹窗消失
@@ -115,9 +125,12 @@ class GlobalGame(GlobalGameAssets):
                 return True
             if retry <= 0:
                 raise GameStuckError('Unable to revive')
+            # 按钮位置跟随弹窗实际匹配位置：多一行「击败者」文案时弹窗变高、
+            # 按钮整体下移，固定坐标会点到按钮上方（实测偏移约 20px）
+            self.C_DEATH_RETURN.roi_front[0], self.C_DEATH_RETURN.roi_front[1] = self.death_return_roi()
             if self.click(self.C_DEATH_RETURN, interval=1):
                 retry -= 1
-                logger.info('Click return to village')
+                logger.info(f'Click return to village at {self.C_DEATH_RETURN.roi_front[:2]}')
             if timer.reached():
                 raise GameStuckError('Revive timeout')
 
