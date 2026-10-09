@@ -51,7 +51,7 @@ class SimpleBattle(BaseTask, GameUiAssets):
     # 是否也点空技能位（不同设备技能不同：有的设备有空位，点了没反应甚至可能点到别的按钮）
     BATTLE_CLICK_EMPTY_SKILLS = False
     # 普通攻击按钮区域 (x, y, w, h)
-    BATTLE_ATTACK_REGION = (1146, 597, 82, 60)
+    BATTLE_ATTACK_REGION = (1155,605,64,46)
 
     # 每个按钮连点次数与间隔（秒）
     BATTLE_CLICK_TIMES = 3

@@ -308,9 +308,14 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         技能2 不参与连点；按钮区域复用 GameUi 的实测常量，不重复录素材。
         调用方负责节奏（cfg.attack_interval），这里只管把三个都点一遍。
         """
+        self.battle_click_skill(0)
+        self.battle_click_skill(0)
         self.battle_click_attack()
         self.battle_click_skill(0)
+        self.battle_click_skill(0)
         self.battle_click_skill(2)
+        self.battle_click_skill(2)
+        self.battle_click_attack()
 
     def recover_position(self, coord, tolerance: int, timeout: int = None) -> bool:
         """
