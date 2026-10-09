@@ -303,18 +303,24 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
     def click_attacks_once(self) -> None:
         """
-        点一遍三个攻击按钮：普通攻击 -> 技能1 -> 技能3
+        点一遍攻击序列：技能1 x2 -> 切目标+普攻 -> 技能1 x2 -> 技能3 x2 -> 切目标+普攻
 
         技能2 不参与连点；按钮区域复用 GameUi 的实测常量，不重复录素材。
-        调用方负责节奏（cfg.attack_interval），这里只管把三个都点一遍。
+        每个普通攻击前先点一次「目标」切换锁定：秒杀账号下每次普攻带走一只怪，
+        不切目标的话击杀后后续点击全打在空处。
+        调用方负责节奏（cfg.attack_interval），这里只管按顺序点。
         """
+        self.ui_lock_target()
         self.battle_click_skill(0)
         self.battle_click_skill(0)
+        self.ui_lock_target()
         self.battle_click_attack()
         self.battle_click_skill(0)
         self.battle_click_skill(0)
+        self.ui_lock_target()
         self.battle_click_skill(2)
         self.battle_click_skill(2)
+        self.ui_lock_target()
         self.battle_click_attack()
 
     def recover_position(self, coord, tolerance: int, timeout: int = None) -> bool:
@@ -354,8 +360,9 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
         - 进图后先走到基准坐标（304,76），容差 2
         - 收起菜单（收起后右侧竖排才露出「目标」按钮）
-        - 循环体：点「目标」锁定/切换 -> 停 attack_interval ->
-          普通攻击 + 技能1 + 技能3 各点一遍（click_attacks_once）-> 停 -> 下一轮
+        - 循环体：点「目标」锁定/切换 -> 停 attack_interval -> 攻击序列
+          （技能1 x2 -> 切目标+普攻 -> 技能1 x2 -> 技能3 x2 -> 切目标+普攻，
+          见 click_attacks_once，攻击之间会再点「目标」切换）-> 停 -> 下一轮
         - **不读目标名、不读剩余怪物数量**，一直打到时段结束（如 11:30 / 16:30）
         - 每 LOCK_CHECK_EVERY 轮做一次位置检查：`recover_in_battle` 回基准点 ——
           怪会把角色追着带跑偏，必须在循环内回位，否则越打越远、能锁到的怪越来越少
@@ -408,7 +415,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             self.ui_lock_target()
             self.device.sleep(interval)
 
-            # 普通攻击 + 技能1 + 技能3 各点一遍
+            # 技能1x2、切目标+普攻、技能1x2、技能3x2、切目标+普攻
             self.click_attacks_once()
             rounds += 1
             self.device.sleep(interval)
