@@ -126,8 +126,12 @@ class GlobalGame(GlobalGameAssets):
             if retry <= 0:
                 raise GameStuckError('Unable to revive')
             # 按钮位置跟随弹窗实际匹配位置：多一行「击败者」文案时弹窗变高、
-            # 按钮整体下移，固定坐标会点到按钮上方（实测偏移约 20px）
-            self.C_DEATH_RETURN.roi_front[0], self.C_DEATH_RETURN.roi_front[1] = self.death_return_roi()
+            # 按钮整体下移，固定坐标会点到按钮上方（实测偏移约 20px）。
+            # 注意要整段替换 roi_front：RuleClick.roi_front 是 tuple，
+            # 不能按下标赋值（会报 TypeError: 'tuple' object does not support item assignment）
+            x, y = self.death_return_roi()
+            _, _, w, h = self.C_DEATH_RETURN.roi_front
+            self.C_DEATH_RETURN.roi_front = (x, y, w, h)
             if self.click(self.C_DEATH_RETURN, interval=1):
                 retry -= 1
                 logger.info(f'Click return to village at {self.C_DEATH_RETURN.roi_front[:2]}')

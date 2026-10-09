@@ -224,6 +224,9 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   做严格等值匹配时留意，必要时改用 v4
 - 长时间等待（>1 分钟）不动屏幕会被 `device.stuck_record_check()` 判为卡死（Wait too long），
   循环里要定期 `self.reset_records()`（清卡死 + 连点记录，GameUi 已提供）
+- `RuleClick.roi_front` 存的是 **tuple**（只有 `RuleImage.__init__` 会转成 list），
+  不能按下标赋值（`rule.roi_front[0] = x` 报 `TypeError`），要整段替换
+  `rule.roi_front = (x, y, w, h)`（曾把死亡复活流程打挂）
 - 弹窗文案识别、让路判断（`higher_priority_task_due`）、活跃页任务状态读取（`active_task_completed`）
   都是 `GameUi` 的公共方法，新任务直接复用，不要各自实现一份
 - 活动-活跃页的任务列表很长（30 行以上，「同服竞技/跨服竞技」在中下段），读取状态必须
@@ -395,6 +398,10 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     - **单步位移下限约 2 个坐标单位**（见上面 move.py 实测），与容差 2 同量级，
       `map_move_to` 会在目标附近震荡；实测 `306,41 -> 302,76` 能在 4 步内收敛到 `dist 2.0`，
       但要稳定命中最好把 `battle_tolerance` 设为 3
+    - **死亡不重跑**：覆盖 `handle_death` 为「点「返回村子」复活后原地继续打」——
+      迷窟内「返回村子」是原地复活；全局默认的「复活 + 重跑任务」在本任务行不通：
+      重跑要重新准备/进图，且 `run()` 的 finally 一定会把 next_run 重排到下个时段，
+      把重跑设置的「立即运行」覆盖掉，任务当天直接结束（实测 15:58 死亡后排到第二天 10:27）
 - `tasks/XianfuJiuchongtian`：仙府九重天（清仙石 + 收集仙玉碎片）
   - 配置（`config/oas1.json` 的 `xianfu_jiuchongtian.xianfu_config`）：
     - `stage` 1-4：阶段＝打各大关的第几小关；小关N 大概率掉颜色N（1南极/2北极/3东极/4西极）

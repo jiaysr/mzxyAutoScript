@@ -85,7 +85,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             if not self.enter_mimang(cfg):
                 logger.warning('Enter mimang failed')
 
-            # 时段内一直打怪，直到时段结束（如 11:30 / 16:30）或怪物清完
+            # 时段内一直打怪，直到时段结束（如 11:30 / 16:30）
             self.handle_window(windows, slot, cfg)
         finally:
             # 先重排再抛 TaskEnd：TaskEnd 会被 script.py 捕获并 return True，
@@ -429,6 +429,24 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             logger.attr('打怪进度', f'rounds={rounds}')
 
         logger.attr('打怪结束', f'共 {rounds} 轮')
+
+    # ---------------------------------------------------------------- 死亡
+    def handle_death(self) -> None:
+        """
+        角色死亡：点「返回村子」复活后**原地继续打**，不重跑任务
+
+        迷窟里的「返回村子」是原地复活（复活后仍在域外迷窟），走全局默认的
+        「复活 + 重跑任务」反而更糟：重跑要重新准备/进图，而且 `run()` 的 finally
+        一定会把 next_run 重排到下个时段，把重跑设置的「立即运行」覆盖掉，
+        任务当天直接结束（实测：15:58 死亡后直接被排到第二天 10:27）。
+        复活后位置跑偏由循环内的 recover_in_battle 兜底，这里不用处理。
+        """
+        if not self.appear(self.I_DEATH_DIALOG):
+            return
+        logger.warning('Character died, revive and continue')
+        self.revive()
+        # 等复活/地图加载稳定，加载中点击会丢
+        self.device.sleep(1)
 
     # ---------------------------------------------------------------- 进入
     def enter_mimang(self, cfg) -> bool:
