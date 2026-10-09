@@ -27,18 +27,20 @@ class YuwaiMimangConfig(BaseModel):
     battle_coord: str = Field(default='304,76', description='打怪基准坐标 x,y（进图后站这里，被追踪跑偏后回来）')
     # 基准坐标容差（坐标点）
     battle_tolerance: int = Field(default=2, description='基准坐标容差（坐标点，最大容错 2）')
-    # 可锁定的怪物名，英文逗号分隔
-    monster_names: str = Field(default='小鬼,鬼将,鬼王', description='可锁定的怪物名（英文逗号分隔）')
+    # 可锁定的怪物名（英文逗号分隔）
+    # 注意：当前连点循环不读目标名（每轮点「目标」直接切换），本字段**暂未被使用**
+    monster_names: str = Field(default='小鬼,鬼将,鬼王', description='可锁定的怪物名（英文逗号分隔，当前未使用）')
     # 需要打几下才死的怪物名（小鬼/鬼将一下秒杀，鬼王要两下）
     # 注意：当前的连点循环每轮都点「目标」会切换目标，打不死的怪会被切走，
     # 所以这两个字段**暂未被使用**，留着是为将来「按怪物类型分流」用
     boss_monster: str = Field(default='鬼王', description='需要普通攻击打两下的怪物名（当前未使用）')
     boss_hits: int = Field(default=2, description='boss_monster 需要普通攻击的次数（当前未使用）')
-    # 每次点击「目标」/「攻击」后的等待（秒）
-    # 秒杀账号下不需要等冷却：点目标 -> 点攻击 -> 停一下 -> 再点目标切换下一个
-    attack_interval: float = Field(default=0.1, description='每次点击目标/攻击后的等待（秒）')
+    # 每轮点完「目标」和三个攻击按钮后的等待（秒）
+    # 秒杀账号下不需要等冷却：点目标 -> 普攻/技能1/技能3 各点一遍 -> 停一下 -> 下一轮
+    attack_interval: float = Field(default=0.1, description='每轮点「目标」后和三个攻击点完后的等待（秒）')
     # 连续多少次锁定不到目标就报错
-    max_lock_fail: int = Field(default=10, description='连续锁定不到目标多少次后报错')
+    # 注意：当前连点循环不读目标名，锁定失败检测**暂未被使用**
+    max_lock_fail: int = Field(default=10, description='连续锁定不到目标多少次后报错（当前未使用）')
     # 回基准坐标的超时（秒）；超时也要继续打，不阻塞攻击
     recover_timeout: int = Field(default=8, description='回基准坐标的超时（秒），超时后继续打怪')
 

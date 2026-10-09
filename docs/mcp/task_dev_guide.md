@@ -381,18 +381,17 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
       改配置要重建整个子模型（`Config(...)= XxxConfig(...)`）或直接改 json
   - **打怪流程**（`battle_coord=304,76` 容差 2）
     - 进图 -> `recover_position` 走到基准点 -> `ui_close_menu()` 收起菜单
-      （收起后右侧竖排才露出「目标」按钮）-> 循环「锁定 -> 击杀」
-    - 迷窟的「目标/攻击/技能1」按钮与 WorldBoss、上古狩猎**用的是同一批素材**，
-      已统一收进 GameUi：`self.ui_lock_target()` / `self.ui_target_name()` /
-      `self.battle_click_attack()` / `self.battle_click_skill(0)`。
-      迷窟里实测坐标逐个吻合，**不要再在各任务 res/ 里重复录一遍**
-    - 锁定目标用 `ocr_color_name(self.O_TARGET_NAME)` 读彩色描边字（沿用 WorldBoss 的做法），
-      再用 `ocr_name_match` / `ocr_name_pick` 匹配 `小鬼,鬼将,鬼王`
-    - 攻击只用普通攻击 + 技能1，两者冷却都在 1 秒以上，所以 `attack_interval` 默认 1.5s；
-      `鬼王` 普通攻击打两下才死（`boss_monster` + `boss_hits`），其余一下秒杀
-    - 怪会追踪带着角色跑偏，每轮击杀后 `recover_position` 回基准点；
-      回位用 `map_move_to(tolerance=2)` 的闭环精调，**失败不阻塞后续攻击**（只记日志继续）
-    - 连续 `max_lock_fail`（默认 10）次锁定不到目标 -> `GameStuckError`
+      （收起后右侧竖排才露出「目标」按钮）-> 循环「切换目标 -> 三连击」
+    - 迷窟的「目标/普通攻击/技能」按钮与 WorldBoss、上古狩猎**用的是同一批素材**，
+      已统一收进 GameUi：`self.ui_lock_target()` / `self.battle_click_attack()` /
+      `self.battle_click_skill(0|2)`。迷窟里实测坐标逐个吻合，
+      **不要再在各任务 res/ 里重复录一遍**
+    - 每轮：点「目标」切换 -> `click_attacks_once` 把普通攻击 + 技能1 + 技能3 各点一遍；
+      **不读目标名、不读剩余怪物数量**（`monster_names` / `max_lock_fail` / `boss_*` 字段暂未使用），
+      一直连点到时段结束
+    - 位置检测保留：每 `LOCK_CHECK_EVERY`（3）轮调 `recover_in_battle` 回基准点——
+      偏差小轻推（`map_move_nudge`，约 0.3s）、偏差大才走完整闭环 `map_move_to`；
+      怪会追踪把角色带着跑偏，必须在循环内回位
     - **单步位移下限约 2 个坐标单位**（见上面 move.py 实测），与容差 2 同量级，
       `map_move_to` 会在目标附近震荡；实测 `306,41 -> 302,76` 能在 4 步内收敛到 `dist 2.0`，
       但要稳定命中最好把 `battle_tolerance` 设为 3
