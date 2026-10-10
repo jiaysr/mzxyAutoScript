@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "douxian_page",
+    "imageName": "res_douxian_page.png",
+    "roiFront": "1019,126,228,126",
+    "roiBack": "1019,126,228,126",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "斗仙阁-页面特征(商店/军阶/战绩/排行榜按钮)"
+  },
+  {
+    "itemName": "challenge_button",
+    "imageName": "res_challenge_button.png",
+    "roiFront": "1151,342,85,42",
+    "roiBack": "1140,330,140,380",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "斗仙阁-挑战按钮(列表内多处,roiBack为按钮列搜索区)"
+  }
+]

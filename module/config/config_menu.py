@@ -22,7 +22,7 @@ class ConfigMenu:
         self.menu["Daily Task"] = ['Quiz', 'WarChariot']
         # 战斗的任务
         self.menu["Battle Task"] = ['WorldBoss', 'Challenge', 'Arena', 'CrossArena', 'AncientHunt',
-                                    'XianfuJiuchongtian', 'YuwaiMimang']
+                                    'XianfuJiuchongtian', 'YuwaiMimang', 'DouXianGe']
         # 开发工具
         self.menu["Tools"] = ['Image Rule', 'Ocr Rule', 'Click Rule', 'Long Click Rule', 'Swipe Rule', 'List Rule']
 

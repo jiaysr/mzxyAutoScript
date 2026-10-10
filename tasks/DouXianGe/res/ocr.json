@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "douxian_count",
+    "roiFront": "280,125,290,42",
+    "roiBack": "280,125,290,42",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "斗仙阁-今日剩余挑战次数"
+  },
+  {
+    "itemName": "douxian_bonus",
+    "roiFront": "780,125,100,45",
+    "roiBack": "780,125,100,45",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "斗仙阁-特权额外挑战次数"
+  }
+]

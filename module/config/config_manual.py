@@ -18,6 +18,7 @@ class ConfigManual:
         > CrossArena
         > AncientHunt
         > XianfuJiuchongtian
+        > DouXianGe
         """
 
     DEVICE_OVER_HTTP = False
