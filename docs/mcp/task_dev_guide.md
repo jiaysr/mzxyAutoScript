@@ -86,6 +86,9 @@ self.ui_goto(page_xxx)                                  # 通过页面注册表�
 `ui_goto` 即可自动寻路。未注册页面的任务直接继承 `BaseTask`，用图像/OCR 规则导航即可
 （当前 `Challenge`、`WorldBoss`、`Quiz`、`Restart` 都是这种方式）。
 弹窗清理和安全点击由任务类覆盖 `GameUi.ui_close`、`GameUi.ui_safe_click` 配置。
+未知页脱困 `ui_close` 默认已带 4 个公共关闭按钮（返回/绿X×2/紫X，`I_CLOSE_*`，
+全屏搜索、命中点匹配位置），页面识别不出来时会依次尝试点击，把弹窗点掉回到已知页面；
+任务要追加自己的弹窗清理按钮时在列表里带上这些公共按钮。
 
 全局弹窗清理：`tasks/GlobalGame/popup/` 下记录弹窗素材——特征点
 `itemName=popup_<名字>`（image.json）+ 关闭区域 `itemName=popup_<名字>_close`（click.json）。

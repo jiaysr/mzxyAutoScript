@@ -74,6 +74,14 @@ class GameUiAssets:
 	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1180,200,100,120), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_target_button.png")
 	# 主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION） 
 	I_ATTACK_BUTTON = RuleImage(roi_front=(1146,597,82,60), roi_back=(1120,575,120,100), threshold=0.75, method="Template matching", file="./tasks/GameUi/res/res_attack_button.png")
+	# 未知页脱困-返回按钮(角色面板/弹窗右上) 
+	I_CLOSE_RETURN = RuleImage(roi_front=(1202,16,76,37), roi_back=(0,0,1280,720), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_close_return.png")
+	# 未知页脱困-绿X关闭(小尺寸) 
+	I_CLOSE_X_GREEN_SMALL = RuleImage(roi_front=(1199,55,33,30), roi_back=(0,0,1280,720), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/res_close_x_green_small.png")
+	# 未知页脱困-绿X关闭 
+	I_CLOSE_X_GREEN = RuleImage(roi_front=(1199,52,34,37), roi_back=(0,0,1280,720), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/res_close_x_green.png")
+	# 未知页脱困-紫X关闭 
+	I_CLOSE_X_PURPLE = RuleImage(roi_front=(1007,88,27,27), roi_back=(0,0,1280,720), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_close_x_purple.png")
 
 
 	# Ocr Rule Assets
