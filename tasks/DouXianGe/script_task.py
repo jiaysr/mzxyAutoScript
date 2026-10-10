@@ -111,7 +111,7 @@ class ScriptTask(GameUi, DouXianGeAssets):
             self.set_next_run(task='DouXianGe', success=True, finish=True)
 
     # ---------------------------------------------------------------- 导航
-    defenter_douxian_page(self, timeout: int = 45) -> bool:
+    def enter_douxian_page(self, timeout: int = 45) -> bool:
         self.ui_reset_current_page()
         if self.ui_goto(page_douxian, timeout=timeout):
             return True
