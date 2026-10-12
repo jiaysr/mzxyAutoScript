@@ -1,6 +1,6 @@
 <div align="center">
 
-# OnmyojiAutoScript
+# 明珠轩辕AutoScript
 
 <br>
 
@@ -11,116 +11,75 @@
     <img alt="platform" src="https://img.shields.io/badge/platform-Windows-blueviolet">
 </div>
 <div>
-    <img alt="license" src="https://img.shields.io/github/license/runhey/OnmyojiAutoScript">
-    <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/runhey/OnmyojiAutoScript">
-    <img alt="GitHub all releases" src="https://img.shields.io/github/downloads/runhey/OnmyojiAutoScript/total">
-    <img alt="stars" src="https://img.shields.io/github/stars/runhey/OnmyojiAutoScript?style=social">
+    <img alt="license" src="https://img.shields.io/badge/license-GPL--3.0-blue">
 </div>
 <br>
 
-阴阳师自动化脚本 
+明珠轩辕自动化脚本
 
 一键托管
 
-
-### [文档](https://runhey.github.io/OnmyojiAutoScript-website/)
-
-#### 主仓库: [https://github.com/runhey/OnmyojiAutoScript](https://github.com/runhey/OnmyojiAutoScript)
+#### 主仓库: [https://github.com/jiaysr/mzxyAutoScript](https://github.com/jiaysr/mzxyAutoScript)
 
 </div>
 
-阴阳师，作为一个手游，已经进入了生命周期的晚期。从现在到关服的这段时间里，请减少花费在阴阳师上的时间，把一切都交给 OAS。
+明珠轩辕，作为一个手游，每天都有需要重复操作的内容。请减少花费在明珠轩辕上的时间，把一切都交给脚本。
+
+## 致谢与来源 Acknowledgements
+
+本项目**复用自 [OnmyojiAutoScript（OAS）](https://github.com/runhey/OnmyojiAutoScript) 的整套框架**：任务调度系统、设备控制（ADB / uiautomator2 / minitouch / scrcpy / DroidCast / 后台截图…）、截图与找图找色、OCR、配置系统、桌面 GUI / WebUI、MCP 开发工具链等，均来自 OAS 及其上游项目。我们只替换了与游戏相关的内容（任务逻辑、素材、配置项），并在此基础上继续开发。
+
+在此向原作者与社区致以诚挚的感谢：
+
+- 感谢 [runhey](https://github.com/runhey) 与 [OnmyojiAutoScript](https://github.com/runhey/OnmyojiAutoScript) 的所有贡献者——本项目的全部框架基础；
+- 感谢 [LmeSzinc](https://github.com/LmeSzinc) 的 [Alas](https://github.com/LmeSzinc/AzurLaneAutoScript)——OAS 的设计思路与架构源自 Alas；
+- 感谢 OAS 所使用的开源项目：[ppocr-onnx](https://github.com/triwinds/ppocr-onnx)（本地 OCR）、[gurs](https://github.com/2833844911/gurs)（滑动轨迹模拟）、[FluentUI](https://github.com/zhuzichu520/FluentUI)（界面控件）等。
+
+本仓库保持与原项目相同的 **GPL-3.0** 许可证，保留原版权声明。感谢原作者的开源精神，让本项目得以存在。
 
 ## 功能 Features
 
-- **日常任务**: 悬赏封印、小猫咪、小杂签到、金币妖怪、年兽、花合战、地鬼、封魔、御魂整理
-- **每周相关**: 真蛇、秘闻竞速、神秘商店、搜刮商店、斗技、每周小杂事
-- **阴阳寮**: 结界上卡、结界蹭卡、结界突破、寮突破、狩猎战、集体任务、道馆
-- **御魂副本**: 八岐大蛇、业原火、日轮之城、永生之海、六道之门
-- **肝帝专属**: 探索、契灵、御灵、觉醒副本、石距、百鬼夜行
-- **限时活动**: 每期爬塔、超鬼王、对弈竞猜、花车巡游、智力答题
+- **日常任务**: 每日答题、参与战车
+- **战斗任务**: 世界首领、挑战（页面导航）、同服竞技、跨服竞技、上古狩猎、仙府九重天、域外迷窟、斗仙阁
+- **脚本设置**: 设备与截图/操作方式、错误处理、调度优化、防封、重启与登录（官方 / 小七渠道）
 
-### 显著特点 
-- **全部任务**: 你能想到的没有想到的都有，一条龙给你解放双手（该画饼画饼，该挖坑挖坑）
-- **无缝衔接**: 时间管理大师，优异的任务调度系统，无缝寄养，无缝执行任务
-- **装饰可选**: 全部初始皮肤是什么鬼，这里支持你喜欢的庭院、主题等等，[详细说明](https://github.com/runhey/OnmyojiAutoScript/issues/180)
-- **百鬼夜行**: 利用AI来智能撒豆子，模型包含所有式神，[效果展示](https://runhey.github.io/OnmyojiAutoScript-website/docs/user-manual/hyakkiyakou)
+### 显著特点
+
+- **一条龙托管**: 任务调度大师，按 日常 / 每周 / 限时 自动排期，空闲时段还能自动关游戏、关模拟器省资源
+- **通用页面引擎**: 页面寻路、地图探索、虚拟摇杆移动、世界地图传送、简单战斗系统，世界首领 / 域外迷窟等任务共用一套能力
+- **聪明答题**: 本地 OCR 识别题干与选项，题库命中直接作答，未知题目交给 AI（DeepSeek）看图作答，支持多设备题库同步
+- **多开与排队**: 多实例排队执行，任务开始前自动预热启动模拟器，互不抢设备
+- **多种设备方案**: ADB、uiautomator2、minitouch、scrcpy、DroidCast、window_message、MuMu 后台截图（nemu_ipc）
+- **本地 OCR**: 内置 PP-OCRv5，开箱即用，支持模型下载与版本切换
+- **防封策略**: 内置行为间隔与活跃时段控制，模拟真人节奏
+
+## 快速开始 Getting Started
+
+- 环境: Windows、Python 3.10、横屏 1280x720 的模拟器
+- 启动（推荐）: 双击 `deploy/launcher/oas-gui.bat`，自动完成依赖安装并打开桌面 GUI
+- 或手动启动:
+
+  ```
+  pip install -r requirements.txt
+  python gui.py      # 桌面 GUI
+  python server.py   # Web 服务
+  ```
+
+- 首次启动会基于 `config/template.json` 生成实例配置 `config/oas1.json`，在界面中选择模拟器并配置任务即可
+
+## 开发 Development
+
+- 新任务开发指南: [docs/mcp/task_dev_guide.md](docs/mcp/task_dev_guide.md)
+- AI 辅助开发（MCP）: [docs/mcp/README.md](docs/mcp/README.md)，让支持 MCP 的 AI 客户端（如 opencode）直接读写任务代码、截图取色、生成素材与规则、单任务直跑与日志调试
 
 ## 许可证 LICENSE
 
 This project is licensed under the GNU General Public License v3.0.
 
+本项目基于 OAS 二次开发，同样以 GPL-3.0 开源，保留原项目的版权与许可证声明。
+
 ## 声明 Announcement
+
 本软件开源、免费，仅供学习交流使用。开发者团队拥有本项目的最终解释权。使用本软件产生的所有问题与本项目与开发者团队无关。
-OAS is a free open source software, if you paid for OAS from any channel, please refund.
-OAS 是一款免费开源软件，如果你在任何渠道付费购买了OAS，请退款。
-
-## 关于 Alas
-OAS 基于碧蓝航线脚本 [AzurLaneAutoScript](https://github.com/LmeSzinc/AzurLaneAutoScript) 开发，考虑到星穹铁道脚本 [StarRailCopilot](https://github.com/LmeSzinc/StarRailCopilot) 中所提及的问题，
-OAS 在其基础上进行了如下优化：
-- **调整设计架构**: 将前后端拆离出来更加灵活，方便后续的维护和扩展；优化代码架构使其减少同游戏耦合，更加通用。
-- **搭建新的GUI**: 原先的方案过于臃肿，选用 [flutter](https://flutter.cn) 搭建一个全平台的界面端，界面更加舒适简洁
-- **新的OCR库**: 跟随 [LmeSzinc](https://github.com/LmeSzinc) 的步伐， [ppocr-onnx](https://github.com/triwinds/ppocr-onnx) 更加简易使用，精度更高速度更快 
-- **新的Assets管理**: 构建了一个新的Assets管理系统，更加方便的管理游戏资源如图片，文字，点击等等
-- **配置文件 [pydantic](https://github.com/pydantic/pydantic) 化**: pydantic 可以更加优雅的管理用户配置
-
-## 相关项目 Relative Repositories
-
-- [Alas](https://github.com/LmeSzinc/AzurLaneAutoScript): 碧蓝航线的自动化脚本
-- [SRC](https://github.com/LmeSzinc/StarRailCopilot): 星铁速溶茶，崩坏：星穹铁道脚本，基于下一代Alas框架。
-- [OASX](https://github.com/runhey/OASX): 同 OAS 对接的全平台 GUI
-- [NikkeAutoScript](https://github.com/megumiss/NIKKEAutoScript): 胜利女神：NIKKE 自动日常脚本
-- [AAS](https://github.com/TheFunny/ArisuAutoSweeper): 蔚蓝档案自动化脚本
-- [MAA](https://github.com/MaaAssistantArknights/MaaAssistantArknights): 明日方舟小助手，全日常一键长草
-- [FGO-py](https://github.com/hgjazhgj/FGO-py): 全自动免配置跨平台开箱即用的Fate/Grand Order助手
-- [OAS-website](https://github.com/runhey/OnmyojiAutoScript-website): OAS 的文档网站，使用 [docusaurus](https://docusaurus.io/) 构建
-- [ppocr-onnx](https://github.com/triwinds/ppocr-onnx): OCR 库，基于 onnxruntime 和 PaddleOCR
-- [gurs](https://github.com/2833844911/gurs): 基于赛贝尔曲线模拟滑动轨迹, 引入其轨迹模拟人手滑动
-
-## 联系/加入我们 Contact/Join Us
-
-
-
-相对于其他的游戏，阴阳师玩家总体而言对脚本这类工具具有极高的排斥性。树大招风，无论你是否喜欢 OAS ，我们都希望你不在互联网上进行宣传，这保护 OAS , 也保护开发者们。
-
-为此保持较高的入群门槛: 
-#### QQ交流群: 1群465946275 2群1076565458
-- 你的QQ等级必须大于32级(🌞🌞)，注册时间超过一年，低等级账号成分复杂，还请见谅。
-- 你必须拥有一个 Github 账户来点一个 **Star** (这并不影响你入群后取消Star)，同样的要求注册时间过半年。
-- 入群验证填入你的 Github `username`(不是`name`)，无需在意问题是什么，由QQ机器人审核(机器永远的对的)。
-
-#### QQ开发群: 207613181 (有意开发本项目请加此群, 请不要胡乱加群)
-
-- 开发规划：[#354](https://github.com/runhey/OnmyojiAutoScript/issues/354)
-- OAS 继承了 Alas 的设计思路，极大简便了开发，欢迎提交 PR，挑选你感兴趣的部分进行开发即可。
-- OAS 仍在活跃中， 我们会不定期发布未来的工作在 Issues 上并标记为 `help wanted`，欢迎向 OAS 提交 PR，我们会认真阅读你的每一行代码的。
-
-## 安装 Installation 
-
-- [学会提问](https://runhey.github.io/OnmyojiAutoScript-website/docs/user-manual/scientific-question): 最基本的要求，**必看必学必会**
-- [用户手册](https://runhey.github.io/OnmyojiAutoScript-website/docs/user-manual/getting-started): 在线手册，不定期更新，包含所有使用说明
-- [安装教程](https://runhey.github.io/OnmyojiAutoScript-website/docs/user-manual/installation): 保姆式安装手册,多翻翻有惊喜
-- [开发文档](https://runhey.github.io/OnmyojiAutoScript-website/docs/development/preamble): 虽然迭代很多、年久失修，但入门开发必读，具体以源码为准
-
-## 鸣谢 Acknowledgements
-
-感谢所有参与到开发/测试中的朋友们
-
-[![Contributors](https://contributors-img.web.app/image?repo=runhey/OnmyojiAutoScript)](https://github.com/runhey/OnmyojiAutoScript/graphs/contributors)
-
-感谢所有完善文档的朋友们
-
-[![Contributors](https://contributors-img.web.app/image?repo=runhey/OnmyojiAutoScript-website)](https://github.com/runhey/OnmyojiAutoScript-website/graphs/contributors)
-
-<div align="center">
-
-## Star History
-
-[![Star History Chart](https://star-history.dera.page/svg?repos=runhey/OnmyojiAutoScript&type=Date)](https://star-history.dera.page/#runhey/OnmyojiAutoScript&Date)
-
-
-## ⚡ Visitor count
-
-![](https://profile-counter.glitch.me/runhey-OnmyojiAutoScript/count.svg)
-
-</div>
+若你在任何渠道付费购买了本软件，请退款。
+请勿在互联网上公开宣传本项目，这既保护项目，也保护每一位使用者。
