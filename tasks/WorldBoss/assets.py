@@ -10,13 +10,6 @@ from module.atom.list import RuleList
 class WorldBossAssets: 
 
 
-	# Click Rule Assets
-	# 主界面-目标锁定按钮(点文字中心,避开左侧按钮) 
-	C_TARGET_BUTTON_CLICK = RuleClick(roi_front=(1226,270,28,18), roi_back=(1226,270,28,18), name="target_button_click")
-	# 主界面-攻击按钮 
-	C_ATTACK = RuleClick(roi_front=(1146,597,82,60), roi_back=(1146,597,82,60), name="attack")
-
-
 	# Image Rule Assets
 	# 世界首领-蛮锤名称 
 	I_BOSS_MANCHUI = RuleImage(roi_front=(211,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_manchui.png")
@@ -28,13 +21,6 @@ class WorldBossAssets:
 	I_BOSS_FUWANG = RuleImage(roi_front=(435,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_fuwang.png")
 	# 世界首领-蝎王名称 
 	I_BOSS_XIEWANG = RuleImage(roi_front=(738,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_xiewang.png")
-	# 主界面-目标锁定按钮 
-	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1199,223,71,69), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_target_button.png")
-
-
-	# Ocr Rule Assets
-	# 主界面-当前锁定目标名称 
-	O_TARGET_NAME = RuleOcr(roi=(426,5,240,36), area=(424,9,240,36), mode="Full", method="Default", keyword="", name="target_name")
 
 
 	# Swipe Rule Assets

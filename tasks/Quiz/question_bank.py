@@ -152,6 +152,21 @@ class QuestionBank:
         logger.warning(f'答案 {answer_text} 匹配不到选项: {options} (最高分 {best_score:.2f})')
         return ''
 
+    def find_excluded(self, answer_text: str, wrong: list) -> str:
+        """
+        答案文字是否命中排除表（兼容 OCR 写法差异）
+        :return: 命中的排除项文字，没命中返回 ''
+        """
+        if not answer_text or not wrong:
+            return ''
+        target = self.normalize(answer_text)
+        best, best_score = '', 0.0
+        for item in wrong:
+            score = self.similarity(target, self.normalize(item))
+            if score > best_score:
+                best, best_score = item, score
+        return best if best_score >= OPTION_THRESHOLD else ''
+
     # ---------------------------------------------------------------- 写入
     def ensure_entry(self, question: str, options: dict = None) -> dict:
         """

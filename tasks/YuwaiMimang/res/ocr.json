@@ -1,0 +1,29 @@
+[
+  {
+    "itemName": "minimap_npc_text",
+    "roiFront": "950,180,170,420",
+    "roiBack": "950,180,170,420",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "迷窟守卫",
+    "description": "小地图-NPC列表文本区（OCR找迷窟守卫，950,180,1120,600）"
+  },
+  {
+    "itemName": "inside_location",
+    "roiFront": "1080,80,200,45",
+    "roiBack": "1080,80,200,45",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "域外迷窟",
+    "description": "主页面右上角地点文字（确认已进入域外迷窟）"
+  },
+  {
+    "itemName": "inside_remaining_text",
+    "roiFront": "430,578,260,45",
+    "roiBack": "430,578,260,45",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "剩余怪物数量",
+    "description": "域外迷窟-剩余怪物数量文字（读剩余怪物数用）"
+  }
+]

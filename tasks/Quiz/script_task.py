@@ -268,27 +268,28 @@ class ScriptTask(GameUi, QuizAssets):
         if question and self.quiz_config.learn_from_llm:
             self.bank.ensure_entry(question, options)
 
+        wrong_options = (record.get('wrong') or []) if record else []
         ai = self.ask_ai(question=question, options=options,
-                         wrong_options=record.get('wrong') if record else None)
+                         wrong_options=wrong_options)
         if ai is None:
             logger.warning('AI 不可用（题目已落库，下次会重试）')
-            if record and options and record.get('answer'):
-                letter = self.bank.match_option(options, record['answer'])
-                if letter:
-                    logger.warning('退回题库已有答案')
-                    self.click_option(letter)
-                    return
+            letter, answer_text = self.pick_bank_option(record, options)
+            if letter:
+                logger.info(f'题库兜底作答: {answer_text} -> {letter}')
+                self.click_option(letter)
+                # 兜底也读反馈回写：随机选对时能把题库答案转正
+                feedback = self.read_feedback()
+                self.bank.update_by_feedback(question, answer_text, feedback)
+                return
             self.bank.append_unknown(question, options)
-            self.fallback_pick()
+            self.fallback_pick(options, wrong_options)
             return
 
-        answer_text = ai.get('answer_text') or ''
-        letter = ai.get('answer', '').strip().upper()
-        letter = self.bank.match_option(options, answer_text) or letter
+        letter, answer_text = self.pick_ai_option(question, ai, options, wrong_options)
         if letter not in OPTION_CLICKS:
             logger.warning(f'无法确定选项: answer_text={answer_text!r} options={options}')
             self.bank.append_unknown(question, options)
-            self.fallback_pick()
+            self.fallback_pick(options, wrong_options)
             return
 
         self.click_option(letter)
@@ -338,14 +339,78 @@ class ScriptTask(GameUi, QuizAssets):
                 return False
             self.device.sleep(0.3)
 
-    def fallback_pick(self) -> None:
+    def fallback_pick(self, options: dict = None, wrong_options: list = None) -> None:
+        """
+        兜底选一个选项；能给到选项文字和排除表时，避开已验证错误的选项
+        """
         mode = self.quiz_config.unknown_fallback
         if mode == 'skip':
             logger.warning('兜底策略：不作答')
             return
         letter = 'A' if mode == 'first' else random.choice(['A', 'B', 'C'])
+        safe = []
+        if options:
+            safe = [k for k in ('A', 'B', 'C')
+                    if options.get(k) and not self.bank.find_excluded(options[k], wrong_options or [])]
+        if safe and letter not in safe:
+            letter = random.choice(safe)
         logger.warning(f'兜底策略：{mode} -> {letter}')
         self.click_option(letter)
+
+    def pick_ai_option(self, question: str, ai: dict, options: dict,
+                       wrong_options: list) -> tuple:
+        """
+        从 AI 结果解析可点的选项；AI 选了已验证错误的选项时，带着剩余选项重问一次，
+        仍不可用就在剩余选项里随机，保证不点已知错误的选项
+        :return: (letter, answer_text)，无法确定返回 ('', answer_text)
+        """
+        answer_text = ai.get('answer_text') or ''
+        letter = self.bank.match_option(options, answer_text) or ai.get('answer', '').strip().upper()
+        if letter not in OPTION_CLICKS:
+            return '', answer_text
+        if not self.bank.find_excluded(options.get(letter, ''), wrong_options):
+            return letter, answer_text
+
+        remaining = {k: v for k, v in options.items()
+                     if v and not self.bank.find_excluded(v, wrong_options)}
+        if not remaining:
+            logger.warning('AI 选了已排除的选项，且所有选项都已被排除')
+            return '', answer_text
+        logger.warning(f'AI 选了已排除的选项 {answer_text!r}，重问剩余选项 {sorted(remaining)}')
+        retry = self.ask_ai(question=question, options=remaining,
+                            wrong_options=wrong_options)
+        if retry is not None:
+            retry_text = retry.get('answer_text') or ''
+            retry_letter = (self.bank.match_option(remaining, retry_text)
+                            if retry_text else '') or retry.get('answer', '').strip().upper()
+            if retry_letter in remaining:
+                logger.info(f'重问得到: {retry_letter} {retry_text}')
+                return retry_letter, retry_text
+        letter = random.choice(list(remaining))
+        logger.warning(f'重问不可用，在剩余选项里随机: {letter}')
+        return letter, remaining[letter]
+
+    def pick_bank_option(self, record: dict, options: dict) -> tuple:
+        """
+        AI 不可用时的题库兜底：优先用题库已有答案；
+        已验证错误的答案不点，改从剩余选项里随机，避免把同一个错误答案再点一遍
+        :return: (letter, answer_text)，选不出返回 ('', '')
+        """
+        if not (record and options):
+            return '', ''
+        wrong = record.get('wrong') or []
+        answer = record.get('answer') or ''
+        if answer and not self.bank.find_excluded(answer, wrong):
+            letter = self.bank.match_option(options, answer)
+            if letter:
+                return letter, answer
+        remaining = [k for k, v in options.items()
+                     if v and not self.bank.find_excluded(v, wrong)]
+        if remaining:
+            letter = random.choice(remaining)
+            logger.warning(f'题库答案不可用，从剩余选项里选: {letter}')
+            return letter, options.get(letter, '')
+        return '', ''
 
     # ---------------------------------------------------------------- 学习
     def learn(self, question: str, options: dict, answer_text: str,

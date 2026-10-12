@@ -43,14 +43,5 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "世界首领-蝎王名称"
-  },
-  {
-    "itemName": "target_button",
-    "imageName": "res_target_button.png",
-    "roiFront": "1217,235,33,43",
-    "roiBack": "1199,223,71,69",
-    "method": "Template matching",
-    "threshold": 0.8,
-    "description": "主界面-目标锁定按钮"
   }
 ]

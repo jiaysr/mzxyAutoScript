@@ -22,6 +22,11 @@ class I18n(Addition):
 
     @classmethod
     def trans_zh_cn(cls, text) -> str:
+        # 脚本仓库的补充词条（assets/i18n/zh-CN.json）优先于 OASX 上传的内置词条，
+        # 这样新增任务的中文名不需要重新构建 UI 也能用于推送通知
+        additions = cls.load_additions().get('zh-CN', {})
+        if text in additions:
+            return additions[text]
         cn_zh_data = cls.load_zh_cn()
         return cn_zh_data[text] if text in cn_zh_data else text
 

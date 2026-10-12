@@ -97,5 +97,14 @@
     "method": "Default",
     "keyword": "确定",
     "description": "传送确认弹窗-确定按钮（OCR 定位后点击，兼容两种弹窗）"
+  },
+  {
+    "itemName": "target_name",
+    "roiFront": "426,5,240,36",
+    "roiBack": "424,9,240,36",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "主页面-当前锁定目标名（彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出）"
   }
 ]

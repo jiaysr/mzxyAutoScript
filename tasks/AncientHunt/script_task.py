@@ -237,9 +237,7 @@ class ScriptTask(GameUi, AncientHuntAssets):
             if last_name and self.target_name_match(last_name):
                 logger.info(f'Target locked: {last_name}')
                 return True
-            if self.appear_then_click(self.I_TARGET_BUTTON,
-                                      action=self.C_TARGET_BUTTON_CLICK,
-                                      interval=1):
+            if self.ui_lock_target(interval=1):
                 logger.info('Click target button')
                 continue
             self.device.sleep(0.5)
@@ -249,10 +247,9 @@ class ScriptTask(GameUi, AncientHuntAssets):
 
     def get_target_name(self) -> str:
         """
-        读取当前锁定目标的名称（彩色描边字，统一走 GameUi.ocr_color_name）
+        读取当前锁定目标的名称（复用 GameUi.ui_target_name，彩色描边字整行放大识别）
         """
-        return self.ocr_color_name(self.O_TARGET_NAME,
-                                   scales=self.target_name_scales,
+        return self.ui_target_name(scales=self.target_name_scales,
                                    min_score=self.target_name_score)
 
     def target_name_match(self, ocr_text: str) -> bool:
@@ -279,10 +276,7 @@ class ScriptTask(GameUi, AncientHuntAssets):
             if self.appear(self.I_ENTER_HUNT):
                 logger.info('Enter hunt dialog appeared')
                 return True
-            x, y = self.C_ATTACK.coord()
-            logger.info(f'Click attack at ({x}, {y})')
-            self.device.click(x=x, y=y, control_name=self.C_ATTACK.name)
-            self.device.click_record_clear()
+            self.battle_click_attack()
             self.device.sleep(1)
 
         logger.warning('Enter hunt dialog does not appear')

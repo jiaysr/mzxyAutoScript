@@ -86,7 +86,8 @@ class MapNavigation(BaseTask, GameUiAssets):
         """
         if not text:
             return None
-        match = re.search(r'(\d{1,3})\s*[,，.．:：]\s*(\d{1,3})', text)
+        # 分隔符含 ; / ； / ~ / -：PP-OCRv5 偶尔把「,」读成「;」（真机实测 338,105 -> 338;105）
+        match = re.search(r'(\d{1,3})\s*[,，;；.．:：~-]\s*(\d{1,3})', text)
         if match:
             name = re.sub(r'[^\u4e00-\u9fa5]', '', text[:match.start()])
             name = cls.map_fix_name(name)

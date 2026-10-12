@@ -8,7 +8,9 @@ class ConfigManual:
     """
 
     SCHEDULER_PRIORITY = """
-        Restart > WarChariot
+        Restart
+        > YuwaiMimang
+        > WarChariot
         > Quiz
         > WorldBoss
         > Challenge
@@ -16,6 +18,7 @@ class ConfigManual:
         > CrossArena
         > AncientHunt
         > XianfuJiuchongtian
+        > DouXianGe
         """
 
     DEVICE_OVER_HTTP = False

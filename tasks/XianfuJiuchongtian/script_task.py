@@ -490,8 +490,11 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             return False
 
         logger.info(f'走到怪物 {target_coord}')
-        self.map_move_to(target_coord[0], target_coord[1],
-                         ensure_main=False, calibrate=False, timeout=60)
+        # calibrate=False：副本限时 2 分钟，不想花时间做校准探测（用登记的校准值/兜底）
+        # 返回值必须看：走不到就只会在原地放技能，日志里要有明确记录
+        if not self.map_move_to(target_coord[0], target_coord[1],
+                                ensure_main=False, calibrate=False, timeout=60):
+            logger.warning(f'走到怪物 {target_coord} 失败，将在当前位置放技能')
 
         def stop_check():
             self.reset_records()

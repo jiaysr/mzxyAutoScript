@@ -40,6 +40,7 @@ from module.config.config_manual import ConfigManual
 from module.config.utils import convert_to_underscore
 from module.exception import (GameNotRunningError, GamePageUnknownError)
 from module.logger import logger
+from tasks.GameUi.assets import GameUiAssets as G
 from tasks.GameUi.page import Page, PageRegistry, page_item_bag
 from tasks.GameUi.activity import ActivityNavigation
 from tasks.GameUi.bag import BagNavigation
@@ -55,8 +56,10 @@ from tasks.GameUi.top_menu import TopMenuNavigation
 class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigation, MapNavigation, MapMove, SimpleBattle):
     # 本任务在 ConfigManual.SCHEDULER_PRIORITY 中的名字（子类覆盖，用于让路判断）
     SCHEDULER_NAME: str = ''
-    # 各任务的弹窗清理按钮：记录 MZXY 页面素材后根据自己的界面覆盖
-    ui_close: list = []
+    # 未知页面的脱困关闭按钮（返回/绿X×2/紫X）：按顺序尝试，点中一个就返回；
+    # 任务可以追加自己的弹窗清理按钮（整表覆盖时要带上这些公共按钮）
+    ui_close: list = [G.I_CLOSE_RETURN, G.I_CLOSE_X_GREEN_SMALL, G.I_CLOSE_X_GREEN,
+                      G.I_CLOSE_X_PURPLE]
     # 未知页面的兜底安全点击区域：没有配置时不做点击，只等待超时
     ui_safe_click: list = []
 
@@ -284,15 +287,16 @@ class GameUi(PanelNavigation, TopMenuNavigation, ActivityNavigation, BagNavigati
 
     def try_close_unknown_page(self, skip_screenshot: bool = True):
         """
-        尝试关闭未知界面
+        尝试关闭未知界面：按顺序尝试 ui_close 里的关闭按钮（返回/绿X/紫X），
+        命中就点击匹配到的按钮位置，点中一个即返回
         :return: 执行了关闭返回True, 否则False
         """
         self.maybe_screenshot(skip_screenshot)
-        timer = Timer(None).start()
         for close in self.ui_close:
             if self.appear_then_click(close, interval=1.5):
-                logger.warning('Trying to switch to supported page')
-                logger.info(f'[{timer.current():.1f}s]Click {close} on {self.ui_current} success')
+                logger.warning(f'Trying to switch to supported page: click {close.name} '
+                               f'on {self.ui_current}')
+                self.device.sleep(0.5)
                 return True
         return False
 

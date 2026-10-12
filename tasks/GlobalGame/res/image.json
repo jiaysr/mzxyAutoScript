@@ -3,9 +3,9 @@
     "itemName": "death_dialog",
     "imageName": "res_death_dialog.png",
     "roiFront": "486,255,310,260",
-    "roiBack": "486,255,310,260",
+    "roiBack": "486,235,310,300",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "死亡弹窗-三个按钮区块"
+    "description": "死亡弹窗-三个按钮区块（弹窗随提示文案行数上下移动，roiBack 上下放宽 ±20~40px）"
   }
 ]
