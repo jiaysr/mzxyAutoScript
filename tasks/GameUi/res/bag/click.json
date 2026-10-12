@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "bag_sort",
+    "roiFront": "573,591,137,48",
+    "roiBack": "573,591,137,48",
+    "description": "背包-整理背包按钮"
+  },
+  {
+    "itemName": "bag_general_function",
+    "roiFront": "795,591,137,48",
+    "roiBack": "780,580,167,70",
+    "description": "背包-随身功能按钮（整理背包右侧）"
+  }
+]

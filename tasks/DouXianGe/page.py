@@ -5,9 +5,10 @@
 挑战模块(战场) -> 斗仙阁；斗仙阁 -> 战场（顶部 tab 互切）
 """
 from tasks.DouXianGe.assets import DouXianGeAssets as X
-from tasks.GameUi.page import Page, page_challenge
-from tasks.GameUi.targets import TabTarget
+from tasks.GameUi.pages.page import Page, page_challenge
+from tasks.GameUi.pages.targets import TabTarget
 
 page_douxian = Page(X.I_DOUXIAN_PAGE)
 page_challenge.link(button=TabTarget('斗仙阁'), destination=page_douxian)
 page_douxian.link(button=TabTarget('战场'), destination=page_challenge)
+

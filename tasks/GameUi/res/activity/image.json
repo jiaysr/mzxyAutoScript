@@ -1,0 +1,47 @@
+[
+  {
+    "itemName": "page_activity_notice",
+    "imageName": "res_page_activity_notice.png",
+    "roiFront": "531,183,655,23",
+    "roiBack": "528,169,672,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-公告页特征（右侧内容面板顶边）"
+  },
+  {
+    "itemName": "page_activity_list",
+    "imageName": "res_page_activity_list.png",
+    "roiFront": "1059,207,67,40",
+    "roiBack": "1045,197,92,59",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-推荐页特征（活动奖励图标）"
+  },
+  {
+    "itemName": "page_activity_world_boss",
+    "imageName": "res_page_activity_world_boss.png",
+    "roiFront": "158,554,45,41",
+    "roiBack": "135,541,90,65",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-世界首领页特征（奖按钮）"
+  },
+  {
+    "itemName": "page_activity",
+    "imageName": "res_page_activity.png",
+    "roiFront": "1180,28,65,52",
+    "roiBack": "1150,10,130,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动弹窗容器特征（右上角绿X）"
+  },
+  {
+    "itemName": "page_activity_active",
+    "imageName": "res_page_activity_active.png",
+    "roiFront": "872,180,88,36",
+    "roiBack": "850,160,150,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-活跃页特征（活跃值标题）"
+  }
+]

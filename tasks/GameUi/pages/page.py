@@ -6,7 +6,7 @@ import random
 import traceback
 from module.atom.click import RuleClick
 from tasks.GameUi.assets import GameUiAssets as G
-from tasks.GameUi.targets import SidebarTarget, MenuTarget, ActivityTabTarget, ActivitySubTabTarget
+from tasks.GameUi.pages.targets import SidebarTarget, MenuTarget, ActivityTabTarget, ActivitySubTabTarget
 
 
 class PageRegistry:
@@ -127,3 +127,4 @@ def random_click(low: int = None, high: int = None, ltrb: tuple = (True, False, 
     if low is None or high is None:
         return click
     return [click for _ in range(random.randint(low, high))]
+

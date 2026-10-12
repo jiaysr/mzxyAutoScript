@@ -254,10 +254,7 @@
   "dialog_timeout": "对话弹窗超时",
   "battle_coord": "打怪基准坐标",
   "battle_tolerance": "基准坐标容差",
-  "monster_names": "可锁定怪物名",
-  "boss_monster": "Boss 怪物名",
-  "boss_hits": "Boss 攻击次数",
   "attack_interval": "攻击间隔",
-  "max_lock_fail": "锁定失败上限",
-  "recover_timeout": "回位超时"
+  "repair_enable": "中途修理",
+  "repair_interval_minutes": "修理间隔"
 }

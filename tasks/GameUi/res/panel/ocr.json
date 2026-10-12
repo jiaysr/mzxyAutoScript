@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "panel_sidebar",
+    "roiFront": "0,110,245,610",
+    "roiBack": "0,110,245,610",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "角色面板左侧模块栏（OCR 识别区）"
+  },
+  {
+    "itemName": "panel_tabs",
+    "roiFront": "280,8,765,85",
+    "roiBack": "280,8,765,85",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "角色面板顶部 tab 栏（OCR 识别区）"
+  }
+]

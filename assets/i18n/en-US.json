@@ -146,10 +146,7 @@
   "dialog_timeout": "Dialog Timeout",
   "battle_coord": "Battle Base Coord",
   "battle_tolerance": "Base Coord Tolerance",
-  "monster_names": "Lockable Monster Names",
-  "boss_monster": "Boss Monster Name",
-  "boss_hits": "Boss Hits",
   "attack_interval": "Attack Interval",
-  "max_lock_fail": "Max Lock Failures",
-  "recover_timeout": "Recover Timeout"
+  "repair_enable": "Repair Mid-Battle",
+  "repair_interval_minutes": "Repair Interval Minutes"
 }

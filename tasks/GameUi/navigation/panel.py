@@ -16,7 +16,7 @@ from module.base.timer import Timer
 from module.logger import logger
 from module.ocr.base_ocr import enlarge_canvas
 from tasks.GameUi.assets import GameUiAssets
-from tasks.GameUi.page import Page
+from tasks.GameUi.pages.page import Page
 from tasks.base_task import BaseTask
 
 
@@ -293,3 +293,4 @@ class PanelNavigation(BaseTask, GameUiAssets):
         self.device.swipe(p1=p1, p2=p2, control_name='ui_tab_scroll')
         sleep(0.6)
         return True
+

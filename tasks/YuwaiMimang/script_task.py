@@ -367,12 +367,13 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         - 每 LOCK_CHECK_EVERY 轮做一次位置检查：`recover_in_battle` 回基准点 ——
           怪会把角色追着带跑偏，必须在循环内回位，否则越打越远、能锁到的怪越来越少
           （偏差小轻推、偏差大走完整闭环，见 recover_in_battle）
+        - 中途修理：勾选 repair_enable 后，每 repair_interval_minutes 分钟调一次
+          `bag_repair_equipment`（背包随身功能一键修理，站桩修完原地继续打；
+          时段剩余不足 REPAIR_MIN_REMAIN 秒时跳过）
 
         已知限制：快速循环每轮都会点「目标」，所以**打不死的怪会被切换掉**
         （小鬼/鬼将秒杀没问题；鬼王要两下普通攻击，靠下次再遇到它继续磨）。
-        config 里的 boss_monster / boss_hits 就是为这种情况预留的，
-        当前连点循环没有逐轮读目标名（读一次 ~0.3s，会把循环拖慢三倍），
-        所以暂不使用；等实测确认鬼王确实磨不掉再按类型分流。
+        循环不逐轮读目标名（读一次 ~0.3s，会把循环拖慢三倍）。
 
         :param deadline: 覆盖时段结束时间（调试短测用）
         """
@@ -394,7 +395,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         self.device.sleep(0.5)
 
         try:
-            self.battle_loop(coord, tolerance, interval, end)
+            self.battle_loop(coord, tolerance, interval, end, cfg)
         finally:
             # 不管正常收工还是中途报错，都要离开迷窟回中转地图，
             # 别把角色留在迷窟里（报错路径更要清场，否则下次进来还得先找出口）
@@ -404,10 +405,11 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                 # 清场失败不能盖掉原始异常
                 logger.warning(f'Leave mimang failed: {e}')
 
-    def battle_loop(self, coord, tolerance: int, interval: float, end: datetime) -> None:
+    def battle_loop(self, coord, tolerance: int, interval: float, end: datetime, cfg=None) -> None:
         """打怪主循环：点「目标」锁定/切换 -> 三个攻击各点一遍，一直连点到时段结束"""
         logger.hr('开始连点打怪')
         rounds = 0
+        last_repair = datetime.now()
         while datetime.now() < end:
             self.reset_records()
 
@@ -426,9 +428,39 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             if rounds % self.LOCK_CHECK_EVERY:
                 continue
             self.recover_in_battle(coord, tolerance)
+            if self.need_repair(cfg, last_repair, end):
+                self.repair_in_battle(coord, tolerance)
+                last_repair = datetime.now()
             logger.attr('打怪进度', f'rounds={rounds}')
 
         logger.attr('打怪结束', f'共 {rounds} 轮')
+
+    # 时段剩余少于这个秒数就不中途修理了（修一次要十几秒，留给打怪）
+    REPAIR_MIN_REMAIN = 180
+
+    def need_repair(self, cfg, last_repair: datetime, end: datetime) -> bool:
+        """是否到了中途修理的时间：勾选 + 距上次修理超过间隔 + 时段剩余充足"""
+        if cfg is None or not cfg.repair_enable:
+            return False
+        if datetime.now() - last_repair < timedelta(minutes=int(cfg.repair_interval_minutes)):
+            return False
+        return (end - datetime.now()).total_seconds() > self.REPAIR_MIN_REMAIN
+
+    def repair_in_battle(self, coord, tolerance: int) -> None:
+        """
+        打怪中途修理装备：背包随身功能一键修理（角色站桩不动，修完原地继续打）
+
+        修理是纯 UI 操作，角色坐标不变；修完收起菜单（露出「目标」按钮），
+        再回一次基准点（站桩挨打可能被推离），失败也不阻塞后续攻击。
+        """
+        logger.hr('打怪中途修理装备')
+        try:
+            ok = self.bag_repair_equipment()
+            logger.attr('中途修理', '成功' if ok else '失败，继续打怪')
+        except (GameNotRunningError, GamePageUnknownError, GameStuckError) as e:
+            logger.warning(f'中途修理异常，继续打怪: {e}')
+        self.ui_close_menu()
+        self.recover_position(coord, tolerance)
 
     # ---------------------------------------------------------------- 死亡
     def handle_death(self) -> None:
@@ -487,7 +519,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     # ---------------------------------------------------------------- 进入
     def ui_goto_main_page(self) -> bool:
         """确保在主页面（只有主页面有小地图入口）"""
-        from tasks.GameUi.page import page_main
+        from tasks.GameUi.pages.page import page_main
         self.ui_reset_current_page()
         if not self.ui_goto(page_main, timeout=60):
             raise GameStuckError('Main page does not appear')

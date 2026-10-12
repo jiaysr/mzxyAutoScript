@@ -21,7 +21,7 @@ from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.Arena.assets import ArenaAssets
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_challenge, page_main
+from tasks.GameUi.pages.page import page_challenge, page_main
 
 # 竞技场开放时间
 OPEN_TIME = time(12, 0)
@@ -191,3 +191,4 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     ScriptTask(config, device).run()
+

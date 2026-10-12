@@ -4,10 +4,11 @@
 
 挑战模块(战场) -> 仙府九重天；仙府九重天 -> 战场（顶部 tab 互切）
 """
-from tasks.GameUi.page import Page, page_challenge
-from tasks.GameUi.targets import TabTarget
+from tasks.GameUi.pages.page import Page, page_challenge
+from tasks.GameUi.pages.targets import TabTarget
 from tasks.XianfuJiuchongtian.assets import XianfuJiuchongtianAssets as X
 
 page_xianfu = Page(X.I_XIANFU_PAGE)
 page_challenge.link(button=TabTarget('仙府九重天'), destination=page_xianfu)
 page_xianfu.link(button=TabTarget('战场'), destination=page_challenge)
+

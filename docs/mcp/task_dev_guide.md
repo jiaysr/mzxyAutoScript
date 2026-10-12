@@ -74,15 +74,20 @@ self.ui_get_current_page()                              # 识别当前页
 self.ui_goto(page_xxx)                                  # 通过页面注册表自动跳转
 ```
 
-`tasks/GameUi/` 分工：`game_ui.py`（寻路引擎：页面识别/BFS/路径执行/未知页脱困/统一操作入口）、
-`panel.py`（角色面板左侧模块栏与顶部 tab 栏导航）、`top_menu.py`（右上角菜单）、
-`activity.py`（活动弹窗顶部 tab 与右侧可滚动子 tab 导航）、
-`page.py`（页面注册表与页面定义）、`targets.py`（页面连线目标类型）。
+`tasks/GameUi/` 分工（`game_ui.py` 只是薄门面做混入组装）：
+- `core/engine.py`（寻路引擎：页面识别/BFS/路径执行/未知页脱困/统一操作入口）、
+  `core/ocr.py`（OCR 名称匹配/彩色描边字/弹窗文案检测）、`core/utils.py`（页面缓存/重启游戏/慢速滑动/任务让路）、
+- `navigation/`（面板 `panel.py` / 右上角菜单 `top_menu.py` / 活动弹窗 `activity.py` /
+  背包 `bag.py` / 通用功能 `general.py` / 战斗 `battle.py`）、
+- `world/`（世界地图 `map.py` / 虚拟摇杆 `move.py`）、`pages/`（页面注册表 `page.py` / 连线目标 `targets.py`）。
+- 素材 `res/` 按域拆子目录（`common` / `pages` / `panel` / `menu` / `activity` / `bag` / `map` / `battle`），
+  各子目录自带 `click.json` / `image.json` / `ocr.json`；改完规则后只跑单任务提取
+  `AssetsExtractor('tasks/GameUi').extract()` 重生 `assets.py`，不要跑全量提取（会在无素材的子包里生成空文件）。
 目前注册了 `page_main`（主页面）、`page_role_detail`（角色-详情）、`page_item_bag`（物品-背包）、
 `page_challenge`（挑战-战场），以及活动弹窗的 `page_activity`（容器）、`page_activity_notice`（公告）、
 `page_activity_list`（活动-推荐）、`page_activity_world_boss`（活动-世界首领）、
 `page_activity_active`（活动-活跃），其余页面录制素材后
-按 `tasks/GameUi/page.py` 中的方式注册（或在自己的 `tasks/<Task>/page.py` 扩展），
+按 `tasks/GameUi/pages/page.py` 中的方式注册（或在自己的 `tasks/<Task>/page.py` 扩展），
 `ui_goto` 即可自动寻路。未注册页面的任务直接继承 `BaseTask`，用图像/OCR 规则导航即可
 （当前 `Challenge`、`WorldBoss`、`Quiz`、`Restart` 都是这种方式）。
 弹窗清理和安全点击由任务类覆盖 `GameUi.ui_close`、`GameUi.ui_safe_click` 配置。
@@ -151,7 +156,7 @@ if __name__ == '__main__':
 要点：
 
 - 任务类继承 `BaseTask`（截图/点击/OCR/UI 断言等能力）与 `XxxAssets`（规则常量）；
-  需要“页面自动寻路”时再混入 `GameUi`（需先在 `tasks/GameUi/page.py` 注册页面）。
+  需要“页面自动寻路”时再混入 `GameUi`（需先在 `tasks/GameUi/pages/page.py` 注册页面）。
 - 任务正常结束用 `raise TaskEnd('TaskName')`；`run()` 不要返回 True/False 表示成功（由调度器统一处理）。
 - 结束时调用 `self.set_next_run(task='TaskName', success=True, finish=False)` 刷新排期。
 - 参数通过 `self.config.<task_snake>.xxx` 获取。
@@ -159,9 +164,9 @@ if __name__ == '__main__':
 ## 5. 页面对象
 
 ```python
-from tasks.GameUi.page import Page
+from tasks.GameUi.pages.page import Page
 
-# 定义新页面（写在 tasks/GameUi/page.py 或自己的 tasks/<Task>/page.py）
+# 定义新页面（写在 tasks/GameUi/pages/page.py 或自己的 tasks/<Task>/page.py）
 page_x = Page(check_button=XxxAssets.I_PAGE_CHECK)
 page_x.additional = [XxxAssets.I_AD_CLOSE]              # 可选的进页弹窗清理
 page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
@@ -237,7 +242,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   行名匹配统一用 `GameUi.ocr_name_match`（容忍 OCR 形近字误识，且前两字必须一致以免同服/跨服互相误判）
 - minitouch 的滑动速度固定且很快（`swipe` 的 duration 参数对 minitouch 无效），列表扫描要用
   `GameUi.ui_swipe_gentle` 拆成多段小滑动（每屏 150px 左右）+ 滚动后等待 0.8s 再截图识别，
-  整段快速滑动会甩过头、滑完立刻截图会识别不准（参考 `tasks/GameUi/activity.py`）
+  整段快速滑动会甩过头、滑完立刻截图会识别不准（参考 `tasks/GameUi/navigation/activity.py`）
 - **页面缓存失效**：`ui_goto` 依赖 `GameUi.ui_current` 算路径，界面在 `ui_goto` 之外发生变化后
   （重启游戏、角色自动寻路离开活动页、任务弹窗关闭回主页面等）必须调用
   `self.ui_reset_current_page()` 作废缓存，让下次导航重新识别，否则：
@@ -250,14 +255,19 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 ## 9. 公共能力（GameUi）
 
 - 背包找物品：`bag_find_item(name)` 返回物品图标中心坐标、`bag_click_item(name)` 查找并点击；
-  OCR 物品名 + 慢速滚动逐屏扫描，几何常量（4 列、行距 120px）在 `tasks/GameUi/bag.py`
+  OCR 物品名 + 慢速滚动逐屏扫描，几何常量（4 列、行距 120px）在 `tasks/GameUi/navigation/bag.py`
+- 修理装备：`bag_repair_equipment()`（`tasks/GameUi/navigation/general.py`，已混入 `GameUi`，后续其他通用功能也放这里）：
+  背包页 -> 点「随身功能」-> 4 按钮弹窗点「修理装备」-> 确认弹窗点「确定」
+  （确认文案只匹配「用于修理全部装备」固定片段，铜贝数量不固定不匹配）-> 关「修理成功」提示 -> 回主页面；
+  按钮用 OCR 定位（`O_BAG_GENERAL_MENU` / `O_BAG_REPAIR_CONFIRM` / `O_BAG_REPAIR_RESULT`），
+  「随身功能」另有固定坐标 `C_BAG_GENERAL_FUNCTION` 优先点击、OCR 兜底
 - 背包用物品：`bag_use_item(name)` = 查找并点击物品 -> 在详情面板 OCR 定位并点击「立即使用」
   （面板文案里有「使用后可参与…」的说明，所以按按钮文字精确匹配，不要匹配「使用」两字）
 - 活跃任务状态：`active_task_completed(name)`
 - 弹窗文案：`dialog_appear(rule, text)`；长时间等待：`reset_records()`、`ui_swipe_gentle(p1, p2)`
 - 重启游戏：`ui_restart_game()`（跑一遍重启+登录流程，并作废页面缓存）
 - 作废页面缓存：`ui_reset_current_page()`（界面在 `ui_goto` 之外变化后、下次寻路前调用）
-- 世界地图传送（`tasks/GameUi/map.py`，任务直接 `self.map_xxx()` 调用，不要各自实现）：
+- 世界地图传送（`tasks/GameUi/world/map.py`，任务直接 `self.map_xxx()` 调用，不要各自实现）：
   - `map_current_location()` 读主页面右上角地点与坐标（如 `('沼泽', 427, 59)`），
     含 OCR 形近字兼容（万剑家→万剑冢、或外灵岛→域外灵岛，维护在 `MAP_NAME_FIXES`）
   - `map_teleport(name)` 按名称传送（小地图 -> 世界地图 -> 列表 -> 确认弹窗，兼容免费/铜贝两种弹窗）
@@ -265,7 +275,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     维护在 `MAP_INITIAL_POS`（新增地点后需实测补上）
   - `map_close_main_popup()` 关闭会盖住小地图入口的主页面弹窗（活动弹窗）；
     注意 `ui_goto(page_main)` 只看主页面右下角特征，弹窗开着也会判定「到达主页面」
-- 虚拟摇杆移动（`tasks/GameUi/move.py`，任务直接 `self.map_move_to(x, y)` 调用，不要各自实现）：
+- 虚拟摇杆移动（`tasks/GameUi/world/move.py`，任务直接 `self.map_move_to(x, y)` 调用，不要各自实现）：
   在主页面用左下角圆形轮盘（圆心 `MOVE_WHEEL_CENTER = (193, 520)`）走到指定地图坐标，
   读右上角坐标闭环校正直到到达；只有主页面有轮盘，`map_move_to` 默认先
   `map_move_ensure_main_page()`，跨地图仍用 `map_teleport` 传送
@@ -292,7 +302,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   - OCR 会把坐标分隔符 `,` 认成 `;`（真机实测 `338,105` -> `338;105`）。
     `map_parse_location` 的分隔符正则必须含 `;；~`，否则会掉进 `map_split_digits`
     的无分隔符分支，把坐标拆成 `10,5`（dist 瞬间变 349，往反方向跑）
-- 简单战斗系统（`tasks/GameUi/battle.py`，任务直接调用，**不要自己再录素材**）：
+- 简单战斗系统（`tasks/GameUi/navigation/battle.py`，任务直接调用，**不要自己再录素材**）：
   - 目标锁定（主页面通用能力，WorldBoss / 上古狩猎 / 域外迷窟共用）：
     - `ui_lock_target(interval=)` 点右侧竖排「目标」按钮（锁定/切换目标）。
       **必须先 `ui_close_menu()` 收起右上角菜单**，否则那一列被菜单图标盖住
@@ -393,8 +403,10 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
       `self.battle_click_skill(0|2)`。迷窟里实测坐标逐个吻合，
       **不要再在各任务 res/ 里重复录一遍**
     - 每轮：点「目标」切换 -> `click_attacks_once` 把普通攻击 + 技能1 + 技能3 各点一遍；
-      **不读目标名、不读剩余怪物数量**（`monster_names` / `max_lock_fail` / `boss_*` 字段暂未使用），
-      一直连点到时段结束
+      **不读目标名、不读剩余怪物数量**，一直连点到时段结束
+    - 中途修理：勾选 `repair_enable` 后每 `repair_interval_minutes` 分钟（默认 20）
+      调一次 `bag_repair_equipment`（背包随身功能一键修理，站桩修完原地继续打；
+      时段剩余不足 3 分钟时跳过；修完收起菜单并回一次基准点）
     - 位置检测保留：每 `LOCK_CHECK_EVERY`（3）轮调 `recover_in_battle` 回基准点——
       偏差小轻推（`map_move_nudge`，约 0.3s）、偏差大才走完整闭环 `map_move_to`；
       怪会追踪把角色带着跑偏，必须在循环内回位
@@ -439,3 +451,4 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   - 坑3：翻牌面板有入场动画，点太快会没翻上（OCR 读到「选择翻开一张牌」提示），
     现在先等 1.5s，翻完读不到碎片且还是提示文案就再翻一次（最多 3 次）
   - 时间：单局 ~30s（副本限时 2 分钟），一轮清仙石可能连打好几局
+

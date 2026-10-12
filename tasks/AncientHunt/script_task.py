@@ -28,7 +28,7 @@ from module.exception import (GameNotRunningError,
 from module.logger import logger
 from tasks.AncientHunt.assets import AncientHuntAssets
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_main
+from tasks.GameUi.pages.page import page_main
 
 
 class ScriptTask(GameUi, AncientHuntAssets):
@@ -305,3 +305,4 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     ScriptTask(config, device).run()
+

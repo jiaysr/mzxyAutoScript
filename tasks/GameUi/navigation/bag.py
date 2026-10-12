@@ -17,7 +17,7 @@ from module.base.timer import Timer
 from module.exception import GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets
-from tasks.GameUi.page import page_item_bag
+from tasks.GameUi.pages.page import page_item_bag
 from tasks.base_task import BaseTask
 
 
@@ -189,3 +189,4 @@ class BagNavigation(BaseTask, GameUiAssets):
         column = min(max(column, 0), len(centers) - 1)
         row = round((text_y - self.BAG_ROW_CENTER) / self.BAG_ROW_PITCH)
         return centers[column], self.BAG_ROW_CENTER + row * self.BAG_ROW_PITCH
+

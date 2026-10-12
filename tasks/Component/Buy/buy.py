@@ -3,7 +3,7 @@
 # github https://github.com/runhey
 import time
 
-from tasks.GameUi.page import random_click
+from tasks.GameUi.pages.page import random_click
 from typing import Union
 
 from module.atom.image import RuleImage
@@ -193,4 +193,5 @@ if __name__ == '__main__':
     c = Config('oas1')
     d = Device(c)
     t = Buy(c, d)
+
 
