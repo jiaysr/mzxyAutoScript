@@ -10,5 +10,17 @@
     "roiFront": "1016,126,47,44",
     "roiBack": "999,109,80,73",
     "description": "上古狩猎关闭"
+  },
+  {
+    "itemName": "popup_boss_reward_close",
+    "roiFront": "609,525,64,35",
+    "roiBack": "598,521,83,44",
+    "description": ""
+  },
+  {
+    "itemName": "popup_supplies_close",
+    "roiFront": "1020,129,43,29",
+    "roiBack": "1005,120,73,54",
+    "description": "物资争夺关闭按钮"
   }
 ]
