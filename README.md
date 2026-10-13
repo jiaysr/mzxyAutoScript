@@ -21,6 +21,8 @@
 
 #### 主仓库: [https://github.com/jiaysr/mzxyAutoScript](https://github.com/jiaysr/mzxyAutoScript)
 
+#### 前端仓库: [https://github.com/jiaysr/mzxyOASX](https://github.com/jiaysr/mzxyOASX)
+
 </div>
 
 明珠轩辕，作为一个手游，每天都有需要重复操作的内容。请减少花费在明珠轩辕上的时间，把一切都交给脚本。
@@ -53,19 +55,38 @@
 - **本地 OCR**: 内置 PP-OCRv6（RapidOCR 引擎），支持颜色过滤、批量合并识别与结果缓存
 - **防封策略**: 内置行为间隔与活跃时段控制，模拟真人节奏
 
-## 快速开始 Getting Started
+## 安装 Installation
 
-- 环境: Windows、Python 3.10、横屏 1280x720 的模拟器
-- 启动（推荐）: 双击 `deploy/launcher/oas-gui.bat`，自动完成依赖安装并打开桌面 GUI
-- 或手动启动:
+> 安装与使用流程同 [OAS 官方文档](https://runhey.github.io/OnmyojiAutoScript-website/docs/user-manual/installation)，完整版见
+> **[docs/installation.md](docs/installation.md)**。
 
-  ```
-  pip install -r requirements.txt
-  python gui.py      # 桌面 GUI
-  python server.py   # Web 服务
-  ```
+本项目拆成两个仓库：**前端 [mzxyOASX](https://github.com/jiaysr/mzxyOASX)**（Flutter 控制台，启动/停止/看日志）+ **脚本本体**（本仓库）。
 
-- 首次启动会基于 `config/template.json` 生成实例配置 `config/oas1.json`，在界面中选择模拟器并配置任务即可
+1. **下载**：前端从 [mzxyOASX](https://github.com/jiaysr/mzxyOASX) 获取；脚本本体从 [Releases](https://github.com/jiaysr/mzxyAutoScript/releases) 下载（不要下 Source code），或 `git clone -b dev`。脚本目录完全便携，删除即卸载。
+2. **配置**：编辑脚本目录下的 `config/deploy.yaml`，重点是
+
+   ```yaml
+   Repository: https://github.com/jiaysr/mzxyAutoScript
+   Branch: dev
+   PypiMirror: https://pypi.tuna.tsinghua.edu.cn/simple
+   ```
+
+   OCR 默认已经用 PP-OCRv6，一般不用动。
+3. **启动**（三种方式，本质一样）：
+   - 从 mzxyOASX 的服务页面选择脚本目录后启动（推荐）；
+   - 双击 `deploy/launcher/oas-gui.bat`（发行包里的 `oas.exe`），自动更新 + 装依赖 + 打开 GUI；
+   - 命令行：
+
+     ```
+     toolkit\python.exe -m deploy.installer    # 拉代码 + 装依赖 + 准备 adb
+     toolkit\python.exe server.py              # Web 服务（或 pythonw gui.py 桌面 GUI）
+     ```
+
+   首次安装一般 2~5 分钟（取决于网络），看到 `OAS web service startup done` 即成功。
+4. **登录**：浏览器打开 `http://127.0.0.1:22267`（端口见启动日志 `[Port]`）；从 mzxyOASX 登录填 `IP:Port`，不要填用户名密码。
+5. **使用**：模拟器横屏 1280x720 并打开 ADB → 「脚本设置」里配置设备与截图/操作方式 → 勾选任务并启动。
+
+环境要求：Windows、Python 3.10（发行包已内置 toolkit 环境）、模拟器横屏 1280x720。
 
 ## 开发 Development
 
