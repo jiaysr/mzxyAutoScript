@@ -356,6 +356,8 @@ class GeneralInvite(BaseTask, GeneralInviteAssets):
         friend_class = []
         class_ocr = [self.O_F_LIST_1, self.O_F_LIST_2, self.O_F_LIST_3, self.O_F_LIST_4]
         class_index = 0
+        # 四个列表区域都在同一张截图上，合并成一次 OCR（mask 批量识别 + 帧缓存）
+        self.ocr_prefetch(*class_ocr)
         list_1 = self.O_F_LIST_1.ocr(self.device.image)
         list_2 = self.O_F_LIST_2.ocr(self.device.image)
         list_3 = self.O_F_LIST_3.ocr(self.device.image)

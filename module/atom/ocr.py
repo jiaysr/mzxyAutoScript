@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 
 from module.ocr.base_ocr import BaseCor, OcrMode, OcrMethod
+from module.ocr.batch import OcrRequest, prefetch as batch_prefetch
 from module.ocr.sub_ocr import Full, Single, Digit, DigitCounter, Duration, Quantity
 from module.base.utils.utils import random_normal_distribution_int
 from module.logger import logger
@@ -14,8 +15,40 @@ from module.logger import logger
 
 class RuleOcr(Digit, DigitCounter, Duration, Single, Full, Quantity):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, color_filter=None, **kwargs):
+        """
+        :param color_filter: 颜色过滤配置，识别前先按颜色二值化，支持
+            ColorFilterConfig / dict / (method, lower, upper) 三种写法
+        """
+        super().__init__(*args, color_filter=color_filter, **kwargs)
+
+    def ocr_request(self) -> OcrRequest:
+        """
+        转成一条批量 OCR 请求
+
+        Full / Quantity 需要检测，参与 batch；
+        其它模式只做单行识别，不参与 batch（与 MaaFramework 的 only_rec 一致）
+        """
+        return OcrRequest(
+            roi=tuple(int(v) for v in self.roi),
+            name=self.name,
+            only_rec=self.mode not in (OcrMode.FULL, OcrMode.QUANTITY),
+            has_color_filter=self.color_filter is not None,
+        )
+
+    @staticmethod
+    def prefetch(image, rules: list, model=None) -> int:
+        """
+        对同一帧截图的多个 OCR 规则做一次合并识别（mask 方案），
+        之后这些规则自己的 ocr()/detect_and_ocr() 会直接命中帧缓存
+        :return: 识别到的文本框数量
+        """
+        rules = [rule for rule in rules if isinstance(rule, RuleOcr) and rule.roi]
+        if len(rules) < 2:
+            return 0
+        if model is None:
+            model = rules[0].model
+        return batch_prefetch(image, [rule.ocr_request() for rule in rules], model)
 
 
     def after_process(self, result):

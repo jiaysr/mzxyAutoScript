@@ -33,7 +33,7 @@
 
 - 感谢 [runhey](https://github.com/runhey) 与 [OnmyojiAutoScript](https://github.com/runhey/OnmyojiAutoScript) 的所有贡献者——本项目的全部框架基础；
 - 感谢 [LmeSzinc](https://github.com/LmeSzinc) 的 [Alas](https://github.com/LmeSzinc/AzurLaneAutoScript)——OAS 的设计思路与架构源自 Alas；
-- 感谢 OAS 所使用的开源项目：[ppocr-onnx](https://github.com/triwinds/ppocr-onnx)（本地 OCR）、[gurs](https://github.com/2833844911/gurs)（滑动轨迹模拟）、[FluentUI](https://github.com/zhuzichu520/FluentUI)（界面控件）等。
+- 感谢 OAS 所使用的开源项目：[RapidOCR](https://github.com/RapidAI/RapidOCR)（本地 OCR 引擎）、[MaaFramework / MaaCommonAssets](https://github.com/MaaXYZ/MaaFramework)（PP-OCRv6 模型与批量识别思路）、[gurs](https://github.com/2833844911/gurs)（滑动轨迹模拟）、[FluentUI](https://github.com/zhuzichu520/FluentUI)（界面控件）等。
 
 本仓库保持与原项目相同的 **GPL-3.0** 许可证，保留原版权声明。感谢原作者的开源精神，让本项目得以存在。
 
@@ -50,7 +50,7 @@
 - **聪明答题**: 本地 OCR 识别题干与选项，题库命中直接作答，未知题目交给 AI（DeepSeek）看图作答，支持多设备题库同步
 - **多开与排队**: 多实例排队执行，任务开始前自动预热启动模拟器，互不抢设备
 - **多种设备方案**: ADB、uiautomator2、minitouch、scrcpy、DroidCast、window_message、MuMu 后台截图（nemu_ipc）
-- **本地 OCR**: 内置 PP-OCRv5，开箱即用，支持模型下载与版本切换
+- **本地 OCR**: 内置 PP-OCRv6（RapidOCR 引擎），支持颜色过滤、批量合并识别与结果缓存
 - **防封策略**: 内置行为间隔与活跃时段控制，模拟真人节奏
 
 ## 快速开始 Getting Started

@@ -444,6 +444,21 @@ class BaseTask(GlobalGame):
             return True
         return False
 
+    def ocr_prefetch(self, *targets) -> int:
+        """
+        对当前截图的多个 OCR 规则做一次合并识别（Maa 风格的 mask 方案 + 帧缓存复用）
+
+        之后这些规则自己的 ocr()/detect_and_ocr() 会直接命中缓存，不再重复推理。
+        适合「同一屏要查多个关键词/多个区域」的场景。
+
+        :param targets: RuleOcr 列表
+        :return: 识别到的文本框数量
+        """
+        rules = [target for target in targets if isinstance(target, RuleOcr) and target.roi]
+        if len(rules) < 2:
+            return 0
+        return RuleOcr.prefetch(self.device.image, rules)
+
     def ocr_appear(self, target: RuleOcr, interval: float = None, exact: bool = False) -> bool:
         """
         ocr识别目标
