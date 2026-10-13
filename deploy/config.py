@@ -13,8 +13,8 @@ class ExecutionError(Exception):
 
 class ConfigModel:
     # Git
-    Repository: str = "https://gitcode.com/OnmyojiAutoScript/OnmyojiAutoScript.git"
-    Branch: str = "master"
+    Repository: str = "https://github.com/jiaysr/mzxyAutoScript"
+    Branch: str = "dev"
     GitExecutable: str = "./toolkit/Git/mingw64/bin/git.exe"
     GitProxy: Optional[str] = None
     SSLVerify: bool = False
@@ -104,6 +104,9 @@ class DeployConfig(ConfigModel):
         # 2025.09.01 腾讯coding跑路了
         if self.config["Repository"].startswith("https://e.coding.net/"):
             self.config["Repository"] = "https://gitcode.com/OnmyojiAutoScript/OnmyojiAutoScript.git"
+        # 老配置里可能还继承着上游 OAS 仓库，统一改成本项目，避免更新时拉错代码
+        if self.config["Repository"].startswith("https://gitcode.com/OnmyojiAutoScript/"):
+            self.config["Repository"] = "https://github.com/jiaysr/mzxyAutoScript"
 
         for key, value in self.config.items():
             if hasattr(self, key):
