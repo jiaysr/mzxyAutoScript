@@ -38,10 +38,14 @@ class ConfigModel:
     StartOcrServer: bool = False
     OcrServerPort: int = 22268
     OcrClientAddress: str = "127.0.0.1:22268"
-    # PP-OCRv5 / PP-OCRv4 / default(builtin PP-OCRv3 det + PP-OCRv2 rec)
-    OcrModelVersion: str = "PP-OCRv5"
+    # PP-OCRv6 / PP-OCRv6-tiny / PP-OCRv5（引擎为 RapidOCR）
+    OcrModelVersion: str = "PP-OCRv6"
     OcrModelDir: str = "./bin/ocr_model"
     OcrModelAutoDownload: bool = True
+    # 是否允许改写模型文件的 IR 版本（默认关闭，模型源提供的都是 onnxruntime 1.16 可加载的 IR v8）
+    OcrModelAllowIRRewrite: bool = False
+    # onnxruntime CPU 线程数（与 MaaFramework 一致，默认 4）
+    OcrCpuThreadNum: int = 4
 
     # Update
     EnableReload: bool = True

@@ -5,7 +5,6 @@ import time
 import cv2
 import numpy as np
 
-from ppocronnx.predict_system import BoxedResult
 from enum import Enum
 
 
@@ -13,7 +12,10 @@ from module.base.decorator import cached_property
 from module.base.utils import area_pad, crop, float2str
 from typing import Any
 
+from module.ocr.batch import FrameOcrCache, shift_box
+from module.ocr.engine import BoxedResult
 from module.ocr.models import get_ocr_model
+from module.ocr.utils import ColorFilterConfig
 from module.exception import ScriptError
 from module.logger import logger
 
@@ -57,6 +59,8 @@ class BaseCor:
     roi: list = []  # [x, y, width, height]
     area: list = []  # [x, y, width, height]
     keyword: str = ""  # 默认为空
+    color_filter: ColorFilterConfig = None  # 颜色过滤，识别前先二值化
+    cache_disable: bool = False  # 置 true 时不使用帧缓存（每次调用都重新识别）
 
 
     def __init__(self,
@@ -65,7 +69,8 @@ class BaseCor:
                  method: str,
                  roi: tuple,
                  area: tuple,
-                 keyword: str) -> None:
+                 keyword: str,
+                 color_filter: Any = None) -> None:
         """
 
         :param name:
@@ -74,6 +79,7 @@ class BaseCor:
         :param roi:
         :param area:
         :param keyword:
+        :param color_filter: 颜色过滤配置，支持 ColorFilterConfig / dict / (method, lower, upper)
         """
         self.name = name.upper()
         if isinstance(mode, str):
@@ -87,6 +93,7 @@ class BaseCor:
         self.roi: list = list(roi)
         self.area: list = list(area)
         self.keyword = keyword
+        self.color_filter = ColorFilterConfig.from_value(color_filter)
 
     def __str__(self):
         return f"{self.name}"
@@ -104,7 +111,27 @@ class BaseCor:
         :param image:
         :return:
         """
+        if self.color_filter is not None:
+            image = self.color_filter.apply(image)
         return image
+
+    def prep_key(self) -> tuple:
+        """
+        预处理指纹：用于帧缓存判断「同样的 ROI + 同样的预处理」才能复用结果
+        """
+        color = None
+        if self.color_filter is not None:
+            color = (self.color_filter.method, tuple(map(tuple, self.color_filter.ranges)),
+                     self.color_filter.binary)
+        return type(self).__name__, color
+
+    def frame_cache(self, image):
+        """
+        当前帧的 OCR 缓存；不可用时返回 None
+        """
+        if getattr(self, 'cache_disable', False):
+            return None
+        return FrameOcrCache.for_image(image, self.model)
 
     def after_process(self, result):
         """
@@ -149,15 +176,28 @@ class BaseCor:
         """
         只支持横方向的单行ocr，不支持竖方向的单行ocr
         注意：这里使用了预处理和后处理
+
+        同一帧内相同 ROI + 相同预处理的识别结果会复用缓存
         :param image:
         :return:
         """
         # pre process
         start_time = time.time()
-        image = self.crop(image, self.roi)
-        image = self.pre_process(image)
-        # ocr
-        result, score = self.model.ocr_single_line(image)
+        roi = tuple(int(v) for v in self.roi) if self.roi else ()
+        cache = self.frame_cache(image) if len(roi) == 4 else None
+        key = (roi, self.prep_key()) if cache is not None else None
+
+        if cache is not None and key in cache.single_results:
+            cache.hits += 1
+            result, score = cache.single_results[key]
+        else:
+            crop_image = self.crop(image, self.roi)
+            crop_image = self.pre_process(crop_image)
+            result, score = self.model.ocr_single_line(crop_image)
+            if cache is not None:
+                cache.misses += 1
+                cache.put_single(key, result, score)
+
         contains_digit = any(char.isdigit() for char in result)
 
         if score >= self.score:
@@ -166,7 +206,6 @@ class BaseCor:
                                                                           OcrMode.QUANTITY]:
             logger.warning(
                 f'[{self.name}] Score {score:.2f} is low, but result "{result}" contains a digit. Accepting it.')
-            print(f'能保留')
         else:
             result = ""
         # after proces
@@ -176,20 +215,79 @@ class BaseCor:
                     text=f'[{result}]')
         return result
 
+    def _predict(self, image) -> list[BoxedResult]:
+        """
+        单条规则的常规识别：裁剪 ROI -> 预处理 -> 放大画布 -> 检测+识别
+        :return: 以 ROI 左上角为原点的结果
+        """
+        image = self.crop(image, self.roi)
+        image = self.pre_process(image)
+        image = enlarge_canvas(image)
+        return self.model.detect_and_ocr(image)
+
+    def _predict_absolute(self, image, roi: tuple) -> list[BoxedResult]:
+        """
+        常规识别，但把结果坐标换算成全图绝对坐标（供帧缓存复用）
+        """
+        boxed_results = self._predict(image)
+        if not roi:
+            return boxed_results
+        return [
+            BoxedResult(box=shift_box(r.box, roi[0], roi[1]), text_img=r.text_img,
+                        ocr_text=r.ocr_text, score=r.score)
+            for r in boxed_results
+        ]
+
+    def _frame_raw_results(self, image, roi: tuple, cache, key) -> list:
+        """
+        统一的取结果入口（绝对坐标）：
+            1. 规则级缓存命中
+            2. 批量 mask 结果复用
+            3. 常规识别并写回缓存
+        """
+        if cache is None:
+            return self._predict_absolute(image, roi)
+
+        cached = cache.get_rule(key)
+        if cached is not None:
+            cache.hits += 1
+            return cached
+
+        cached = cache.query_batch(roi)
+        if cached:
+            cache.hits += 1
+        else:
+            cached = self._predict_absolute(image, roi)
+            cache.misses += 1
+        cache.put_rule(key, cached)
+        return cached
+
     def detect_and_ocr(self, image, logDisplay: bool = True) -> list[BoxedResult]:
         """
         注意：这里使用了预处理和后处理
+
+        同一帧截图内会走 FrameOcrCache：
+            - 相同 ROI + 相同预处理的结果直接复用
+            - 批量 mask 识别（module.ocr.batch.prefetch）过的结果优先复用
         :param image:
         :return:
         """
         # pre process
         start_time = time.time()
-        image = self.crop(image, self.roi)
-        image = self.pre_process(image)
-        image = enlarge_canvas(image)
+        roi = tuple(int(v) for v in self.roi) if self.roi else ()
+        cache = self.frame_cache(image) if len(roi) == 4 else None
+        key = (roi, self.prep_key()) if cache is not None else None
 
-        # ocr
-        boxed_results: list[BoxedResult] = self.model.detect_and_ocr(image)
+        cached = self._frame_raw_results(image, roi, cache, key)
+        if cache is not None:
+            boxed_results = [
+                BoxedResult(box=shift_box(r.box, -roi[0], -roi[1]), text_img=r.text_img,
+                            ocr_text=r.ocr_text, score=r.score)
+                for r in cached
+            ]
+        else:
+            boxed_results = cached
+
         results = []
         # after proces
         for result in boxed_results:
@@ -268,11 +366,10 @@ class BaseCor:
         """
         # pre process
         start_time = time.time()
-        image = self.crop(image, self.roi)
-        image = self.pre_process(image)
-        image = enlarge_canvas(image)
-        # ocr
-        boxed_results: list[BoxedResult] = self.model.detect_and_ocr(image)
+        roi = tuple(int(v) for v in self.roi) if self.roi else ()
+        cache = self.frame_cache(image) if len(roi) == 4 else None
+        key = (roi, self.prep_key()) if cache is not None else None
+        boxed_results = self._frame_raw_results(image, roi, cache, key)
         results = ''
         # after proces
         for result in boxed_results:

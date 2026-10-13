@@ -125,13 +125,6 @@ class OcrServer:
     def ping(self) -> bool:
         return True
 
-    @staticmethod
-    def _rotate_vertical(image: np.ndarray) -> np.ndarray:
-        height, width = image.shape[0:2]
-        if height * 1.0 / width >= 1.5:
-            return np.rot90(image)
-        return image
-
     def ocr_single_line(self, image_bytes: bytes):
         image = pickle.loads(image_bytes)
         result, score = self.model.ocr_single_line(image)
@@ -146,29 +139,10 @@ class OcrServer:
         vertical: bool = False,
     ) -> List[Dict[str, Any]]:
         image = pickle.loads(image_bytes)
-        if not vertical:
-            results = self.model.detect_and_ocr(image, drop_score=drop_score,
-                                                unclip_ratio=unclip_ratio,
-                                                box_thresh=box_thresh)
-            return [
-                {"box": r.box.tolist(), "ocr_text": r.ocr_text, "score": float(r.score)}
-                for r in results
-            ]
-
-        text_recognizer = self.model.text_recognizer
-
-        def vertical_text_recognizer(img_crop_list):
-            img_crop_list = [self._rotate_vertical(i) for i in img_crop_list]
-            return text_recognizer(img_crop_list)
-
-        self.model.text_recognizer = vertical_text_recognizer
-        try:
-            results = self.model.detect_and_ocr(image, drop_score=drop_score,
-                                                unclip_ratio=unclip_ratio,
-                                                box_thresh=box_thresh)
-        finally:
-            self.model.text_recognizer = text_recognizer
-
+        results = self.model.detect_and_ocr(image, drop_score=drop_score,
+                                            unclip_ratio=unclip_ratio,
+                                            box_thresh=box_thresh,
+                                            vertical=vertical)
         return [
             {"box": r.box.tolist(), "ocr_text": r.ocr_text, "score": float(r.score)}
             for r in results
@@ -201,7 +175,7 @@ class ModelProxy:
     ):
         payload = pickle.dumps(image, protocol=4)
         results = self.client.detect_and_ocr(payload, drop_score, unclip_ratio, box_thresh, vertical)
-        from ppocronnx.predict_system import BoxedResult
+        from module.ocr.engine import BoxedResult
         return [
             BoxedResult(np.array(item["box"]), None, item["ocr_text"], item["score"])
             for item in results
