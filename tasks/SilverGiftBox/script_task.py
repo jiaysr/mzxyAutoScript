@@ -270,8 +270,10 @@ class ScriptTask(GameUi, SilverGiftBoxAssets):
         """
         读选择数量弹窗中间的当前数量
 
-        注意：白色小数字 OCR 识别极不可靠（多种预处理组合都读不出），
-        这里只做尽力读取，调数量不依赖它（从 1 点减号必回绕到最大）。
+        新 OCR 引擎（RapidOCR + PP-OCRv6）对白色小数字稳定可读：
+        真机实测「选择数量(1-1)」弹窗连点减号 14 次，读数全部正确，
+        数字 1 不会再被误读成 7（旧 ppocr-onnx 引擎 det 路径会把 1 读成 7）。
+        :return: 当前数量 / None（没读出来）
         """
         self.screenshot()
         texts = [item.ocr_text for item in
@@ -283,24 +285,55 @@ class ScriptTask(GameUi, SilverGiftBoxAssets):
         logger.info(f'Quantity texts: {texts}')
         return None
 
+    def click_minus(self, coord: tuple, delay: float = 1.0) -> None:
+        """点一次减号并等待数字刷新"""
+        self.device.click(x=coord[0], y=coord[1], control_name='buy_quantity_minus')
+        self.device.click_record_clear()
+        self.device.sleep(delay)
+
+    def quantity_set(self, target: int, max_n: int, timeout: int = 20) -> bool:
+        """
+        用减号把数量调到 target：每一步都读数为准，读到目标才收工
+
+        数量在 1 时点减号会回绕到 max（真机验证），所以差值按 (current - target) % max_n 算，
+        大减号(-10) 拆 10 的倍数、小减号(-1) 收尾；读不到数量直接放弃，避免买错数量。
+        :return: 是否调到位
+        """
+        logger.hr(f'Set quantity to {target}')
+        if max_n < 1:
+            logger.warning(f'Invalid max {max_n}')
+            return False
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            current = self.quantity_current()
+            if current is None:
+                logger.warning('Quantity unreadable, abort')
+                return False
+            if current == target:
+                logger.attr('Quantity', current)
+                return True
+            if current > max_n:
+                logger.warning(f'Quantity {current} out of range (max {max_n})')
+                return False
+
+            diff = (current - target) % max_n
+            big, small = divmod(diff, 10)
+            logger.info(f'Quantity {current} -> {target}: -10 x{big}, -1 x{small}')
+            for _ in range(big):
+                self.click_minus(self.MINUS_BIG)
+            for _ in range(small):
+                self.click_minus(self.MINUS_SMALL)
+        logger.warning(f'Set quantity to {target} timeout')
+        return False
+
     def quantity_set_max(self, max_n: int, timeout: int = 15) -> bool:
         """
-        点减号把数量调到最大：在 1 点减号会回绕到最大值，所以点一次 -10 即可。
+        点减号把数量调到最大：在 1 点减号会回绕到最大值。
 
-        数量数字 OCR 不可靠，不做读数校验（真机验证：三次点击 1->4->3->2 全部生效）。
+        读数闭环：每次都读当前数量，直到读到 max_n（读不到就失败，不做猜测）。
         """
         logger.hr(f'Set quantity to max {max_n}')
-        x, y = self.MINUS_BIG
-        logger.info(f'Click minus at ({x},{y})')
-        self.device.click(x=x, y=y, control_name='buy_quantity_minus')
-        self.device.click_record_clear()
-        self.device.sleep(1.0)
-        current = self.quantity_current()
-        if current is not None:
-            logger.attr('Quantity after click', current)
-            return current == max_n
-        logger.info('Quantity unreadable, assume max reached after one minus click')
-        return True
+        return self.quantity_set(max_n, max_n, timeout=timeout)
 
     def buy_prepare(self):
         """
@@ -392,20 +425,20 @@ class ScriptTask(GameUi, SilverGiftBoxAssets):
         """
         数量调到 count -> 点确定购买 -> 关购买结果弹窗 -> 关兑换页回主页面
 
-        调数量不依赖 OCR 读数：buy_prepare 刚把数量调到过 max（读数确认过），
-        从 max 连点 (max - count) 次 -1 即可。数字 1 会被 OCR 误读成 7，
-        读数闭环在这里会打转，实测证实。
+        调数量以 OCR 读数为准（RapidOCR + PP-OCRv6 对白色小数字稳定，1 不再误读成 7）：
+        先读当前数量，再按差值点减号并逐步校验，读不到数量就放弃，避免买错数量。
         """
         logger.hr(f'Confirm buy {count}')
         max_n = self.quantity_max()
         if max_n is None:
             logger.warning('Quantity max not recognized')
             return False
-        for _ in range(max(0, max_n - count)):
-            self.device.click(x=self.MINUS_SMALL[0], y=self.MINUS_SMALL[1],
-                              control_name='buy_quantity_step')
-            self.device.click_record_clear()
-            self.device.sleep(1.0)
+        if not 1 <= count <= max_n:
+            logger.warning(f'Buy count {count} out of range (1-{max_n})')
+            return False
+        if not self.quantity_set(count, max_n):
+            logger.warning('Quantity not ready, abort buy')
+            return False
 
         coord = self.dialog_confirm_coord()
         if not coord:
