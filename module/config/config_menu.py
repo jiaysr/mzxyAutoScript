@@ -19,7 +19,7 @@ class ConfigMenu:
         # 脚本设置
         self.menu['Script'] = ['Script', 'Restart']
         # 日常的任务
-        self.menu["Daily Task"] = ['Quiz', 'WarChariot']
+        self.menu["Daily Task"] = ['Quiz', 'WarChariot', 'SilverGiftBox']
         # 战斗的任务
         self.menu["Battle Task"] = ['WorldBoss', 'Challenge', 'Arena', 'CrossArena', 'AncientHunt',
                                     'XianfuJiuchongtian', 'YuwaiMimang', 'DouXianGe']

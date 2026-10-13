@@ -130,6 +130,8 @@ class GameUiAssets:
 	O_MAP_TELEPORT_DIALOG = RuleOcr(roi=(300,240,680,140), area=(300,240,680,140), mode="Full", method="Default", keyword="传送", name="map_teleport_dialog")
 	# 传送确认弹窗-确定按钮（OCR 定位后点击，兼容两种弹窗） 
 	O_MAP_DIALOG_CONFIRM = RuleOcr(roi=(700,340,300,120), area=(700,340,300,120), mode="Full", method="Default", keyword="确定", name="map_dialog_confirm")
+	# 小地图-右侧 NPC 列表文本（按名称点击 NPC 用，列表可上下滚动） 
+	O_MAP_MINIMAP_NPC_TEXT = RuleOcr(roi=(950,180,170,420), area=(950,180,170,420), mode="Full", method="Default", keyword="", name="map_minimap_npc_text")
 
 
 	# Image Rule Assets

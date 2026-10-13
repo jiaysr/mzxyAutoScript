@@ -329,6 +329,12 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 ## 10. 已实现任务
 
 - `tasks/WorldBoss`：世界首领（跑图/寻路/锁定/攻击）
+- `tasks/SilverGiftBox`：银贝礼盒（每天一次，凌晨 4 点刷新）
+  - 传送牧野（已在则跳过，世界地图列表不含当前地点）-> 清挡小地图的残留弹窗
+    -> 小地图 NPC 列表点宝具商人（人物自动寻路）-> 右上角坐标稳定即到达
+  - 小地图找 NPC 能力已上收为 GameUi 通用方法（`map_open_minimap_and_click_npc` /
+    `map_minimap_find_npc_click` / `map_wait_walk_arrive`，`O_MAP_MINIMAP_NPC_TEXT`），
+    新任务直接调用，不要各自实现；NPC 对话后的兑换操作待补充
 - `tasks/Arena` 同服竞技、`tasks/CrossArena` 跨服竞技：报名 -> 匹配 -> 参战 -> 重启计数；
   支持「根据活跃度判断」模式（查活动-活跃页对应任务是否已完成）和等待匹配时给高优先级任务让路
 - `tasks/Challenge`、`tasks/Quiz`：挑战、答题

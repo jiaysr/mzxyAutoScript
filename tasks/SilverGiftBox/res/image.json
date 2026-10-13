@@ -1,0 +1,29 @@
+[
+  {
+    "itemName": "gift_box",
+    "imageName": "res_gift_box.png",
+    "roiFront": "519,208,62,54",
+    "roiBack": "60,200,1060,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "玲珑换宝第二行银贝礼盒图标（行内从后往前找）"
+  },
+  {
+    "itemName": "gift_name_silver",
+    "imageName": "res_gift_name_silver.png",
+    "roiFront": "542,310,118,37",
+    "roiBack": "80,287,1041,73",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "玲珑换宝选中提示框名字行（银贝礼盒）"
+  },
+  {
+    "itemName": "buy_success",
+    "imageName": "res_buy_success.png",
+    "roiFront": "590,338,100,44",
+    "roiBack": "400,280,480,160",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "购买成功的买好了提示条"
+  }
+]

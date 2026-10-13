@@ -26,6 +26,7 @@ from tasks.AncientHunt.config import AncientHunt
 from tasks.XianfuJiuchongtian.config import XianfuJiuchongtian
 from tasks.YuwaiMimang.config import YuwaiMimang
 from tasks.DouXianGe.config import DouXianGe
+from tasks.SilverGiftBox.config import SilverGiftBox
 
 
 class ConfigModel(ConfigBase):
@@ -45,6 +46,7 @@ class ConfigModel(ConfigBase):
     yuwai_mimang: YuwaiMimang = Field(default_factory=YuwaiMimang)
     dou_xian_ge: DouXianGe = Field(default_factory=DouXianGe)
     quiz: Quiz = Field(default_factory=Quiz)
+    silver_gift_box: SilverGiftBox = Field(default_factory=SilverGiftBox)
 
     def __init__(self, config_name: str=None) -> None:
         """
