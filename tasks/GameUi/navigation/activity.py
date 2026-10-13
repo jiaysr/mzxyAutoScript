@@ -15,7 +15,7 @@ from module.base.timer import Timer
 from module.exception import GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets
-from tasks.GameUi.page import page_activity_active
+from tasks.GameUi.pages.page import page_activity_active
 from tasks.base_task import BaseTask
 
 
@@ -268,3 +268,4 @@ class ActivityNavigation(BaseTask, GameUiAssets):
                     break
         rows.sort(key=lambda row: row[1])
         return [(row[0], row[2]) for row in rows]
+

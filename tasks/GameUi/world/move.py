@@ -132,7 +132,7 @@ class MapMove(BaseTask, GameUiAssets):
         """
         确保停留在主页面（只有主页面才有移动轮盘），并关掉会盖住轮盘的主页面弹窗
         """
-        from tasks.GameUi.page import page_main
+        from tasks.GameUi.pages.page import page_main
 
         if not self.device.app_is_running():
             logger.warning('Game is not running, cannot move')
@@ -548,3 +548,4 @@ class MapMove(BaseTask, GameUiAssets):
             done += 1
         logger.info(f'Path finished, all {done} point(s) reached')
         return done
+

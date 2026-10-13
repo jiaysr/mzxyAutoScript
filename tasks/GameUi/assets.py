@@ -11,18 +11,93 @@ class GameUiAssets:
 
 
 	# Click Rule Assets
-	# 主页面点击头像进入角色面板 
-	C_PAGE_MAIN_GOTO_PLAYER = RuleClick(roi_front=(22,20,49,50), roi_back=(22,20,49,50), name="page_main_goto_player")
-	# 角色面板点击返回主页面 
-	C_PAGE_PLAYER_BACK = RuleClick(roi_front=(1190,6,87,53), roi_back=(1190,6,87,53), name="page_player_back")
 	# 活动弹窗右上角关闭按钮 
 	C_ACTIVITY_CLOSE = RuleClick(roi_front=(1191,49,48,45), roi_back=(1191,49,48,45), name="activity_close")
+
+
+	# Image Rule Assets
+	# 活动-公告页特征（右侧内容面板顶边） 
+	I_PAGE_ACTIVITY_NOTICE = RuleImage(roi_front=(531,183,655,23), roi_back=(528,169,672,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_notice.png")
+	# 活动-推荐页特征（活动奖励图标） 
+	I_PAGE_ACTIVITY_LIST = RuleImage(roi_front=(1059,207,67,40), roi_back=(1045,197,92,59), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_list.png")
+	# 活动-世界首领页特征（奖按钮） 
+	I_PAGE_ACTIVITY_WORLD_BOSS = RuleImage(roi_front=(158,554,45,41), roi_back=(135,541,90,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_world_boss.png")
+	# 活动弹窗容器特征（右上角绿X） 
+	I_PAGE_ACTIVITY = RuleImage(roi_front=(1180,28,65,52), roi_back=(1150,10,130,90), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity.png")
+	# 活动-活跃页特征（活跃值标题） 
+	I_PAGE_ACTIVITY_ACTIVE = RuleImage(roi_front=(872,180,88,36), roi_back=(850,160,150,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_active.png")
+
+
+	# Ocr Rule Assets
+	# 活动弹窗顶部 tab 栏（OCR 识别区） 
+	O_ACTIVITY_TABS = RuleOcr(roi=(140,80,950,65), area=(140,80,950,65), mode="Full", method="Default", keyword="", name="activity_tabs")
+	# 活动弹窗右侧子 tab 栏（可上下滚动） 
+	O_ACTIVITY_SUBTABS = RuleOcr(roi=(1045,150,175,480), area=(1045,150,175,480), mode="Full", method="Default", keyword="", name="activity_subtabs")
+	# 活动-活跃页的任务列表 
+	O_ACTIVITY_TASK_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="activity_task_list")
+
+
+	# Click Rule Assets
+	# 背包-整理背包按钮 
+	C_BAG_SORT = RuleClick(roi_front=(573,591,137,48), roi_back=(573,591,137,48), name="bag_sort")
+	# 背包-随身功能按钮（整理背包右侧） 
+	C_BAG_GENERAL_FUNCTION = RuleClick(roi_front=(795,591,137,48), roi_back=(780,580,167,70), name="bag_general_function")
+
+
+	# Ocr Rule Assets
+	# 物品-背包物品格（4 列）识别区 
+	O_BAG_GRID = RuleOcr(roi=(255,105,925,450), area=(255,105,925,450), mode="Full", method="Default", keyword="", name="bag_grid")
+	# 背包-底部按钮栏（扩充包格/整理背包/随身功能，OCR 兜底定位） 
+	O_BAG_BOTTOM = RuleOcr(roi=(250,580,700,70), area=(250,580,700,70), mode="Full", method="Default", keyword="", name="bag_bottom")
+	# 背包-随身功能 4 按钮弹窗（请选择/材料商店/杂货商店/随身仓库/修理装备） 
+	O_BAG_GENERAL_MENU = RuleOcr(roi=(280,210,720,320), area=(280,210,720,320), mode="Full", method="Default", keyword="", name="bag_general_menu")
+	# 背包-修理确认弹窗（你将花费铜贝X用于修理全部装备，数量不固定；取消/确定） 
+	O_BAG_REPAIR_CONFIRM = RuleOcr(roi=(280,285,720,150), area=(280,285,720,150), mode="Full", method="Default", keyword="", name="bag_repair_confirm")
+	# 背包-修理结果提示条（修理成功/您没有装备需要修理；提示条纵向位置有抖动，区域上下放宽） 
+	O_BAG_REPAIR_RESULT = RuleOcr(roi=(230,300,800,170), area=(230,300,800,170), mode="Full", method="Default", keyword="", name="bag_repair_result")
+
+
+	# Click Rule Assets
+	# 主页面-「目标」文字标签点击区域（点文字比点图标更稳，图标区域小容易抖） 
+	C_TARGET_BUTTON_CLICK = RuleClick(roi_front=(1222,268,40,24), roi_back=(1200,230,70,70), name="target_button_click")
+
+
+	# Image Rule Assets
+	# 主页面-右侧竖排「目标」按钮图标（点它锁定/切换目标；收起右上角菜单后才露出，WorldBoss/域外迷窟共用） 
+	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1180,200,100,120), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_target_button.png")
+	# 主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION） 
+	I_ATTACK_BUTTON = RuleImage(roi_front=(1146,597,82,60), roi_back=(1120,575,120,100), threshold=0.75, method="Template matching", file="./tasks/GameUi/res/battle/res_attack_button.png")
+
+
+	# Ocr Rule Assets
+	# 主页面-当前锁定目标名（彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出） 
+	O_TARGET_NAME = RuleOcr(roi=(426,5,240,36), area=(424,9,240,36), mode="Full", method="Default", keyword="", name="target_name")
+
+
+	# Click Rule Assets
 	# 游戏通用弹窗-确定按钮（报名/参战） 
 	C_DIALOG_CONFIRM = RuleClick(roi_front=(742,363,173,40), roi_back=(742,363,173,40), name="dialog_confirm")
 	# 游戏通用弹窗-取消按钮（备用） 
 	C_DIALOG_CANCEL = RuleClick(roi_front=(364,363,173,40), roi_back=(364,363,173,40), name="dialog_cancel")
-	# 背包-整理背包按钮 
-	C_BAG_SORT = RuleClick(roi_front=(573,591,137,48), roi_back=(573,591,137,48), name="bag_sort")
+
+
+	# Image Rule Assets
+	# 未知页脱困-返回按钮(角色面板/弹窗右上) 
+	I_CLOSE_RETURN = RuleImage(roi_front=(1202,16,76,37), roi_back=(0,0,1280,720), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/common/res_close_return.png")
+	# 未知页脱困-绿X关闭(小尺寸) 
+	I_CLOSE_X_GREEN_SMALL = RuleImage(roi_front=(1199,55,33,30), roi_back=(0,0,1280,720), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/common/res_close_x_green_small.png")
+	# 未知页脱困-绿X关闭 
+	I_CLOSE_X_GREEN = RuleImage(roi_front=(1199,52,34,37), roi_back=(0,0,1280,720), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/common/res_close_x_green.png")
+	# 未知页脱困-紫X关闭 
+	I_CLOSE_X_PURPLE = RuleImage(roi_front=(1007,88,27,27), roi_back=(0,0,1280,720), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/common/res_close_x_purple.png")
+
+
+	# Ocr Rule Assets
+	# 游戏通用弹窗文案识别区域（报名/匹配/提示弹窗） 
+	O_DIALOG_TEXT = RuleOcr(roi=(314,235,649,249), area=(331,234,622,259), mode="Full", method="Default", keyword="", name="dialog_text")
+
+
+	# Click Rule Assets
 	# 主页面-点击右上角小地图打开小地图弹窗 
 	C_MAP_MINIMAP_ENTRY = RuleClick(roi_front=(1208,18,62,54), roi_back=(1208,18,62,54), name="map_minimap_entry")
 	# 世界地图-右上角关闭按钮（固定位置，关闭后回主页面） 
@@ -31,74 +106,22 @@ class GameUiAssets:
 	C_MAP_WORLD_MAP_LIST_CLOSE = RuleClick(roi_front=(983,45,46,53), roi_back=(983,45,46,53), name="map_world_map_list_close")
 	# 传送确认弹窗-确定按钮（两种弹窗确认位置有偏差，这里取公共区域） 
 	C_MAP_TELEPORT_CONFIRM = RuleClick(roi_front=(790,380,72,36), roi_back=(790,380,72,36), name="map_teleport_confirm")
-	# 主页面-「目标」文字标签点击区域（点文字比点图标更稳，图标区域小容易抖） 
-	C_TARGET_BUTTON_CLICK = RuleClick(roi_front=(1222,268,40,24), roi_back=(1200,230,70,70), name="target_button_click")
 
 
 	# Image Rule Assets
-	# 主页面特征（右下角图标） 
-	I_PAGE_MAIN = RuleImage(roi_front=(1229,676,24,17), roi_back=(1219,662,49,44), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_main.png")
-	# 角色-详情页特征（培养按钮） 
-	I_PAGE_ROLE_DETAIL = RuleImage(roi_front=(632,365,97,44), roi_back=(597,352,171,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_role_detail.png")
-	# 物品-背包页特征（整理背包按钮） 
-	I_PAGE_ITEM_BAG = RuleImage(roi_front=(560,580,154,68), roi_back=(550,570,174,88), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_item_bag.png")
-	# 挑战-战场页特征（你的战斗力文字） 
-	I_PAGE_CHALLENGE = RuleImage(roi_front=(557,123,128,40), roi_back=(536,113,274,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_challenge.png")
-	# 右上角菜单收起状态（左箭头） 
-	I_MENU_COLLAPSED = RuleImage(roi_front=(1148,31,18,26), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_menu_collapsed.png")
-	# 右上角菜单展开状态（右箭头） 
-	I_MENU_EXPANDED = RuleImage(roi_front=(1153,28,15,32), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_menu_expanded.png")
-	# 右上角菜单内的活动图标 
-	I_ACTIVITY_ICON = RuleImage(roi_front=(1087,36,31,32), roi_back=(448,12,685,71), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_activity_icon.png")
-	# 活动-公告页特征（右侧内容面板顶边） 
-	I_PAGE_ACTIVITY_NOTICE = RuleImage(roi_front=(531,183,655,23), roi_back=(528,169,672,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_notice.png")
-	# 活动-推荐页特征（活动奖励图标） 
-	I_PAGE_ACTIVITY_LIST = RuleImage(roi_front=(1059,207,67,40), roi_back=(1045,197,92,59), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_list.png")
-	# 活动-世界首领页特征（奖按钮） 
-	I_PAGE_ACTIVITY_WORLD_BOSS = RuleImage(roi_front=(158,554,45,41), roi_back=(135,541,90,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_world_boss.png")
-	# 活动弹窗容器特征（右上角绿X） 
-	I_PAGE_ACTIVITY = RuleImage(roi_front=(1180,28,65,52), roi_back=(1150,10,130,90), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity.png")
-	# 活动-活跃页特征（活跃值标题） 
-	I_PAGE_ACTIVITY_ACTIVE = RuleImage(roi_front=(872,180,88,36), roi_back=(850,160,150,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_page_activity_active.png")
 	# 小地图页-世界地图按钮（小地图页特征，也是进入世界地图的入口，位置随地图大小变化） 
-	I_MAP_MINIMAP_WORLD_MAP = RuleImage(roi_front=(971,118,126,42), roi_back=(794,9,1210,314), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_minimap_world_map.png")
+	I_MAP_MINIMAP_WORLD_MAP = RuleImage(roi_front=(971,118,126,42), roi_back=(794,9,1210,314), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_minimap_world_map.png")
 	# 世界地图页-列表按钮（世界地图页特征，点击进入世界地图列表） 
-	I_MAP_WORLD_MAP_LIST_BUTTON = RuleImage(roi_front=(1008,587,73,45), roi_back=(988,570,114,84), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_world_map_list_button.png")
+	I_MAP_WORLD_MAP_LIST_BUTTON = RuleImage(roi_front=(1008,587,73,45), roi_back=(988,570,114,84), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_world_map_list_button.png")
 	# 世界地图列表页-「请选择」标题（列表页特征） 
-	I_MAP_WORLD_MAP_LIST_PAGE = RuleImage(roi_front=(591,92,95,37), roi_back=(559,73,159,79), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_world_map_list_page.png")
+	I_MAP_WORLD_MAP_LIST_PAGE = RuleImage(roi_front=(591,92,95,37), roi_back=(559,73,159,79), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_world_map_list_page.png")
 	# 小地图-右上角关闭按钮（通用绿X，位置随弹窗大小变化） 
-	I_MAP_POPUP_CLOSE = RuleImage(roi_front=(1131,44,41,51), roi_back=(1007,0,245,223), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_popup_close.png")
+	I_MAP_POPUP_CLOSE = RuleImage(roi_front=(1131,44,41,51), roi_back=(1007,0,245,223), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_popup_close.png")
 	# 传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px） 
-	I_MAP_DIALOG_CONFIRM_BUTTON = RuleImage(roi_front=(768,358,117,61), roi_back=(760,350,140,100), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_map_dialog_confirm_button.png")
-	# 主页面-右侧竖排「目标」按钮图标（点它锁定/切换目标；收起右上角菜单后才露出，WorldBoss/域外迷窟共用） 
-	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1180,200,100,120), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_target_button.png")
-	# 主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION） 
-	I_ATTACK_BUTTON = RuleImage(roi_front=(1146,597,82,60), roi_back=(1120,575,120,100), threshold=0.75, method="Template matching", file="./tasks/GameUi/res/res_attack_button.png")
-	# 未知页脱困-返回按钮(角色面板/弹窗右上) 
-	I_CLOSE_RETURN = RuleImage(roi_front=(1202,16,76,37), roi_back=(0,0,1280,720), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_close_return.png")
-	# 未知页脱困-绿X关闭(小尺寸) 
-	I_CLOSE_X_GREEN_SMALL = RuleImage(roi_front=(1199,55,33,30), roi_back=(0,0,1280,720), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/res_close_x_green_small.png")
-	# 未知页脱困-绿X关闭 
-	I_CLOSE_X_GREEN = RuleImage(roi_front=(1199,52,34,37), roi_back=(0,0,1280,720), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/res_close_x_green.png")
-	# 未知页脱困-紫X关闭 
-	I_CLOSE_X_PURPLE = RuleImage(roi_front=(1007,88,27,27), roi_back=(0,0,1280,720), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/res_close_x_purple.png")
+	I_MAP_DIALOG_CONFIRM_BUTTON = RuleImage(roi_front=(768,358,117,61), roi_back=(760,350,140,100), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_dialog_confirm_button.png")
 
 
 	# Ocr Rule Assets
-	# 角色面板左侧模块栏（OCR 识别区） 
-	O_PANEL_SIDEBAR = RuleOcr(roi=(0,110,245,610), area=(0,110,245,610), mode="Full", method="Default", keyword="", name="panel_sidebar")
-	# 角色面板顶部 tab 栏（OCR 识别区） 
-	O_PANEL_TABS = RuleOcr(roi=(280,8,765,85), area=(280,8,765,85), mode="Full", method="Default", keyword="", name="panel_tabs")
-	# 活动弹窗顶部 tab 栏（OCR 识别区） 
-	O_ACTIVITY_TABS = RuleOcr(roi=(140,80,950,65), area=(140,80,950,65), mode="Full", method="Default", keyword="", name="activity_tabs")
-	# 活动弹窗右侧子 tab 栏（可上下滚动） 
-	O_ACTIVITY_SUBTABS = RuleOcr(roi=(1045,150,175,480), area=(1045,150,175,480), mode="Full", method="Default", keyword="", name="activity_subtabs")
-	# 游戏通用弹窗文案识别区域（报名/匹配/提示弹窗） 
-	O_DIALOG_TEXT = RuleOcr(roi=(314,235,649,249), area=(331,234,622,259), mode="Full", method="Default", keyword="", name="dialog_text")
-	# 活动-活跃页的任务列表 
-	O_ACTIVITY_TASK_LIST = RuleOcr(roi=(105,225,550,370), area=(105,225,550,370), mode="Full", method="Default", keyword="", name="activity_task_list")
-	# 物品-背包物品格（4 列）识别区 
-	O_BAG_GRID = RuleOcr(roi=(255,105,925,450), area=(255,105,925,450), mode="Full", method="Default", keyword="", name="bag_grid")
 	# 主页面右上角-当前地点与坐标（如 沼泽427,59） 
 	O_MAP_LOCATION = RuleOcr(roi=(1072,84,208,35), area=(1072,84,208,35), mode="Full", method="Default", keyword="", name="map_location")
 	# 世界地图列表-地点条目识别区（供按名称点击传送使用） 
@@ -107,7 +130,41 @@ class GameUiAssets:
 	O_MAP_TELEPORT_DIALOG = RuleOcr(roi=(300,240,680,140), area=(300,240,680,140), mode="Full", method="Default", keyword="传送", name="map_teleport_dialog")
 	# 传送确认弹窗-确定按钮（OCR 定位后点击，兼容两种弹窗） 
 	O_MAP_DIALOG_CONFIRM = RuleOcr(roi=(700,340,300,120), area=(700,340,300,120), mode="Full", method="Default", keyword="确定", name="map_dialog_confirm")
-	# 主页面-当前锁定目标名（彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出） 
-	O_TARGET_NAME = RuleOcr(roi=(426,5,240,36), area=(424,9,240,36), mode="Full", method="Default", keyword="", name="target_name")
+	# 小地图-右侧 NPC 列表文本（按名称点击 NPC 用，列表可上下滚动） 
+	O_MAP_MINIMAP_NPC_TEXT = RuleOcr(roi=(950,180,170,420), area=(950,180,170,420), mode="Full", method="Default", keyword="", name="map_minimap_npc_text")
+
+
+	# Image Rule Assets
+	# 右上角菜单收起状态（左箭头） 
+	I_MENU_COLLAPSED = RuleImage(roi_front=(1148,31,18,26), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_menu_collapsed.png")
+	# 右上角菜单展开状态（右箭头） 
+	I_MENU_EXPANDED = RuleImage(roi_front=(1153,28,15,32), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_menu_expanded.png")
+	# 右上角菜单内的活动图标 
+	I_ACTIVITY_ICON = RuleImage(roi_front=(1087,36,31,32), roi_back=(448,12,685,71), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_activity_icon.png")
+
+
+	# Click Rule Assets
+	# 主页面点击头像进入角色面板 
+	C_PAGE_MAIN_GOTO_PLAYER = RuleClick(roi_front=(22,20,49,50), roi_back=(22,20,49,50), name="page_main_goto_player")
+	# 角色面板点击返回主页面 
+	C_PAGE_PLAYER_BACK = RuleClick(roi_front=(1190,6,87,53), roi_back=(1190,6,87,53), name="page_player_back")
+
+
+	# Image Rule Assets
+	# 主页面特征（右下角图标） 
+	I_PAGE_MAIN = RuleImage(roi_front=(1229,676,24,17), roi_back=(1219,662,49,44), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_main.png")
+	# 角色-详情页特征（培养按钮） 
+	I_PAGE_ROLE_DETAIL = RuleImage(roi_front=(632,365,97,44), roi_back=(597,352,171,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_role_detail.png")
+	# 物品-背包页特征（整理背包按钮） 
+	I_PAGE_ITEM_BAG = RuleImage(roi_front=(560,580,154,68), roi_back=(550,570,174,88), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_item_bag.png")
+	# 挑战-战场页特征（你的战斗力文字） 
+	I_PAGE_CHALLENGE = RuleImage(roi_front=(557,123,128,40), roi_back=(536,113,274,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_challenge.png")
+
+
+	# Ocr Rule Assets
+	# 角色面板左侧模块栏（OCR 识别区） 
+	O_PANEL_SIDEBAR = RuleOcr(roi=(0,110,245,610), area=(0,110,245,610), mode="Full", method="Default", keyword="", name="panel_sidebar")
+	# 角色面板顶部 tab 栏（OCR 识别区） 
+	O_PANEL_TABS = RuleOcr(roi=(280,8,765,85), area=(280,8,765,85), mode="Full", method="Default", keyword="", name="panel_tabs")
 
 

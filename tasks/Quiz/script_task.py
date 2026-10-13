@@ -30,7 +30,7 @@ from module.base.utils import crop
 from module.exception import RequestHumanTakeover, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_main
+from tasks.GameUi.pages.page import page_main
 from tasks.Quiz import bank_sync
 from tasks.Quiz.assets import QuizAssets
 from tasks.Quiz.deepseek_client import DeepSeekClient
@@ -480,3 +480,4 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     ScriptTask(config, device).run()
+

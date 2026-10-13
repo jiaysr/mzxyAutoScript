@@ -15,6 +15,10 @@ class GlobalGameAssets:
 	C_POPUP_ACTIVE_REWARD_CLOSE = RuleClick(roi_front=(944,249,47,44), roi_back=(942,247,49,49), name="popup_active_reward_close")
 	# 上古狩猎关闭 
 	C_POPUP_HUNT_NOTICE_CLOSE = RuleClick(roi_front=(1016,126,47,44), roi_back=(999,109,80,73), name="popup_hunt_notice_close")
+	#  
+	C_POPUP_BOSS_REWARD_CLOSE = RuleClick(roi_front=(609,525,64,35), roi_back=(598,521,83,44), name="popup_boss_reward_close")
+	# 物资争夺关闭按钮 
+	C_POPUP_SUPPLIES_CLOSE = RuleClick(roi_front=(1020,129,43,29), roi_back=(1005,120,73,54), name="popup_supplies_close")
 
 
 	# Image Rule Assets
@@ -22,6 +26,10 @@ class GlobalGameAssets:
 	I_POPUP_ACTIVE_REWARD = RuleImage(roi_front=(338,297,226,46), roi_back=(326,292,252,56), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_active_reward.png")
 	# 上古狩猎 
 	I_POPUP_HUNT_NOTICE = RuleImage(roi_front=(576,199,122,40), roi_back=(559,185,156,69), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_hunt_notice.png")
+	# 首领归属奖 
+	I_POPUP_BOSS_REWARD = RuleImage(roi_front=(230,188,89,38), roi_back=(221,158,152,103), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_boss_reward.png")
+	# 物资争夺弹窗 
+	I_POPUP_SUPPLIES = RuleImage(roi_front=(572,197,125,47), roi_back=(554,189,158,66), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_supplies.png")
 
 
 	# Click Rule Assets

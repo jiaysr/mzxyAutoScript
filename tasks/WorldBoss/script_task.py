@@ -5,7 +5,7 @@ from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_activity_world_boss
+from tasks.GameUi.pages.page import page_activity_world_boss
 from tasks.WorldBoss.assets import WorldBossAssets
 
 # 世界首领：目标地图与坐标来自游戏内「寻」的自动寻路终点（实测值）
@@ -393,3 +393,4 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     ScriptTask(config, device).run()
+

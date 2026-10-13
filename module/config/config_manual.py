@@ -19,6 +19,7 @@ class ConfigManual:
         > AncientHunt
         > XianfuJiuchongtian
         > DouXianGe
+        > SilverGiftBox
         """
 
     DEVICE_OVER_HTTP = False

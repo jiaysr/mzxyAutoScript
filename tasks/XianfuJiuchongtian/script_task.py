@@ -22,7 +22,7 @@ from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_item_bag, page_role_detail
+from tasks.GameUi.pages.page import page_item_bag, page_role_detail
 from tasks.XianfuJiuchongtian.assets import XianfuJiuchongtianAssets
 from tasks.XianfuJiuchongtian.page import page_xianfu
 
@@ -580,3 +580,4 @@ if __name__ == '__main__':
         ScriptTask(config, device).run()
     except TaskEnd:
         pass
+

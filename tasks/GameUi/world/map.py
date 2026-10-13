@@ -6,6 +6,8 @@
 - `map_open_world_map_list()` / `map_close_world_map_list()` 等页面开关
 - `map_teleport(name)`      传送到指定地点（列表点地点 -> 确认弹窗 -> 回主页面）
 - `map_ensure_location_initial(name)` 确保角色站在某地点的传送落点上（供跑图任务使用）
+- `map_open_minimap_and_click_npc(name)` 小地图右侧 NPC 列表点 NPC（人物自动寻路过去）
+- `map_wait_walk_arrive()` 等自动寻路走完（坐标稳定即到达）
 
 页面链路：主页面(右上角小地图) -> 小地图弹窗(世界地图) -> 世界地图(列表) -> 世界地图列表(点地点)
 传送确认弹窗有两种（特权免费传送 / 花费铜贝传送），确认按钮位置有偏差，
@@ -14,6 +16,7 @@
 地点初始坐标 MAP_INITIAL_POS 为真机实测的传送落点，用于判断是否在某点位的初始位置。
 """
 import re
+from datetime import datetime
 from difflib import SequenceMatcher
 from time import sleep
 
@@ -412,3 +415,140 @@ class MapNavigation(BaseTask, GameUiAssets):
             if location != name:
                 return location
         return name
+
+    # ------------------------------------------------------------------ 小地图 NPC
+    # 小地图右侧 NPC 列表区域（列表内容区，不含边框；各地图小地图弹窗布局一致）
+    MAP_NPC_LIST_REGION = (950, 180, 170, 420)
+    # NPC 列表最多翻多少屏
+    MAP_NPC_LIST_MAX_SWIPE = 8
+
+    def map_open_minimap_and_click_npc(self, npc_name: str, max_swipe: int = None) -> bool:
+        """
+        开小地图 -> 右侧 NPC 列表滑动找 npc_name -> 点击 -> 关小地图
+
+        点完 NPC 后人物会自动寻路走到 NPC 处，调用方再用 map_wait_walk_arrive 等走完。
+        """
+        logger.hr(f'Find NPC [{npc_name}] in minimap')
+        self.map_close_minimap()
+        self.device.sleep(0.3)
+        if not self.map_open_minimap():
+            logger.error('Minimap does not open')
+            return False
+        try:
+            return self.map_minimap_find_npc_click(npc_name, max_swipe=max_swipe)
+        finally:
+            # 点完 NPC 后人物自动寻路，小地图会自己关；这里先主动关掉，
+            # 否则小地图盖住地图画面，寻路途中的坐标读取都看不到
+            self.map_close_minimap()
+
+    def map_minimap_find_npc_click(self, npc_name: str, max_swipe: int = None) -> bool:
+        """
+        在小地图右侧 NPC 列表里找 npc_name 并点击（列表可上下滚动）
+
+        用 detect_and_ocr 拿全部文本框自己做包含判断，不用 ocr_appear：
+        框架的 Full 模式在整串不匹配时会退化成逐字符匹配，几乎总返回 True。
+        """
+        max_swipe = max_swipe if max_swipe is not None else self.MAP_NPC_LIST_MAX_SWIPE
+        last_signature = None
+        for attempt in range(1, max_swipe + 1):
+            self.reset_records()
+            self.screenshot()
+            coord = self.map_minimap_npc_locate(npc_name)
+            if coord is not None:
+                logger.attr(f'NPC [{npc_name}] found at {attempt}th scan', f'{coord[0]:.0f},{coord[1]:.0f}')
+                self.device.click(x=coord[0], y=coord[1], control_name=f'minimap_npc_{npc_name}')
+                self.device.click_record_clear()
+                return True
+            # 列表内容没变 = 已经到底
+            signature = self.map_minimap_npc_signature()
+            if signature == last_signature:
+                logger.warning(f'NPC list does not scroll any more, [{npc_name}] not found')
+                return False
+            last_signature = signature
+            logger.info(f'NPC [{npc_name}] not on screen {attempt}, scroll list down')
+            self.map_minimap_npc_swipe_down()
+        logger.error(f'NPC [{npc_name}] not found after {max_swipe} scrolls')
+        return False
+
+    def map_minimap_npc_locate(self, npc_name: str):
+        """
+        在 NPC 列表区域 OCR 找 npc_name，返回可点击坐标；没找到返回 None
+
+        命中判定用 ocr_name_match / ocr_name_pick（容忍 OCR 形近字、丢字）。
+        """
+        rule = self.O_MAP_MINIMAP_NPC_TEXT
+        roi = self.MAP_NPC_LIST_REGION
+        old_roi = rule.roi
+        try:
+            rule.roi = roi
+            results = rule.detect_and_ocr(self.device.image, logDisplay=False)
+        finally:
+            rule.roi = old_roi
+        texts = [item.ocr_text.strip() for item in results]
+        logger.info(f'NPC list texts: {texts}')
+        for item in results:
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            if not (self.ocr_name_match(text, npc_name) or self.ocr_name_pick(text, [npc_name])):
+                continue
+            xs = [point[0] for point in item.box]
+            ys = [point[1] for point in item.box]
+            x = (min(xs) + max(xs)) / 2 + roi[0]
+            y = (min(ys) + max(ys)) / 2 + roi[1]
+            return int(x), int(y)
+        return None
+
+    def map_minimap_npc_signature(self) -> tuple:
+        """当前列表可见文本的签名，用来判断滑动是否还有效（到底/卡住）"""
+        rule = self.O_MAP_MINIMAP_NPC_TEXT
+        old_roi = rule.roi
+        try:
+            rule.roi = self.MAP_NPC_LIST_REGION
+            results = rule.detect_and_ocr(self.device.image, logDisplay=False)
+        finally:
+            rule.roi = old_roi
+        return tuple(sorted(item.ocr_text.strip() for item in results))
+
+    def map_minimap_npc_swipe_down(self) -> None:
+        """NPC 列表往下滚一屏（minitouch 滑动很快，拆成多段小滑动防止甩过头）"""
+        x0, y0, w, h = self.MAP_NPC_LIST_REGION
+        center_x = x0 + w // 2
+        top, bottom = y0 + 30, y0 + h - 30
+        logger.info(f'Scroll NPC list: ({center_x},{bottom}) -> ({center_x},{top})')
+        self.ui_swipe_gentle((center_x, bottom), (center_x, top), steps=3, step_delay=0.2)
+        self.device.click_record_clear()
+        self.device.sleep(0.8)
+
+    def map_wait_walk_arrive(self, stable_time: int = 3, timeout: int = 120,
+                             tolerance: int = 2):
+        """
+        等自动寻路走完：右上角坐标在 tolerance 内稳定 stable_time 秒视为到达
+
+        点完小地图 NPC 后人物自动寻路，用这个方法等走到 NPC 处。
+        :return: 到达的位置 (地点名, x, y)；超时返回 None
+        """
+        logger.hr('Wait auto-walk arrive')
+        timer = Timer(timeout).start()
+        stable_since = None
+        last = None
+        while not timer.reached():
+            self.reset_records()
+            location = self.map_move_read_pos()
+            if location is None:
+                self.device.sleep(1)
+                continue
+            if (last is not None and self.map_name_match(location[0], last[0])
+                    and abs(location[1] - last[1]) <= tolerance
+                    and abs(location[2] - last[2]) <= tolerance):
+                if stable_since is None:
+                    stable_since = datetime.now()
+                elif (datetime.now() - stable_since).total_seconds() >= stable_time:
+                    logger.info(f'Arrived at [{location[0]}] {location[1]},{location[2]}')
+                    return location
+            else:
+                stable_since = None
+            last = location
+            self.device.sleep(1)
+        logger.warning('Auto-walk arrive timeout')
+        return None

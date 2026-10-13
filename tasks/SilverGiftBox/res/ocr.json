@@ -1,0 +1,65 @@
+[
+  {
+    "itemName": "silver_dialog",
+    "roiFront": "270,300,705,290",
+    "roiBack": "270,300,705,290",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "NPC 对话框选项列表（含底部确定按钮）"
+  },
+  {
+    "itemName": "exchange_title",
+    "roiFront": "450,15,380,55",
+    "roiBack": "450,15,380,55",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "玲珑换宝",
+    "description": "玲珑换宝页标题"
+  },
+  {
+    "itemName": "exchange_grid",
+    "roiFront": "45,90,1190,240",
+    "roiBack": "45,90,1190,240",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "玲珑换宝兑换物品区（含选中后下方弹出的物品提示框）"
+  },
+  {
+    "itemName": "buy_option",
+    "roiFront": "440,195,405,285",
+    "roiBack": "440,195,405,285",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "再点礼盒后的请选择弹窗（查看/购买）"
+  },
+  {
+    "itemName": "buy_quantity",
+    "roiFront": "440,140,405,420",
+    "roiBack": "440,140,405,420",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "购买后的选择数量弹窗（标题/加减按钮/取消/确定）"
+  },
+  {
+    "itemName": "buy_quantity_num",
+    "roiFront": "604,327,75,43",
+    "roiBack": "600,327,78,45",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "选择数量弹窗中间的当前数量"
+  },
+  {
+    "itemName": "page_back",
+    "roiFront": "1100,10,170,80",
+    "roiBack": "1100,10,170,80",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "页面右上角返回按钮（兑换页等未注册页面用）"
+  }
+]

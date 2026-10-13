@@ -1,0 +1,8 @@
+[
+  {
+    "itemName": "target_button_click",
+    "roiFront": "1222,268,40,24",
+    "roiBack": "1200,230,70,70",
+    "description": "主页面-「目标」文字标签点击区域（点文字比点图标更稳，图标区域小容易抖）"
+  }
+]

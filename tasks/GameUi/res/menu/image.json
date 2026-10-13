@@ -1,0 +1,29 @@
+[
+  {
+    "itemName": "menu_collapsed",
+    "imageName": "res_menu_collapsed.png",
+    "roiFront": "1148,31,18,26",
+    "roiBack": "1136,18,50,54",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右上角菜单收起状态（左箭头）"
+  },
+  {
+    "itemName": "menu_expanded",
+    "imageName": "res_menu_expanded.png",
+    "roiFront": "1153,28,15,32",
+    "roiBack": "1136,18,50,54",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右上角菜单展开状态（右箭头）"
+  },
+  {
+    "itemName": "activity_icon",
+    "imageName": "res_activity_icon.png",
+    "roiFront": "1087,36,31,32",
+    "roiBack": "448,12,685,71",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右上角菜单内的活动图标"
+  }
+]

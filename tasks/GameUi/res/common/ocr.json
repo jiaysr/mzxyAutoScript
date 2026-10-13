@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "dialog_text",
+    "roiFront": "314,235,649,249",
+    "roiBack": "331,234,622,259",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "游戏通用弹窗文案识别区域（报名/匹配/提示弹窗）"
+  }
+]

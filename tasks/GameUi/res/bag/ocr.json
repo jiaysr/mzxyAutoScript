@@ -1,0 +1,47 @@
+[
+  {
+    "itemName": "bag_grid",
+    "roiFront": "255,105,925,450",
+    "roiBack": "255,105,925,450",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "物品-背包物品格（4 列）识别区"
+  },
+  {
+    "itemName": "bag_bottom",
+    "roiFront": "250,580,700,70",
+    "roiBack": "250,580,700,70",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "背包-底部按钮栏（扩充包格/整理背包/随身功能，OCR 兜底定位）"
+  },
+  {
+    "itemName": "bag_general_menu",
+    "roiFront": "280,210,720,320",
+    "roiBack": "280,210,720,320",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "背包-随身功能 4 按钮弹窗（请选择/材料商店/杂货商店/随身仓库/修理装备）"
+  },
+  {
+    "itemName": "bag_repair_confirm",
+    "roiFront": "280,285,720,150",
+    "roiBack": "280,285,720,150",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "背包-修理确认弹窗（你将花费铜贝X用于修理全部装备，数量不固定；取消/确定）"
+  },
+  {
+    "itemName": "bag_repair_result",
+    "roiFront": "230,300,800,170",
+    "roiBack": "230,300,800,170",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "背包-修理结果提示条（修理成功/您没有装备需要修理；提示条纵向位置有抖动，区域上下放宽）"
+  }
+]

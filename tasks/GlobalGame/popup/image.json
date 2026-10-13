@@ -16,5 +16,23 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "上古狩猎"
+  },
+  {
+    "itemName": "popup_boss_reward",
+    "imageName": "popup_popup_boss_reward.png",
+    "roiFront": "230,188,89,38",
+    "roiBack": "221,158,152,103",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "首领归属奖"
+  },
+  {
+    "itemName": "popup_supplies",
+    "imageName": "popup_popup_supplies.png",
+    "roiFront": "572,197,125,47",
+    "roiBack": "554,189,158,66",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "物资争夺弹窗"
   }
 ]

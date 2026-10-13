@@ -22,7 +22,7 @@ from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.CrossArena.assets import CrossArenaAssets
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_challenge
+from tasks.GameUi.pages.page import page_challenge
 
 # 跨服竞技开放时段（每天两场）
 OPEN_TIMES = [(time(13, 0), time(14, 0)), (time(17, 0), time(18, 0))]
@@ -221,3 +221,4 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     ScriptTask(config, device).run()
+

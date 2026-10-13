@@ -1,13 +1,11 @@
 Deploy:
   Git:
-    # URL of AzurLaneAutoScript repository
-    # [CN user] Use 'https://gitee.com/lmeszinc/azur-lane-auto-script-mirror' for faster and more stable download
-    # [Other] Use 'https://github.com/LmeSzinc/AzurLaneAutoScript'
-    Repository: https://gitcode.com/OnmyojiAutoScript/OnmyojiAutoScript.git
-    # Branch of Alas
-    # [Developer] Use 'dev', 'app', etc, to try new features
-    # [Other] Use 'master', the stable branch
-    Branch: master
+    # URL of mzxyAutoScript repository
+    # [Default] Use 'https://github.com/jiaysr/mzxyAutoScript'
+    Repository: https://github.com/jiaysr/mzxyAutoScript
+    # Branch of mzxyAutoScript
+    # [Default] Use 'dev', the development branch of this repository
+    Branch: dev
     # Filepath of git executable `git.exe`
     # [Easy installer] Use './toolkit/Git/mingw64/bin/git.exe'
     # [Other] Use you own git
@@ -81,15 +79,22 @@ Deploy:
     # [Default] 127.0.0.1:22268
     OcrClientAddress: 127.0.0.1:22268
     # Version of local ocr model
-    # [Default] PP-OCRv5 (best accuracy, recommended)
-    # [Options] PP-OCRv4 (lighter), default (builtin PP-OCRv3 det + PP-OCRv2 rec, lowest accuracy)
-    OcrModelVersion: PP-OCRv5
+    # [Default] PP-OCRv6 (best accuracy, recommended)
+    # [Options] PP-OCRv6-tiny (faster, smaller), PP-OCRv5
+    OcrModelVersion: PP-OCRv6
     # Directory of local ocr model
     # [Default] ./bin/ocr_model
     OcrModelDir: ./bin/ocr_model
     # Whether to download the ocr model when it's missing
     # [Default] true
     OcrModelAutoDownload: true
+    # Whether to rewrite the IR version of downloaded onnx models so that
+    # onnxruntime 1.16 can load them (models from the default source do not need it)
+    # [Default] false
+    OcrModelAllowIRRewrite: false
+    # onnxruntime CPU thread number
+    # [Default] 4
+    OcrCpuThreadNum: 4
 
   Update:
     # Use auto update and builtin updater feature

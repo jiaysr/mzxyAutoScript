@@ -1,0 +1,38 @@
+[
+  {
+    "itemName": "page_main",
+    "imageName": "res_page_main.png",
+    "roiFront": "1229,676,24,17",
+    "roiBack": "1219,662,49,44",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主页面特征（右下角图标）"
+  },
+  {
+    "itemName": "page_role_detail",
+    "imageName": "res_page_role_detail.png",
+    "roiFront": "632,365,97,44",
+    "roiBack": "597,352,171,74",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "角色-详情页特征（培养按钮）"
+  },
+  {
+    "itemName": "page_item_bag",
+    "imageName": "res_page_item_bag.png",
+    "roiFront": "560,580,154,68",
+    "roiBack": "550,570,174,88",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "物品-背包页特征（整理背包按钮）"
+  },
+  {
+    "itemName": "page_challenge",
+    "imageName": "res_page_challenge.png",
+    "roiFront": "557,123,128,40",
+    "roiBack": "536,113,274,65",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "挑战-战场页特征（你的战斗力文字）"
+  }
+]

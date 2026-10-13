@@ -24,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from tasks.GameUi.assets import GameUiAssets
-from tasks.GameUi.map import MapNavigation
+from tasks.GameUi.world.map import MapNavigation
 from tasks.WarChariot.assets import WarChariotAssets
 from tasks.WarChariot.script_task import text_match
 
@@ -186,3 +186,4 @@ if __name__ == '__main__':
             print(f'[PASS] {name}')
     print(f'共 {len(tests)} 个测试，失败 {failed} 个')
     raise SystemExit(1 if failed else 0)
+

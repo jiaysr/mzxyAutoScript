@@ -22,7 +22,7 @@ from module.exception import (GameNotRunningError,
                               TaskEnd)
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.page import page_main
+from tasks.GameUi.pages.page import page_main
 from tasks.WarChariot.assets import WarChariotAssets
 
 # OCR 形近字容忍的相似度阈值
@@ -258,3 +258,4 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     ScriptTask(config, device).run()
+
