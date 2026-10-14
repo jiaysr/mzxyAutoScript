@@ -2,12 +2,9 @@
 """
 银贝礼盒（SilverGiftBox）：每天一次，到牧野的宝具商人处兑换银贝礼盒
 
-礼盒每天凌晨 4 点刷新。当前只实现走到 NPC 处：
 传送牧野 -> 开小地图 -> 右侧 NPC 列表点宝具商人（人物自动寻路）-> 等坐标稳定
-NPC 对话弹窗后的兑换操作待后续补充。
+-> NPC 对话框点「玲珑换宝」-> 选银贝礼盒 -> 数量调到最大 -> 购买 -> 回主页面
 """
-from datetime import datetime, time, timedelta
-
 import re
 
 from module.base.timer import Timer
@@ -22,9 +19,6 @@ from tasks.SilverGiftBox.assets import SilverGiftBoxAssets
 
 class ScriptTask(GameUi, SilverGiftBoxAssets):
     SCHEDULER_NAME = 'SilverGiftBox'
-
-    # 礼盒每天凌晨 4 点刷新
-    REFRESH_HOUR = 4
 
     def run(self) -> None:
         cfg = self.config.silver_gift_box.silver_gift_box_config
@@ -46,8 +40,9 @@ class ScriptTask(GameUi, SilverGiftBoxAssets):
                 else:
                     logger.info(f'购买 {max_n} 个完成')
         finally:
-            # 正常/异常都要重排到下一个凌晨 4 点，避免 next_run 停在过去一直霸占调度
-            self.schedule_next_run()
+            # 正常/异常都要重排（走标准排期：success_interval + server_update），
+            # 避免 next_run 停在过去一直霸占调度
+            self.set_next_run(task='SilverGiftBox', success=True, finish=True)
         raise TaskEnd('SilverGiftBox')
 
     # ---------------------------------------------------------------- 准备
@@ -515,21 +510,6 @@ class ScriptTask(GameUi, SilverGiftBoxAssets):
             self.device.sleep(1.0)
         logger.warning('Back to main failed')
         return False
-
-    # ---------------------------------------------------------------- 排期
-    def schedule_next_run(self) -> None:
-        """
-        排到下一个凌晨 4 点（礼盒刷新时间）。
-
-        server=False：不走服务端刷新时间——那会把 next_run 强行覆盖成
-        「每天固定 server_update 那一刻」（见 module/config/config.py 的 task_delay）。
-        """
-        now = datetime.now()
-        target = datetime.combine(now.date(), time(self.REFRESH_HOUR, 0))
-        if target <= now:
-            target += timedelta(days=1)
-        logger.attr('下次运行', target.strftime('%Y-%m-%d %H:%M:%S'))
-        self.set_next_run(task='SilverGiftBox', target=target, success=None, finish=True, server=False)
 
 
 if __name__ == '__main__':
