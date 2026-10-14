@@ -30,10 +30,17 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     # 进入后校验坐标的容差（迷窟里读数偶尔有 1~2 格抖动）
     MAP_ENTER_TOLERANCE = 6
 
-    # NPC 列表最多翻多少屏
-    NPC_LIST_MAX_SWIPE = 8
+    # NPC 列表最多翻多少屏（每次 2 行，到底会自动停）
+    NPC_LIST_MAX_SWIPE = 12
     # NPC 列表滑动区域（列表内容区，不含边框）
     NPC_LIST_REGION = (975, 190, 145, 400)
+    # 列表行距 = NPC 区域 68px + 间隙 10px（真机实测），每次滚 2 行 = 156px
+    NPC_LIST_ROW_PITCH = 78
+    NPC_LIST_SWIPE_ROWS = 2
+    # 拖动到底后按住的时间：抵消松手惯性（快速滑动一滑即抬，实测拖 240px 会甩出整整一屏）
+    NPC_LIST_HOLD = 0.4
+    # 滚完等列表停稳的固定等待（实测惯性 0.6~0.9s 内停住）
+    NPC_LIST_SETTLE_SLEEP = 1.0
 
     # 回基准坐标默认超时（秒），可用 config 的 recover_timeout 覆盖
     recover_timeout_default = 8
@@ -580,6 +587,9 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
         用 detect_and_ocr 拿全部文本框自己做包含判断，不用 ocr_appear：
         框架的 Full 模式在整串不匹配时会退化成逐字符匹配，几乎总返回 True。
+
+        滚动方式见 minimap_npc_swipe_down：慢速受控拖动 + 等停稳，
+        避免列表被甩过头导致目标行在两帧之间被跳过。
         """
         x0, y0, w, h = self.NPC_LIST_REGION
         last_signature = None
@@ -646,14 +656,24 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         return tuple(sorted(item.ocr_text.strip() for item in results))
 
     def minimap_npc_swipe_down(self) -> None:
-        """NPC 列表往下滚一屏（minitouch 滑动很快，拆成多段小滑动防止甩过头）"""
+        """
+        NPC 列表往下滚 2 行（156px）
+
+        必须用「拖动到底按住再抬手」而不是快速滑动：minitouch 的 swipe 一滑即抬，
+        实测同样拖 240px 会因惯性甩出整整一屏（>429px），目标行在两次采样之间被跳过；
+        按住 0.4s 再抬手则惯性被吃掉，实测拖 156px 只滚 ~215px（≈2.8 行 < 一屏），
+        相邻两次采样必定有重叠。滚完等列表停稳（实测 0.6~0.9s）再让上层识别。
+        """
         x0, y0, w, h = self.NPC_LIST_REGION
         center_x = x0 + w // 2
-        top, bottom = y0 + 30, y0 + h - 30
-        logger.info(f'Scroll NPC list: ({center_x},{bottom}) -> ({center_x},{top})')
-        self.ui_swipe_gentle((center_x, bottom), (center_x, top), steps=3, step_delay=0.2)
+        distance = self.NPC_LIST_ROW_PITCH * self.NPC_LIST_SWIPE_ROWS
+        start_y = y0 + h - 40
+        end_y = start_y - distance
+        logger.info(f'Scroll NPC list: ({center_x},{start_y}) -> ({center_x},{end_y}) hold={self.NPC_LIST_HOLD}s')
+        self.device.hold_drag((center_x, start_y), (center_x, end_y),
+                              hold=self.NPC_LIST_HOLD, control_name='minimap_npc_list')
         self.device.click_record_clear()
-        self.device.sleep(0.8)
+        self.device.sleep(self.NPC_LIST_SETTLE_SLEEP)
 
     def wait_npc_dialog(self, timeout: int = 60) -> bool:
         """

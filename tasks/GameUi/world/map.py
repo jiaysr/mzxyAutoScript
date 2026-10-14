@@ -419,8 +419,15 @@ class MapNavigation(BaseTask, GameUiAssets):
     # ------------------------------------------------------------------ 小地图 NPC
     # 小地图右侧 NPC 列表区域（列表内容区，不含边框；各地图小地图弹窗布局一致）
     MAP_NPC_LIST_REGION = (950, 180, 170, 420)
-    # NPC 列表最多翻多少屏
-    MAP_NPC_LIST_MAX_SWIPE = 8
+    # NPC 列表最多翻多少屏（每次 2 行，到底会自动停）
+    MAP_NPC_LIST_MAX_SWIPE = 12
+    # 列表行距 = NPC 区域 68px + 间隙 10px（真机实测），每次滚 2 行 = 156px
+    MAP_NPC_LIST_ROW_PITCH = 78
+    MAP_NPC_LIST_SWIPE_ROWS = 2
+    # 拖动到底后按住的时间：抵消松手惯性（快速滑动一滑即抬，实测拖 240px 会甩出整整一屏）
+    MAP_NPC_LIST_HOLD = 0.4
+    # 滚完等列表停稳的固定等待（实测惯性 0.6~0.9s 内停住）
+    MAP_NPC_LIST_SETTLE_SLEEP = 1.0
 
     def map_open_minimap_and_click_npc(self, npc_name: str, max_swipe: int = None) -> bool:
         """
@@ -511,14 +518,24 @@ class MapNavigation(BaseTask, GameUiAssets):
         return tuple(sorted(item.ocr_text.strip() for item in results))
 
     def map_minimap_npc_swipe_down(self) -> None:
-        """NPC 列表往下滚一屏（minitouch 滑动很快，拆成多段小滑动防止甩过头）"""
+        """
+        NPC 列表往下滚 2 行（156px）
+
+        必须用「拖动到底按住再抬手」而不是快速滑动：minitouch 的 swipe 一滑即抬，
+        实测同样拖 240px 会因惯性甩出整整一屏（>429px），目标行在两次采样之间被跳过；
+        按住 0.4s 再抬手则惯性被吃掉，实测拖 156px 只滚 ~215px（≈2.8 行 < 一屏），
+        相邻两次采样必定有重叠。滚完等列表停稳（实测 0.6~0.9s）再让上层识别。
+        """
         x0, y0, w, h = self.MAP_NPC_LIST_REGION
         center_x = x0 + w // 2
-        top, bottom = y0 + 30, y0 + h - 30
-        logger.info(f'Scroll NPC list: ({center_x},{bottom}) -> ({center_x},{top})')
-        self.ui_swipe_gentle((center_x, bottom), (center_x, top), steps=3, step_delay=0.2)
+        distance = self.MAP_NPC_LIST_ROW_PITCH * self.MAP_NPC_LIST_SWIPE_ROWS
+        start_y = y0 + h - 40
+        end_y = start_y - distance
+        logger.info(f'Scroll NPC list: ({center_x},{start_y}) -> ({center_x},{end_y}) hold={self.MAP_NPC_LIST_HOLD}s')
+        self.device.hold_drag((center_x, start_y), (center_x, end_y),
+                              hold=self.MAP_NPC_LIST_HOLD, control_name='minimap_npc_list')
         self.device.click_record_clear()
-        self.device.sleep(0.8)
+        self.device.sleep(self.MAP_NPC_LIST_SETTLE_SLEEP)
 
     def map_wait_walk_arrive(self, stable_time: int = 3, timeout: int = 120,
                              tolerance: int = 2):
