@@ -23,9 +23,7 @@ class DouXianGeAssets:
 
 
 	# Ocr Rule Assets
-	# 斗仙阁-今日剩余挑战次数 
-	O_DOUXIAN_COUNT = RuleOcr(roi=(280,125,290,42), area=(280,125,290,42), mode="Full", method="Default", keyword="", name="douxian_count")
-	# 斗仙阁-特权额外挑战次数 
-	O_DOUXIAN_BONUS = RuleOcr(roi=(780,125,100,45), area=(780,125,100,45), mode="Full", method="Default", keyword="", name="douxian_bonus")
+	# 斗仙阁-今日剩余挑战次数 + 特权额外挑战次数（整行一次识别） 
+	O_DOUXIAN_COUNTS = RuleOcr(roi=(280,125,582,45), area=(280,125,582,45), mode="Single", method="Default", keyword="", name="douxian_counts")
 
 

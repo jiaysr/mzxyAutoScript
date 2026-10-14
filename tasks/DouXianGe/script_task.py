@@ -122,19 +122,20 @@ class ScriptTask(GameUi, DouXianGeAssets):
         raise GameStuckError('DouXianGe page does not appear')
 
     # ---------------------------------------------------------------- 读次数
-    def read_ocr_number(self, rule, default=None):
-        """OCR 规则区域里的最后一个数字（读不到返回 default）"""
-        results = rule.detect_and_ocr(self.device.image, logDisplay=False)
-        text = ''.join(item.ocr_text for item in results)
-        logger.attr(rule.name, text)
-        digits = re.findall(r'\d+', text)
-        return int(digits[-1]) if digits else default
-
     def read_challenge_counts(self):
-        """读 (今日剩余挑战次数, 特权额外挑战次数)"""
+        """读 (今日剩余挑战次数, 特权额外挑战次数)
+
+        整行一个 ROI、一次识别：规则是 Single 模式（只识别不检测），
+        实测「今日剩余挑战次数 5 特权额外挑战次数 1」用检测路径会漏掉尾部瘦长的
+        「1」（有时还会读成 7），只识别路径能完整读出两个数字（4/4 稳定）。
+        文字里按顺序取：第一个数字 = 剩余挑战次数，第二个 = 特权额外挑战次数。
+        """
         self.screenshot()
-        count = self.read_ocr_number(self.O_DOUXIAN_COUNT)
-        bonus = self.read_ocr_number(self.O_DOUXIAN_BONUS, default=0)
+        text = self.O_DOUXIAN_COUNTS.ocr(self.device.image)
+        logger.attr(self.O_DOUXIAN_COUNTS.name, text)
+        digits = re.findall(r'\d+', text)
+        count = int(digits[0]) if digits else None
+        bonus = int(digits[1]) if len(digits) > 1 else 0
         return count, bonus
 
     # ---------------------------------------------------------------- 找按钮
