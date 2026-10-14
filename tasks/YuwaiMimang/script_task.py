@@ -7,8 +7,10 @@
 
 怪物只在 10:30-11:30、15:30-16:30 刷新，其他时间可以进图但没有怪物。
 """
+import logging
 import math
 import re
+from contextlib import contextmanager
 from datetime import datetime, time, timedelta
 
 from module.base.timer import Timer
@@ -19,6 +21,31 @@ from module.exception import (GameNotRunningError,
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
 from tasks.YuwaiMimang.assets import YuwaiMimangAssets
+
+
+class _SuppressControlInputLog(logging.Filter):
+    """
+    战斗连点期间屏蔽底层输入事件日志（control.py 的 Click / Hold drag 等 INFO）
+
+    连点每秒会产生好几条点击日志，会把进度、回位、修理这些真正有用的信息淹没；
+    输入事件本身没有阅读价值（排查问题看的是移动/回位/死亡等其他模块的日志）。
+    WARNING 及以上不过滤。
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not (record.filename == 'control.py'
+                    and record.levelno < logging.WARNING)
+
+
+@contextmanager
+def suppress_control_input_log():
+    """屏蔽 control.py 的 INFO 日志，退出上下文时自动恢复"""
+    filt = _SuppressControlInputLog()
+    logger.addFilter(filt)
+    try:
+        yield
+    finally:
+        logger.removeFilter(filt)
 
 
 class ScriptTask(GameUi, YuwaiMimangAssets):
@@ -417,28 +444,31 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         logger.hr('开始连点打怪')
         rounds = 0
         last_repair = datetime.now()
-        while datetime.now() < end:
-            self.reset_records()
+        # 连点期间逐次点击的底层日志没有阅读价值，会把进度和异常信息淹没；
+        # 屏蔽 control.py 的 INFO，进度由「打怪进度」按轮数汇总（见 suppress_control_input_log）
+        with suppress_control_input_log():
+            while datetime.now() < end:
+                self.reset_records()
 
-            # 点「目标」锁定/切换到下一个怪
-            self.ui_lock_target()
-            self.device.sleep(interval)
+                # 点「目标」锁定/切换到下一个怪
+                self.ui_lock_target()
+                self.device.sleep(interval)
 
-            # 技能1x2、切目标+普攻、技能1x2、技能3x2、切目标+普攻
-            self.click_attacks_once()
-            rounds += 1
-            self.device.sleep(interval)
+                # 技能1x2、切目标+普攻、技能1x2、技能3x2、切目标+普攻
+                self.click_attacks_once()
+                rounds += 1
+                self.device.sleep(interval)
 
-            # 位置检查：怪会追踪把角色带着跑偏，跑偏后能锁到的怪变少，
-            # 所以每次检查都顺带回一次基准点。必须在循环内做，放到循环外等于整轮都不回位。
-            # 偏差小就轻推一下（约 0.3s，不打断攻击节奏）；偏差大才走完整闭环。
-            if rounds % self.LOCK_CHECK_EVERY:
-                continue
-            self.recover_in_battle(coord, tolerance)
-            if self.need_repair(cfg, last_repair, end):
-                self.repair_in_battle(coord, tolerance)
-                last_repair = datetime.now()
-            logger.attr('打怪进度', f'rounds={rounds}')
+                # 位置检查：怪会追踪把角色带着跑偏，跑偏后能锁到的怪变少，
+                # 所以每次检查都顺带回一次基准点。必须在循环内做，放到循环外等于整轮都不回位。
+                # 偏差小就轻推一下（约 0.3s，不打断攻击节奏）；偏差大才走完整闭环。
+                if rounds % self.LOCK_CHECK_EVERY:
+                    continue
+                self.recover_in_battle(coord, tolerance)
+                if self.need_repair(cfg, last_repair, end):
+                    self.repair_in_battle(coord, tolerance)
+                    last_repair = datetime.now()
+                logger.attr('打怪进度', f'rounds={rounds}')
 
         logger.attr('打怪结束', f'共 {rounds} 轮')
 
