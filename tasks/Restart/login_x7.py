@@ -1,6 +1,7 @@
 # This Python file uses the following encoding: utf-8
 from module.atom.image import RuleImage
 from module.base.timer import Timer
+from module.exception import GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets as GA
 from tasks.Restart.restart_base import RestartBase
@@ -22,11 +23,16 @@ class RestartX7(RestartBase):
     # 点击页面按钮后，等待该页面特征消失（页面已经切走）的最长时间（秒）
     page_switch_timeout: int = 8
 
-    def _app_handle_login(self) -> bool:
+    def _app_handle_login(self, timer: Timer = None) -> bool:
         logger.hr('App login (x7)')
         self.device.stuck_record_add('LOGIN_CHECK')
 
         while 1:
+            # 超过登录总时长仍未进入游戏：抛错结束本轮登录，
+            # 由 app_handle_login 统一按登录超时处理（推送通知 + TaskFailed）
+            if timer is not None and timer.reached():
+                logger.error(f'X7 login timeout after {timer.limit}s, still not in game')
+                raise GameStuckError(f'X7 登录超过 {timer.limit}s 仍未进入游戏')
             self.screenshot()
 
             # 主界面：命中主页面特征即登录成功（与 page_main 共用同一素材，

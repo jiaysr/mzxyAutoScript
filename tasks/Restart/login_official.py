@@ -1,4 +1,5 @@
 # This Python file uses the following encoding: utf-8
+from module.base.timer import Timer
 from module.exception import RequestHumanTakeover
 from module.logger import logger
 from tasks.Restart.restart_base import RestartBase
@@ -13,6 +14,6 @@ class RestartOfficial(RestartBase):
     资产放到 tasks/Restart/official/ 下单独标注生成。
     """
 
-    def _app_handle_login(self) -> bool:
+    def _app_handle_login(self, timer: Timer = None) -> bool:
         logger.critical('Official client login is not implemented yet')
         raise RequestHumanTakeover('Official client login is not implemented yet')

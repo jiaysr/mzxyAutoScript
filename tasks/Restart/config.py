@@ -17,7 +17,15 @@ class LoginCharacterConfig(BaseModel):
     character: str = Field(default="")
 
 
+class LoginConfig(BaseModel):
+    # 登录总时长上限（秒）：累计超过仍未进入游戏按业务失败处理
+    # （任务自己推送通知 + 抛 TaskFailed，由 handle_error 决定是否继续）
+    login_timeout: int = Field(default=240, ge=60, le=1800,
+                               description='restart_login_timeout_help')
+
+
 class Restart(ConfigBase):
     scheduler: RestartScheduler = Field(default_factory=RestartScheduler)
     tasks_config_reset: TasksReset = Field(default_factory=TasksReset)
     login_character_config: LoginCharacterConfig = Field(default_factory=LoginCharacterConfig)
+    login_config: LoginConfig = Field(default_factory=LoginConfig)
