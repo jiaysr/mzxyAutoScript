@@ -30,8 +30,8 @@ class ScriptTask(GameUi, AutoTaskAssets):
     # 单个自动任务的等待超时（秒），超时按卡死处理；
     # 「全部自动」一次会跑完多个未完成任务，实际超时 = 该值 x 剩余任务数（见 execute_all_auto）
     AUTO_FINISH_TIMEOUT = 1800
-    # 等待完成时，连续多少次「既没检测到执行中文字、也没检测到完成弹窗」就回特权页复查进度
-    # （避免状态识别不出来时一直空等到超时；回特权页读进度后由主循环决定继续还是收工）
+    # 等待完成时，连续多少次「没检测到执行中文字」就回特权页复查进度；
+    # 每次判断间隔 = running_check_interval（默认 30s），即连续 10 次约 10 个间隔
     AUTO_UNKNOWN_LIMIT = 10
     # 主页面点地面区弹出中断确认（x, y, w, h，点其中随机点）
     INTERRUPT_CLICK_REGION = (395, 221, 442, 395)
@@ -582,12 +582,12 @@ class ScriptTask(GameUi, AutoTaskAssets):
 
     def wait_auto_finish(self, timeout: int = None) -> str:
         """
-        回主页面后按截图间隔轮询：完成弹窗出现就点 X 关掉返回；
-        执行中就继续等；两者都没（过渡/加载）短睡后继续；超时按卡死处理
-
-        如果连续 AUTO_UNKNOWN_LIMIT 次既没匹配到「执行中」也没匹配到「完成弹窗」
-        （状态识别不出来，可能是自动任务静默结束/界面异常），就不继续空等，
-        返回 'unknown' 交由调用方回特权页复查进度、尝试继续执行。
+        回主页面挂机后，每隔 running_check_interval 秒截图判断一次：
+        - 出现「任务已全部完成」弹窗 -> 关掉返回 'finished'
+        - 出现「自动任务中」-> 继续等（并可让路）
+        - 连续 AUTO_UNKNOWN_LIMIT 次都没检测到「自动任务中」
+          （可能自动任务静默结束/界面异常）-> 返回 'unknown'，
+          由调用方回特权页复查进度、尝试继续执行，不再空等到超时
 
         :param timeout: 等待超时（秒），默认单个任务的 AUTO_FINISH_TIMEOUT；
                         「全部自动」会传入 AUTO_FINISH_TIMEOUT x 剩余任务数
@@ -608,22 +608,21 @@ class ScriptTask(GameUi, AutoTaskAssets):
                 self.device.click_record_clear()
                 self.device.sleep(0.5)
                 return 'finished'
-            if not self.auto_running():
-                # 没在执行（过渡/加载）：没东西可中断，累计无匹配次数
+            if self.auto_running():
+                unknown = 0
+                if self.other_task_due_soon():
+                    result = self.interrupt_for_others()
+                    if result == 'finished':
+                        return 'finished'
+                    self._yield_until = datetime.now() + timedelta(minutes=self.YIELD_RESUME_MINUTES)
+                    logger.attr('让路恢复时间', self._yield_until.strftime('%Y-%m-%d %H:%M:%S'))
+                    raise TaskEnd('AutoTask')
+            else:
+                # 没检测到「自动任务中」：累计次数，够 AUTO_UNKNOWN_LIMIT 次就回特权页复查
                 unknown += 1
                 if unknown >= self.AUTO_UNKNOWN_LIMIT:
-                    logger.warning(f'连续 {unknown} 次未检测到「执行中/完成」，回特权页复查进度')
+                    logger.warning(f'连续 {unknown} 次未检测到「自动任务中」，回特权页复查进度')
                     return 'unknown'
-                self.device.sleep(2)
-                continue
-            unknown = 0
-            if self.other_task_due_soon():
-                result = self.interrupt_for_others()
-                if result == 'finished':
-                    return 'finished'
-                self._yield_until = datetime.now() + timedelta(minutes=self.YIELD_RESUME_MINUTES)
-                logger.attr('让路恢复时间', self._yield_until.strftime('%Y-%m-%d %H:%M:%S'))
-                raise TaskEnd('AutoTask')
             self.device.sleep(interval)
         raise GameStuckError('自动任务执行超时')
 
