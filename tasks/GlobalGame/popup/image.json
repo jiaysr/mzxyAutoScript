@@ -43,5 +43,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "邀请组队拒绝"
+  },
+  {
+    "itemName": "popup_too_slow",
+    "imageName": "popup_popup_too_slow.png",
+    "roiFront": "453,344,62,35",
+    "roiBack": "410,329,205,59",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "采集物被强"
   }
 ]
