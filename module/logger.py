@@ -5,6 +5,7 @@ import sys
 
 import logging
 import os
+import re
 import shutil
 from datetime import datetime, timedelta, date
 from io import TextIOBase
@@ -213,8 +214,18 @@ class FlutterLogStream(TextIOBase):
     def write(self, msg: str) -> int:
         if isinstance(msg, bytes):
             msg = msg.decode("utf-8")
-        self._func(msg)
+        self._func(strip_line_padding(msg))
         return len(msg)
+
+
+# rich 会把每行右侧用空格填充到控制台宽度（如 width=400 时每行补到 400 列）。
+# UI 是按「一条消息一行」显示日志的，这些填充既没用又占带宽，这里去掉。
+_LINE_PADDING = re.compile(r'[ \t]+(\r?\n|$)')
+
+
+def strip_line_padding(text: str) -> str:
+    """去掉每行右侧的填充空格（保留换行符）"""
+    return _LINE_PADDING.sub(r'\1', text)
 
 
 def set_func_logger(func):
@@ -225,7 +236,10 @@ def set_func_logger(func):
         force_interactive=False,
         no_color=True,
         highlight=False,
-        width=80,
+        # 前端日志区是「一条消息一行」（maxLines=1），宽度太小 rich 会把消息自动
+        # 换行成多条物理行，第二条起会被前端截掉（如 [Position] 之类的长日志）。
+        # 这里放宽到 400 列，让绝大多数日志保持单行；行尾填充由 strip_line_padding 去掉。
+        width=400,
     )
     hdlr = FlutterHandler(
         console=stream_console,
