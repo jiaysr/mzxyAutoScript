@@ -46,11 +46,11 @@ class GameUi(NavigationEngine, OcrHelpers, UiUtils,
 if __name__ == '__main__':
     from module.config.config import Config
     from module.device.device import Device
-    from tasks.GameUi.pages.page import page_activity_notice, page_item_bag
+    from tasks.GameUi.pages.page import page_activity_notice, page_item_bag, page_task
 
     c = Config('oas1')
     d = Device(c)
     game = GameUi(config=c, device=d)
     game.ui_get_current_page()
-    game.ui_goto(page_item_bag)
+    game.ui_goto(page_task)
     logger.info(f'Registered pages: {[str(page) for page in game.ui_pages]}')

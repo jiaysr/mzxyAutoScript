@@ -159,6 +159,16 @@ class GameUiAssets:
 	I_PAGE_ITEM_BAG = RuleImage(roi_front=(560,580,154,68), roi_back=(550,570,174,88), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_item_bag.png")
 	# 挑战-战场页特征（你的战斗力文字） 
 	I_PAGE_CHALLENGE = RuleImage(roi_front=(557,123,128,40), roi_back=(536,113,274,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_challenge.png")
+	# 任务-任务页特征（顶部任务tab选中样式，黄字；阈值0.85：tab边框各页相同，0.8会在队伍页误命中0.80） 
+	I_PAGE_TASK = RuleImage(roi_front=(261,12,199,61), roi_back=(241,0,239,85), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/pages/res_page_task.png")
+	# 任务页-无任务弹窗关闭绿X 
+	I_TASK_EMPTY_CLOSE = RuleImage(roi_front=(935,278,55,58), roi_back=(850,230,220,150), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_task_empty_close.png")
+	# 队伍页特征（顶部宽tab栏：单个队伍tab+右侧空区） 
+	I_PAGE_TEAM = RuleImage(roi_front=(261,8,640,77), roi_back=(241,0,680,100), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_team.png")
+	# 队伍页-离开队伍按钮（有队伍=组队中） 
+	I_TEAM_LEAVE = RuleImage(roi_front=(1096,597,156,68), roi_back=(1020,550,240,150), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_team_leave.png")
+	# 队伍页-弹窗绿X（无队伍提示/解散确认共用） 
+	I_TEAM_POPUP_CLOSE = RuleImage(roi_front=(935,278,55,58), roi_back=(850,230,220,150), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_team_popup_close.png")
 
 
 	# Ocr Rule Assets

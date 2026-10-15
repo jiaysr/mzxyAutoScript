@@ -1,0 +1,29 @@
+[
+  {
+    "itemName": "privilege_page",
+    "imageName": "res_privilege_page.png",
+    "roiFront": "940,111,197,51",
+    "roiBack": "900,80,280,110",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "任务特权页特征（右侧自动任务特权标题）"
+  },
+  {
+    "itemName": "bonus_page",
+    "imageName": "res_bonus_page.png",
+    "roiFront": "442,109,226,48",
+    "roiBack": "402,79,306,108",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "任务加量页特征（顶部每日任务加量标题）"
+  },
+  {
+    "itemName": "privilege_expired",
+    "imageName": "res_privilege_expired.png",
+    "roiFront": "1059,641,60,35",
+    "roiBack": "1010,625,160,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "任务特权页-右下角激活按钮（出现=特权过期）"
+  }
+]

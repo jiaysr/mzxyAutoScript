@@ -34,5 +34,50 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "挑战-战场页特征（你的战斗力文字）"
+  },
+  {
+    "itemName": "page_task",
+    "imageName": "res_page_task.png",
+    "roiFront": "261,12,199,61",
+    "roiBack": "241,0,239,85",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "任务-任务页特征（顶部任务tab选中样式，黄字；阈值0.85：tab边框各页相同，0.8会在队伍页误命中0.80）"
+  },
+  {
+    "itemName": "task_empty_close",
+    "imageName": "res_task_empty_close.png",
+    "roiFront": "935,278,55,58",
+    "roiBack": "850,230,220,150",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "任务页-无任务弹窗关闭绿X"
+  },
+  {
+    "itemName": "page_team",
+    "imageName": "res_page_team.png",
+    "roiFront": "261,8,640,77",
+    "roiBack": "241,0,680,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "队伍页特征（顶部宽tab栏：单个队伍tab+右侧空区）"
+  },
+  {
+    "itemName": "team_leave",
+    "imageName": "res_team_leave.png",
+    "roiFront": "1096,597,156,68",
+    "roiBack": "1020,550,240,150",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "队伍页-离开队伍按钮（有队伍=组队中）"
+  },
+  {
+    "itemName": "team_popup_close",
+    "imageName": "res_team_popup_close.png",
+    "roiFront": "935,278,55,58",
+    "roiBack": "850,230,220,150",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "队伍页-弹窗绿X（无队伍提示/解散确认共用）"
   }
 ]

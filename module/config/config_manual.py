@@ -20,6 +20,7 @@ class ConfigManual:
         > XianfuJiuchongtian
         > DouXianGe
         > SilverGiftBox
+        > AutoTask
         """
 
     DEVICE_OVER_HTTP = False

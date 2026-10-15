@@ -63,6 +63,10 @@ page_activity = Page(G.I_PAGE_ACTIVITY)                        # 活动弹窗容
 page_item_bag = Page(G.I_PAGE_ITEM_BAG)
 # 挑战-战场（挑战模块首页）
 page_challenge = Page(G.I_PAGE_CHALLENGE)
+# 任务-任务（任务模块首页，顶部任务 tab 选中黄字样式为特征）
+page_task = Page(G.I_PAGE_TASK)
+# 队伍（队伍模块首页，顶部宽 tab 栏：单个队伍 tab + 右侧空区）
+page_team = Page(G.I_PAGE_TEAM)
 # 角色-详情（角色模块首页，主页面点头像进入）
 page_role_detail = Page(G.I_PAGE_ROLE_DETAIL)
 # 主页面（野外/主界面）
@@ -71,6 +75,8 @@ page_main = Page(G.I_PAGE_MAIN)
 # 页面所属模块（供 tab 导航判断滚动方向）
 page_item_bag.module = '物品'
 page_challenge.module = '挑战'
+page_task.module = '任务'
+page_team.module = '队伍'
 page_role_detail.module = '角色'
 
 page_main.link(button=G.C_PAGE_MAIN_GOTO_PLAYER, destination=page_role_detail)
@@ -102,6 +108,12 @@ page_activity_active.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
 page_role_detail.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
 page_role_detail.link(button=SidebarTarget('物品'), destination=page_item_bag)
 page_role_detail.link(button=SidebarTarget('挑战'), destination=page_challenge)
+page_role_detail.link(button=SidebarTarget('任务'), destination=page_task)
+page_role_detail.link(button=SidebarTarget('队伍'), destination=page_team)
+page_task.link(button=SidebarTarget('角色'), destination=page_role_detail)
+page_team.link(button=SidebarTarget('角色'), destination=page_role_detail)
+page_task.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
+page_team.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
 page_item_bag.link(button=SidebarTarget('角色'), destination=page_role_detail)
 page_item_bag.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
 page_challenge.link(button=SidebarTarget('角色'), destination=page_role_detail)

@@ -27,6 +27,7 @@ from tasks.XianfuJiuchongtian.config import XianfuJiuchongtian
 from tasks.YuwaiMimang.config import YuwaiMimang
 from tasks.DouXianGe.config import DouXianGe
 from tasks.SilverGiftBox.config import SilverGiftBox
+from tasks.AutoTask.config import AutoTask
 
 
 class ConfigModel(ConfigBase):
@@ -47,6 +48,7 @@ class ConfigModel(ConfigBase):
     dou_xian_ge: DouXianGe = Field(default_factory=DouXianGe)
     quiz: Quiz = Field(default_factory=Quiz)
     silver_gift_box: SilverGiftBox = Field(default_factory=SilverGiftBox)
+    auto_task: AutoTask = Field(default_factory=AutoTask)
 
     def __init__(self, config_name: str=None) -> None:
         """

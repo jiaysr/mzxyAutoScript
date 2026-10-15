@@ -551,6 +551,9 @@ class Script:
             task_module.ScriptTask(config=self.config, device=self.device).run()
         except TaskEnd:
             return True
+        except TaskFailed as e:
+            logger.error(e)
+            return False
         except GameNotRunningError as e:
             logger.warning(e)
             self.config.task_call('Restart')
