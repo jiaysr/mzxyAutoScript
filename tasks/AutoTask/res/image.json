@@ -25,5 +25,50 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "任务特权页-右下角激活按钮（出现=特权过期）"
+  },
+  {
+    "itemName": "bonus_3x_stop",
+    "imageName": "res_bonus_stop.png",
+    "roiFront": "445,600,110,30",
+    "roiBack": "400,580,210,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "加量页-3倍卡停止加量（出现=3倍激活中）"
+  },
+  {
+    "itemName": "bonus_3x_active",
+    "imageName": "res_bonus_activate.png",
+    "roiFront": "845,600,120,30",
+    "roiBack": "400,580,210,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "加量页-3倍卡激活加量卡（出现=3倍未激活，可点）"
+  },
+  {
+    "itemName": "bonus_5x_stop",
+    "imageName": "res_bonus_stop.png",
+    "roiFront": "855,600,110,30",
+    "roiBack": "810,580,210,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "加量页-5倍卡停止加量（出现=5倍激活中）"
+  },
+  {
+    "itemName": "bonus_5x_active",
+    "imageName": "res_bonus_activate.png",
+    "roiFront": "845,600,120,30",
+    "roiBack": "810,580,210,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "加量页-5倍卡激活加量卡（出现=5倍未激活，可点）"
+  },
+  {
+    "itemName": "bonus_toast_close",
+    "imageName": "res_bonus_toast_close.png",
+    "roiFront": "935,278,55,58",
+    "roiBack": "850,230,220,150",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "加量页-操作反馈弹窗绿X（激活/停止成功）"
   }
 ]

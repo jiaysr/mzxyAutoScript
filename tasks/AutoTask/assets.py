@@ -17,10 +17,29 @@ class AutoTaskAssets:
 	I_BONUS_PAGE = RuleImage(roi_front=(442,109,226,48), roi_back=(402,79,306,108), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_page.png")
 	# 任务特权页-右下角激活按钮（出现=特权过期） 
 	I_PRIVILEGE_EXPIRED = RuleImage(roi_front=(1059,641,60,35), roi_back=(1010,625,160,60), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_privilege_expired.png")
+	# 加量页-3倍卡停止加量（出现=3倍激活中） 
+	I_BONUS_3X_STOP = RuleImage(roi_front=(445,600,110,30), roi_back=(400,580,210,70), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_stop.png")
+	# 加量页-3倍卡激活加量卡（出现=3倍未激活，可点） 
+	I_BONUS_3X_ACTIVE = RuleImage(roi_front=(845,600,120,30), roi_back=(400,580,210,70), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_activate.png")
+	# 加量页-5倍卡停止加量（出现=5倍激活中） 
+	I_BONUS_5X_STOP = RuleImage(roi_front=(855,600,110,30), roi_back=(810,580,210,70), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_stop.png")
+	# 加量页-5倍卡激活加量卡（出现=5倍未激活，可点） 
+	I_BONUS_5X_ACTIVE = RuleImage(roi_front=(845,600,120,30), roi_back=(810,580,210,70), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_activate.png")
+	# 加量页-操作反馈弹窗绿X（激活/停止成功） 
+	I_BONUS_TOAST_CLOSE = RuleImage(roi_front=(935,278,55,58), roi_back=(850,230,220,150), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_toast_close.png")
 
 
 	# Ocr Rule Assets
 	# 任务特权页-左侧任务列表（任务名+进度，逐行分组解析） 
 	O_PRIVILEGE_TASK_LIST = RuleOcr(roi=(280,100,420,600), area=(280,100,420,600), mode="Full", method="Default", keyword="", name="privilege_task_list")
+	# 加量页-3倍卡拥有量（拥有：N） 
+	O_BONUS_3X_COUNT = RuleOcr(roi=(480,290,160,50), area=(480,290,160,50), mode="Full", method="Default", keyword="", name="bonus_3x_count")
+	# 加量页-5倍卡拥有量（拥有：N） 
+	O_BONUS_5X_COUNT = RuleOcr(roi=(895,290,160,50), area=(895,290,160,50), mode="Full", method="Default", keyword="", name="bonus_5x_count")
+
+
+	# Swipe Rule Assets
+	# 特权任务列表下滚一页（右侧空白条下段 -> 上段，约3行） 
+	S_PRIVILEGE_SCROLL_DOWN = RuleSwipe(roi_front=(644,616,40,60), roi_back=(646,360,40,60), mode="default", name="privilege_scroll_down")
 
 

@@ -1,0 +1,9 @@
+[
+  {
+    "itemName": "privilege_scroll_down",
+    "roiFront": "644,616,40,60",
+    "roiBack": "646,360,40,60",
+    "mode": "default",
+    "description": "特权任务列表下滚一页（右侧空白条下段 -> 上段，约3行）"
+  }
+]

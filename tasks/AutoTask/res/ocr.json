@@ -7,5 +7,23 @@
     "method": "Default",
     "keyword": "",
     "description": "任务特权页-左侧任务列表（任务名+进度，逐行分组解析）"
+  },
+  {
+    "itemName": "bonus_3x_count",
+    "roiFront": "480,290,160,50",
+    "roiBack": "480,290,160,50",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "加量页-3倍卡拥有量（拥有：N）"
+  },
+  {
+    "itemName": "bonus_5x_count",
+    "roiFront": "895,290,160,50",
+    "roiBack": "895,290,160,50",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "加量页-5倍卡拥有量（拥有：N）"
   }
 ]
