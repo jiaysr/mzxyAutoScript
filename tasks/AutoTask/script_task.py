@@ -15,7 +15,7 @@ from tasks.AutoTask.assets import AutoTaskAssets
 from tasks.AutoTask.config import BonusMultiplier
 from tasks.AutoTask.page import page_bonus, page_privilege
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_main, page_task, page_team, page_role_detail
+from tasks.GameUi.pages.page import page_main, page_team, page_role_detail
 
 import random
 import re
@@ -27,8 +27,12 @@ class ScriptTask(GameUi, AutoTaskAssets):
 
     # 查看详情按钮列 x（查看按钮中心；行 y 由 OCR 行定位给出）
     DETAIL_CHECK_X = 768
-    # 自动任务执行中既没执行文字又没完成弹窗时的总超时（秒），超时按卡死处理
+    # 单个自动任务的等待超时（秒），超时按卡死处理；
+    # 「全部自动」一次会跑完多个未完成任务，实际超时 = 该值 x 剩余任务数（见 execute_all_auto）
     AUTO_FINISH_TIMEOUT = 1800
+    # 等待完成时，连续多少次「既没检测到执行中文字、也没检测到完成弹窗」就回特权页复查进度
+    # （避免状态识别不出来时一直空等到超时；回特权页读进度后由主循环决定继续还是收工）
+    AUTO_UNKNOWN_LIMIT = 10
     # 主页面点地面区弹出中断确认（x, y, w, h，点其中随机点）
     INTERRUPT_CLICK_REGION = (395, 221, 442, 395)
     # 让路后下次恢复运行的间隔（分钟）：到期重跑，若其他任务还没结束就继续让
@@ -111,8 +115,9 @@ class ScriptTask(GameUi, AutoTaskAssets):
                     raise TaskFailed(f'[{task_name}]连续3轮进度不动，请检查')
                 if bonus == BonusMultiplier.NONE:
                     # 无加量任务：加量页关卡 -> 特权页点全部自动
+                    # （全部自动会一次跑完所有未完成任务，超时按剩余任务数放大）
                     self.ensure_bonus_card(task_name, bonus, done, total)
-                    self.execute_all_auto()
+                    self.execute_all_auto(task_count=self.count_pending_tasks(privilege_tasks))
                 else:
                     self.ensure_bonus_card(task_name, bonus, done, total)
                     self.execute_task(task_name)
@@ -257,6 +262,23 @@ class ScriptTask(GameUi, AutoTaskAssets):
                 self.privilege_scroll_down()
         return merged
 
+    def is_task_pending(self, name: str, done: int | None, total: int | None) -> bool:
+        """
+        该任务是否还没做完（循环任务 / 已达总数的任务不算）
+        """
+        if name in self.SKIP_TASKS:
+            return False
+        if total is not None and done is not None and done >= total:
+            return False
+        return True
+
+    def count_pending_tasks(self, tasks: dict) -> int:
+        """
+        未完成任务数（「全部自动」会一次跑完这些任务，用它估算等待超时）
+        """
+        return sum(1 for name, (done, total) in tasks.items()
+                   if self.is_task_pending(name, done, total))
+
     def pick_next_task(self, tasks: dict) -> tuple | None:
         """
         选下一个要执行的任务
@@ -269,9 +291,7 @@ class ScriptTask(GameUi, AutoTaskAssets):
         cfg = self.config.auto_task.auto_task_config
         pending_bonus, pending_plain = [], []
         for name, (done, total) in tasks.items():
-            if name in self.SKIP_TASKS:
-                continue
-            if total is not None and done is not None and done >= total:
+            if not self.is_task_pending(name, done, total):
                 continue
             field = self.BONUS_FIELD.get(name)
             bonus = getattr(cfg, field, BonusMultiplier.NONE) if field else BonusMultiplier.NONE
@@ -560,14 +580,25 @@ class ScriptTask(GameUi, AutoTaskAssets):
             self.device.sleep(0.5)
         raise GameStuckError('中断确认弹窗未出现')
 
-    def wait_auto_finish(self) -> None:
+    def wait_auto_finish(self, timeout: int = None) -> str:
         """
         回主页面后按截图间隔轮询：完成弹窗出现就点 X 关掉返回；
         执行中就继续等；两者都没（过渡/加载）短睡后继续；超时按卡死处理
+
+        如果连续 AUTO_UNKNOWN_LIMIT 次既没匹配到「执行中」也没匹配到「完成弹窗」
+        （状态识别不出来，可能是自动任务静默结束/界面异常），就不继续空等，
+        返回 'unknown' 交由调用方回特权页复查进度、尝试继续执行。
+
+        :param timeout: 等待超时（秒），默认单个任务的 AUTO_FINISH_TIMEOUT；
+                        「全部自动」会传入 AUTO_FINISH_TIMEOUT x 剩余任务数
+        :return: 'finished'（完成弹窗出现并已关闭）/ 'unknown'（回特权页复查进度）
         """
         logger.hr('Wait auto finish')
+        timeout = timeout if timeout is not None else self.AUTO_FINISH_TIMEOUT
+        logger.attr('等待超时', f'{timeout}s')
         interval = int(self.config.auto_task.auto_task_config.running_check_interval)
-        timer = Timer(self.AUTO_FINISH_TIMEOUT).start()
+        timer = Timer(timeout).start()
+        unknown = 0
         while not timer.reached():
             self.reset_records()
             self.screenshot()
@@ -576,25 +607,35 @@ class ScriptTask(GameUi, AutoTaskAssets):
                 self.appear_then_click(self.I_FINISH_POPUP_CLOSE)
                 self.device.click_record_clear()
                 self.device.sleep(0.5)
-                return
+                return 'finished'
             if not self.auto_running():
-                # 没在执行（过渡/加载中）：没东西可中断，只短睡继续看
+                # 没在执行（过渡/加载）：没东西可中断，累计无匹配次数
+                unknown += 1
+                if unknown >= self.AUTO_UNKNOWN_LIMIT:
+                    logger.warning(f'连续 {unknown} 次未检测到「执行中/完成」，回特权页复查进度')
+                    return 'unknown'
                 self.device.sleep(2)
                 continue
+            unknown = 0
             if self.other_task_due_soon():
                 result = self.interrupt_for_others()
                 if result == 'finished':
-                    return
+                    return 'finished'
                 self._yield_until = datetime.now() + timedelta(minutes=self.YIELD_RESUME_MINUTES)
                 logger.attr('让路恢复时间', self._yield_until.strftime('%Y-%m-%d %H:%M:%S'))
                 raise TaskEnd('AutoTask')
             self.device.sleep(interval)
         raise GameStuckError('自动任务执行超时')
 
-    def execute_all_auto(self, timeout: int = 90) -> None:
+    def execute_all_auto(self, task_count: int = 1, timeout: int = 90) -> None:
         """
         一键自动（无加量任务时）：特权页点全部自动 -> 关可能弹出的加量提示
         -> 出现取消自动即已启动 -> 回主页等完成
+
+        「全部自动」一次会把所有未完成任务跑完，所以等待超时按剩余任务数放大
+        （单个任务 AUTO_FINISH_TIMEOUT，见 wait_auto_finish）。
+
+        :param task_count: 本次「全部自动」预计要跑的任务数（用于估算等待超时）
         """
         logger.hr('Execute all auto')
         self.ui_reset_current_page()
@@ -622,8 +663,11 @@ class ScriptTask(GameUi, AutoTaskAssets):
         else:
             raise GameStuckError('全部自动点不开')
         self.detail_back_to_main()
-        self.wait_auto_finish()
-        logger.attr('一键自动完成', '')
+        result = self.wait_auto_finish(timeout=self.AUTO_FINISH_TIMEOUT * max(1, task_count))
+        if result == 'finished':
+            logger.attr('一键自动完成', '')
+        else:
+            logger.warning('未检测到完成弹窗，回特权页复查进度后继续')
 
     def execute_task(self, task_name: str) -> None:
         """
@@ -634,17 +678,11 @@ class ScriptTask(GameUi, AutoTaskAssets):
         self.open_task_detail(task_name)
         self.click_auto_start()
         self.detail_back_to_main()
-        self.wait_auto_finish()
-        logger.attr('任务完成', task_name)
-
-    def enter_task_page(self, timeout: int = 60) -> None:
-        """
-        主页面 -> 角色面板 -> 任务页，靠 I_PAGE_TASK（顶部任务 tab 选中样式）确认到达
-        """
-        logger.hr('Enter task page')
-        self.ui_reset_current_page()
-        if not self.ui_goto(page_task, timeout=timeout):
-            raise GameStuckError('Task page does not appear')
+        result = self.wait_auto_finish()
+        if result == 'finished':
+            logger.attr('任务完成', task_name)
+        else:
+            logger.warning(f'[{task_name}] 未检测到完成弹窗，回特权页复查进度后继续')
 
     def ensure_no_team(self, timeout: int = 60) -> None:
         """
@@ -712,20 +750,6 @@ class ScriptTask(GameUi, AutoTaskAssets):
             self.device.click_record_clear()
             self.device.sleep(1.0)
         raise GameStuckError('Team page does not appear')
-
-    def close_empty_popup(self) -> bool:
-        """
-        进任务页后如果弹出「您当前没有任务」，点绿 X 关闭。
-        有任务和没任务后续流程一样，这里只负责清弹窗。
-        :return: 弹窗出现过返回 True，否则 False
-        """
-        self.reset_records()
-        self.screenshot()
-        if self.appear_then_click(self.I_TASK_EMPTY_CLOSE):
-            logger.info('Empty task popup closed')
-            self.device.click_record_clear()
-            return True
-        return False
 
 
 if __name__ == '__main__':
