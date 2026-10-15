@@ -110,6 +110,9 @@ page_role_detail.link(button=SidebarTarget('物品'), destination=page_item_bag)
 page_role_detail.link(button=SidebarTarget('挑战'), destination=page_challenge)
 page_role_detail.link(button=SidebarTarget('任务'), destination=page_task)
 page_role_detail.link(button=SidebarTarget('队伍'), destination=page_team)
+# 面板页左侧栏常驻，模块之间可直达：队伍 -> 任务（单向！反向任务->队伍
+# 会撞上单 tab 校验问题，见 AutoTask.enter_team_page，只能任务自己手动进）
+page_team.link(button=SidebarTarget('任务'), destination=page_task)
 page_task.link(button=SidebarTarget('角色'), destination=page_role_detail)
 page_team.link(button=SidebarTarget('角色'), destination=page_role_detail)
 page_task.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)

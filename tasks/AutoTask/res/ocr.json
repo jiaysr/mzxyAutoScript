@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "privilege_task_list",
+    "roiFront": "280,100,420,600",
+    "roiBack": "280,100,420,600",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "任务特权页-左侧任务列表（任务名+进度，逐行分组解析）"
+  }
+]

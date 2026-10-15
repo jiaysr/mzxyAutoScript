@@ -83,7 +83,8 @@ class PanelNavigation(BaseTask, GameUiAssets):
                 if interval:
                     self.interval_timer[f'ui_sidebar_{name}'].reset()
                 return True
-            logger.warning(f'Sidebar module {name} not switched, retry {attempt + 1}')
+            logger.warning(f'Sidebar module {name} not switched, retry {attempt + 1}, '
+                           f'visible tabs={self.ui_tab_visible()}')
             sleep(0.3)
         logger.warning(f'Sidebar module {name} not found')
         return False

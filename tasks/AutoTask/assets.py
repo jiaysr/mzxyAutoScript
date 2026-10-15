@@ -19,3 +19,8 @@ class AutoTaskAssets:
 	I_PRIVILEGE_EXPIRED = RuleImage(roi_front=(1059,641,60,35), roi_back=(1010,625,160,60), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_privilege_expired.png")
 
 
+	# Ocr Rule Assets
+	# 任务特权页-左侧任务列表（任务名+进度，逐行分组解析） 
+	O_PRIVILEGE_TASK_LIST = RuleOcr(roi=(280,100,420,600), area=(280,100,420,600), mode="Full", method="Default", keyword="", name="privilege_task_list")
+
+
