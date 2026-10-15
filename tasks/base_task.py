@@ -56,6 +56,8 @@ class BaseTask(GlobalGame):
         # 战斗次数相关
         self.current_count = 0  # 战斗次数
         self._boss_mark_flag = False
+        # 死亡重跑标记（GlobalGame.rerun_task 置位；置位后忽略 set_next_run）
+        self._rerun_requested = False
 
     def screenshot(self):
         """
@@ -607,6 +609,11 @@ class BaseTask(GlobalGame):
             start_time = datetime.now().replace(microsecond=0)
         else:
             start_time = self.start_time
+        # 死亡重跑请求：忽略任务自己在 finally 里的重排期，
+        # 保留 rerun_task 里 task_call 设的「立即重跑」（默认复活后从头重跑本任务）
+        if getattr(self, '_rerun_requested', False):
+            logger.info(f'Task `{task}` is rerunning after death, skip delay')
+            return
         self.config.task_delay(task, start_time=start_time, success=success, server=server, target=target)
 
     def custom_next_run(self, task: str, custom_time: Time = None, time_delta: float = 1) -> None:

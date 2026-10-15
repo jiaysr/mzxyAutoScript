@@ -33,6 +33,11 @@ class GlobalGame(GlobalGameAssets):
     # 任务重跑时需要保留的进度记录 {(config_name, command): record}
     _task_records: dict = {}
 
+    # 是否已请求「死亡后立即重跑本任务」：置位后，任务在 finally 里再调 set_next_run
+    # 会被忽略（见 BaseTask.set_next_run），保证 task_call 设的「立即重跑」不被覆盖。
+    # 每个任务实例独立（每次运行新建实例），特殊情况（如域外迷窟原地复活）自己覆盖 handle_death。
+    _rerun_requested: bool = False
+
     # 全局弹窗处理：识别到特征点后点击对应的关闭区域
     # 素材放 tasks/GlobalGame/popup/，命名约定：
     #   特征点   itemName = popup_<名字>        -> 常量 I_POPUP_XXX
@@ -152,6 +157,8 @@ class GlobalGame(GlobalGameAssets):
             self._task_records[(self.config.config_name, command)] = record
             logger.attr('Task record', record)
         logger.warning(f'Rerun task `{command}`')
+        # 置位后任务 finally 里的 set_next_run 会被忽略，保留下面 task_call 的「立即重跑」
+        self._rerun_requested = True
         self.config.task_call(command)
         raise TaskEnd(f'Character died, `{command}` will rerun')
 

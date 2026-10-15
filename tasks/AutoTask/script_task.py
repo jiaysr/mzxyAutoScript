@@ -38,6 +38,13 @@ class ScriptTask(GameUi, AutoTaskAssets):
     # 让路后下次恢复运行的间隔（分钟）：到期重跑，若其他任务还没结束就继续让
     YIELD_RESUME_MINUTES = 10
 
+    # 需要「按指定时间恢复运行」的时间点：让路中断 / 死亡重跑时设置，
+    # run() 的 finally 优先用它排期（server=False，不被服务端刷新时间覆盖）
+    _resume_at = None
+    # 是否处于「回主页面挂机等自动任务完成」阶段：此时死亡复活后游戏会自动续跑自动任务，
+    # 不需要重跑本任务（见 handle_death）
+    _waiting_auto = False
+
     # 任务特权页-左侧任务列表几何（1280x720，真机实测）：
     # 可视区高 587，一屏 7 行；行 pitch 约 84（名/进度各一个文本框，同行 y 一致，
     # 分组半窗 PRIVILEGE_ROW_HALF 据此定）
@@ -75,8 +82,8 @@ class ScriptTask(GameUi, AutoTaskAssets):
 
     def run(self) -> None:
         logger.hr('自动任务')
-        # 让路恢复时间点（wait 里被中断时设置，finally 里优先用它排期）
-        self._yield_until = None
+        # 恢复运行时间点（让路中断 / 死亡重跑时设置，finally 里优先用它排期）
+        self._resume_at = None
         try:
             # 自动任务开始不能是组队状态，先去队伍页看看
             self.ensure_no_team()
@@ -122,10 +129,10 @@ class ScriptTask(GameUi, AutoTaskAssets):
                     self.ensure_bonus_card(task_name, bonus, done, total)
                     self.execute_task(task_name)
         finally:
-            # 让路中断过则按恢复时间排期（其他任务结束之后），否则走标准排期；
-            # 都是为了避免 next_run 停在过去一直霸占调度
-            if self._yield_until is not None:
-                self.set_next_run(task='AutoTask', target=self._yield_until,
+            # 让路中断 / 死亡重跑设置了恢复时间就按它排期（server=False 不被服务端覆盖），
+            # 否则走标准排期；都是为了避免 next_run 停在过去一直霸占调度
+            if self._resume_at is not None:
+                self.set_next_run(task='AutoTask', target=self._resume_at,
                                   success=None, finish=True, server=False)
             else:
                 self.set_next_run(task='AutoTask', success=True, finish=True)
@@ -599,32 +606,55 @@ class ScriptTask(GameUi, AutoTaskAssets):
         interval = int(self.config.auto_task.auto_task_config.running_check_interval)
         timer = Timer(timeout).start()
         unknown = 0
-        while not timer.reached():
-            self.reset_records()
-            self.screenshot()
-            if self.auto_finished():
-                logger.info('Auto task finished, close popup')
-                self.appear_then_click(self.I_FINISH_POPUP_CLOSE)
-                self.device.click_record_clear()
-                self.device.sleep(0.5)
-                return 'finished'
-            if self.auto_running():
-                unknown = 0
-                if self.other_task_due_soon():
-                    result = self.interrupt_for_others()
-                    if result == 'finished':
-                        return 'finished'
-                    self._yield_until = datetime.now() + timedelta(minutes=self.YIELD_RESUME_MINUTES)
-                    logger.attr('让路恢复时间', self._yield_until.strftime('%Y-%m-%d %H:%M:%S'))
-                    raise TaskEnd('AutoTask')
-            else:
-                # 没检测到「自动任务中」：累计次数，够 AUTO_UNKNOWN_LIMIT 次就回特权页复查
-                unknown += 1
-                if unknown >= self.AUTO_UNKNOWN_LIMIT:
-                    logger.warning(f'连续 {unknown} 次未检测到「自动任务中」，回特权页复查进度')
-                    return 'unknown'
-            self.device.sleep(interval)
-        raise GameStuckError('自动任务执行超时')
+        # 标记进入挂机等待阶段：这期间死亡复活后游戏会自动续跑，不重跑本任务
+        self._waiting_auto = True
+        try:
+            while not timer.reached():
+                self.reset_records()
+                self.screenshot()
+                if self.auto_finished():
+                    logger.info('Auto task finished, close popup')
+                    self.appear_then_click(self.I_FINISH_POPUP_CLOSE)
+                    self.device.click_record_clear()
+                    self.device.sleep(0.5)
+                    return 'finished'
+                if self.auto_running():
+                    unknown = 0
+                    if self.other_task_due_soon():
+                        result = self.interrupt_for_others()
+                        if result == 'finished':
+                            return 'finished'
+                        self._resume_at = datetime.now() + timedelta(minutes=self.YIELD_RESUME_MINUTES)
+                        logger.attr('让路恢复时间', self._resume_at.strftime('%Y-%m-%d %H:%M:%S'))
+                        raise TaskEnd('AutoTask')
+                else:
+                    # 没检测到「自动任务中」：累计次数，够 AUTO_UNKNOWN_LIMIT 次就回特权页复查
+                    unknown += 1
+                    if unknown >= self.AUTO_UNKNOWN_LIMIT:
+                        logger.warning(f'连续 {unknown} 次未检测到「自动任务中」，回特权页复查进度')
+                        return 'unknown'
+                self.device.sleep(interval)
+            raise GameStuckError('自动任务执行超时')
+        finally:
+            self._waiting_auto = False
+
+    def handle_death(self) -> None:
+        """
+        死亡处理：
+
+        - 回主页面挂机等自动任务时（wait_auto_finish 阶段）死亡：复活后游戏的自动任务
+          会自己继续，不需要重跑本任务，返回继续等待即可（AutoTask 特有的特殊处理）；
+        - 其他阶段死亡：走框架默认逻辑（rerun_task -> 立即重跑本任务，
+          run() finally 里的标准排期会被 _rerun_requested 忽略，不会被推到下次）。
+        """
+        if not self.appear(self.I_DEATH_DIALOG):
+            return
+        logger.warning('Character died')
+        self.revive()
+        if self._waiting_auto:
+            logger.info('Died while waiting auto task, game auto continues')
+            return
+        self.rerun_task()
 
     def execute_all_auto(self, task_count: int = 1, timeout: int = 90) -> None:
         """
