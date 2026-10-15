@@ -70,5 +70,59 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "加量页-操作反馈弹窗绿X（激活/停止成功）"
+  },
+  {
+    "itemName": "detail_auto",
+    "imageName": "res_detail_auto.png",
+    "roiFront": "376,624,105,65",
+    "roiBack": "330,590,420,110",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "任务详情-自动按钮（出现=详情已打开，可点）"
+  },
+  {
+    "itemName": "detail_back",
+    "imageName": "res_detail_back.png",
+    "roiFront": "646,625,98,64",
+    "roiBack": "330,590,420,110",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "任务详情-返回按钮（回列表）"
+  },
+  {
+    "itemName": "auto_popup_close",
+    "imageName": "res_auto_popup_close.png",
+    "roiFront": "929,205,55,58",
+    "roiBack": "850,160,220,150",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "点自动后加量提示弹窗绿X"
+  },
+  {
+    "itemName": "finish_popup_close",
+    "imageName": "res_finish_popup_close.png",
+    "roiFront": "935,278,55,58",
+    "roiBack": "850,230,220,150",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "任务全部完成弹窗绿X"
+  },
+  {
+    "itemName": "privilege_auto_all",
+    "imageName": "res_privilege_auto_all.png",
+    "roiFront": "970,620,200,60",
+    "roiBack": "950,600,250,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "特权页-全部自动按钮（点后一键自动做任务）"
+  },
+  {
+    "itemName": "privilege_cancel_auto",
+    "imageName": "res_privilege_cancel_auto.png",
+    "roiFront": "970,620,200,60",
+    "roiBack": "950,600,250,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "特权页-取消自动按钮（出现=一键自动已启动）"
   }
 ]

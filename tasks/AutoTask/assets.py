@@ -27,6 +27,18 @@ class AutoTaskAssets:
 	I_BONUS_5X_ACTIVE = RuleImage(roi_front=(845,600,120,30), roi_back=(810,580,210,70), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_activate.png")
 	# 加量页-操作反馈弹窗绿X（激活/停止成功） 
 	I_BONUS_TOAST_CLOSE = RuleImage(roi_front=(935,278,55,58), roi_back=(850,230,220,150), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_bonus_toast_close.png")
+	# 任务详情-自动按钮（出现=详情已打开，可点） 
+	I_DETAIL_AUTO = RuleImage(roi_front=(376,624,105,65), roi_back=(330,590,420,110), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_detail_auto.png")
+	# 任务详情-返回按钮（回列表） 
+	I_DETAIL_BACK = RuleImage(roi_front=(646,625,98,64), roi_back=(330,590,420,110), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_detail_back.png")
+	# 点自动后加量提示弹窗绿X 
+	I_AUTO_POPUP_CLOSE = RuleImage(roi_front=(929,205,55,58), roi_back=(850,160,220,150), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_auto_popup_close.png")
+	# 任务全部完成弹窗绿X 
+	I_FINISH_POPUP_CLOSE = RuleImage(roi_front=(935,278,55,58), roi_back=(850,230,220,150), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_finish_popup_close.png")
+	# 特权页-全部自动按钮（点后一键自动做任务） 
+	I_PRIVILEGE_AUTO_ALL = RuleImage(roi_front=(970,620,200,60), roi_back=(950,600,250,100), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_privilege_auto_all.png")
+	# 特权页-取消自动按钮（出现=一键自动已启动） 
+	I_PRIVILEGE_CANCEL_AUTO = RuleImage(roi_front=(970,620,200,60), roi_back=(950,600,250,100), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_privilege_cancel_auto.png")
 
 
 	# Ocr Rule Assets
@@ -36,6 +48,12 @@ class AutoTaskAssets:
 	O_BONUS_3X_COUNT = RuleOcr(roi=(480,290,160,50), area=(480,290,160,50), mode="Full", method="Default", keyword="", name="bonus_3x_count")
 	# 加量页-5倍卡拥有量（拥有：N） 
 	O_BONUS_5X_COUNT = RuleOcr(roi=(895,290,160,50), area=(895,290,160,50), mode="Full", method="Default", keyword="", name="bonus_5x_count")
+	# 主页面-自动任务执行中文字（含自动任务中即运行） 
+	O_AUTO_RUNNING = RuleOcr(roi=(300,335,700,55), area=(300,335,700,55), mode="Full", method="Default", keyword="", name="auto_running")
+	# 主页面-任务全部完成弹窗（含任务已全部完成即完成） 
+	O_AUTO_FINISH = RuleOcr(roi=(380,325,500,60), area=(380,325,500,60), mode="Full", method="Default", keyword="", name="auto_finish")
+	# 任务详情-顶部黄色任务名（与选中任务核对） 
+	O_DETAIL_TITLE = RuleOcr(roi=(285,95,180,60), area=(285,95,180,60), mode="Full", method="Default", keyword="", name="detail_title")
 
 
 	# Swipe Rule Assets

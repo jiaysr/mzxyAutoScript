@@ -25,5 +25,32 @@
     "method": "Default",
     "keyword": "",
     "description": "加量页-5倍卡拥有量（拥有：N）"
+  },
+  {
+    "itemName": "auto_running",
+    "roiFront": "300,335,700,55",
+    "roiBack": "300,335,700,55",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "主页面-自动任务执行中文字（含自动任务中即运行）"
+  },
+  {
+    "itemName": "auto_finish",
+    "roiFront": "380,325,500,60",
+    "roiBack": "380,325,500,60",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "主页面-任务全部完成弹窗（含任务已全部完成即完成）"
+  },
+  {
+    "itemName": "detail_title",
+    "roiFront": "285,95,180,60",
+    "roiBack": "285,95,180,60",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "任务详情-顶部黄色任务名（与选中任务核对）"
   }
 ]

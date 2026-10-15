@@ -31,6 +31,13 @@ class AutoTaskConfig(BaseModel):
                                          description='auto_task_zuoqi_bonus_help')
     xianmeng_bonus: BonusMultiplier = Field(default=BonusMultiplier.NONE,
                                             description='auto_task_xianmeng_bonus_help')
+    # 选中任务需要的加量卡拥有量不够时，是否不激活直接做（勾选）；
+    # 不勾选则通知加量卡不足并失败结束（同任务特权过期）
+    continue_without_bonus: bool = Field(default=True,
+                                         description='auto_task_continue_without_bonus_help')
+    # 自动任务执行中（回主页面挂机），每隔多少秒截图判断是否完成
+    running_check_interval: int = Field(default=30,
+                                        description='auto_task_running_check_interval_help')
 
 
 class AutoTask(ConfigBase):

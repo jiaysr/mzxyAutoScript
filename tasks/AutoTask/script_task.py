@@ -2,10 +2,10 @@
 """
 自动任务（AutoTask）：每日任务的一种
 
-流程：
-先去队伍页确保单人（有队伍就离开） -> 进任务特权页（过期则通知并失败结束）
--> 进任务页（有弹窗就点绿 X 关闭，有/无任务不影响后续） -> 离开任务页，
-后续正常流程在任务页之外（待补充）。
+流程（循环直到除循环任务外全满）：
+队伍页确保单人 -> 特权页查过期 -> 读 10 任务选下一个（加量优先）
+-> 加量页调卡 -> 特权页进详情点自动 -> 回主页按间隔查完成弹窗
+-> 回特权页重读选下一个。
 """
 from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd, TaskFailed
@@ -14,13 +14,18 @@ from tasks.AutoTask.assets import AutoTaskAssets
 from tasks.AutoTask.config import BonusMultiplier
 from tasks.AutoTask.page import page_bonus, page_privilege
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_task, page_team, page_role_detail
+from tasks.GameUi.pages.page import page_main, page_task, page_team, page_role_detail
 
 import re
 
 
 class ScriptTask(GameUi, AutoTaskAssets):
     SCHEDULER_NAME = 'AutoTask'
+
+    # 查看详情按钮列 x（查看按钮中心；行 y 由 OCR 行定位给出）
+    DETAIL_CHECK_X = 768
+    # 自动任务执行中既没执行文字又没完成弹窗时的总超时（秒），超时按卡死处理
+    AUTO_FINISH_TIMEOUT = 1800
 
     # 任务特权页-左侧任务列表几何（1280x720，真机实测）：
     # 可视区高 587，一屏 7 行；行 pitch 约 84（名/进度各一个文本框，同行 y 一致，
@@ -64,35 +69,44 @@ class ScriptTask(GameUi, AutoTaskAssets):
             self.ensure_no_team()
             # 进任务特权页：右下角出现 激活 按钮说明特权过期，通知并失败结束
             self.check_privilege()
-            # 读全量任务名 + 进度（翻页合并，最后一个循环任务无进度）
-            privilege_tasks = self.read_privilege_tasks()
-            for name, (done, total) in privilege_tasks.items():
-                if done is None and total is None:
-                    progress = '无进度'
-                elif done is None:
-                    progress = f'?/{total}'
+            # 循环：读表 -> 选任务 -> 调加量卡 -> 进详情点自动 -> 回主页等完成；
+            # 除循环任务外全满则本轮完成；同一任务进度连续3轮不动则失败结束
+            # （自动跑了但进度没涨：防无限空转）
+            stall_key, stall_count = None, 0
+            while True:
+                privilege_tasks = self.read_privilege_tasks()
+                for name, (done, total) in privilege_tasks.items():
+                    if done is None and total is None:
+                        progress = '无进度'
+                    elif done is None:
+                        progress = f'?/{total}'
+                    else:
+                        progress = f'{done}/{total}'
+                    logger.attr(f'任务[{name}]', progress)
+                pick = self.pick_next_task(privilege_tasks)
+                if pick is None:
+                    logger.info('除循环任务外进度全满，自动任务完成')
+                    raise TaskEnd('AutoTask')
+                task_name, bonus = pick
+                logger.attr('下一个任务', task_name)
+                if bonus != BonusMultiplier.NONE:
+                    logger.attr('任务加量', bonus.value)
+                done, total = privilege_tasks[task_name]
+                key = (task_name, done)
+                stall_count = stall_count + 1 if key == stall_key else 0
+                stall_key = key
+                if stall_count >= 3:
+                    logger.error(f'[{task_name}]连续3轮进度不动（{done}/{total}），请检查')
+                    self.config.notifier.push(title='自动任务AutoTask',
+                                              content=f'<{self.config.config_name}> [{task_name}]连续3轮进度不动，请检查')
+                    raise TaskFailed(f'[{task_name}]连续3轮进度不动，请检查')
+                if bonus == BonusMultiplier.NONE:
+                    # 无加量任务：加量页关卡 -> 特权页点全部自动
+                    self.ensure_bonus_card(task_name, bonus, done, total)
+                    self.execute_all_auto()
                 else:
-                    progress = f'{done}/{total}'
-                logger.attr(f'任务[{name}]', progress)
-            # 选下一个要执行的任务：加量任务优先，循环任务不参选；
-            # 除循环任务外全满则本轮完成
-            pick = self.pick_next_task(privilege_tasks)
-            if pick is None:
-                logger.info('除循环任务外进度全满，自动任务完成')
-                raise TaskEnd('AutoTask')
-            task_name, bonus = pick
-            logger.attr('下一个任务', task_name)
-            if bonus != BonusMultiplier.NONE:
-                logger.attr('任务加量', bonus.value)
-            # 按选中任务的加量配置，把加量卡调到对应状态
-            self.ensure_bonus_card(bonus)
-            # TODO: 执行任务（寻路做任务），后续步骤
-            # 进任务页：有弹窗（您当前没有任务）就点绿 X 关掉；
-            # 有任务和没任务后续流程一样，都不在任务页里
-            self.enter_task_page()
-            self.close_empty_popup()
-            # TODO: 正常流程（在任务页之外，待补充）
-            logger.info('任务页就绪，后续流程待补充')
+                    self.ensure_bonus_card(task_name, bonus, done, total)
+                    self.execute_task(task_name)
         finally:
             # 正常/异常都要重排（走标准排期：success_interval + server_update），
             # 避免 next_run 停在过去一直霸占调度
@@ -121,16 +135,11 @@ class ScriptTask(GameUi, AutoTaskAssets):
             raise TaskFailed('任务特权已过期，请检查续费')
         logger.info('Privilege active, proceed')
 
-    def parse_privilege_tasks(self) -> dict:
+    def group_privilege_rows(self) -> list:
         """
-        识别当前屏的任务名 -> (已做, 总数)；没有进度文案的记 (None, None)
-
-        同一行「任务名 + 进度」y 一致，按 y 聚行后再用正则拆；
-        OCR 偶尔把同行拆成多个框，先按 x 拼行再匹配所以都兼容。
-        :return: {任务名: (done, total)}
+        对当前截图（self.device.image）的任务列表按 y 聚行
+        :return: [(行中心y, [(x, 文本), ...]), ...]，均为全图绝对坐标
         """
-        self.reset_records()
-        self.screenshot()
         roi_x, roi_y = self.O_PRIVILEGE_TASK_LIST.roi[0], self.O_PRIVILEGE_TASK_LIST.roi[1]
         cells = []
         for item in self.O_PRIVILEGE_TASK_LIST.detect_and_ocr(self.device.image, logDisplay=False):
@@ -147,8 +156,32 @@ class ScriptTask(GameUi, AutoTaskAssets):
                 grouped[-1][1].append((cx, text))
             else:
                 grouped.append([cy, [(cx, text)]])
+        return grouped
+
+    def row_y_for(self, task_name: str) -> int | None:
+        """
+        当前屏找任务行，返回行中心 y；找不到返回 None
+        （行文本去掉进度后与任务名完全相等才算命中）
+        """
+        for cy, row in self.group_privilege_rows():
+            line = ' '.join(text for _, text in sorted(row))
+            name = re.sub(r'进度\s*[:：]?\s*\d+\s*/\s*\d+', '', line).strip() or line.strip()
+            if name == task_name:
+                return int(cy)
+        return None
+
+    def parse_privilege_tasks(self) -> dict:
+        """
+        识别当前屏的任务名 -> (已做, 总数)；没有进度文案的记 (None, 总数)
+
+        同一行「任务名 + 进度」y 一致，按 y 聚行后再用正则拆；
+        OCR 偶尔把同行拆成多个框，先按 x 拼行再匹配所以都兼容。
+        :return: {任务名: (done, total)}
+        """
+        self.reset_records()
+        self.screenshot()
         result = {}
-        for _, row in grouped:
+        for _, row in self.group_privilege_rows():
             line = ' '.join(text for _, text in sorted(row))
             match_progress = re.search(r'进度\s*[:：]?\s*(\d+)\s*/\s*(\d+)', line)
             if match_progress:
@@ -190,9 +223,14 @@ class ScriptTask(GameUi, AutoTaskAssets):
         """
         读全量任务 + 进度：先回顶再逐屏翻页，按任务名合并；
         滚出新名字就继续，一屏没新增（到底了）就停。
-        :return: {任务名: (done, total)}，无进度的为 (None, None)
+        :return: {任务名: (done, total)}，无进度文案的 done 为 None
         """
         logger.hr('读取特权任务列表')
+        # 每次重读都先回到特权页（上一轮执行完停在主页面，ui_current 是旧的，
+        # 必须作废缓存重新识别，否则 ui_goto 直接返回 True 不导航）
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_privilege, timeout=60):
+            raise GameStuckError('Privilege page does not appear')
         self.reset_privilege_scroll()
         merged = {}
         for index in range(self.PRIVILEGE_MAX_SCROLL + 1):
@@ -232,35 +270,49 @@ class ScriptTask(GameUi, AutoTaskAssets):
             return pick
         return None
 
-    def ensure_bonus_card(self, want: BonusMultiplier,
+    def ensure_bonus_card(self, task_name: str, bonus: BonusMultiplier,
+                           done: int | None, total: int | None,
                            timeout: int = 60) -> None:
         """
-        进任务加量页，把 3x / 5x 卡调到想要的状态
+        进任务加量页，按选中任务的加量配置把卡调到位（不加量也要检查：
+        有激活的就停掉）
 
-        按钮文案即状态：左键（3倍卡）/右键（5倍卡）显示"停止加量"=已激活，
-        显示"激活加量卡"=未激活。want=NONE 时两边都停掉（省卡）。
-        点完按钮等"激活/停止加量成功"弹窗，点绿 X 关闭后再校验状态翻转；
-        超时没翻转就失败结束（避免带着错误的加量状态去做任务）。
+        - 按钮文案即状态：左键（3倍卡）/右键（5倍卡）显示"停止加量"=已激活，
+          显示"激活加量卡"=未激活；want=NONE 时两边都停掉（省卡）
+        - 加量任务按剩余次数核卡（总数-已做，如修真 3 倍 0/4 要 >= 4 张）：
+          拥有量不够时，看 continue_without_bonus 配置——勾选则不激活直接做，
+          不勾选则通知加量卡不足并失败结束（同任务特权过期）
+        - 点完按钮等"激活/停止加量成功"弹窗，点绿 X 关闭后再校验状态翻转；
+          超时没翻转就失败结束（避免带着错误的加量状态去做任务）
         """
-        logger.hr(f'Ensure bonus card {want.value}')
+        logger.hr(f'Ensure bonus card {task_name} {bonus.value}')
         self.ui_reset_current_page()
         if not self.ui_goto(page_bonus, timeout=timeout):
             raise GameStuckError('Bonus page does not appear')
         counts = self.read_bonus_counts()
         logger.attr('加量卡拥有', f"3倍x{counts['3x']} 5倍x{counts['5x']}")
-        if want == BonusMultiplier.X3 and (counts['3x'] or 0) <= 0:
-            logger.error('3倍加量卡数量不足')
+        if bonus == BonusMultiplier.NONE:
+            self.set_bonus_side(is_left=True, active=False)
+            self.set_bonus_side(is_left=False, active=False)
+            logger.info(f'Bonus card state ok: want={bonus.value}')
+            return
+        key = '3x' if bonus == BonusMultiplier.X3 else '5x'
+        need = (total or 0) - (done or 0)
+        have = counts[key] or 0
+        logger.attr(f'加量卡需求[{task_name}]', f'{key} 剩余{need}次 拥有{have}张')
+        if have < need:
+            if self.config.auto_task.auto_task_config.continue_without_bonus:
+                logger.warning(f'加量卡不足（{key} 要{need}有{have}），按配置不激活直接做')
+                self.set_bonus_side(is_left=True, active=False)
+                self.set_bonus_side(is_left=False, active=False)
+                return
+            logger.error(f'加量卡不足（{key} 要{need}有{have}），请检查')
             self.config.notifier.push(title='自动任务AutoTask',
-                                      content=f'<{self.config.config_name}> 3倍加量卡数量不足，请检查')
-            raise TaskFailed('3倍加量卡数量不足')
-        if want == BonusMultiplier.X5 and (counts['5x'] or 0) <= 0:
-            logger.error('5倍加量卡数量不足')
-            self.config.notifier.push(title='自动任务AutoTask',
-                                      content=f'<{self.config.config_name}> 5倍加量卡数量不足，请检查')
-            raise TaskFailed('5倍加量卡数量不足')
-        self.set_bonus_side(is_left=True, active=(want == BonusMultiplier.X3))
-        self.set_bonus_side(is_left=False, active=(want == BonusMultiplier.X5))
-        logger.info(f'Bonus card state ok: want={want.value}')
+                                      content=f'<{self.config.config_name}> 加量卡不足（{task_name}要{key}{need}张），请检查')
+            raise TaskFailed(f'加量卡不足（{task_name}要{key}{need}张），请检查')
+        self.set_bonus_side(is_left=True, active=(bonus == BonusMultiplier.X3))
+        self.set_bonus_side(is_left=False, active=(bonus == BonusMultiplier.X5))
+        logger.info(f'Bonus card state ok: want={bonus.value}')
 
     def read_bonus_counts(self) -> dict:
         """
@@ -316,6 +368,193 @@ class ScriptTask(GameUi, AutoTaskAssets):
         self.config.notifier.push(title='自动任务AutoTask',
                                   content=f'<{self.config.config_name}> 加量卡{side}切换失败，请检查')
         raise TaskFailed(f'加量卡{side}切换失败，请检查')
+
+    def open_task_detail(self, task_name: str, timeout: int = 90) -> None:
+        """
+        在特权列表找到任务行，点该行「查看」进详情（出现自动按钮即算进）
+
+        查看详情按钮长得一样，只能按行 y 点对应列（DETAIL_CHECK_X）；
+        点中后列表变详情，不再滚动，只等自动按钮出现（点空了则行还在，重退点）。
+        调用前不一定在特权页（上一轮停在主页面），先导航过去。
+        """
+        logger.hr(f'Open task detail [{task_name}]')
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_privilege, timeout=timeout):
+            raise GameStuckError('Privilege page does not appear')
+        self.reset_privilege_scroll()
+        timer = Timer(timeout).start()
+        clicked = False
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            if self.appear(self.I_DETAIL_AUTO) and self.detail_title_match(task_name):
+                logger.info(f'Task detail [{task_name}] opened and verified')
+                return
+            y = self.row_y_for(task_name)
+            if y is None:
+                if clicked:
+                    # 点过之后行找不到了：可能正在切详情页，等一等不滚动
+                    self.device.sleep(0.5)
+                    continue
+                self.privilege_scroll_down()
+                continue
+            if clicked:
+                # 行还在 = 上次没点中，重退点
+                logger.info(f'Row [{task_name}] still there, click again at y={y}')
+            else:
+                logger.info(f'Click 查看 for [{task_name}] at ({self.DETAIL_CHECK_X},{y})')
+            self.device.click(x=self.DETAIL_CHECK_X, y=y, control_name='privilege_detail_check')
+            self.device.click_record_clear()
+            clicked = True
+            self.device.sleep(1.0)
+        raise GameStuckError(f'Task detail [{task_name}] does not open')
+
+    def detail_title_match(self, task_name: str) -> bool:
+        """
+        详情页顶部黄色任务名是否与选中任务一致（自动按钮出现后的第二重确认，
+        容忍 OCR 形近字误识）
+
+        不一致说明点错了行：点返回回列表，调用方重找重进
+        """
+        texts = [item.ocr_text.strip() for item in
+                 self.O_DETAIL_TITLE.detect_and_ocr(self.device.image, logDisplay=False)]
+        for text in texts:
+            if not text:
+                continue
+            if self.ocr_name_match(text, task_name):
+                return True
+        logger.warning(f'Detail title {texts} != [{task_name}], back to list')
+        self.appear_then_click(self.I_DETAIL_BACK)
+        self.device.click_record_clear()
+        self.device.sleep(1.0)
+        return False
+
+    def click_auto_start(self, timeout: int = 30) -> None:
+        """
+        点详情里的自动按钮；可能弹加量提示弹窗（关掉就行）；
+        自动按钮消失即已启动（只剩返回按钮）
+        """
+        logger.hr('Click auto start')
+        timer = Timer(timeout).start()
+        clicked_at = None
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            if self.appear_then_click(self.I_AUTO_POPUP_CLOSE, interval=1):
+                logger.info('Auto popup closed')
+                self.device.click_record_clear()
+                self.device.sleep(0.5)
+                continue
+            if not self.appear(self.I_DETAIL_AUTO):
+                if clicked_at is not None:
+                    logger.info('Auto button gone, auto started')
+                    return
+                self.device.sleep(0.5)
+                continue
+            if clicked_at is None or clicked_at.reached():
+                logger.info('Click auto button')
+                self.appear_then_click(self.I_DETAIL_AUTO)
+                self.device.click_record_clear()
+                clicked_at = Timer(3).start()
+            self.device.sleep(0.5)
+        raise GameStuckError('自动按钮点不开')
+
+    def detail_back_to_main(self, timeout: int = 30) -> None:
+        """点右上角返回到主页面"""
+        logger.hr('Back to main')
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            if self.ui_page_appear(page_main):
+                logger.info('Back on main page')
+                self.ui_reset_current_page()
+                return
+            self.appear_then_click(self.I_CLOSE_RETURN, interval=1)
+            self.device.click_record_clear()
+            self.device.sleep(0.5)
+        raise GameStuckError('Back to main failed')
+
+    def auto_finished(self) -> bool:
+        """完成弹窗出现（任务已全部完成）即 True"""
+        texts = [item.ocr_text for item in
+                 self.O_AUTO_FINISH.detect_and_ocr(self.device.image, logDisplay=False)]
+        return any('任务已全部完成' in text for text in texts)
+
+    def auto_running(self) -> bool:
+        """执行中文字出现（自动任务中）即 True"""
+        texts = [item.ocr_text for item in
+                 self.O_AUTO_RUNNING.detect_and_ocr(self.device.image, logDisplay=False)]
+        return any('自动任务中' in text for text in texts)
+
+    def wait_auto_finish(self) -> None:
+        """
+        回主页面后按截图间隔轮询：完成弹窗出现就点 X 关掉返回；
+        执行中就继续等；两者都没（过渡/加载）短睡后继续；超时按卡死处理
+        """
+        logger.hr('Wait auto finish')
+        interval = int(self.config.auto_task.auto_task_config.running_check_interval)
+        timer = Timer(self.AUTO_FINISH_TIMEOUT).start()
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            if self.auto_finished():
+                logger.info('Auto task finished, close popup')
+                self.appear_then_click(self.I_FINISH_POPUP_CLOSE)
+                self.device.click_record_clear()
+                self.device.sleep(0.5)
+                return
+            if self.auto_running():
+                self.device.sleep(interval)
+                continue
+            self.device.sleep(2)
+        raise GameStuckError('自动任务执行超时')
+
+    def execute_all_auto(self, timeout: int = 90) -> None:
+        """
+        一键自动（无加量任务时）：特权页点全部自动 -> 关可能弹出的加量提示
+        -> 出现取消自动即已启动 -> 回主页等完成
+        """
+        logger.hr('Execute all auto')
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_privilege, timeout=timeout):
+            raise GameStuckError('Privilege page does not appear')
+        timer = Timer(timeout).start()
+        clicked_at = None
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            if self.appear_then_click(self.I_AUTO_POPUP_CLOSE, interval=1):
+                logger.info('Auto popup closed')
+                self.device.click_record_clear()
+                self.device.sleep(0.5)
+                continue
+            if self.appear(self.I_PRIVILEGE_CANCEL_AUTO):
+                logger.info('All auto started')
+                break
+            if clicked_at is None or clicked_at.reached():
+                logger.info('Click all auto button')
+                self.appear_then_click(self.I_PRIVILEGE_AUTO_ALL)
+                self.device.click_record_clear()
+                clicked_at = Timer(3).start()
+            self.device.sleep(0.5)
+        else:
+            raise GameStuckError('全部自动点不开')
+        self.detail_back_to_main()
+        self.wait_auto_finish()
+        logger.attr('一键自动完成', '')
+
+    def execute_task(self, task_name: str) -> None:
+        """
+        执行一个自动任务：进详情 -> 点自动（关可能弹出的提示）-> 回主页等完成
+        完成弹窗关掉后返回，调用方重读列表选下一个
+        """
+        logger.hr(f'Execute task [{task_name}]')
+        self.open_task_detail(task_name)
+        self.click_auto_start()
+        self.detail_back_to_main()
+        self.wait_auto_finish()
+        logger.attr('任务完成', task_name)
 
     def enter_task_page(self, timeout: int = 60) -> None:
         """
