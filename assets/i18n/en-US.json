@@ -145,6 +145,8 @@
   "auto_task_continue_without_bonus_help": "When bonus cards are insufficient, continue unbonused if checked; otherwise notify and fail",
   "running_check_interval": "Running Check Interval",
   "auto_task_running_check_interval_help": "Screenshot interval in seconds to check completion while auto task runs",
+  "non_blocking": "Non-blocking",
+  "auto_task_non_blocking_help": "Yield to other tasks when they are due; resume after they finish",
   "none": "No Bonus",
   "bonus_3x": "3x",
   "bonus_5x": "5x",

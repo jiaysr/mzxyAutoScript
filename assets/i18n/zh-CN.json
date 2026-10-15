@@ -253,6 +253,8 @@
   "auto_task_continue_without_bonus_help": "选中任务的加量卡拥有量不够时，勾选则不激活直接做；不勾选则通知加量卡不足并失败结束",
   "running_check_interval": "执行中检查间隔",
   "auto_task_running_check_interval_help": "自动任务执行中（回主页面挂机），每隔多少秒截图判断是否完成",
+  "non_blocking": "不阻塞其他任务",
+  "auto_task_non_blocking_help": "开启后，其他任务快到点时中断自动任务去让路；下次运行时间为其他任务结束之后",
   "none": "不加量",
   "bonus_3x": "3倍",
   "bonus_5x": "5倍",

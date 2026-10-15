@@ -38,6 +38,10 @@ class AutoTaskConfig(BaseModel):
     # 自动任务执行中（回主页面挂机），每隔多少秒截图判断是否完成
     running_check_interval: int = Field(default=30,
                                         description='auto_task_running_check_interval_help')
+    # 不阻塞其他任务：等待其他任务快到点时，中断自动任务去让路；
+    # 下次运行时间为其他任务结束之后（多个排队则等都结束）
+    non_blocking: bool = Field(default=False,
+                               description='auto_task_non_blocking_help')
 
 
 class AutoTask(ConfigBase):

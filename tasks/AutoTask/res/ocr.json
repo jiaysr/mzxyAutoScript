@@ -52,5 +52,14 @@
     "method": "Default",
     "keyword": "",
     "description": "任务详情-顶部黄色任务名（与选中任务核对）"
+  },
+  {
+    "itemName": "interrupt_dialog",
+    "roiFront": "450,290,380,60",
+    "roiBack": "450,290,380,60",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "是否中断自动任务弹窗文案"
   }
 ]

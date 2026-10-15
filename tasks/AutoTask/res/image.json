@@ -124,5 +124,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "特权页-取消自动按钮（出现=一键自动已启动）"
+  },
+  {
+    "itemName": "interrupt_confirm",
+    "imageName": "res_interrupt_confirm.png",
+    "roiFront": "720,355,200,60",
+    "roiBack": "700,340,240,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "是否中断自动任务弹窗-确定按钮"
   }
 ]

@@ -39,6 +39,8 @@ class AutoTaskAssets:
 	I_PRIVILEGE_AUTO_ALL = RuleImage(roi_front=(970,620,200,60), roi_back=(950,600,250,100), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_privilege_auto_all.png")
 	# 特权页-取消自动按钮（出现=一键自动已启动） 
 	I_PRIVILEGE_CANCEL_AUTO = RuleImage(roi_front=(970,620,200,60), roi_back=(950,600,250,100), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_privilege_cancel_auto.png")
+	# 是否中断自动任务弹窗-确定按钮 
+	I_INTERRUPT_CONFIRM = RuleImage(roi_front=(720,355,200,60), roi_back=(700,340,240,90), threshold=0.8, method="Template matching", file="./tasks/AutoTask/res/res_interrupt_confirm.png")
 
 
 	# Ocr Rule Assets
@@ -54,6 +56,8 @@ class AutoTaskAssets:
 	O_AUTO_FINISH = RuleOcr(roi=(380,325,500,60), area=(380,325,500,60), mode="Full", method="Default", keyword="", name="auto_finish")
 	# 任务详情-顶部黄色任务名（与选中任务核对） 
 	O_DETAIL_TITLE = RuleOcr(roi=(285,95,180,60), area=(285,95,180,60), mode="Full", method="Default", keyword="", name="detail_title")
+	# 是否中断自动任务弹窗文案 
+	O_INTERRUPT_DIALOG = RuleOcr(roi=(450,290,380,60), area=(450,290,380,60), mode="Full", method="Default", keyword="", name="interrupt_dialog")
 
 
 	# Swipe Rule Assets

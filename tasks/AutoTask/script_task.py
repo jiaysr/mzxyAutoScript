@@ -8,6 +8,7 @@
 -> 回特权页重读选下一个。
 """
 from module.base.timer import Timer
+from module.config.utils import convert_to_underscore
 from module.exception import GameStuckError, TaskEnd, TaskFailed
 from module.logger import logger
 from tasks.AutoTask.assets import AutoTaskAssets
@@ -16,7 +17,9 @@ from tasks.AutoTask.page import page_bonus, page_privilege
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.pages.page import page_main, page_task, page_team, page_role_detail
 
+import random
 import re
+from datetime import datetime, timedelta
 
 
 class ScriptTask(GameUi, AutoTaskAssets):
@@ -26,6 +29,10 @@ class ScriptTask(GameUi, AutoTaskAssets):
     DETAIL_CHECK_X = 768
     # 自动任务执行中既没执行文字又没完成弹窗时的总超时（秒），超时按卡死处理
     AUTO_FINISH_TIMEOUT = 1800
+    # 主页面点地面区弹出中断确认（x, y, w, h，点其中随机点）
+    INTERRUPT_CLICK_REGION = (395, 221, 442, 395)
+    # 让路后下次恢复运行的间隔（分钟）：到期重跑，若其他任务还没结束就继续让
+    YIELD_RESUME_MINUTES = 10
 
     # 任务特权页-左侧任务列表几何（1280x720，真机实测）：
     # 可视区高 587，一屏 7 行；行 pitch 约 84（名/进度各一个文本框，同行 y 一致，
@@ -64,6 +71,8 @@ class ScriptTask(GameUi, AutoTaskAssets):
 
     def run(self) -> None:
         logger.hr('自动任务')
+        # 让路恢复时间点（wait 里被中断时设置，finally 里优先用它排期）
+        self._yield_until = None
         try:
             # 自动任务开始不能是组队状态，先去队伍页看看
             self.ensure_no_team()
@@ -108,9 +117,13 @@ class ScriptTask(GameUi, AutoTaskAssets):
                     self.ensure_bonus_card(task_name, bonus, done, total)
                     self.execute_task(task_name)
         finally:
-            # 正常/异常都要重排（走标准排期：success_interval + server_update），
-            # 避免 next_run 停在过去一直霸占调度
-            self.set_next_run(task='AutoTask', success=True, finish=True)
+            # 让路中断过则按恢复时间排期（其他任务结束之后），否则走标准排期；
+            # 都是为了避免 next_run 停在过去一直霸占调度
+            if self._yield_until is not None:
+                self.set_next_run(task='AutoTask', target=self._yield_until,
+                                  success=None, finish=True, server=False)
+            else:
+                self.set_next_run(task='AutoTask', success=True, finish=True)
         raise TaskEnd('AutoTask')
 
     def check_privilege(self, timeout: int = 60) -> None:
@@ -487,6 +500,66 @@ class ScriptTask(GameUi, AutoTaskAssets):
                  self.O_AUTO_RUNNING.detect_and_ocr(self.device.image, logDisplay=False)]
         return any('自动任务中' in text for text in texts)
 
+    def other_task_due_soon(self) -> bool:
+        """
+        是否有其他任务快到点了（已到期，或一个检查间隔内到期）
+
+        只在 non_blocking 开启时让路；优先级高于本任务的才看
+        （AutoTask 排最后，实际就是看所有其他任务）
+        """
+        cfg = self.config.auto_task.auto_task_config
+        if not cfg.non_blocking:
+            return False
+        window = timedelta(seconds=int(cfg.running_check_interval))
+        now = datetime.now()
+        for name in self.higher_priority_task_names():
+            task = getattr(self.config.model, convert_to_underscore(name), None)
+            scheduler = getattr(task, 'scheduler', None)
+            if scheduler is None or not scheduler.enable:
+                continue
+            if scheduler.next_run <= now + window:
+                logger.attr('让路任务', f'{name} {scheduler.next_run}')
+                return True
+        return False
+
+    def interrupt_dialog_appear(self) -> bool:
+        """是否中断自动任务确认弹窗出现"""
+        texts = [item.ocr_text for item in
+                 self.O_INTERRUPT_DIALOG.detect_and_ocr(self.device.image, logDisplay=False)]
+        return any('是否中断自动任务' in text for text in texts)
+
+    def interrupt_for_others(self) -> str:
+        """
+        让路中断：主页面点地面区 -> 确认弹窗点确定
+        :return: 'yielded'（已中断，调用方排恢复时间后结束）
+                 'finished'（点地面时完成弹窗已出，关掉按完成处理）
+        """
+        logger.hr('让路中断自动任务')
+        x0, y0, w, h = self.INTERRUPT_CLICK_REGION
+        x = random.randint(x0, x0 + w)
+        y = random.randint(y0, y0 + h)
+        logger.info(f'Click ground at ({x},{y}) to interrupt')
+        self.device.click(x=x, y=y, control_name='auto_interrupt')
+        self.device.click_record_clear()
+        timer = Timer(15).start()
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            if self.interrupt_dialog_appear():
+                logger.info('Interrupt dialog appeared, confirm')
+                self.appear_then_click(self.I_INTERRUPT_CONFIRM)
+                self.device.click_record_clear()
+                self.device.sleep(1.0)
+                return 'yielded'
+            if self.auto_finished():
+                logger.info('Finish popup appeared during yield, close it')
+                self.appear_then_click(self.I_FINISH_POPUP_CLOSE)
+                self.device.click_record_clear()
+                self.device.sleep(0.5)
+                return 'finished'
+            self.device.sleep(0.5)
+        raise GameStuckError('中断确认弹窗未出现')
+
     def wait_auto_finish(self) -> None:
         """
         回主页面后按截图间隔轮询：完成弹窗出现就点 X 关掉返回；
@@ -504,10 +577,18 @@ class ScriptTask(GameUi, AutoTaskAssets):
                 self.device.click_record_clear()
                 self.device.sleep(0.5)
                 return
-            if self.auto_running():
-                self.device.sleep(interval)
+            if not self.auto_running():
+                # 没在执行（过渡/加载中）：没东西可中断，只短睡继续看
+                self.device.sleep(2)
                 continue
-            self.device.sleep(2)
+            if self.other_task_due_soon():
+                result = self.interrupt_for_others()
+                if result == 'finished':
+                    return
+                self._yield_until = datetime.now() + timedelta(minutes=self.YIELD_RESUME_MINUTES)
+                logger.attr('让路恢复时间', self._yield_until.strftime('%Y-%m-%d %H:%M:%S'))
+                raise TaskEnd('AutoTask')
+            self.device.sleep(interval)
         raise GameStuckError('自动任务执行超时')
 
     def execute_all_auto(self, timeout: int = 90) -> None:
