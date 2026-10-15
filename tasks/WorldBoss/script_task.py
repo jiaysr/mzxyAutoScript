@@ -2,7 +2,10 @@
 from datetime import datetime, time, timedelta
 
 from module.base.timer import Timer
-from module.exception import GameStuckError, TaskEnd
+from module.exception import (GameNotRunningError,
+                              GamePageUnknownError,
+                              GameStuckError,
+                              TaskEnd)
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.pages.page import page_activity_world_boss
@@ -52,6 +55,8 @@ BOSS_LIST = [
 SEEK_OFFSET_X = 98
 SEEK_OFFSET_Y = 576
 ARRIVE_TOLERANCE = 20
+# 自动寻路卡住判定：坐标连续多少秒没变化就重新点「寻」重启寻路
+ARRIVE_STALL_SECONDS = 10
 
 
 class ScriptTask(GameUi, WorldBossAssets):
@@ -357,33 +362,65 @@ class ScriptTask(GameUi, WorldBossAssets):
     def wait_until_arrive(self, boss: dict, timeout: int = 180) -> bool:
         """
         等待自动寻路到达首领坐标
+
         地点与坐标统一由 GameUi.map_current_location 读取（含 OCR 形近字兼容），
-        地点名用 map_name_match 比较（万剑冢 常被识别成 万剑家）
+        地点名用 map_name_match 比较（万剑冢 常被识别成 万剑家）。
+
+        自动寻路中途会卡住（被障碍挡住 / 点击打断 / 寻路提前结束），此时坐标会长时间
+        停在原地。这里做卡住检测：坐标连续 ARRIVE_STALL_SECONDS 秒没变化就重新点「寻」
+        重启寻路（reseek_boss），避免干等到超时。
         """
         logger.hr('Wait until arrive')
         target_map = boss['target_map']
         target_coord = boss['target_coord']
         timer = Timer(timeout).start()
+        stall_timer = Timer(ARRIVE_STALL_SECONDS).start()
+        last_key = None
 
         while 1:
             self.reset_records()
             location = self.map_current_location()
-            if location is None:
+            if location is not None:
+                map_name, coord_x, coord_y = location
+                distance = abs(coord_x - target_coord[0]) + abs(coord_y - target_coord[1])
+                logger.attr('Position', f'{map_name}{coord_x},{coord_y} distance {distance}')
+                if self.map_name_match(map_name, target_map) and distance <= ARRIVE_TOLERANCE:
+                    logger.info(f"Arrived at {map_name}{coord_x},{coord_y}")
+                    return True
+                key = (map_name, coord_x, coord_y)
+            else:
+                # 读不到坐标：当作「没有变化」，让卡住计时器继续走
+                # （真在走路时坐标会持续刷新，只有卡住/异常才会一直读不到）
+                key = last_key
                 if timer.reached():
                     raise GameStuckError('Unable to read character position')
-                self.device.sleep(1)
-                continue
 
-            map_name, coord_x, coord_y = location
-            distance = abs(coord_x - target_coord[0]) + abs(coord_y - target_coord[1])
-            logger.attr('Position', f'{map_name}{coord_x},{coord_y} distance {distance}')
-            if self.map_name_match(map_name, target_map) and distance <= ARRIVE_TOLERANCE:
-                logger.info(f"Arrived at {map_name}{coord_x},{coord_y}")
-                return True
+            # 位置变化了 -> 重置卡住计时；连续不动到阈值 -> 重新点「寻」重启寻路
+            if key != last_key:
+                stall_timer.reset()
+            elif stall_timer.reached():
+                stall_timer.reset()
+                logger.warning(f'Position stuck at {key} for {ARRIVE_STALL_SECONDS}s, reseek the boss')
+                if not self.reseek_boss(boss):
+                    logger.warning('Reseek failed, keep waiting')
+            last_key = key
+
             if timer.reached():
-                logger.warning(f"Arrive timeout, now at {map_name}{coord_x},{coord_y}")
+                logger.warning(f"Arrive timeout, now at {last_key}")
                 return False
             self.device.sleep(1)
+
+    def reseek_boss(self, boss: dict) -> bool:
+        """
+        重新进活动-世界首领页并点「寻」，重启自动寻路（角色卡住时用）
+        """
+        logger.hr(f"Reseek {boss['name']}")
+        try:
+            self.enter_world_boss_page()
+            return self.seek_boss(boss)
+        except (GameStuckError, GamePageUnknownError, GameNotRunningError) as e:
+            logger.warning(f'Reseek failed: {e}')
+            return False
 
 
 if __name__ == '__main__':
