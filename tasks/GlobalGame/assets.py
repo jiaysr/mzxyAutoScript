@@ -19,6 +19,8 @@ class GlobalGameAssets:
 	C_POPUP_BOSS_REWARD_CLOSE = RuleClick(roi_front=(609,525,64,35), roi_back=(598,521,83,44), name="popup_boss_reward_close")
 	# 物资争夺关闭按钮 
 	C_POPUP_SUPPLIES_CLOSE = RuleClick(roi_front=(1020,129,43,29), roi_back=(1005,120,73,54), name="popup_supplies_close")
+	# 邀请组队关闭按钮 
+	C_POPUP_INVITE_CLOSE = RuleClick(roi_front=(384,368,128,45), roi_back=(384,368,128,45), name="popup_invite_close")
 
 
 	# Image Rule Assets
@@ -30,6 +32,8 @@ class GlobalGameAssets:
 	I_POPUP_BOSS_REWARD = RuleImage(roi_front=(230,188,89,38), roi_back=(221,158,152,103), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_boss_reward.png")
 	# 物资争夺弹窗 
 	I_POPUP_SUPPLIES = RuleImage(roi_front=(572,197,125,47), roi_back=(554,189,158,66), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_supplies.png")
+	# 邀请组队拒绝 
+	I_POPUP_INVITE = RuleImage(roi_front=(593,297,59,32), roi_back=(510,290,361,45), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_invite.png")
 
 
 	# Click Rule Assets

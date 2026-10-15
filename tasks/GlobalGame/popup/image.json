@@ -34,5 +34,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "物资争夺弹窗"
+  },
+  {
+    "itemName": "popup_invite",
+    "imageName": "popup_popup_invite.png",
+    "roiFront": "593,297,59,32",
+    "roiBack": "510,290,361,45",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "邀请组队拒绝"
   }
 ]

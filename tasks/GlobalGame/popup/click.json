@@ -22,5 +22,11 @@
     "roiFront": "1020,129,43,29",
     "roiBack": "1005,120,73,54",
     "description": "物资争夺关闭按钮"
+  },
+  {
+    "itemName": "popup_invite_close",
+    "roiFront": "384,368,128,45",
+    "roiBack": "384,368,128,45",
+    "description": "邀请组队关闭按钮"
   }
 ]
