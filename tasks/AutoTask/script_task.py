@@ -593,12 +593,13 @@ class ScriptTask(GameUi, AutoTaskAssets):
         - 出现「任务已全部完成」弹窗 -> 关掉返回 'finished'
         - 出现「自动任务中」-> 继续等（并可让路）
         - 连续 AUTO_UNKNOWN_LIMIT 次都没检测到「自动任务中」
-          （可能自动任务静默结束/界面异常）-> 返回 'unknown'，
-          由调用方回特权页复查进度、尝试继续执行，不再空等到超时
+          （可能自动任务静默结束/界面异常）-> 先重启游戏恢复，
+          再返回 'unknown'，由调用方回特权页复查进度、尝试继续执行，不再空等到超时
 
         :param timeout: 等待超时（秒），默认单个任务的 AUTO_FINISH_TIMEOUT；
                         「全部自动」会传入 AUTO_FINISH_TIMEOUT x 剩余任务数
-        :return: 'finished'（完成弹窗出现并已关闭）/ 'unknown'（回特权页复查进度）
+        :return: 'finished'（完成弹窗出现并已关闭）/
+                 'unknown'（已重启游戏，回特权页复查进度）
         """
         logger.hr('Wait auto finish')
         timeout = timeout if timeout is not None else self.AUTO_FINISH_TIMEOUT
@@ -628,15 +629,29 @@ class ScriptTask(GameUi, AutoTaskAssets):
                         logger.attr('让路恢复时间', self._resume_at.strftime('%Y-%m-%d %H:%M:%S'))
                         raise TaskEnd('AutoTask')
                 else:
-                    # 没检测到「自动任务中」：累计次数，够 AUTO_UNKNOWN_LIMIT 次就回特权页复查
+                    # 没检测到「自动任务中」：累计次数，够 AUTO_UNKNOWN_LIMIT 次就
+                    # 重启游戏恢复，再由调用方回特权页复查进度
                     unknown += 1
                     if unknown >= self.AUTO_UNKNOWN_LIMIT:
-                        logger.warning(f'连续 {unknown} 次未检测到「自动任务中」，回特权页复查进度')
+                        logger.warning(f'连续 {unknown} 次未检测到「自动任务中」，重启游戏后回特权页复查进度')
+                        self.restart_game_for_recover()
                         return 'unknown'
                 self.device.sleep(interval)
             raise GameStuckError('自动任务执行超时')
         finally:
             self._waiting_auto = False
+
+    def restart_game_for_recover(self) -> None:
+        """
+        长时间等不到「自动任务中」时的恢复手段：重启游戏
+
+        此时界面/自动任务状态已经不正常，继续挂机也等不到完成弹窗；
+        重启（登录流程复用重启任务）后回到主页面，页面缓存随之作废，
+        由调用方回特权页复查进度、继续执行下一个任务
+        """
+        logger.hr('重启游戏恢复')
+        self.ui_restart_game()
+        logger.info('Game restarted, back to main page')
 
     def handle_death(self) -> None:
         """
