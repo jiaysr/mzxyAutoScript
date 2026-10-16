@@ -23,6 +23,8 @@ class ConfigMenu:
         # 战斗的任务
         self.menu["Battle Task"] = ['WorldBoss', 'Challenge', 'Arena', 'CrossArena', 'AncientHunt',
                                     'XianfuJiuchongtian', 'YuwaiMimang', 'DouXianGe']
+        # 副本玩法（单独分组）
+        self.menu["Dungeon"] = ['Dungeon']
         # 开发工具
         self.menu["Tools"] = ['Image Rule', 'Ocr Rule', 'Click Rule', 'Long Click Rule', 'Swipe Rule', 'List Rule']
 

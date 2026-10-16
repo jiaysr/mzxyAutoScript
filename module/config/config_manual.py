@@ -19,6 +19,7 @@ class ConfigManual:
         > AncientHunt
         > XianfuJiuchongtian
         > DouXianGe
+        > Dungeon
         > SilverGiftBox
         > AutoTask
         """
