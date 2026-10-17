@@ -61,11 +61,13 @@ class BaseTask(GlobalGame):
 
     def screenshot(self):
         """
-        截图，并做全局处理：阵亡检测（复活并重跑）与已知弹窗清理
+        截图，并做全局处理：阵亡检测（复活并重跑）、人机验证答题与已知弹窗清理
         :return:
         """
         self.device.screenshot()
         self.handle_death()
+        # 人机验证盖在最上层，不解掉什么都做不了，放在弹窗清理前面
+        self.handle_captcha()
         self.handle_global_popup()
 
         return self.device.image

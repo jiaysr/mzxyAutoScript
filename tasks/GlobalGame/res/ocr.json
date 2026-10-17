@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "captcha_expression",
+    "roiFront": "525,195,230,55",
+    "roiBack": "525,195,230,55",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "人机验证-算术表达式行（如 60 + 4 = ?，Single 整行识别）"
+  },
+  {
+    "itemName": "captcha_options",
+    "roiFront": "418,248,370,250",
+    "roiBack": "418,248,370,250",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "人机验证-选项区（左列 A~E、右列 F~J，每项「字母: 数字」）"
+  }
+]

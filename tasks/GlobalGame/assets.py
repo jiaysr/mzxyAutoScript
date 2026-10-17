@@ -48,5 +48,14 @@ class GlobalGameAssets:
 	# Image Rule Assets
 	# 死亡弹窗-三个按钮区块（弹窗随提示文案行数上下移动，roiBack 上下放宽 ±20~40px） 
 	I_DEATH_DIALOG = RuleImage(roi_front=(486,255,310,260), roi_back=(486,235,310,300), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/res/res_death_dialog.png")
+	# 人机验证弹窗-标题红字「人机验证」（出现=需要答题） 
+	I_CAPTCHA_DIALOG = RuleImage(roi_front=(582,166,116,40), roi_back=(570,154,140,64), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/res/res_captcha_dialog.png")
+
+
+	# Ocr Rule Assets
+	# 人机验证-算术表达式行（如 60 + 4 = ?，Single 整行识别） 
+	O_CAPTCHA_EXPRESSION = RuleOcr(roi=(525,195,230,55), area=(525,195,230,55), mode="Single", method="Default", keyword="", name="captcha_expression")
+	# 人机验证-选项区（左列 A~E、右列 F~J，每项「字母: 数字」） 
+	O_CAPTCHA_OPTIONS = RuleOcr(roi=(418,248,370,250), area=(418,248,370,250), mode="Full", method="Default", keyword="", name="captcha_options")
 
 

@@ -8,16 +8,18 @@ from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GlobalGame.assets import GlobalGameAssets
+from tasks.GlobalGame.captcha import CaptchaHandler
 
 if TYPE_CHECKING:
     from module.config.config import Config
     from module.device.device import Device
 
 
-class GlobalGame(GlobalGameAssets):
+class GlobalGame(CaptchaHandler, GlobalGameAssets):
     """
-    全局处理：所有任务的 screenshot 都会经过 handle_death / handle_global_popup
+    全局处理：所有任务的 screenshot 都会经过 handle_death / handle_captcha / handle_global_popup
     - 角色阵亡时点击「返回村子」复活，保留任务进度并立即重跑当前任务
+    - 出现人机验证弹窗时算出答案并点中对应选项（见 captcha.py）
     - 出现已知弹窗时点击对应的关闭区域，避免弹窗挡住任务操作
     """
 

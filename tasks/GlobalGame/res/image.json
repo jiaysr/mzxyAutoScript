@@ -7,5 +7,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "死亡弹窗-三个按钮区块（弹窗随提示文案行数上下移动，roiBack 上下放宽 ±20~40px）"
+  },
+  {
+    "itemName": "captcha_dialog",
+    "imageName": "res_captcha_dialog.png",
+    "roiFront": "582,166,116,40",
+    "roiBack": "570,154,140,64",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "人机验证弹窗-标题红字「人机验证」（出现=需要答题）"
   }
 ]
