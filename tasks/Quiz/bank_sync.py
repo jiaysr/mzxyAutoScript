@@ -208,6 +208,12 @@ def merge_questions(local: list, remote: list) -> tuple:
     questions = list(merged.values())
     for record in questions:
         _clean_record(record)
+    # 合并结果也要过一遍自检：verified 是取并集的，别的设备会把「答案对不上选项」的串题记录
+    # 又合并回来（_clean_record 还会把降级时留的排除项按「与答案相同」清掉），必须放在最后
+    fixed = QuestionBank.sanitize_questions(questions)
+    if any(fixed.values()):
+        logger.warning(f'合并结果自检修正 {sum(fixed.values())} 处'
+                       f'（降级 {fixed["demoted"]}，清理排除项 {fixed["dropped_wrong"]}）')
     return questions, stats
 
 

@@ -5,12 +5,15 @@
 一局 20 题、每题 20 秒；点完选项会弹出「回答正确 / 回答错误」贴纸（约 5~7 秒），
 贴纸消失后才出下一题；20 题结束出现「答题结束」图。
 
-每题流程：
+每题流程（question_time_limit 是每题的硬预算，读完题就开表）：
     1. 本地 OCR 题干 + 三个选项（免费）
-    2. 题库命中且已验证 -> 直接用题库答案，不调 API
-    3. 否则交给 DeepSeek（deepseek-flash）看图作答，返回结构化 JSON
+    2. 题库按「题干 + 选项」定位（题干只差一两个字的题不会互相串），
+       命中且已验证 -> 直接用题库答案，不调 API
+    3. 否则交给 DeepSeek（deepseek-flash）看图作答，返回结构化 JSON；
+       剩余预算不够问 AI 就不问了，直接走兜底抢答
     4. 点击对应选项 -> 等贴纸 -> 判定正确/错误
     5. 回写题库：答对转正、答错记录错误选项供下次排除，不管对错都入库
+    6. 排除表是硬约束：进过排除表的选项，任何路径（题库/AI/兜底/抢答）都不会再点
 
 素材（tasks/Quiz/res，已由标注工具生成）：
     I_QUIZ_DIALOG / I_FEEDBACK_CORRECT / I_FEEDBACK_WRONG / I_QUIZ_FINISH / I_CLOSE
@@ -46,6 +49,11 @@ BAG_ITEM_NAME = '趣味答题券'
 
 # 交给 AI 的弹窗区域 (x, y, w, h)：题号 + 题干 + 三个选项，不含右侧答题榜
 DIALOG_AREA = (60, 120, 790, 390)
+
+# 抢答预留秒数：预算扣到这个值就不再做任何耗时判断，直接用兜底策略把题答上
+RUSH_RESERVE = 1.5
+# 剩余预算低于这个秒数就别问 AI 了（问了也来不及点）
+AI_MIN_BUDGET = 3.0
 
 REQUIRED_ASSETS = [
     'I_QUIZ_DIALOG',
@@ -200,6 +208,7 @@ class ScriptTask(GameUi, QuizAssets):
     def answer_loop(self) -> None:
         logger.hr('Answer loop')
         total = self.quiz_config.total_questions
+        limit = self.quiz_config.question_time_limit
         answered = 0
 
         while answered < total:
@@ -208,10 +217,40 @@ class ScriptTask(GameUi, QuizAssets):
                 break
             answered += 1
             logger.hr(f'第 {answered}/{total} 题', level=2)
+            # 每题的限时从这里开始算：读题、问 AI、点击都要在这个预算内完成，
+            # 预算见底还没定下答案就抢答，别让题目干等着超时
+            self.question_timer = Timer(limit).start()
             self.answer_one()
+            logger.attr(f'第 {answered} 题用时', f'{self.question_timer.current():.1f}s / {limit}s')
             self.wait_feedback_done(timeout=15)
 
         logger.info(f'共作答 {answered} 题')
+
+    # ---------------------------------------------------------------- 时间预算
+    def question_budget_left(self) -> float:
+        """
+        本题还剩多少秒；没在计时（比如单测直接调 answer_one）返回 inf
+        """
+        timer = getattr(self, 'question_timer', None)
+        if timer is None:
+            return float('inf')
+        return max(0.0, timer.limit - timer.current())
+
+    def ai_budget_enough(self) -> bool:
+        """
+        剩余预算够不够问一次 AI：不够就别问了，直接兜底作答，至少把题答上
+        """
+        return self.question_budget_left() - RUSH_RESERVE >= AI_MIN_BUDGET
+
+    def ai_timeout(self) -> float:
+        """
+        AI 单次调用超时：不超过配置的 api_timeout，也不超过本题剩余预算（要留出抢答时间）
+        """
+        timeout = max(1.0, float(self.quiz_config.api_timeout))
+        left = self.question_budget_left()
+        if left == float('inf'):
+            return timeout
+        return max(1.0, min(timeout, left - RUSH_RESERVE))
 
     def wait_question_ready(self, timeout: int = 30) -> bool:
         """
@@ -236,65 +275,84 @@ class ScriptTask(GameUi, QuizAssets):
 
     def answer_one(self) -> None:
         """
-        答一题：题库命中直接用（答完仍校验）-> 否则先落库再问 AI -> 点击 -> 反馈 -> 回写
+        答一题：
+
+        1. 本地 OCR 题干 + 选项，题库按「题干 + 选项」定位（相似题干不会串答案）
+        2. 题库能给答案且没被排除 -> 直接用（答完仍读反馈校验）
+        3. 否则落库 + 问 AI（剩余预算不够就不问了）
+        4. AI 也没给出可点选项 -> 题库兜底 -> 兜底策略抢答
+        任何一步选出来的选项都不会是排除表里的
         """
         self.screenshot()
         question, options = self.ocr_locally()
-        record, score = self.bank.find(question) if question else (None, 0.0)
+        record, score = self.bank.find(question, options)
 
-        # 1) 题库命中且已验证 -> 直接用，但同样要读反馈校验题库
-        if record and record.get('verified') and record.get('answer') and options:
-            letter = self.bank.match_option(options, record['answer'])
-            if letter:
-                logger.info(f'题库命中({score:.2f}): {record["answer"]} -> {letter}')
-                self.click_option(letter)
-                feedback = self.read_feedback()
-                # 命中也走校验：答对保持/转正，答错降级并记录错误选项
-                self.bank.update_by_feedback(question, record['answer'], feedback)
-                return
+        # 1) 题库命中：已验证的答案（或未验证但配置为不重问）直接用
+        letter, answer_text = self.bank_letter(record, options, strict=True)
+        if letter:
+            logger.info(f'题库命中({score:.2f}): {answer_text} -> {letter}')
+            self.click_option(letter)
+            feedback = self.read_feedback()
+            # 命中也走校验：答对保持/转正，答错降级并记录错误选项
+            self.bank.update_by_feedback(question, options.get(letter, answer_text), feedback,
+                                         record=record, options=options)
+            return
 
-        # 2) 未验证但已有答案：如果配置为不重问 AI，就直接用（答完仍校验）
-        if (record and record.get('answer') and options
-                and not self.quiz_config.ask_again_if_unverified):
-            letter = self.bank.match_option(options, record['answer'])
-            if letter:
-                logger.info(f'题库命中(未验证): {record["answer"]} -> {letter}')
-                self.click_option(letter)
-                feedback = self.read_feedback()
-                self.bank.update_by_feedback(question, record['answer'], feedback)
-                return
-
-        # 3) 先把题目落库（API 失败也不丢），再问 AI
+        # 2) 先把题目落库（API 失败也不丢），再问 AI
         if question and self.quiz_config.learn_from_llm:
-            self.bank.ensure_entry(question, options)
+            record = self.bank.ensure_entry(question, options)
+        wrong_options = list(record.get('wrong') or []) if record else []
 
-        wrong_options = (record.get('wrong') or []) if record else []
-        ai = self.ask_ai(question=question, options=options,
-                         wrong_options=wrong_options)
-        if ai is None:
-            logger.warning('AI 不可用（题目已落库，下次会重试）')
-            letter, answer_text = self.pick_bank_option(record, options)
+        if self.ai_budget_enough():
+            ai = self.ask_ai(question=question, options=options, wrong_options=wrong_options)
+        else:
+            logger.warning(f'本题只剩 {self.question_budget_left():.1f}s，来不及问 AI，直接兜底作答')
+            ai = None
+
+        if ai is not None:
+            letter, answer_text = self.pick_ai_option(question, ai, options, wrong_options)
             if letter:
-                logger.info(f'题库兜底作答: {answer_text} -> {letter}')
                 self.click_option(letter)
-                # 兜底也读反馈回写：随机选对时能把题库答案转正
                 feedback = self.read_feedback()
-                self.bank.update_by_feedback(question, answer_text, feedback)
+                self.learn(question, options, answer_text or options.get(letter, ''), feedback, record)
                 return
-            self.bank.append_unknown(question, options)
-            self.fallback_pick(options, wrong_options)
+            logger.warning(f'AI 没能给出可点的选项: answer={ai.get("answer")!r} '
+                           f'answer_text={answer_text!r} options={options}')
+
+        # 3) 兜底：题库里还没被排除的答案 -> 抢答（同样遵守排除表）
+        letter, answer_text = self.pick_bank_option(record, options)
+        if letter:
+            logger.info(f'题库兜底作答: {answer_text} -> {letter}')
+            self.click_option(letter)
+            # 兜底也读反馈回写：随机选对时能把题库答案转正
+            feedback = self.read_feedback()
+            self.bank.update_by_feedback(question, options.get(letter, answer_text), feedback,
+                                         record=record, options=options)
             return
 
-        letter, answer_text = self.pick_ai_option(question, ai, options, wrong_options)
-        if letter not in OPTION_CLICKS:
-            logger.warning(f'无法确定选项: answer_text={answer_text!r} options={options}')
-            self.bank.append_unknown(question, options)
-            self.fallback_pick(options, wrong_options)
-            return
+        logger.warning('AI 不可用（题目已落库，下次会重试）' if ai is None else 'AI 与题库都给不出答案')
+        self.bank.append_unknown(question, options)
+        self.fallback_pick(options, wrong_options, record)
 
-        self.click_option(letter)
-        feedback = self.read_feedback()
-        self.learn(question, options, answer_text or options.get(letter, ''), feedback)
+    def bank_letter(self, record: dict, options: dict, strict: bool = True) -> tuple:
+        """
+        题库里的答案能不能直接拿去点（排除表是硬约束，被排除的答案一律不用）
+
+        :param strict: True 只认「已验证」或「配置允许的未验证答案」（正常答题）；
+                       False 连未验证的答案也用（AI 不可用时的兜底）
+        :return: (letter, answer_text)，用不了返回 ('', '')
+        """
+        if not record or not options:
+            return '', ''
+        answer = record.get('answer') or ''
+        if not answer:
+            return '', ''
+        if strict and not record.get('verified') and self.quiz_config.ask_again_if_unverified:
+            return '', ''
+        letter = self.bank.option_letter(options, answer, record.get('wrong') or [])
+        if not letter:
+            return '', ''
+        return letter, answer
 
     def click_option(self, letter: str) -> None:
         """
@@ -339,51 +397,73 @@ class ScriptTask(GameUi, QuizAssets):
                 return False
             self.device.sleep(0.3)
 
-    def fallback_pick(self, options: dict = None, wrong_options: list = None) -> None:
+    def fallback_pick(self, options: dict = None, wrong_options: list = None,
+                      record: dict = None) -> None:
         """
-        兜底选一个选项；能给到选项文字和排除表时，避开已验证错误的选项
+        兜底（抢答）选一个选项：永不点排除表里的选项
+
+        - 选项文字读全了：只在没被排除的选项里挑
+        - 已知选项全被排除：说明排除表和本题自相矛盾，清空重来（见 QuestionBank.pick_letter）
+        - 选项文字完全没读出来：没有排除表就闭眼选一个，有排除表则不作答（无法核对，宁可空着）
         """
         mode = self.quiz_config.unknown_fallback
-        if mode == 'skip':
-            logger.warning('兜底策略：不作答')
+        letter = self.bank.pick_letter(options, wrong_options, mode=mode, record=record)
+        if not letter:
+            logger.warning(f'兜底策略：{mode} -> 没有可点的选项（不作答）')
             return
-        letter = 'A' if mode == 'first' else random.choice(['A', 'B', 'C'])
-        safe = []
-        if options:
-            safe = [k for k in ('A', 'B', 'C')
-                    if options.get(k) and not self.bank.find_excluded(options[k], wrong_options or [])]
-        if safe and letter not in safe:
-            letter = random.choice(safe)
         logger.warning(f'兜底策略：{mode} -> {letter}')
         self.click_option(letter)
 
     def pick_ai_option(self, question: str, ai: dict, options: dict,
                        wrong_options: list) -> tuple:
         """
-        从 AI 结果解析可点的选项；AI 选了已验证错误的选项时，带着剩余选项重问一次，
-        仍不可用就在剩余选项里随机，保证不点已知错误的选项
+        从 AI 结果解析可点的选项
+
+        - AI 选了已验证错误的选项时，带着剩余选项重问一次，仍不可用就在剩余选项里随机
+        - 该选项文字没读出来时无法核对排除表：只有排除表里没有「对不上任何已知选项」的条目
+          才敢点（有的话，被排除的多半就是这个没读出来的选项）
         :return: (letter, answer_text)，无法确定返回 ('', answer_text)
         """
         answer_text = ai.get('answer_text') or ''
-        letter = self.bank.match_option(options, answer_text) or ai.get('answer', '').strip().upper()
-        if letter not in OPTION_CLICKS:
+        letter = self.bank.match_option(options, answer_text) if answer_text else ''
+        if not letter:
+            candidate = (ai.get('answer') or '').strip().upper()
+            if candidate in (options or {}):
+                letter = candidate
+            elif candidate in OPTION_CLICKS:
+                if not wrong_options:
+                    # 选项文字没读全，但也没有排除表要核对，直接信模型给的字母
+                    return candidate, answer_text
+                # 有排除表却读不到这个选项的文字：核对不了，当成不安全的选点往下走
+                letter = candidate
+        if not letter:
             return '', answer_text
-        if not self.bank.find_excluded(options.get(letter, ''), wrong_options):
+
+        if not options.get(letter) and self.bank.orphan_wrong(options, wrong_options):
+            logger.warning(f'AI 选了 {letter}，但该选项文字没读到、排除表里还有对不上选项的条目，'
+                           f'改从剩余选项里挑')
+            letter = ''
+        if letter and not self.bank.find_excluded(options.get(letter, ''), wrong_options):
             return letter, answer_text
 
-        remaining = {k: v for k, v in options.items()
+        remaining = {k: v for k, v in (options or {}).items()
                      if v and not self.bank.find_excluded(v, wrong_options)}
         if not remaining:
             logger.warning('AI 选了已排除的选项，且所有选项都已被排除')
             return '', answer_text
         logger.warning(f'AI 选了已排除的选项 {answer_text!r}，重问剩余选项 {sorted(remaining)}')
-        retry = self.ask_ai(question=question, options=remaining,
-                            wrong_options=wrong_options)
+        retry = None
+        if self.ai_budget_enough():
+            retry = self.ask_ai(question=question, options=remaining, wrong_options=wrong_options)
+        else:
+            logger.warning(f'本题只剩 {self.question_budget_left():.1f}s，不重问 AI')
         if retry is not None:
             retry_text = retry.get('answer_text') or ''
-            retry_letter = (self.bank.match_option(remaining, retry_text)
-                            if retry_text else '') or retry.get('answer', '').strip().upper()
-            if retry_letter in remaining:
+            retry_letter = self.bank.match_option(remaining, retry_text) if retry_text else ''
+            if not retry_letter:
+                candidate = (retry.get('answer') or '').strip().upper()
+                retry_letter = candidate if candidate in remaining else ''
+            if retry_letter:
                 logger.info(f'重问得到: {retry_letter} {retry_text}')
                 return retry_letter, retry_text
         letter = random.choice(list(remaining))
@@ -392,41 +472,35 @@ class ScriptTask(GameUi, QuizAssets):
 
     def pick_bank_option(self, record: dict, options: dict) -> tuple:
         """
-        AI 不可用时的题库兜底：优先用题库已有答案；
-        已验证错误的答案不点，改从剩余选项里随机，避免把同一个错误答案再点一遍
+        AI 不可用时的题库兜底：优先用题库已有答案（被排除的不用），
+        否则从剩余选项里随机，避免把同一个错误答案再点一遍
         :return: (letter, answer_text)，选不出返回 ('', '')
         """
+        letter, answer = self.bank_letter(record, options, strict=False)
+        if letter:
+            return letter, answer
         if not (record and options):
             return '', ''
-        wrong = record.get('wrong') or []
-        answer = record.get('answer') or ''
-        if answer and not self.bank.find_excluded(answer, wrong):
-            letter = self.bank.match_option(options, answer)
-            if letter:
-                return letter, answer
-        remaining = [k for k, v in options.items()
-                     if v and not self.bank.find_excluded(v, wrong)]
-        if remaining:
-            letter = random.choice(remaining)
+        letter = self.bank.pick_letter(options, record.get('wrong') or [],
+                                       mode='random', record=record)
+        if letter:
             logger.warning(f'题库答案不可用，从剩余选项里选: {letter}')
             return letter, options.get(letter, '')
         return '', ''
 
     # ---------------------------------------------------------------- 学习
     def learn(self, question: str, options: dict, answer_text: str,
-              feedback: str) -> None:
+              feedback: str, record: dict = None) -> None:
         """
         用 AI 答案 + 游戏反馈回写题库（不管对错都写）
+        :param record: 本题已定位到的记录，直接写它，不再按题干重新匹配
         """
         if not question:
             return
         if self.quiz_config.learn_from_llm:
-            self.bank.upsert(
-                question,
-                [options.get(k, '') for k in ('A', 'B', 'C')],
-                answer_text,
-            )
-        self.bank.update_by_feedback(question, answer_text, feedback)
+            record = self.bank.upsert(question, options, answer_text, record=record)
+        self.bank.update_by_feedback(question, answer_text, feedback,
+                                     record=record, options=options)
         if feedback is None:
             self.bank.append_unknown(question, options)
 
@@ -454,6 +528,9 @@ class ScriptTask(GameUi, QuizAssets):
                wrong_options: list = None) -> dict:
         """
         截取弹窗区域交给 DeepSeek，题干/选项以文字一并给出
+
+        超时按本题剩余预算收窄（见 ai_timeout）：宁可这次问不出来走兜底，
+        也不要卡在那里把整道题拖到超时
         """
         image = crop(self.device.image, DIALOG_AREA)
         if self.quiz_config.save_unknown_screenshot:
@@ -461,7 +538,8 @@ class ScriptTask(GameUi, QuizAssets):
             path = f'{SHOT_DIR}/{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
             cv2.imwrite(path, image)
         return self.client.answer_quiz(image, question=question, options=options,
-                                       wrong_options=wrong_options)
+                                       wrong_options=wrong_options,
+                                       timeout=self.ai_timeout())
 
     def current_index(self) -> int:
         """

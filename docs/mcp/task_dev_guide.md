@@ -340,6 +340,16 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 - `tasks/Challenge`、`tasks/Quiz`：挑战、答题
   - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
+  - 题库定位是**题干 + 选项**（`QuestionBank.find(question, options)`）：题干只差一两个字的题
+    （「中国的国鸟是什么？」/「中国的国花是什么？」）归一化后相似度 0.875，只看题干会并成一道、
+    答案互相污染（实测国鸟那条的答案被写成了牡丹）。题干相近但选项对不上时按新题处理（宁可多问一次
+    AI），写回也一律带 `record=`，不再按题干重新匹配
+  - **排除表是硬约束**：`wrong` 里的选项在题库/AI/兜底/抢答任何路径都不会再点；
+    选项文字没读全时用 `orphan_wrong` 判断「被排除的是不是那个没读出来的选项」；
+    三个选项全被排除说明数据自相矛盾，`pick_letter` 会清空排除表
+  - `question_time_limit` 是每题硬预算（题目出现就开表）：剩余不足 `AI_MIN_BUDGET`(4.5s) 就不问 AI，
+    直接兜底抢答；AI 调用超时按剩余预算收窄（`ai_timeout`）；`QuestionBank.sanitize()` 在载入时
+    把「答案对不上自己选项」的记录降级并记入排除表（修历史串题数据）
 - `tasks/WarChariot`：参与战车（仙盟战车）
   - 每天 20:00 开放，提前 `advance_time`（默认 5 分钟）把游戏启动/登录到主页面
   - 到点后每 2s 检测文字区域（OCR 规则 `O_CHARIOT_TEXT`）是否含「仙盟战车」；

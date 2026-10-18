@@ -73,7 +73,7 @@
   "quiz_api_timeout_help": "Timeout in seconds for one API call. Each question has 20s, keep a reasonable budget",
   "quiz_use_thinking_help": "Enable thinking mode: more accurate but slower and pricier",
   "quiz_total_questions_help": "Number of questions in one quiz session",
-  "quiz_time_limit_help": "Countdown seconds per question, used for the fallback pick",
+  "quiz_time_limit_help": "Time limit per question (same as the in-game countdown). Reading the question, asking the AI and clicking must all fit in it: no time left means a rushed fallback pick, and the AI timeout shrinks with the remaining budget",
   "quiz_ask_again_help": "Ask the AI again for questions not verified in the bank",
   "quiz_unknown_fallback_help": "Fallback when the bank misses and the AI is unavailable: skip / always A / random",
   "skip": "Skip",
