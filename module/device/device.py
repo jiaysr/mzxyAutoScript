@@ -95,6 +95,8 @@ class Device(Platform, Screenshot, Control, AppControl):
             self._scrcpy_server_stop()
         if self.config.Emulator_ScreenshotMethod == 'nemu_ipc':
             self.nemu_ipc_release()
+        if self.config.script.device.screenshot_method == 'EmulatorExtras':
+            self.release_emulator_extras()
 
     def stuck_record_add(self, button):
         """

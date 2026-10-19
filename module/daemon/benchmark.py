@@ -188,6 +188,8 @@ class Benchmark(DaemonBase):
         if device == 'android_phone_vmos':
             screenshot = ['ADB', 'aScreenCap', 'DroidCast', 'DroidCast_raw']
             click = ['ADB', 'Hermit', 'MaaTouch']
+        if 'EmulatorExtras' not in screenshot and getattr(self.device, 'emulator_extras_supported', False):
+            screenshot.append('EmulatorExtras')
 
         # scene = self.config.Benchmark_TestScene
         # if 'screenshot' not in scene:
@@ -229,6 +231,8 @@ class Benchmark(DaemonBase):
             screenshot = remove('ADB_nc', 'aScreenCap_nc')
         if self.config.script.device.handle == '':
             screenshot = remove('window_background')
+        if getattr(self.device, 'emulator_extras_supported', False):
+            screenshot.append('EmulatorExtras')
         screenshot = tuple(screenshot)
 
         self.TEST_TOTAL = 3
