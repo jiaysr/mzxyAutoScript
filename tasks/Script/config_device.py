@@ -21,6 +21,7 @@ class ScreenshotMethod(str, Enum):
     SCRCPY = 'scrcpy'
     WINDOW_BACKGROUND = 'window_background'
     NEMU_IPC = 'nemu_ipc'
+    EMULATOR_EXTRAS = 'EmulatorExtras'
 
 class ControlMethod(str, Enum):
     ADB = 'adb'
