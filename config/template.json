@@ -68,7 +68,8 @@
     "login_official_config": {
       "server": "",
       "account": "",
-      "character": ""
+      "character": "",
+      "password": ""
     }
   },
   "global_game": {

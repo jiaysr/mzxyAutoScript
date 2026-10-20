@@ -1,8 +1,15 @@
 # This Python file uses the following encoding: utf-8
-from module.config.client import CLIENT_OFFICIAL, client
+from module.config.client import CLIENT_OFFICIAL, get_client
 from module.logger import logger
 
-if client == CLIENT_OFFICIAL:
+if __name__ == '__main__':
+    from module.config.config import Config
+    from module.device.device import Device
+
+    config = Config('oas1')
+    device = Device(config)
+
+if get_client() == CLIENT_OFFICIAL:
     from tasks.Restart.login_official import RestartOfficial as _LoginHandler
 else:
     from tasks.Restart.login_x7 import RestartX7 as _LoginHandler
@@ -17,11 +24,6 @@ class ScriptTask(_LoginHandler):
 
 
 if __name__ == '__main__':
-    from module.config.config import Config
-    from module.device.device import Device
-
-    config = Config('oas1')
-    device = Device(config)
     task = ScriptTask(config, device)
     task.app_restart()
     # for _ in range(3):

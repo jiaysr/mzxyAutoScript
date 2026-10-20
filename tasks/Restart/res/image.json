@@ -70,5 +70,41 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "小七版选择服务器页-全部服务器选中样式"
+  },
+  {
+    "itemName": "official_login_enter",
+    "imageName": "res_official_login_enter.png",
+    "roiFront": "157,373,109,111",
+    "roiBack": "125,346,170,170",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "官方版登录页-左侧登录游戏按钮"
+  },
+  {
+    "itemName": "official_account_page",
+    "imageName": "res_official_account_page.png",
+    "roiFront": "584,4,111,28",
+    "roiBack": "560,0,160,45",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "官方版原生账号密码页-登录账号标题"
+  },
+  {
+    "itemName": "official_account_error",
+    "imageName": "res_official_account_error.png",
+    "roiFront": "0,321,190,30",
+    "roiBack": "0,270,400,100",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "官方版账号或密码不对"
+  },
+  {
+    "itemName": "official_server_account_label",
+    "imageName": "res_official_server_account_label.png",
+    "roiFront": "352,122,123,29",
+    "roiBack": "342,115,145,45",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "官方版服务器页-账户名字标签（不包含名字）"
   }
 ]

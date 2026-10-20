@@ -261,27 +261,34 @@ class ConfigModel(ConfigBase):
         group = convert_to_underscore(group)
         argument = convert_to_underscore(argument)
 
+        # 官方登录凭据必须原样保存，不能按时间或布尔值解析。
+        is_credential = (task == 'restart' and group == 'login_official_config'
+                         and argument in ('account', 'password'))
+        is_password = argument == 'password'
+
         # pandtic验证
-        if isinstance(value, str) and len(value) == 8:
-            try:
-                value = datetime.strptime(value, '%H:%M:%S').time()
-            except ValueError:
-                pass
-        if isinstance(value, str) and len(value) == 11:
-            try:
-                date_time = datetime.strptime(value, '%d %H:%M:%S')
-                value = TimeDelta(days=date_time.day, hours=date_time.hour, minutes=date_time.minute, seconds=date_time.second)
-            except ValueError:
-                pass
-        if isinstance(value, str) and len(value) == 19:
-            try:
-                value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-            except ValueError:
-                pass
-        if isinstance(value, str) and value == 'true':
-            value = True
-        if isinstance(value, str) and value == 'false':
-            value = False
+        if not is_credential:
+            if isinstance(value, str) and len(value) == 8:
+                try:
+                    value = datetime.strptime(value, '%H:%M:%S').time()
+                except ValueError:
+                    pass
+            if isinstance(value, str) and len(value) == 11:
+                try:
+                    date_time = datetime.strptime(value, '%d %H:%M:%S')
+                    value = TimeDelta(days=date_time.day, hours=date_time.hour, minutes=date_time.minute, seconds=date_time.second)
+                except ValueError:
+                    pass
+            if isinstance(value, str) and len(value) == 19:
+                try:
+                    value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    pass
+            if isinstance(value, str) and value == 'true':
+                value = True
+            if isinstance(value, str) and value == 'false':
+                value = False
+        log_value = '[REDACTED]' if is_password else value
 
         task_object = getattr(self, task, None)
         group_object = getattr(task_object, group, None)
@@ -296,7 +303,7 @@ class ConfigModel(ConfigBase):
         argument_object = getattr(group_object, argument, None)
 
         if argument_object is None:
-            logger.error(f'Set arg {task}.{group}.{argument}.{value} failed')
+            logger.error(f'Set arg {task}.{group}.{argument}.{log_value} failed')
             return False
 
         # XXX temp implementation to enable oasx control the datetime configuration globally rather than a single task
@@ -308,11 +315,12 @@ class ConfigModel(ConfigBase):
         # 设置参数
         try:
             setattr(group_object, argument, value)
-            logger.info(f'Set arg {self.config_name}.{task}.{group}.{argument}.{value}')
+            logger.info(f'Set arg {self.config_name}.{task}.{group}.{argument}.{log_value}')
             self.save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            logger.error(e)
+            # Pydantic 异常包含输入值，密码字段不能直接输出异常。
+            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
             return False
 
     def copy_script_task(self, task_name: str, source_task: BaseModel) -> bool:

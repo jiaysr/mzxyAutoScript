@@ -2,6 +2,7 @@
 # @author runhey
 # github https://github.com/runhey
 from pathlib import Path
+import logging
 
 from contextlib import asynccontextmanager
 
@@ -18,6 +19,9 @@ from module.server.tool_router import tool_app
 from module.server.setting import State
 from module.server.main_manager import mm
 from starlette.staticfiles import StaticFiles
+from module.handler.sensitive_info import PasswordAccessFilter
+
+logging.getLogger('uvicorn.access').addFilter(PasswordAccessFilter())
 
 
 @asynccontextmanager

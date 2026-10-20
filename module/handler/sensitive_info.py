@@ -1,4 +1,17 @@
+import logging
 import re
+from urllib.parse import unquote
+
+
+class PasswordAccessFilter(logging.Filter):
+    def filter(self, record):
+        if isinstance(record.args, tuple) and len(record.args) == 5:
+            address, method, target, version, status = record.args
+            path, separator, _ = target.partition('?')
+            if separator and unquote(path).lower().rstrip('/').endswith('/password/value'):
+                record.args = (address, method, path + '?[REDACTED]', version, status)
+        return True
+
 
 # from module.base.mask import Mask
 # from module.ui.page import *

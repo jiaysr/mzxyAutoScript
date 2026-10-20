@@ -181,32 +181,36 @@ class Script:
         task = convert_to_underscore(task)
         group = convert_to_underscore(group)
         argument = convert_to_underscore(argument)
+        is_credential = (task == 'restart' and group == 'login_official_config'
+                         and argument in ('account', 'password'))
+        is_password = argument == 'password'
         # pandtic验证
-        if isinstance(value, str):
+        if not is_credential and isinstance(value, str):
             if len(value) == 8:
                 try:
                     value = datetime.strptime(value, '%H:%M:%S').time()
                 except ValueError:
                     pass
 
-
+        log_value = '[REDACTED]' if is_password else value
         path = f'{task}.{group}.{argument}'
         task_object = getattr(self.config.model, task, None)
         group_object = getattr(task_object, group, None)
         argument_object = getattr(group_object, argument, None)
 
         if argument_object is None:
-            logger.error(f'Set arg {task}.{group}.{argument}.{value} failed')
+            logger.error(f'Set arg {task}.{group}.{argument}.{log_value} failed')
             return False
 
         try:
             setattr(group_object, argument, value)
             argument_object = getattr(group_object, argument, None)
-            logger.info(f'Set arg {task}.{group}.{argument}.{argument_object}')
+            log_value = '[REDACTED]' if is_password else argument_object
+            logger.info(f'Set arg {task}.{group}.{argument}.{log_value}')
             self.config.save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            logger.error(e)
+            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
             return False
 
     @zerorpc.stream
@@ -592,7 +596,8 @@ class Script:
         except RequestHumanTakeover as e:
             logger.critical(e)
             logger.critical('Request human takeover')
-            self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> RequestHumanTakeover")
+            reason = str(e) or 'RequestHumanTakeover'
+            self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> {reason}")
             exit(1)
         except Exception as e:
             logger.exception(e)

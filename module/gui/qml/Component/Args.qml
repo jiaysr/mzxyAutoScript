@@ -137,6 +137,8 @@ Item {
             Layout.fillHeight: true
             FluTextBox{
                 id: string_text
+                echoMode: stringItem.modelData && stringItem.modelData.name === "password"
+                          ? TextInput.Password : TextInput.Normal
                 anchors{
                     top: parent.top
                     topMargin: 2

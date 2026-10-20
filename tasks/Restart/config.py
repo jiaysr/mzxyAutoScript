@@ -26,7 +26,9 @@ class LoginX7Config(LoginTargetConfig):
 
 
 class LoginOfficialConfig(LoginTargetConfig):
-    """官方服登录目标（官方登录流程尚未实现）"""
+    """官方服登录目标与本地保存的登录凭据"""
+    account: str = Field(default="", description='restart_login_official_account_help')
+    password: str = Field(default="", repr=False, description='restart_login_password_help')
 
 
 class LoginConfig(BaseModel):

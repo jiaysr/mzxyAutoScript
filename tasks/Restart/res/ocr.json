@@ -70,5 +70,23 @@
     "method": "Default",
     "keyword": "",
     "description": "小七版角色选择-右侧角色名"
+  },
+  {
+    "itemName": "official_server_last_login",
+    "roiFront": "509,173,300,48",
+    "roiBack": "509,173,300,48",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "官方版带账户名布局-上次登录区服"
+  },
+  {
+    "itemName": "official_server_list",
+    "roiFront": "356,286,832,359",
+    "roiBack": "356,286,832,359",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "官方版带账户名布局-服务器列表"
   }
 ]
