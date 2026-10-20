@@ -57,7 +57,17 @@
       "enable_soul": true,
       "enable_ap": true
     },
-    "login_character_config": {
+    "login_config": {
+      "login_timeout": 240
+    },
+    "login_x7_config": {
+      "server": "",
+      "account": "",
+      "character": ""
+    },
+    "login_official_config": {
+      "server": "",
+      "account": "",
       "character": ""
     }
   },

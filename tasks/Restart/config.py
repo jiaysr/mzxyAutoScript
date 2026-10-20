@@ -12,9 +12,21 @@ class TasksReset(BaseModel):
     reset_task_datetime: DateTime = Field(default="2023-01-01 00:00:00", description='rest_task_datetime_help')
 
 
-class LoginCharacterConfig(BaseModel):
-    # 同账号多个角色时,需要登录的角色名
-    character: str = Field(default="")
+class LoginTargetConfig(BaseModel):
+    # 区服：填数字区服（如 88区）；留空使用上次登录区服
+    server: str = Field(default="", description='restart_login_server_help')
+    # 小号账号名（如 霸刀）；留空使用上次登录账号
+    account: str = Field(default="", description='restart_login_account_help')
+    # 角色名（如 星沉沧海）；留空默认左侧角色
+    character: str = Field(default="", description='restart_login_character_help')
+
+
+class LoginX7Config(LoginTargetConfig):
+    """小七服登录目标"""
+
+
+class LoginOfficialConfig(LoginTargetConfig):
+    """官方服登录目标（官方登录流程尚未实现）"""
 
 
 class LoginConfig(BaseModel):
@@ -27,5 +39,6 @@ class LoginConfig(BaseModel):
 class Restart(ConfigBase):
     scheduler: RestartScheduler = Field(default_factory=RestartScheduler)
     tasks_config_reset: TasksReset = Field(default_factory=TasksReset)
-    login_character_config: LoginCharacterConfig = Field(default_factory=LoginCharacterConfig)
     login_config: LoginConfig = Field(default_factory=LoginConfig)
+    login_x7_config: LoginX7Config = Field(default_factory=LoginX7Config)
+    login_official_config: LoginOfficialConfig = Field(default_factory=LoginOfficialConfig)

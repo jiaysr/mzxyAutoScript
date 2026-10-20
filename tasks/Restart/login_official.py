@@ -9,6 +9,7 @@ class RestartOfficial(RestartBase):
     """
     官方版登录流程（接口预留）
 
+    配置读取 self.config.restart.login_official_config（区服/账号/角色）。
     官方版与小七版的登录页、SDK 弹窗不同，实现时复制本文件为独立流程：
     _app_handle_login 里按「开屏 -> 登录页 -> 公告 -> 主界面」拆分步骤，
     资产放到 tasks/Restart/official/ 下单独标注生成。

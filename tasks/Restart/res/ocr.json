@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "itemName": "x7_server_last_login",
+    "roiFront": "497,165,397,63",
+    "roiBack": "497,165,397,63",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版我的服务器-上次登录区服"
+  },
+  {
+    "itemName": "x7_server_mine_list",
+    "roiFront": "348,279,856,367",
+    "roiBack": "348,279,856,367",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版我的服务器-已有角色服务器列表"
+  },
+  {
+    "itemName": "x7_server_all_list",
+    "roiFront": "344,274,853,383",
+    "roiBack": "344,274,853,383",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版全部服务器-所有服务器列表"
+  },
+  {
+    "itemName": "x7_account_name_1",
+    "roiFront": "613,163,474,43",
+    "roiBack": "613,163,474,43",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版账号选择-第1个账号名（也是点击区域）"
+  },
+  {
+    "itemName": "x7_account_name_2",
+    "roiFront": "616,331,474,43",
+    "roiBack": "616,331,474,43",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版账号选择-第2个账号名（也是点击区域）"
+  },
+  {
+    "itemName": "x7_account_name_3",
+    "roiFront": "611,501,474,43",
+    "roiBack": "611,501,474,43",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版账号选择-第3个账号名（也是点击区域）"
+  },
+  {
+    "itemName": "x7_character_name_1",
+    "roiFront": "147,402,385,56",
+    "roiBack": "147,402,385,56",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版角色选择-左侧角色名"
+  },
+  {
+    "itemName": "x7_character_name_2",
+    "roiFront": "737,404,385,56",
+    "roiBack": "737,404,385,56",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "小七版角色选择-右侧角色名"
+  }
+]

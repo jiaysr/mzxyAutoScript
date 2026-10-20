@@ -1,5 +1,5 @@
 # This Python file uses the following encoding: utf-8
-from datetime import datetime
+from datetime import datetime, time
 
 from module.base.timer import Timer
 from module.exception import (GameStuckError,
@@ -98,13 +98,22 @@ class RestartBase(BaseTask, RestartAssets):
         登录成功后的收尾（领取奖励、定时安排等），由游戏客户端版本按需实现
         """
 
+    # 每周维护窗口：周二 7:30-8:30（weekday: 周一=0）
+    MAINTENANCE_WEEKDAY = 1
+    MAINTENANCE_START = time(7, 30)
+    MAINTENANCE_END = time(8, 30)
+
     def delay_pending_tasks(self) -> bool:
         """
-        周三更新游戏的时候延迟
+        周二维护窗口（7:30-8:30）内延迟待办任务
         :return: 已延迟返回 True
         """
         datetime_now = datetime.now()
-        if not (datetime_now.weekday() == 2 and 6 <= datetime_now.hour <= 8):
+        in_maintenance = (
+            datetime_now.weekday() == self.MAINTENANCE_WEEKDAY
+            and self.MAINTENANCE_START <= datetime_now.time() <= self.MAINTENANCE_END
+        )
+        if not in_maintenance:
             return False
         logger.info('The game server is updating, delay the pending tasks to 9:00')
         logger.warning('Delay pending tasks')

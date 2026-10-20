@@ -14,13 +14,15 @@ class RestartAssets:
 	# 小七版登录页-用户协议勾选框 
 	C_X7_LOGIN_AGREE_CLICK = RuleClick(roi_front=(390,630,28,29), roi_back=(388,630,30,30), name="x7_login_agree_click")
 	# 小七版选择服务器页-上次登录区服 
-	C_X7_SERVER_LAST_LOGIN = RuleClick(roi_front=(546,177,304,45), roi_back=(500,178,400,44), name="x7_server_last_login")
-	# 小七版角色选择页-上次登录角色卡 
-	C_X7_CHARACTER_FIRST = RuleClick(roi_front=(703,162,275,61), roi_back=(694,154,300,80), name="x7_character_first")
-	# 小七版角色确认页-登录角色按钮 
-	C_X7_CHARACTER_LOGIN = RuleClick(roi_front=(245,608,176,47), roi_back=(245,608,177,47), name="x7_character_login")
-	# 小七版通用弹窗-关闭按钮 
-	C_X7_POPUP_CLOSE_CLICK = RuleClick(roi_front=(1203,20,46,46), roi_back=(1203,20,46,46), name="x7_popup_close_click")
+	C_X7_SERVER_LAST_LOGIN = RuleClick(roi_front=(514,177,285,43), roi_back=(514,177,285,43), name="x7_server_last_login")
+	# 小七版选择服务器页-我的服务器 tab 
+	C_X7_SERVER_TAB_MINE = RuleClick(roi_front=(107,138,169,54), roi_back=(107,138,169,54), name="x7_server_tab_mine")
+	# 小七版选择服务器页-全部服务器 tab 
+	C_X7_SERVER_TAB_ALL = RuleClick(roi_front=(105,217,169,54), roi_back=(105,217,169,54), name="x7_server_tab_all")
+	# 小七版角色选择页-左侧角色登录按钮 
+	C_X7_CHARACTER_LOGIN_LEFT = RuleClick(roi_front=(258,604,150,49), roi_back=(258,604,150,49), name="x7_character_login_left")
+	# 小七版角色选择页-右侧角色登录按钮 
+	C_X7_CHARACTER_LOGIN_RIGHT = RuleClick(roi_front=(859,610,150,49), roi_back=(859,610,150,49), name="x7_character_login_right")
 
 
 	# Image Rule Assets
@@ -28,17 +30,43 @@ class RestartAssets:
 	I_X7_LOGIN_ENTER = RuleImage(roi_front=(593,398,93,71), roi_back=(583,391,114,91), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_enter.png")
 	# 小七版登录页-用户协议已勾选 
 	I_X7_LOGIN_AGREE = RuleImage(roi_front=(395,630,23,30), roi_back=(377,617,52,50), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_agree.png")
-	# 小七版登录页-修复按钮 
-	I_X7_LOGIN_REPAIR = RuleImage(roi_front=(1152,622,96,40), roi_back=(1100,600,180,80), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_repair.png")
-	# 小七版登录页-退出账号 
-	I_X7_LOGIN_EXIT = RuleImage(roi_front=(37,592,66,66), roi_back=(10,560,140,120), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_login_exit.png")
 	# 小七版选择服务器页-标题 
 	I_X7_SERVER_PAGE = RuleImage(roi_front=(565,76,145,35), roi_back=(500,60,320,70), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_server_page.png")
-	# 小七版角色选择页-小号说明 
-	I_X7_CHARACTER_PAGE = RuleImage(roi_front=(1143,49,88,28), roi_back=(1116,35,145,59), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_page.png")
-	# 小七版角色确认页-标题 
-	I_X7_CHARACTER_CONFIRM = RuleImage(roi_front=(580,25,115,34), roi_back=(550,18,188,51), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_confirm.png")
+	# 小七版账号选择页-小号说明 
+	I_X7_ACCOUNT_PAGE = RuleImage(roi_front=(1143,49,88,28), roi_back=(1116,35,145,59), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_account_page.png")
+	# 小七版角色选择页-标题 
+	I_X7_CHARACTER_PAGE = RuleImage(roi_front=(580,25,115,34), roi_back=(550,18,188,51), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_character_page.png")
 	# 小七版通用的弹窗-关闭按钮(在右半屏内搜图) 
 	I_X7_POPUP_CLOSE = RuleImage(roi_front=(1203,20,46,46), roi_back=(640,0,640,720), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_popup_close.png")
+	# 小七版选择服务器页-我的服务器选中样式 
+	I_X7_SERVER_TAB_MINE_SELECTED = RuleImage(roi_front=(107,138,169,54), roi_back=(91,129,197,73), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_server_tab_mine_selected.png")
+	# 小七版选择服务器页-全部服务器选中样式 
+	I_X7_SERVER_TAB_ALL_SELECTED = RuleImage(roi_front=(105,217,169,54), roi_back=(91,206,197,73), threshold=0.8, method="Template matching", file="./tasks/Restart/res/res_x7_server_tab_all_selected.png")
+
+
+	# Ocr Rule Assets
+	# 小七版我的服务器-上次登录区服 
+	O_X7_SERVER_LAST_LOGIN = RuleOcr(roi=(497,165,397,63), area=(497,165,397,63), mode="Single", method="Default", keyword="", name="x7_server_last_login")
+	# 小七版我的服务器-已有角色服务器列表 
+	O_X7_SERVER_MINE_LIST = RuleOcr(roi=(348,279,856,367), area=(348,279,856,367), mode="Full", method="Default", keyword="", name="x7_server_mine_list")
+	# 小七版全部服务器-所有服务器列表 
+	O_X7_SERVER_ALL_LIST = RuleOcr(roi=(344,274,853,383), area=(344,274,853,383), mode="Full", method="Default", keyword="", name="x7_server_all_list")
+	# 小七版账号选择-第1个账号名（也是点击区域） 
+	O_X7_ACCOUNT_NAME_1 = RuleOcr(roi=(613,163,474,43), area=(613,163,474,43), mode="Single", method="Default", keyword="", name="x7_account_name_1")
+	# 小七版账号选择-第2个账号名（也是点击区域） 
+	O_X7_ACCOUNT_NAME_2 = RuleOcr(roi=(616,331,474,43), area=(616,331,474,43), mode="Single", method="Default", keyword="", name="x7_account_name_2")
+	# 小七版账号选择-第3个账号名（也是点击区域） 
+	O_X7_ACCOUNT_NAME_3 = RuleOcr(roi=(611,501,474,43), area=(611,501,474,43), mode="Single", method="Default", keyword="", name="x7_account_name_3")
+	# 小七版角色选择-左侧角色名 
+	O_X7_CHARACTER_NAME_1 = RuleOcr(roi=(147,402,385,56), area=(147,402,385,56), mode="Single", method="Default", keyword="", name="x7_character_name_1")
+	# 小七版角色选择-右侧角色名 
+	O_X7_CHARACTER_NAME_2 = RuleOcr(roi=(737,404,385,56), area=(737,404,385,56), mode="Single", method="Default", keyword="", name="x7_character_name_2")
+
+
+	# Swipe Rule Assets
+	# 小七版全部服务器列表-向下翻页 
+	S_X7_SERVER_SCROLL_NEXT = RuleSwipe(roi_front=(738,605,75,37), roi_back=(723,292,90,36), mode="default", name="x7_server_scroll_next")
+	# 小七版全部服务器列表-向上翻页（划过头纠正） 
+	S_X7_SERVER_SCROLL_PREV = RuleSwipe(roi_front=(723,292,90,36), roi_back=(738,605,75,37), mode="default", name="x7_server_scroll_prev")
 
 

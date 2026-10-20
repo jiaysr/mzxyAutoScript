@@ -23,4 +23,6 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     task = ScriptTask(config, device)
-    task.app_restart()
+    for _ in range(3):
+        task.swipe(task.S_X7_SERVER_SCROLL_NEXT)
+        task.device.sleep(1.5)

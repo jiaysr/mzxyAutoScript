@@ -1,0 +1,16 @@
+[
+  {
+    "itemName": "x7_server_scroll_next",
+    "roiFront": "738,605,75,37",
+    "roiBack": "723,292,90,36",
+    "mode": "default",
+    "description": "小七版全部服务器列表-向下翻页"
+  },
+  {
+    "itemName": "x7_server_scroll_prev",
+    "roiFront": "723,292,90,36",
+    "roiBack": "738,605,75,37",
+    "mode": "default",
+    "description": "小七版全部服务器列表-向上翻页（划过头纠正）"
+  }
+]
