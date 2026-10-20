@@ -27,6 +27,15 @@
     "description": "活动-世界首领页特征（奖按钮）"
   },
   {
+    "itemName": "page_activity_dungeon",
+    "imageName": "res_page_activity_dungeon.png",
+    "roiFront": "794,252,171,33",
+    "roiBack": "779,238,200,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "活动-副本页特征（传送/寻路按钮）"
+  },
+  {
     "itemName": "page_activity",
     "imageName": "res_page_activity.png",
     "roiFront": "1180,28,65,52",

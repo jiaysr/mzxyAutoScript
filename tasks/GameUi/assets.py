@@ -22,6 +22,8 @@ class GameUiAssets:
 	I_PAGE_ACTIVITY_LIST = RuleImage(roi_front=(1059,207,67,40), roi_back=(1045,197,92,59), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_list.png")
 	# 活动-世界首领页特征（奖按钮） 
 	I_PAGE_ACTIVITY_WORLD_BOSS = RuleImage(roi_front=(158,554,45,41), roi_back=(135,541,90,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_world_boss.png")
+	# 活动-副本页特征（传送/寻路按钮） 
+	I_PAGE_ACTIVITY_DUNGEON = RuleImage(roi_front=(794,252,171,33), roi_back=(779,238,200,60), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_dungeon.png")
 	# 活动弹窗容器特征（右上角绿X） 
 	I_PAGE_ACTIVITY = RuleImage(roi_front=(1180,28,65,52), roi_back=(1150,10,130,90), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity.png")
 	# 活动-活跃页特征（活跃值标题） 
