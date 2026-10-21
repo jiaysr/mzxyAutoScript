@@ -319,6 +319,8 @@ class ScriptTask(GameUi, AutoTaskAssets):
 
         - 按钮文案即状态：左键（3倍卡）/右键（5倍卡）显示"停止加量"=已激活，
           显示"激活加量卡"=未激活；want=NONE 时两边都停掉（省卡）
+        - **同一时间只允许一张卡生效**：切卡必须先停当前生效的那张再激活目标，
+          顺序由 set_bonus_state 统一保证
         - 加量任务按剩余次数核卡（总数-已做，如修真 3 倍 0/4 要 >= 4 张）：
           拥有量不够时，看 continue_without_bonus 配置——勾选则不激活直接做，
           不勾选则通知加量卡不足并失败结束（同任务特权过期）
@@ -332,8 +334,7 @@ class ScriptTask(GameUi, AutoTaskAssets):
         counts = self.read_bonus_counts()
         logger.attr('加量卡拥有', f"3倍x{counts['3x']} 5倍x{counts['5x']}")
         if bonus == BonusMultiplier.NONE:
-            self.set_bonus_side(is_left=True, active=False)
-            self.set_bonus_side(is_left=False, active=False)
+            self.set_bonus_state(BonusMultiplier.NONE)
             logger.info(f'Bonus card state ok: want={bonus.value}')
             return
         key = '3x' if bonus == BonusMultiplier.X3 else '5x'
@@ -343,15 +344,13 @@ class ScriptTask(GameUi, AutoTaskAssets):
         if have < need:
             if self.config.auto_task.auto_task_config.continue_without_bonus:
                 logger.warning(f'加量卡不足（{key} 要{need}有{have}），按配置不激活直接做')
-                self.set_bonus_side(is_left=True, active=False)
-                self.set_bonus_side(is_left=False, active=False)
+                self.set_bonus_state(BonusMultiplier.NONE)
                 return
             logger.error(f'加量卡不足（{key} 要{need}有{have}），请检查')
             self.config.notifier.push(title='自动任务AutoTask',
                                       content=f'<{self.config.config_name}> 加量卡不足（{task_name}要{key}{need}张），请检查')
             raise TaskFailed(f'加量卡不足（{task_name}要{key}{need}张），请检查')
-        self.set_bonus_side(is_left=True, active=(bonus == BonusMultiplier.X3))
-        self.set_bonus_side(is_left=False, active=(bonus == BonusMultiplier.X5))
+        self.set_bonus_state(bonus)
         logger.info(f'Bonus card state ok: want={bonus.value}')
 
     def read_bonus_counts(self) -> dict:
@@ -374,6 +373,24 @@ class ScriptTask(GameUi, AutoTaskAssets):
                 logger.warning(f'Bonus {key} count unreadable: {texts}')
             result[key] = count
         return result
+
+    def set_bonus_state(self, want: BonusMultiplier) -> None:
+        """
+        把加量卡调到 want（NONE=两张都停，X3/X5=只留对应那张生效）
+
+        游戏同一时间只允许一张卡生效：要激活另一张，必须先停掉当前生效的那张，
+        否则点「激活加量卡」只会弹提示、状态不翻转
+        （实测 5 倍卡生效时激活 3 倍卡，连点 10 次到 20s 超时失败）
+        """
+        if want == BonusMultiplier.X3:
+            self.set_bonus_side(is_left=False, active=False)   # 先停 5 倍（右）
+            self.set_bonus_side(is_left=True, active=True)     # 再激活 3 倍（左）
+        elif want == BonusMultiplier.X5:
+            self.set_bonus_side(is_left=True, active=False)    # 先停 3 倍（左）
+            self.set_bonus_side(is_left=False, active=True)    # 再激活 5 倍（右）
+        else:
+            self.set_bonus_side(is_left=True, active=False)
+            self.set_bonus_side(is_left=False, active=False)
 
     def set_bonus_side(self, is_left: bool, active: bool,
                        timeout: int = 20) -> None:
