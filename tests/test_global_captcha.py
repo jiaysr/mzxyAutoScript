@@ -125,6 +125,21 @@ class FakeCaptchaTask(CaptchaHandler):
         return bool(target.match(self.device.image, threshold=threshold))
 
 
+class FakeExpressionCaptcha(CaptchaHandler):
+    """只替换算式行 OCR 结果的答题器（不连设备），用来复现分框/乱序等识别现场"""
+
+    def __init__(self, results: list):
+        self.results = results
+
+    def captcha_expression_ocr(self) -> list:
+        return self.results
+
+
+def ocr_item(text: str, x: int) -> SimpleNamespace:
+    """造一个 OCR 结果框（box 为左上/右上/右下/左下四点，顺序与 BoxedResult 一致）"""
+    return SimpleNamespace(ocr_text=text, box=[(x, 0), (x + 20, 0), (x + 20, 20), (x, 20)])
+
+
 def option_boxes(image: np.ndarray) -> dict:
     """选项字母 -> OCR 框 (x0, y0, x1, y1)，字母用与实现相同的位置判定"""
     rule = GlobalGameAssets.O_CAPTCHA_OPTIONS
@@ -163,6 +178,47 @@ def test_expression_parsed():
         task = FakeCaptchaTask(FakeDevice([images[path]]))
         task.device.image = images[path]
         assert task.captcha_parse_expression() == expression, f'{Path(path).name} 算式识别不对'
+
+
+def test_expression_parsed_from_split_boxes():
+    """减法题被 OCR 拆成多个框（实测 ['12-', '0', '?']，加号题是整行一个框）"""
+    task = FakeExpressionCaptcha([ocr_item('12-', 10), ocr_item('0', 70), ocr_item('?', 120)])
+    assert task.captcha_parse_expression() == (12, '-', 0)
+
+
+def test_expression_parsed_from_split_boxes_unordered():
+    """OCR 返回顺序不保证，按坐标从左到右拼"""
+    task = FakeExpressionCaptcha([ocr_item('0', 70), ocr_item('?', 120),
+                                  ocr_item('12', 10), ocr_item('-', 50)])
+    assert task.captcha_parse_expression() == (12, '-', 0)
+
+
+def test_expression_parsed_operator_aliases():
+    """运算符被 OCR 认成形近字（- 认成 一/－、+ 认成 十、x 认成 х）也要认出来并归一"""
+    cases = [
+        ([ocr_item('12', 10), ocr_item('一', 50), ocr_item('0', 70)], (12, '-', 0)),
+        ([ocr_item('12', 10), ocr_item('－', 50), ocr_item('0', 70)], (12, '-', 0)),
+        ([ocr_item('12', 10), ocr_item('十', 50), ocr_item('0', 70)], (12, '+', 0)),
+        ([ocr_item('6', 10), ocr_item('х', 50), ocr_item('4', 70)], (6, '*', 4)),
+        ([ocr_item('8', 10), ocr_item('÷', 50), ocr_item('4', 70)], (8, '/', 4)),
+    ]
+    for items, expression in cases:
+        text = ''.join(item.ocr_text for item in items)
+        assert FakeExpressionCaptcha(items).captcha_parse_expression() == expression, text
+
+
+def test_answer_letter_from_alias_operator():
+    """形近字运算符要能一路算到答案（归一后的运算符 captcha_compute 必须认）"""
+    task = FakeExpressionCaptcha([ocr_item('12', 10), ocr_item('一', 50), ocr_item('0', 70)])
+    task.captcha_parse_options = lambda: {'A': 5, 'B': 12, 'C': 7}
+    assert task.captcha_answer_letter() == 'B'
+
+
+def test_answer_letter_from_split_expression():
+    """失败现场重放：算式被拆框 + 选项里有答案 12，应选出对应字母"""
+    task = FakeExpressionCaptcha([ocr_item('12-', 10), ocr_item('0', 70), ocr_item('?', 120)])
+    task.captcha_parse_options = lambda: {'A': 5, 'B': 12, 'C': 7}
+    assert task.captcha_answer_letter() == 'B'
 
 
 def test_options_parsed():

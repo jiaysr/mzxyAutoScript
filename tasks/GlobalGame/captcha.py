@@ -11,7 +11,8 @@
 
 素材（tasks/GlobalGame/res/）：
   I_CAPTCHA_DIALOG     标题红字，判断弹窗在不在（模板匹配，便宜）
-  O_CAPTCHA_EXPRESSION 算式行（Single 整行识别：'60 + 4 = ?'）
+  O_CAPTCHA_EXPRESSION 算式行（整行识别：'60 + 4 = ?'；识别结果可能被拆成多个框，
+                       解析时按从左到右拼回整行，见 captcha_join_expression）
   O_CAPTCHA_OPTIONS    选项区（Full，每项一个框：'A:81'，I 常被认成 1）
 """
 import re
@@ -25,6 +26,21 @@ from tasks.GlobalGame.assets import GlobalGameAssets
 if TYPE_CHECKING:
     from module.config.config import Config
     from module.device.device import Device
+
+# 运算符的 OCR 形近字：本地 OCR 会把符号认成中文/全角/形近字符
+# （- 认成 一/－、+ 认成 十、x 认成 х 等），匹配到后统一归一成规范写法
+CAPTCHA_OPERATOR_ALIASES = {
+    '+': '+＋十',
+    '-': '-－−–—一',
+    '*': '*xX×✕хХ',
+    '/': '/÷／',
+}
+# 形近字 -> 规范运算符（captcha_compute 只认规范写法）
+CAPTCHA_OPERATOR_CANON = {alias: operator for operator, aliases in CAPTCHA_OPERATOR_ALIASES.items()
+                          for alias in aliases}
+CAPTCHA_EXPRESSION_RE = re.compile(
+    r'(\d+)\s*([{0}])\s*(\d+)'.format(
+        ''.join(re.escape(alias) for alias in CAPTCHA_OPERATOR_CANON)))
 
 
 class CaptchaHandler(GlobalGameAssets):
@@ -129,18 +145,38 @@ class CaptchaHandler(GlobalGameAssets):
         logger.warning(f'人机验证选项里没有答案 {answer}')
         return None
 
+    def captcha_expression_ocr(self) -> list:
+        """OCR 算式行，返回识别结果（坐标相对 roi 裁剪）"""
+        return self.O_CAPTCHA_EXPRESSION.detect_and_ocr(self.device.image, logDisplay=False)
+
     def captcha_parse_expression(self) -> tuple | None:
         """
         识别算式行，返回 (左操作数, 运算符, 右操作数)
+
+        算式可能被 OCR 拆成多个框（实测减法 '12 - 0 = ?' 识别成 ['12-', '0', '?']，
+        加号题则是整行一个框），所以先按从左到右拼回整行再匹配，拼不出来才逐框试；
+        运算符的形近字（CAPTCHA_OPERATOR_ALIASES）在这里归一成规范写法
         """
-        texts = [item.ocr_text for item in
-                 self.O_CAPTCHA_EXPRESSION.detect_and_ocr(self.device.image, logDisplay=False)]
-        for text in texts:
-            match = re.search(r'(\d+)\s*([+\-*/xX×÷])\s*(\d+)', text)
+        items = self.captcha_expression_ocr()
+        texts = [item.ocr_text for item in items]
+        for text in (self.captcha_join_expression(items), *texts):
+            match = CAPTCHA_EXPRESSION_RE.search(text)
             if match:
-                return int(match.group(1)), match.group(2), int(match.group(3))
+                return (int(match.group(1)),
+                        CAPTCHA_OPERATOR_CANON[match.group(2)],
+                        int(match.group(3)))
         logger.warning(f'人机验证算式识别失败: {texts}')
         return None
+
+    @staticmethod
+    def captcha_join_expression(items: list) -> str:
+        """
+        把算式行的多个 OCR 框按从左到右拼成一整串
+
+        框之间没有空格，直接相连：['12-', '0', '?'] -> '12-0?'
+        """
+        ordered = sorted(items, key=lambda item: min(point[0] for point in item.box))
+        return ''.join(item.ocr_text.strip() for item in ordered)
 
     @staticmethod
     def captcha_compute(expression: tuple) -> int | None:
