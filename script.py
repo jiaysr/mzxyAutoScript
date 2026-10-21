@@ -605,6 +605,35 @@ class Script:
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> Exception occured")
             exit(1)
 
+    def _ensure_game_running_on_startup(self) -> None:
+        """
+        启动预检：游戏没运行就先启动并登录，再交给调度跑任务。
+
+        原先只有任务第一次调用 `ui_get_current_page()` 时才会发现游戏没开
+        （`GameUi` 的 app_check 是惰性的），第一个任务会在模拟器桌面上空跑一轮
+        才报错。这里在第一次真正执行任务前主动查一次。
+
+        检查本身失败（设备层/adb 异常等）只告警不阻塞启动：交给任务流程按原样
+        报错，避免把整个脚本进程拦在启动阶段。
+        """
+        try:
+            running = self.device.app_is_running()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'启动预检：无法确认游戏运行状态（{e}），跳过预检')
+            return
+        if running:
+            logger.info('启动预检：游戏已在运行')
+            return
+
+        logger.warning('启动预检：游戏未运行，先启动并登录')
+        try:
+            from tasks.Restart.script_task import ScriptTask as RestartTask
+            RestartTask(self.config, self.device).app_restart()
+            logger.info('启动预检：游戏已启动并登录')
+        except Exception as e:  # noqa: BLE001
+            # 启动/登录失败不在这里退出：交给任务流程记录失败并按调度重试
+            logger.error(f'启动预检：启动游戏失败（{e}）')
+
     def loop(self):
         """
         Main loop of scheduler.
@@ -664,6 +693,10 @@ class Script:
                 self._emulator_down = False
             else:
                 _ = self.device
+
+            # 启动预检：第一次跑任务前确认游戏在运行（没运行就先启动并登录）
+            if self.is_first_task:
+                self._ensure_game_running_on_startup()
 
             # Run
             logger.info(f'Scheduler: Start task `{task}`')
