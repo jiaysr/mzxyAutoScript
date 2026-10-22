@@ -10,6 +10,12 @@
 选项对不上时一律按新题处理：宁可多问一次 AI（答案会写回已有记录，不会重复建条目），
 也不能拿另一道题的答案去点。
 
+**读和写的题目身份不同**：
+- 读（find）：题干模糊匹配 + 选项相似，容忍 OCR 少字/错字
+- 写（write_record / ensure_entry / upsert / update_by_feedback）：
+  必须「归一化题干完全相等」，模糊命中只当提示
+  （装备升星 0.95 命中到装备升级，写反馈会把升级题的答案污染掉）
+
 主库 JSON 结构：
 {
   "version": 1,
@@ -224,6 +230,44 @@ class QuestionBank:
             return None, best_score
         return best, best_score
 
+    def exact_record(self, question: str, options=None) -> dict | None:
+        """
+        按「归一化题干完全相等」定位记录（读写分家：这是**写入**用的）
+
+        find() 是模糊匹配，适合读题库；写反馈必须落在题干完全相等的记录上，
+        否则「装备升星 / 装备升级」这种相近题会把答案、排除表写串
+        （实测升星题拿走了升级题的已验证答案，答错后还污染了升级题的记录）。
+
+        题干完全相同时可能有多条（选项不同），按选项挑最贴合的一条；
+        选项没读出来就取第一条。
+        """
+        target = self.normalize(question)
+        if not target:
+            return None
+        candidates = self._index.get(target) or []
+        if not candidates:
+            return None
+        if len(candidates) == 1 or not self.option_texts(options):
+            return candidates[0]
+        return max(candidates, key=lambda r: self.options_similarity(r.get('options'), options))
+
+    def write_record(self, question: str, options=None, record: dict = None) -> dict | None:
+        """
+        解析本次反馈要写入的记录：题干不完全相等就按精确题干重新找
+
+        调用方给的 record 可能来自 find() 的模糊命中，直接写会把两道题混在一起。
+        找不到精确记录返回 None，由调用方决定是否新建（见 ensure_entry）。
+
+        题干没读出来（空串）时直接返回传入的记录：那时 find 本来也不会命中，
+        调用方给什么就写什么，保持旧行为。
+        """
+        target = self.normalize(question)
+        if not target:
+            return record
+        if record is not None and self.normalize(record.get('q', '')) == target:
+            return record
+        return self.exact_record(question, options)
+
     @classmethod
     def best_option(cls, options: dict, answer_text: str) -> tuple:
         """
@@ -327,12 +371,15 @@ class QuestionBank:
         用途：在调用 AI 之前先把题目落库，这样即使 API 超时/报错也不会丢题，
         留下一道 answer 为空的记录，下次遇到会重新作答，也可以人工补。
 
-        题干 OCR 有出入导致 find 没命中时，再按 id 兜一次：宁可复用已有记录，
+        定位只看「归一化题干完全相等」的记录（见 write_record）：模糊命中是另一道题时
+        （如升星 vs 升级）要新建条目，不能把反馈写到别人的记录上。
+
+        题干 OCR 有出入导致没命中时，再按 id 兜一次：宁可复用已有记录，
         也不给同一道题干建出两条（id 只由题干决定，两条同 id 的记录在题库同步时会互相覆盖）
         """
-        record, _ = self.find(question, options)
+        record = self.write_record(question, options)
         option_list = self.option_texts(options)
-        if record is None:
+        if record is None and question:
             record = self._by_id.get(self.make_id(question))
         if record is not None:
             if option_list:
@@ -360,10 +407,10 @@ class QuestionBank:
                source: str = 'llm', record: dict = None) -> dict:
         """
         写入或更新一条题目的题目/选项/答案（不碰 verified，由 update_by_feedback 管）
-        :param record: 已经定位到的记录（答题流程里由 find 给出），不传就按题干+选项再找一次
+        :param record: 已经定位到的记录（答题流程里由 find 给出），不传就按题干+选项再找一次；
+                       题干不完全相等的模糊命中会被换成精确记录（见 write_record）
         """
-        if record is None:
-            record, _ = self.find(question, options)
+        record = self.write_record(question, options, record)
         today = datetime.now().strftime('%Y-%m-%d')
         option_list = self.option_texts(options)
         if record is None:
@@ -399,11 +446,14 @@ class QuestionBank:
 
         :param answer_text: 本次提交的答案文字
         :param feedback: 'correct' / 'wrong' / None
-        :param record: 已经定位到的记录（答题流程里由 find 给出）
+        :param record: 已经定位到的记录（答题流程里由 find 给出）；
+                       题干不完全相等时改用精确记录，没有就新建（见 write_record）
         :param options: 本次 OCR 的选项，用于顺手刷新记录里的选项
         """
-        if record is None:
-            record, _ = self.find(question, options)
+        record = self.write_record(question, options, record)
+        if record is None and question:
+            # 模糊命中到别的题（如升星命中升级）时不能写别人，给本题新建一条
+            record = self.ensure_entry(question, options)
         if record is None:
             return
         record['hits'] = record.get('hits', 0) + 1
@@ -439,8 +489,7 @@ class QuestionBank:
         """
         记录一个试过且错误的选项（排除法用）
         """
-        if record is None:
-            record, _ = self.find(question, options)
+        record = self.write_record(question, options, record)
         if record is None:
             return
         wrong = record.setdefault('wrong', [])

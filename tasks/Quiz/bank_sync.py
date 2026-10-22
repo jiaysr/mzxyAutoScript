@@ -15,8 +15,10 @@
 - 一边 verified、另一边不是：verified 的答案为准，另一边的答案进 wrong
 - 两边都 verified 且答案不同（且不是 OCR 写法差异）：标 conflict 并告警，人工核对
 - 两边都没 verified：按上面的优先级选一份，不动 wrong（两个都只是猜测）
-- wrong 取并集（剔除与最终答案相似的项），hits/correct 取较大的一份（见 _merge_record 注释），
+- wrong 取并集，hits/correct 取较大的一份（见 _merge_record 注释），
   选项列表取更完整的一份，source 人工(manual) 优先
+- 合并收尾（_clean_record）：最终答案出现在排除表里 -> verified 降级（不让取并集冲掉降级）；
+  未验证记录的 answer 允许同时留在排除表里（它就是上次试错的答案，删了就会重复答错）
 - 合并是幂等的：同一份题库反复 pull/push 不会改变内容，也不会让计数膨胀
 """
 import argparse
@@ -164,13 +166,25 @@ def _merge_record(target: dict, other: dict) -> tuple:
 
 def _clean_record(record: dict) -> None:
     """
-    合并收尾：wrong 去掉与答案相同的项，补齐计数字段
+    合并收尾：整理排除表、补齐计数字段
+
+    - **答案出现在排除表里 = 至少有一边确认它是错的**：合并时 verified 是取并集的，
+      别的设备的 verified=True（或旧数据）会把本地降级冲掉，这里按排除表降回去
+      （下一轮答完会重新转正，自愈）
+    - **未验证记录的 answer 只是「上次试过的答案」**，它同时也应该留在排除表里
+      （update_by_feedback 答错时就是这么写的）——这里不能删，
+      删了下次 AI 又会被引导去选同一个错项，同一道题会永远答错下去
     """
     answer = record.get('answer', '')
     wrong = []
     for item in record.get('wrong', []) or []:
-        if item and not _same_text(item, answer) and item not in wrong:
+        if item and item not in wrong:
             wrong.append(item)
+
+    if record.get('verified') and answer and any(_same_text(item, answer) for item in wrong):
+        record['verified'] = False
+        logger.warning(f'合并：答案 {answer!r} 在排除表里，verified 降级 [{record.get("id")}]')
+
     record['wrong'] = wrong
     record['hits'] = int(record.get('hits', 0) or 0)
     record['correct'] = int(record.get('correct', 0) or 0)

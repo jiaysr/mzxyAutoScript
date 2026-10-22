@@ -389,6 +389,87 @@ def test_bank_sync_merge_does_not_resurrect_polluted_answer():
     assert item['wrong'] == ['牡丹'], '降级时留的排除项要保留，串题的「梅花」要清掉'
 
 
+def test_sync_keeps_exclusion_of_unverified_answer():
+    """未验证记录的答案就是上次试错的那个：同步合并后不能把它从排除表里删掉"""
+    from tasks.Quiz import bank_sync
+
+    question = '哪一种水在灭火时比较有用？'
+    options = ['热水', '冷水', '温水']
+    # 上次答错后的写法：answer 和 wrong 里都是「冷水」
+    local = [record(question, options, '冷水', verified=False, wrong=['冷水'])]
+    # 交换仓库里的同一题（旧版本同步时已经把排除表清掉了）
+    remote = [record(question, options, '冷水', verified=False, wrong=[])]
+
+    merged, _ = bank_sync.merge_questions(local, remote)
+    item = merged[0]
+    assert item['wrong'] == ['冷水'], '排除表被删掉的话，下次 AI 还会被引导选同一个错项'
+    assert item['verified'] is False
+
+
+def test_sync_demotes_verified_when_answer_is_excluded():
+    """远端 verified=True 不能把本地「答错了」的降级冲掉"""
+    from tasks.Quiz import bank_sync
+
+    question = '装备升级需要消耗什么？'
+    options = ['铜币', '冶炼石', '星灵宝珠']
+    local = [record(question, options, '冶炼石', verified=False, wrong=['冶炼石'])]
+    remote = [record(question, options, '冶炼石', verified=True, wrong=[])]
+
+    merged, _ = bank_sync.merge_questions(local, remote)
+    item = merged[0]
+    assert item['verified'] is False, '答案在排除表里，verified 不能取并集'
+    assert item['wrong'] == ['冶炼石']
+
+
+# ---------------------------------------------------------------- 读写分家
+def test_ensure_entry_splits_similar_questions(tmp_path):
+    """题干相近但文字不同：写入要落成自己的记录，不能复用另一道题"""
+    upgrade = '装备升级需要消耗什么？'
+    star_up = '装备升星需要消耗什么？'
+    options = ['铜币', '冶炼石', '星灵宝珠']
+    bank = make_bank(tmp_path, [record(upgrade, options, '冶炼石', verified=True)])
+
+    entry = bank.ensure_entry(star_up, bank.option_map(options))
+    assert entry['id'] != bank.questions[0]['id']
+    assert entry['q'] == star_up
+    assert len(bank.questions) == 2
+
+
+def test_similar_question_feedback_creates_own_record(tmp_path):
+    """
+    装备升星 / 装备升级：读可以用模糊命中，写反馈必须落在新记录上，
+    不能改另一道题的答案和排除表
+    """
+    upgrade = '装备升级需要消耗什么？'
+    star_up = '装备升星需要消耗什么？'
+    options = ['铜币', '冶炼石', '星灵宝珠']
+    bank = make_bank(tmp_path, [record(upgrade, options, '冶炼石', verified=True)])
+    original = bank.questions[0]
+
+    # 第 1 轮：升星题模糊命中升级题的已验证答案 -> 点了冶炼石 -> 答错
+    first = FakeTask(bank, feedback='wrong')
+    first.question = star_up
+    first.options = bank.option_map(options)
+    first.answer_one()
+    assert first.clicked == ['B']
+
+    assert (original['answer'], original['verified'], original['wrong']) == ('冶炼石', True, []), \
+        '升级题的记录不能被升星题的反馈改掉'
+    own = [q for q in bank.questions if q['q'] == star_up]
+    assert len(own) == 1 and own[0]['id'] != original['id'], '升星题要落成自己的记录'
+    assert own[0]['wrong'] == ['冶炼石'] and own[0]['verified'] is False
+
+    # 第 2 轮：升星题精确命中自己的记录 -> 排除冶炼石 -> 问 AI
+    second = FakeTask(bank, ai_results=[{'answer': 'C', 'answer_text': '星灵宝珠'}], feedback='correct')
+    second.question = star_up
+    second.options = bank.option_map(options)
+    second.answer_one()
+    assert second.clicked == ['C'], '上一轮答错的冶炼石不能再点'
+    assert second.ai_calls and second.ai_calls[0]['wrong'] == ['冶炼石']
+    assert (own[0]['answer'], own[0]['verified']) == ('星灵宝珠', True)
+    assert original['answer'] == '冶炼石', '升级题的答案仍然是冶炼石'
+
+
 def test_question_bank_file_is_valid_json():
     with open(BANK_FILE, encoding='utf-8') as f:
         data = json.load(f)
