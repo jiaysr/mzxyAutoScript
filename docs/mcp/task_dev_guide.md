@@ -316,13 +316,29 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     **每个按钮都用一次、顺序每组随机**；每个按钮在区域内随机取点、连点 3 次
     （间隔 200ms），按钮之间停 300ms；循环打组直到 stop_check 命中
     （如出现「过关奖励」面板）/ 超时 / 到组数上限
-  - 按钮区域常量（真机实测，1280x720）：`BATTLE_SKILL_REGIONS`（现有技能，
-    **空技能位不要放进来**）、`BATTLE_ATTACK_REGION`（普通攻击）；
-    全部技能位（含空的）在 `BATTLE_SKILL_REGIONS_ALL` 里备查。
+  - 按钮区域常量（真机实测，1280x720）：`BATTLE_SKILL_REGIONS`（7 个技能位，
+    2026-10-23 起 7 个位都有实际技能）、`BATTLE_ATTACK_REGION`（普通攻击）；
+    `BATTLE_SKILL_REGIONS_ALL` 与它相同，保留只为兼容旧调用。
     **迷窟里实测这套坐标逐个吻合，直接复用**
+  - 技能冷却识别（`tasks/GameUi/navigation/battle_skill.py`，2026-10-23 真机标定）：
+    - `battle_skill_state(index)` -> `ready` / `cooling` / `unknown`（7 个技能位都支持）；
+      `battle_skill_ready(index)`、`battle_skills_ready()`、`battle_click_skill_if_ready(index)`；
+      校准用 `battle_log_skill_states()`（一行日志打印每个技能位的状态与「当前分/基准分」）
+    - 原理：按钮中心圆盘（半径 = 短边 x 0.30）的「中位灰度 x 中位彩度 / 255」打分，
+      和「冷却好」基准素材比比例（< 0.6 判冷却中）。**不要用模板匹配/OCR**：
+      冷却好的两种高光样式之间相关系数只有 0.69，模板分不开；OCR 读小字慢且不稳
+    - 实测比例：冷却好 1.00~1.04，冷却中 0.02~0.04（倒计时 1 / 0），余量 10 倍以上；
+      技能6 图标中心是大块黑底白字，基准分只有 4.4（其余 11~38），判定走比例不吃绝对值
+    - 基准素材 `tasks/GameUi/res/battle/res_skill<1-7>_ready.png`（52x54，裁自冷却好的截图）；
+      换技能/换图标就重新裁素材，再跑 `AssetsExtractor('tasks/GameUi').extract()`
+    - 判定区域 `BATTLE_SKILL_CHECK_REGIONS`（7 个 52x54 框）与点击区域
+      `BATTLE_SKILL_REGIONS` 同心（单测会校验）；区域1 = `991,582,52,54`
+    - 单测（不连设备，用 4 张真机样本）：`toolkit\python.exe tests\test_battle_skill_cooldown.py`
+    - **浏览器实时标注**：`toolkit\python.exe tests\skill_cooldown_monitor.py`，
+      7 个技能位一框一色（绿=冷却好、红=冷却中），右侧面板逐个列分数/基准/比例
   - 普通攻击与技能1 冷却都在 1 秒以上，连点没有意义 —— 要按冷却打就用
-    `battle_click_attack / battle_click_skill` 配 `sleep(interval)`，
-    只有 `battle_simple_loop` 才是连点
+    `battle_click_attack / battle_click_skill` 配 `sleep(interval)`，或者用
+    `battle_click_skill_if_ready()` 等冷却好再点；只有 `battle_simple_loop` 才是连点
 - 彩色描边字（锁定的目标名等）：`ocr_color_name(rule, scales=(2,3), min_score=0.5)`
   （ROI 转灰度 -> 放大 -> 整行识别取置信度最高的一份；规则默认的「检测框 + 拼串」对彩色描边字经常读不出）
 

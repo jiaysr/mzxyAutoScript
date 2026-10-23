@@ -69,6 +69,20 @@ class GameUiAssets:
 	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1180,200,100,120), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_target_button.png")
 	# 主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION） 
 	I_ATTACK_BUTTON = RuleImage(roi_front=(1146,597,82,60), roi_back=(1120,575,120,100), threshold=0.75, method="Template matching", file="./tasks/GameUi/res/battle/res_attack_button.png")
+	# 技能位1-「冷却好」基准素材（冷却识别只取素材算亮度x彩度基准分，不做模板匹配；见 navigation/battle_skill.py） 
+	I_SKILL1_READY = RuleImage(roi_front=(991,582,52,54), roi_back=(981,572,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill1_ready.png")
+	# 技能位2-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL2_READY = RuleImage(roi_front=(1033,484,52,54), roi_back=(1023,474,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill2_ready.png")
+	# 技能位3-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL3_READY = RuleImage(roi_front=(1125,437,52,54), roi_back=(1115,427,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill3_ready.png")
+	# 技能位4-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL4_READY = RuleImage(roi_front=(888,582,52,54), roi_back=(878,572,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill4_ready.png")
+	# 技能位5-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL5_READY = RuleImage(roi_front=(920,479,52,54), roi_back=(910,469,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill5_ready.png")
+	# 技能位6-「冷却好」基准素材（图标中心是黑底白字，分数天然偏低，靠比例判定） 
+	I_SKILL6_READY = RuleImage(roi_front=(996,386,52,54), roi_back=(986,376,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill6_ready.png")
+	# 技能位7-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL7_READY = RuleImage(roi_front=(1094,331,52,54), roi_back=(1084,321,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill7_ready.png")
 
 
 	# Ocr Rule Assets
