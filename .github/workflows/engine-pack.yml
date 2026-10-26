@@ -92,7 +92,16 @@ jobs:
       - name: 打 code 包
         shell: pwsh
         run: |
-          python pack/build_code_pack.py --out dist
+          # 失败原因写成 annotation，无需登录也能通过 API 读到
+          $out = python pack/build_code_pack.py --out dist 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Host $out
+          if ($code -ne 0) {
+            $msg = $out.Trim()
+            if ($msg.Length -gt 900) { $msg = $msg.Substring($msg.Length - 900) }
+            Write-Host ("::error::" + ($msg -replace "`r?`n", " | "))
+            exit $code
+          }
           Get-ChildItem dist | Select-Object Name, Length | Format-Table -AutoSize
 
       - name: 生成清单
