@@ -28,6 +28,11 @@ import time
 import zipfile
 from pathlib import Path
 
+# CI / 非 UTF-8 控制台下中文输出会抛 UnicodeEncodeError，统一改成 UTF-8
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # 整目录收进包
