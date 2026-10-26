@@ -105,11 +105,29 @@ jobs:
           }
           Get-ChildItem dist | Select-Object Name, Length | Format-Table -AutoSize
 
+      - name: 构建 env 包（缺失时）
+        if: steps.prev.outputs.exists != 'true'
+        shell: pwsh
+        run: |
+          # 首次发布没有 env 包，这里用 Python embeddable + pip --target 现搭一份
+          $ver = '3.10.11'
+          Invoke-WebRequest "https://www.python.org/ftp/python/$ver/python-$ver-embed-amd64.zip" -OutFile embed.zip
+          Expand-Archive embed.zip -DestinationPath build/toolkit -Force
+          $pth = Get-ChildItem build/toolkit -Filter '*._pth' | Select-Object -First 1
+          @('python310.zip', '.', 'Lib\site-packages', 'import site') | Set-Content $pth.FullName -Encoding ascii
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet -r requirements.txt --target build/toolkit/Lib/site-packages
+          python pack/build_env_pack.py --source build/toolkit --out dist --compress-level 6
+
       - name: 生成清单
         shell: pwsh
         run: |
           $code = (Get-ChildItem dist -Filter 'code-*.zip' | Select-Object -First 1).FullName
-          if ("${{ steps.prev.outputs.exists }}" -eq "true") {
+          $envZip = Get-ChildItem dist -Filter 'env-*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($envZip) {
+            python pack/gen_manifest.py --code $code --env $envZip.FullName `
+              --channel beta --out dist/manifest.json
+          } elseif ("${{ steps.prev.outputs.exists }}" -eq "true") {
             python pack/gen_manifest.py --code $code `
               --env-id "${{ steps.prev.outputs.env_id }}" `
               --env-url "${{ steps.prev.outputs.env_url }}" `
@@ -117,7 +135,7 @@ jobs:
               --env-size ${{ steps.prev.outputs.env_size }} `
               --channel beta --out dist/manifest.json
           } else {
-            throw "还没有 env 包：请先按文件头的说明打一次 env 并上传到 $env:TAG"
+            throw "既没有新打的 env 包，也没有历史 env 可复用"
           }
 
       - name: 发布到 dev-latest
@@ -141,4 +159,10 @@ jobs:
           }
 
           gh release upload $env:TAG (Get-ChildItem dist -Filter 'code-*.zip').FullName dist/manifest.json --clobber
+          # env 包只在首次构建时上传，后续复用（不删，避免几百 MB 反复传）
+          $envZip = Get-ChildItem dist -Filter 'env-*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($envZip) {
+            gh release upload $env:TAG $envZip.FullName --clobber
+            Write-Host "已上传 $($envZip.Name)"
+          }
           Write-Host "已更新 $env:TAG"
