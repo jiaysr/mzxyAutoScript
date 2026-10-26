@@ -22,6 +22,7 @@ on:
       - 'dev_tools/**'
       - 'bin/**'
       - 'pack/**'
+      - '.github/workflows/engine-pack.yml'
       - 'server.py'
       - 'script.py'
       - 'requirements.txt'
