@@ -10,17 +10,21 @@ from datetime import datetime, timedelta, timezone, time
 
 from module.config.atomicwrites import atomic_write
 from module.logger import logger
+from module.paths import CONFIG_DIR
 
 DEFAULT_TIME = datetime(2023, 1, 1, 0, 0)
 
 def filepath_config(filename, mod_name='script') -> str:
     """
     返回配置文件的路径
+
+    配置目录由 module.paths.DATA_DIR 决定：默认是脚本目录下的 config/，
+    Electron 启动器传了 MZXY_DATA_DIR 时会落到用户数据目录里。
     """
     if mod_name == 'script':
-        return os.path.join('./config', f'{filename}.json')
+        return str(CONFIG_DIR / f'{filename}.json')
     else:
-        return os.path.join('./config', f'{filename}.{mod_name}.json')
+        return str(CONFIG_DIR / f'{filename}.{mod_name}.json')
 
 def filepath_args(filename='args', mod_name='alas'):
     return f'./module/config/argument/{filename}.json'

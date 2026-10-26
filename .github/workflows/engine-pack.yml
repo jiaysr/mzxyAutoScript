@@ -1,0 +1,134 @@
+name: Engine Pack
+
+# 把引擎的「代码层」打成 code 包，更新到固定 tag dev-latest 的预发布 Release。
+# 应用端（mzxyASX）启动时读 dev-latest 的 manifest.json，发现 code 版本变了就下几 MB。
+#
+# env 包（几百 MB 的 Python 运行时）不在这里构建：
+#   - 它只在 requirements.txt 变化时才需要重打，频率极低
+#   - 构建需要 toolkit 那份预装依赖的运行时，本地跑更省事
+# 打 env 包的做法：
+#   toolkit\python.exe pack\build_env_pack.py --out dist
+#   gh release upload dev-latest dist\env-<env_id>.zip
+#   toolkit\python.exe pack\gen_manifest.py --code <code.zip> --env <env.zip> ...
+# 本流水线会校验 requirements 指纹，变了就报错提醒，不会悄悄发出不匹配的清单。
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'module/**'
+      - 'tasks/**'
+      - 'assets/**'
+      - 'deploy/**'
+      - 'dev_tools/**'
+      - 'bin/**'
+      - 'pack/**'
+      - 'server.py'
+      - 'script.py'
+      - 'requirements.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 连续 push 时只跑最后一次
+concurrency:
+  group: engine-pack
+  cancel-in-progress: true
+
+env:
+  TAG: dev-latest
+
+jobs:
+  pack:
+    name: Build code pack
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 读取上一次的清单
+        id: prev
+        shell: pwsh
+        run: |
+          $url = "https://github.com/${{ github.repository }}/releases/download/$env:TAG/manifest.json"
+          try {
+            $raw = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30).Content
+            $old = $raw | ConvertFrom-Json
+            "exists=true" >> $env:GITHUB_OUTPUT
+            "env_id=$($old.env.id)" >> $env:GITHUB_OUTPUT
+            "env_url=$($old.env.url)" >> $env:GITHUB_OUTPUT
+            "env_sha256=$($old.env.sha256)" >> $env:GITHUB_OUTPUT
+            "env_size=$($old.env.size)" >> $env:GITHUB_OUTPUT
+            "req_sha=$($old.env.requirements_sha256)" >> $env:GITHUB_OUTPUT
+            Write-Host "上次 env: $($old.env.id)"
+          } catch {
+            Write-Host "还没有 $env:TAG 清单（首次发布）"
+            "exists=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: 校验 requirements 是否变了
+        shell: pwsh
+        run: |
+          $cur = (Get-FileHash requirements.txt -Algorithm SHA256).Hash.ToLower()
+          $old = "${{ steps.prev.outputs.req_sha }}"
+          Write-Host "当前 requirements 指纹: $cur"
+          if ("${{ steps.prev.outputs.exists }}" -eq "true" -and $old -ne $cur) {
+            throw @"
+          requirements.txt 变了（$old -> $cur），旧的 env 包不再匹配。
+          请先重新打 env 包并上传：
+            toolkit\python.exe pack\build_env_pack.py --out dist
+            gh release upload $env:TAG dist\env-<env_id>.zip
+          然后重跑本流水线（manifest 会引用新的 env）。
+          "@
+          }
+
+      - name: 打 code 包
+        shell: pwsh
+        run: |
+          python pack/build_code_pack.py --out dist
+          Get-ChildItem dist | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: 生成清单
+        shell: pwsh
+        run: |
+          $code = (Get-ChildItem dist -Filter 'code-*.zip' | Select-Object -First 1).FullName
+          if ("${{ steps.prev.outputs.exists }}" -eq "true") {
+            python pack/gen_manifest.py --code $code `
+              --env-id "${{ steps.prev.outputs.env_id }}" `
+              --env-url "${{ steps.prev.outputs.env_url }}" `
+              --env-sha256 "${{ steps.prev.outputs.env_sha256 }}" `
+              --env-size ${{ steps.prev.outputs.env_size }} `
+              --channel beta --out dist/manifest.json
+          } else {
+            throw "还没有 env 包：请先按文件头的说明打一次 env 并上传到 $env:TAG"
+          }
+
+      - name: 发布到 dev-latest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:TAG --title "$env:TAG" `
+              --notes "开发通道：每次 push dev 自动覆盖，勿手动下载" --prerelease
+          }
+
+          # 覆盖同名资产：先删后传（code 包与 manifest 都是滚动的）
+          $assets = gh release view $env:TAG --json assets --jq ".assets[].name"
+          foreach ($a in $assets) {
+            if ($a -like "code-*" -or $a -eq "manifest.json") {
+              Write-Host "删除旧资产 $a"
+              gh release delete-asset $env:TAG $a -y
+            }
+          }
+
+          gh release upload $env:TAG (Get-ChildItem dist -Filter 'code-*.zip').FullName dist/manifest.json --clobber
+          Write-Host "已更新 $env:TAG"

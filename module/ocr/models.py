@@ -74,7 +74,10 @@ def project_root() -> str:
 
 def get_model_dir() -> str:
     deploy_config = State.deploy_config
-    directory = getattr(deploy_config, 'OcrModelDir', None) or './bin/ocr_model'
+    # 引擎包里模型在 env 目录，启动器通过 MZXY_OCR_MODEL_DIR 指过来
+    directory = (os.environ.get('MZXY_OCR_MODEL_DIR', '').strip()
+                 or getattr(deploy_config, 'OcrModelDir', None)
+                 or './bin/ocr_model')
     if not os.path.isabs(directory):
         directory = os.path.join(project_root(), directory)
     return os.path.abspath(directory)

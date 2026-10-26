@@ -80,6 +80,9 @@ def fun(ev: threading.Event):
     logger.attr("Port", port)
     logger.attr("Reload", ev is not None)
 
+    from module.paths import ensure_dirs
+    ensure_dirs()
+
     ensure_ocr_server_started()
 
     try:
