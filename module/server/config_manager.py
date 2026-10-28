@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 
 from module.logger import logger
-from module.paths import CONFIG_DIR
 
 class ConfigManager:
 
@@ -16,7 +15,7 @@ class ConfigManager:
         :return: ['oas1', 'oas2']
         """
         # 获取某个路径的所有json文件名
-        config_path = CONFIG_DIR
+        config_path = Path.cwd() / 'config'
         json_files = config_path.glob('*.json')
         result = []
         for json in json_files:
@@ -37,7 +36,7 @@ class ConfigManager:
         :return: ['oas1', 'oas2']
         """
         # 获取某个路径的所有json文件名
-        config_path = CONFIG_DIR
+        config_path = Path.cwd() / 'config'
         json_files = config_path.glob('*.json')
         result = []
         for json in json_files:
@@ -55,7 +54,7 @@ class ConfigManager:
         :param template:
         :return:
         """
-        config_path = CONFIG_DIR
+        config_path = Path.cwd() / 'config'
         template_path = config_path / f'{template}.json'
         file_path = config_path / f'{file}.json'
         if file_path.exists():
@@ -100,7 +99,7 @@ class ConfigManager:
         :param new_name: 新的配置文件名称
         :return: True or False
         """
-        config_path = CONFIG_DIR
+        config_path = Path.cwd() / 'config'
         old_path = config_path / f'{old_name}.json'
         new_path = config_path / f'{new_name}.json'
         if not old_path.exists():
@@ -124,7 +123,7 @@ class ConfigManager:
         :param file:  不带json后缀
         :return: True or False
         """
-        config_path = CONFIG_DIR
+        config_path = Path.cwd() / 'config'
         file_path = config_path / f'{file}.json'
         if not file_path.exists():
             logger.error(f'{file_path} is not exists')

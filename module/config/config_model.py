@@ -11,7 +11,6 @@ from pydantic import BaseModel, ValidationError, Field
 
 from module.config.utils import *
 from module.logger import logger
-from module.paths import CONFIG_DIR
 
 # 导入配置的Python文件
 from tasks.Component.config_base import ConfigBase, TimeDelta
@@ -86,10 +85,7 @@ class ConfigModel(ConfigBase):
         :param config_name:  不带后缀
         :return:
         """
-        # 必须走 CONFIG_DIR：Electron 启动器用 MZXY_DATA_DIR 把配置放到安装目录
-        # 之外，config_list 也是扫这个目录；原来读 Path.cwd()/config，列表能列出
-        # 配置文件、读出来的却全是默认值。
-        filepath = CONFIG_DIR / f"{config_name}.json"
+        filepath = Path.cwd() / "config" / f"{config_name}.json"
         return read_file(filepath)
 
     @staticmethod
@@ -100,7 +96,7 @@ class ConfigModel(ConfigBase):
         :param data:  字典而不是字符串
         :return:
         """
-        filepath = CONFIG_DIR / f"{config_name}.json"
+        filepath = Path.cwd() / "config" / f"{config_name}.json"
         write_file(filepath, data)
 
     def gui_args(self, task: str) -> str:

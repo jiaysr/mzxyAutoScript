@@ -32,7 +32,6 @@ from module.base.timer import Timer
 from module.base.utils import crop
 from module.exception import RequestHumanTakeover, TaskEnd
 from module.logger import logger
-from module.paths import LOG_DIR
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.pages.page import page_main
 from tasks.Quiz import bank_sync
@@ -43,7 +42,7 @@ from tasks.Quiz.question_bank import QuestionBank
 TASK_DIR = Path(__file__).resolve().parent
 BANK_FILE = str(TASK_DIR / 'bank' / 'quiz_zh.json')
 UNKNOWN_FILE = str(TASK_DIR / 'bank' / 'quiz_unknown.jsonl')
-SHOT_DIR = str(LOG_DIR / 'quiz')
+SHOT_DIR = './log/quiz'
 
 # 背包里的答题券名称（bag_find_item 走 OCR 名字匹配）
 BAG_ITEM_NAME = '趣味答题券'

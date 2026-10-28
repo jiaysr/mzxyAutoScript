@@ -16,8 +16,6 @@ from rich.logging import RichHandler
 from rich.rule import Rule
 from typing import Callable, List
 
-from module.paths import LOG_DIR
-
 # Windows 控制台编码可能不是 UTF-8（如 GBK），日志里出现 ✓/✗/emoji 之类字符会抛
 # UnicodeEncodeError 直接把任务搞崩，这里统一改为用替换字符兜底
 try:
@@ -143,9 +141,12 @@ pyw_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 def set_file_logger(name=pyw_name, *, do_cleanup=False):
     if '_' in name:
         name = name.split('_', 1)[0]
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_file = str(LOG_DIR / f'{date.today()}_{name}.txt')
-    file = open(log_file, mode='a', encoding='utf-8')
+    log_file = f'./log/{date.today()}_{name}.txt'
+    try:
+        file = open(log_file, mode='a', encoding='utf-8')
+    except FileNotFoundError:
+        os.mkdir('./log')
+        file = open(log_file, mode='a', encoding='utf-8')
 
     file_console = Console(
         file=file,

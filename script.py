@@ -36,7 +36,6 @@ from module.device.env import IS_WINDOWS
 from module.base.utils import load_module
 from module.base.decorator import del_cached_property
 from module.logger import logger
-from module.paths import LOG_DIR
 from module.exception import *
 from module.server.i18n import I18n
 from module.ocr.rpc import ensure_ocr_server_started
@@ -115,10 +114,10 @@ class Script:
         from module.handler.sensitive_info import (handle_sensitive_image,
                                                    handle_sensitive_logs)
         if self.config.script.error.save_error:
-            error_root = LOG_DIR / 'error'
-            error_root.mkdir(parents=True, exist_ok=True)
+            if not os.path.exists('./log/error'):
+                os.mkdir('./log/error')
             folder_name = str(int(time.time() * 1000))
-            folder = str(error_root / folder_name)
+            folder = f'./log/error/{folder_name}'
             logger.warning(f'Saving error: {folder}')
             logger.info('保存详细错误的日志和截图到路径:')
             logger.info(f'{str( Path.cwd() / "log" / "error" / folder_name)}')
