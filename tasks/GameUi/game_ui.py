@@ -13,8 +13,9 @@
 - tasks/GameUi/navigation/activity.py 活动弹窗顶部 tab / 右侧子 tab / 活跃任务状态
 - tasks/GameUi/navigation/bag.py     背包找物品 / 用物品
 - tasks/GameUi/navigation/general.py 通用功能（背包修理装备等，各任务直接 self.bag_xxx() 调用）
-- tasks/GameUi/navigation/battle.py  简单战斗系统（目标锁定 / 单次点击 / 技能冷却识别 / 循环放技能）
-- tasks/GameUi/navigation/battle_skill.py 技能冷却识别（亮度x彩度评分，不依赖设备，可单测）
+- tasks/Battle/attack.py 战斗执行（点技能 / 冷却识别 / 按预设攻击 / 循环放技能）
+- tasks/GameUi/navigation/battle.py 目标锁定（UI 操作）+ 混入 BattleAttack
+- tasks/Battle/cooldown.py 技能冷却识别（亮度x彩度评分，不依赖设备，可单测）
 - tasks/GameUi/world/map.py          世界地图（小地图/大地图/列表/传送）
 - tasks/GameUi/world/move.py         虚拟摇杆移动（主页面轮盘走到地图坐标）
 - tasks/GameUi/pages/                页面注册表与页面定义（page.py / targets.py）

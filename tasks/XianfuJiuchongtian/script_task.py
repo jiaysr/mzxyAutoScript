@@ -501,7 +501,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             self.screenshot()
             return self.appear(self.I_REWARD_PANEL)
 
-        logger.info('开始释放技能（7 技能 + 普通攻击，每组顺序随机）')
+        logger.info('开始释放技能（按战斗菜单里的优先级；识别失败则退回随机连点）')
         return self.battle_simple_loop(stop_check=stop_check,
                                        timeout=BATTLE_TIMEOUT,
                                        groups_max=BATTLE_GROUPS_MAX)

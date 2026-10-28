@@ -16,8 +16,8 @@ class ConfigMenu:
         # 总览
         self.menu["Overview"] = []
         self.menu['TaskList'] = []
-        # 脚本设置
-        self.menu['Script'] = ['Script', 'Restart']
+        # 脚本设置（战斗是独立页面：技能预设/顺序/禁用，不是任务，不进调度器）
+        self.menu['Script'] = ['Script', 'Battle', 'Restart']
         # 日常的任务
         self.menu["Daily Task"] = ['Quiz', 'WarChariot', 'SilverGiftBox', 'AutoTask']
         # 战斗的任务

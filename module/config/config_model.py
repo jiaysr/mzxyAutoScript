@@ -14,6 +14,7 @@ from module.logger import logger
 
 # 导入配置的Python文件
 from tasks.Component.config_base import ConfigBase, TimeDelta
+from tasks.Battle.config import Battle
 from tasks.Script.config import Script
 from tasks.Quiz.config import Quiz
 from tasks.Restart.config import Restart
@@ -36,6 +37,8 @@ class ConfigModel(ConfigBase):
     running_task: str = ''
     script: Script = Field(default_factory=Script)
     restart: Restart = Field(default_factory=Restart)
+    # 战斗菜单：3 组技能释放顺序 + 禁用（不是任务，不进调度器）
+    battle: Battle = Field(default_factory=Battle)
 
     # 这些是任务的
     world_boss: WorldBoss = Field(default_factory=WorldBoss)

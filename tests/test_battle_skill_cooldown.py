@@ -27,8 +27,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tasks.GameUi.navigation.battle_skill import (SKILL_COOLING, SKILL_READY, SKILL_UNKNOWN,
-                                                  SkillCooldownJudge, skill_region_score)
+from tasks.Battle.cooldown import (SKILL_COOLING, SKILL_READY, SKILL_UNKNOWN,
+                                   SkillCooldownJudge, SkillStateStabilizer,
+                                   skill_region_score)
 
 ASSET_DIR = PROJECT_ROOT / 'tests' / 'assets' / 'battle_skill'
 GAMEUI_RES = PROJECT_ROOT / 'tasks' / 'GameUi' / 'res' / 'battle'
@@ -174,6 +175,78 @@ def test_invalid_region_is_safe():
     assert skill_region_score(image, (10_000, 10_000, 52, 54)) == 0.0
     assert skill_region_score(image, None) > 0  # 整图
     assert skill_region_score(None) == 0.0
+
+
+# ---------------------------------------------------------------- 状态防抖
+def test_stabilizer_ignores_single_frame_spike():
+    """单帧闪值不切换状态：冷却中 -> 单帧 ready -> 还是冷却中（这就是铁骨误判的原因）"""
+    stabilizer = SkillStateStabilizer(2)
+    assert stabilizer.update({0: SKILL_COOLING})[0] == SKILL_COOLING
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_COOLING, '单帧跳变不该切'
+    assert stabilizer.update({0: SKILL_COOLING})[0] == SKILL_COOLING
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_COOLING
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_READY, '连续 2 帧一致才切'
+
+
+def test_stabilizer_stable_one_means_no_debounce():
+    stabilizer = SkillStateStabilizer(1)
+    assert stabilizer.update({0: SKILL_COOLING})[0] == SKILL_COOLING
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_READY
+
+
+def test_stabilizer_slots_independent():
+    stabilizer = SkillStateStabilizer(2)
+    stabilizer.update({0: SKILL_COOLING, 1: SKILL_READY})
+    states = stabilizer.update({0: SKILL_READY, 1: SKILL_COOLING})
+    assert states[0] == SKILL_COOLING, '技能0只跳了一帧'
+    assert states[1] == SKILL_READY, '技能1也只跳了一帧'
+    states = stabilizer.update({0: SKILL_READY, 1: SKILL_COOLING})
+    assert states[0] == SKILL_READY and states[1] == SKILL_COOLING
+
+
+def test_stabilizer_reset():
+    stabilizer = SkillStateStabilizer(2)
+    stabilizer.update({0: SKILL_COOLING})
+    stabilizer.reset()
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_READY, 'reset 后第一次采样直接生效'
+
+
+def test_attack_states_are_debounced():
+    """BattleAttack.battle_skills_state() 也必须防抖（任务侧判定和监控一致）"""
+    from types import SimpleNamespace
+
+    from tasks.Battle.attack import BattleAttack
+    from tasks.Battle.config import Battle
+
+    class StubJudge:
+        def __init__(self):
+            self.plan = {}
+
+        def states(self, image):
+            return dict(self.plan)
+
+        def ratio_of(self, image, index):
+            return 1.0
+
+    class Host(BattleAttack):
+        def __init__(self):
+            self.config = SimpleNamespace(battle=Battle())
+            self.device = SimpleNamespace()
+            self._judge = StubJudge()
+
+        def battle_skill_judge(self):
+            return self._judge
+
+        def _battle_image(self, image=None):
+            return image if image is not None else object()  # 每次都是新截图
+
+    host = Host()
+    host._judge.plan = {0: SKILL_COOLING}
+    assert host.battle_skills_state()[0] == SKILL_COOLING
+
+    host._judge.plan = {0: SKILL_READY}
+    assert host.battle_skills_state()[0] == SKILL_COOLING, '单帧不该切'
+    assert host.battle_skills_state()[0] == SKILL_READY, '连续两帧才切'
 
 
 if __name__ == '__main__':

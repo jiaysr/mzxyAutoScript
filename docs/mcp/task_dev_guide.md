@@ -302,7 +302,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   - OCR 会把坐标分隔符 `,` 认成 `;`（真机实测 `338,105` -> `338;105`）。
     `map_parse_location` 的分隔符正则必须含 `;；~`，否则会掉进 `map_split_digits`
     的无分隔符分支，把坐标拆成 `10,5`（dist 瞬间变 349，往反方向跑）
-- 简单战斗系统（`tasks/GameUi/navigation/battle.py`，任务直接调用，**不要自己再录素材**）：
+- 简单战斗系统（执行层在 `tasks/Battle/attack.py`，目标锁定在 `tasks/GameUi/navigation/battle.py`，任务直接调用，**不要自己再录素材**）：
   - 目标锁定（主页面通用能力，WorldBoss / 上古狩猎 / 域外迷窟共用）：
     - `ui_lock_target(interval=)` 点右侧竖排「目标」按钮（锁定/切换目标）。
       **必须先 `ui_close_menu()` 收起右上角菜单**，否则那一列被菜单图标盖住
@@ -312,6 +312,15 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     - `battle_click_attack()` 点一次普通攻击
     - `battle_click_skill(index=0)` 点一次技能，0 = 技能1
     - `battle_click_once(region, name)` 在任意区域随机取点点一次
+  - **按预设攻击**（先识别技能栏 -> 按预设优先级点）：
+    - `battle_attack(times=1, preset='')` 打 N 轮：每轮只点冷却好的技能 + 补一次普通攻击；
+      试打脚本 `toolkit\python.exe tests\battle_attack_once.py`（`--preset`/`--times`/`--save`）
+    - `battle_attack_loop(...)` 优先级调度一直打（默认每个技能连点 3 次）：
+      每次从队首挑「冷却好」的技能 -> 连点 -> **轮询确认真的进入冷却** -> 回到队首，
+      所以高优先级技能一冷却好就插队；点了不进入冷却的会先跳过一会儿；
+      技能全在冷却时只补普通攻击；没识别到技能先不点、1 秒后重试；
+      `stop_check` 留空 = 无限循环（Ctrl+C 结束）
+    - 直接跑：`toolkit\python.exe tasks\Battle\script_task.py`（`PRESET` / `INTERVAL` 等常量在文件顶部）
   - `battle_simple_loop()` 循环放技能：一组 = 现有技能 + 普通攻击，
     **每个按钮都用一次、顺序每组随机**；每个按钮在区域内随机取点、连点 3 次
     （间隔 200ms），按钮之间停 300ms；循环打组直到 stop_check 命中
@@ -320,12 +329,20 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     2026-10-23 起 7 个位都有实际技能）、`BATTLE_ATTACK_REGION`（普通攻击）；
     `BATTLE_SKILL_REGIONS_ALL` 与它相同，保留只为兼容旧调用。
     **迷窟里实测这套坐标逐个吻合，直接复用**
-  - 技能冷却识别（`tasks/GameUi/navigation/battle_skill.py`，2026-10-23 真机标定）：
+  - 技能冷却识别（`tasks/Battle/cooldown.py`，2026-10-23 真机标定；旧路径 `GameUi/navigation/battle_skill.py` 保留为兼容层）：
     - `battle_skill_state(index)` -> `ready` / `cooling` / `unknown`（7 个技能位都支持）；
       `battle_skill_ready(index)`、`battle_skills_ready()`、`battle_click_skill_if_ready(index)`；
       校准用 `battle_log_skill_states()`（一行日志打印每个技能位的状态与「当前分/基准分」）
     - 原理：按钮中心圆盘（半径 = 短边 x 0.30）的「中位灰度 x 中位彩度 / 255」打分，
-      和「冷却好」基准素材比比例（< 0.6 判冷却中）。**不要用模板匹配/OCR**：
+      和「冷却好」基准素材比比例（< 0.6 判冷却中）。
+      **状态还要过 2 帧防抖**（`tasks/Battle/cooldown.py: SkillStateStabilizer`，
+      任务侧常量 `BATTLE_SKILL_STABLE = 2`）：冷却结束前游戏会闪一下遮罩，
+      单帧分数会跳到 0.6~0.7，不防抖会误判成「冷却好」。
+      **已知局限**：倒计时数字画在正中间，「6」「0」这种粗字盖住圆盘一半以上时，
+      中位灰度会被抬上去；暗图标（如「铁骨」，基准分只有 11.5）在冷却中段可能被误判成
+      冷却好。试过改成「中间圆环」避开数字，但圆环带上按钮外圈高光后别的图标反而变差，
+      已回退 —— 现在的取舍是宁可偶发误判一个技能，不让所有技能变差。
+      **不要用模板匹配/OCR**：
       冷却好的两种高光样式之间相关系数只有 0.69，模板分不开；OCR 读小字慢且不稳
     - 实测比例：冷却好 1.00~1.04，冷却中 0.02~0.04（倒计时 1 / 0），余量 10 倍以上；
       技能6 图标中心是大块黑底白字，基准分只有 4.4（其余 11~38），判定走比例不吃绝对值
@@ -334,15 +351,150 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     - 判定区域 `BATTLE_SKILL_CHECK_REGIONS`（7 个 52x54 框）与点击区域
       `BATTLE_SKILL_REGIONS` 同心（单测会校验）；区域1 = `991,582,52,54`
     - 单测（不连设备，用 4 张真机样本）：`toolkit\python.exe tests\test_battle_skill_cooldown.py`
-    - **浏览器实时标注**：`toolkit\python.exe tests\skill_cooldown_monitor.py`，
-      7 个技能位一框一色（绿=冷却好、红=冷却中），右侧面板逐个列分数/基准/比例
+    - **浏览器实时标注**：`toolkit\python.exe tests\skill_cooldown_monitor.py`
+      - 启动时先识别 7 个技能位装的是什么技能（框底显示技能名），再逐帧判冷却；
+      - 基准分按「识别出的技能」去匹配那 7 张「冷却好」素材（换技能也能用），
+        没有素材的技能位自动改用「运行中最高分」当基准（面板显示「自动基准 ON」）；
+      - 7 个技能位一框一色（绿=冷却好、红=冷却中、黄=无基准），右侧面板逐个列
+        技能名/状态/分数/基准/比例；冷却结束前游戏会闪一下遮罩（单帧分数 0.6~0.7），
+        所以默认 `--ratio 0.7` + `--stable 2`（连续 2 帧才切换状态），避免闪出「冷却好」；
+        `--list` 只打印技能位和素材匹配结果，不连设备；
+        `--image 截图.png` 可以离线拿一张图跑一遍（默认 1 帧，配 `--save` 存标注图）
   - 普通攻击与技能1 冷却都在 1 秒以上，连点没有意义 —— 要按冷却打就用
     `battle_click_attack / battle_click_skill` 配 `sleep(interval)`，或者用
-    `battle_click_skill_if_ready()` 等冷却好再点；只有 `battle_simple_loop` 才是连点
+    `battle_click_skill_if_ready()` 等冷却好再点；
+    `battle_simple_loop()` 默认走「战斗菜单」里的优先级（见下一节），
+    只有关掉「开战前识别技能栏」或一个技能都没认出来时才退回随机连点
 - 彩色描边字（锁定的目标名等）：`ocr_color_name(rule, scales=(2,3), min_score=0.5)`
   （ROI 转灰度 -> 放大 -> 整行识别取置信度最高的一份；规则默认的「检测框 + 拼串」对彩色描边字经常读不出）
 
-## 10. 已实现任务
+## 10. 战斗预设（技能目录 / 优先级释放）
+
+「战斗」是 UI 上的独立页面（不是任务，不进调度器），菜单位置在
+`module/config/config_menu.py` 的 `Script` 分组里：**脚本 -> 战斗 -> 重启**，
+前台是 `mzxyOASX` 的 `lib/views/battle/battle_view.dart`。
+
+### 10.1 预设是什么
+
+一个预设 = 一套「全部技能的释放顺序 + 禁用表」，相当于一种战术：
+日常清怪可以「群攻优先」，打 BOSS 可以「单体爆发优先」，省药可以把回复技能禁掉。
+
+- **系统预设**（默认预设）：内建、只读、不落盘（`tasks/Battle/presets.py: default_preset()`），
+  内容就是技能目录的默认优先级，禁用一个都不禁用。不能改也不能删，随时可用。
+- **用户预设**：存在 `config/<实例>.json` 的 `battle.presets` 里，可以新建/重命名/删除；
+  新建时选「基于哪个预设」，会复制对方的顺序和禁用，之后互不影响。
+- **用哪个预设由任务决定**：每个会打怪的任务都有自己的「战斗配置」组
+  （`tasks/Component/battle_config.py` 的 `BattleTaskConfig`），里面只有一项「战斗预设」，
+  默认就是系统预设。没有「全局生效预设」这层概念 —— 战斗页面只负责管理预设本身。
+  任务里选的预设 id 失效（被删/写错）时自动回落系统预设，不会因为配置不同步就不放技能。
+
+### 10.2 数据
+
+- 技能目录 `tasks/Battle/skills.json`：字段
+  `id / class / name / description / icon / cooldown / default_priority`。
+  **已录入 5 个职业 x 4 个技能 = 20 条**：
+  霸刀（力斩/绝裂/铁骨/玄武破）、疾羽（满月/多重箭/爆裂箭/雷鳞灭）、
+  影刺（诡刺/影袭/双刃/白虎叹）、巫祝（腐朽/唤风/调和/蛟龙卷决）、
+  灵剑（噬魂术/天雷阵/寒水阵/朱雀炎）。以后加技能只加 json 条目 + 图标，代码不用动。
+- 图标 `tasks/Battle/res/skills/skill_<id>.png`：**40x40，带圆形透明边**，
+  裁的是按钮中间「图标本体」（`tasks/Battle/slots.py: SKILL_ICON_INSET`），
+  外圈金属边框不要 —— 所有技能边框都一样，带上会把不相干的技能算得很像。
+- 配置结构：
+  ```
+  battle:
+    common: {identify_threshold, respect_cooldown, cast_interval}
+    presets:
+      - {id: preset_1, name: 打BOSS, order: [全部技能 id], disabled: [本预设禁用的 id]}
+  ```
+  - `order` **始终是完整的一份**（含被禁用的）：临时禁用再启用，位置不会丢；
+  - 实际释放顺序 = `order` 去掉 `disabled`，由 `SkillCatalog.normalize_order()` 算；
+  - `disabled` 里的未知 id、`order` 里重复的 id 都会在保存时被后台清掉；
+  - 系统预设不在 `presets` 里（`id=default` 是保留字）；新增技能会自动补进系统预设。
+
+### 10.3 开战流程（为什么先识别技能栏）
+
+技能目录有 10+ 个技能（还会加），战斗界面只有 7 个技能位，带哪几个是角色状态决定的。
+所以开战时**固定**先截图识别 7 个位置分别是什么技能（没有开关），再按预设排序点击：
+
+1. `battle_slot_skills()` -> 每个技能位裁「图标本体」与全部技能图标比相似度
+   （`tasks/Battle/recognizer.py`，三个分量加权：
+   亮度相关系数 x 0.4 + Lab 色相 x 0.3 + Lab 色度直方图 x 0.3；
+   **要过阈值(0.78) + 和第二名拉开 margin(0.05) 两道关**，分不清就判「未识别」，
+   宁可漏也不认错 —— 认错会按错的优先级放技能）；
+2. `build_plan()`（`tasks/Battle/planner.py`）-> 识别结果 + 预设顺序 + 禁用 -> 点击顺序，
+   未识别的技能位排最后（默认照点）；
+3. `battle_play_plan()` 每轮截图一次，按计划逐个点，`respect_cooldown` 开着就跳过冷却中的，
+   技能放完补一次普通攻击（普攻没有冷却位判定，稳定补伤害，和旧行为一致）；
+
+技能栏在一场战斗里不会变，所以计划只在 `battle_simple_loop()` 开战时算一次；
+识别一个都没成功时自动退回老的「随机顺序连点」，不会卡死。
+
+### 10.4 接口（`module/server/battle_router.py`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/battle/catalog?config=oas1` | 技能目录 + 预设（含顺序/禁用）+ 通用设置 |
+| GET | `/battle/presets?config=oas1` | 只取预设 id/名称（任务配置的「战斗配置」下拉框用） |
+| GET | `/battle/icon/{skill_id}` | 技能图标 PNG |
+| POST | `/battle/preset?config=oas1` | 新建预设 `{name?, base?}`（基于某个预设复制） |
+| PUT | `/battle/preset?config=oas1` | 改预设 `{id, name?, order?, disabled?}`（默认预设 400） |
+| DELETE | `/battle/preset/{id}?config=oas1` | 删除预设（默认预设 400） |
+| PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?, respect_cooldown?, cast_interval?}` |
+| PUT | `/battle/reset?config=oas1&preset=preset_1` | 预设顺序恢复默认 |
+| GET | `/battle/identify?config=oas1&preset=preset_1` | 连设备识别一次并返回指定预设的计划（**脚本运行中会拒绝**，避免抢设备） |
+
+写操作统一返回最新的完整 catalog，前端拿到直接覆盖本地状态。
+
+### 10.5 录制新技能
+
+有新技能（截图里能看到技能栏）时，用录制工具从截图裁图标，不用手工裁剪：
+
+```bat
+toolkit\python.exe tasks\Battle	ools
+ecord_skill_icon.py ^
+    --image "C:\...\MuMu-xxxx.png" --slot 3 --id badao_3 ^
+    --name 铁骨 --class badao --priority 3
+```
+
+- `--slot` 是技能位 1~7（顺序就是游戏里技能栏的位置，和 `slots.py` 一致）；
+- 它会存 `tasks/Battle/res/skills/skill_<id>.png`（40x40、圆形透明边），
+  并打印可以直接粘进 `skills.json` 的条目；
+- 然后把条目加进 `tasks/Battle/skills.json`（`class` 要在 classes 里存在），
+  跑 `toolkit\python.exe tests	est_battle_skills.py` 看有没有「图标互相混淆」；
+- 真机校准：`toolkit\python.exe testsattle_identify.py --save log/battle_slots.png`
+  看每个技能位的「分数 / 第二名」，必要时调 `battle.common.identify_threshold`
+  （页面上是「识别相似度下限」滑块）；
+  `--image` 可以拿现成截图离线试，`--list` 只打印坐标不连设备，
+  `--preset preset_1` 可以看指定预设的释放计划。
+
+### 10.6 给任务加「战斗配置」组
+
+1. 任务配置模型里加一个独立的组（不要塞进任务自己的 `xxx_config`）：
+   ```python
+   from tasks.Component.battle_config import BattleTaskConfig
+
+   class SomeTask(ConfigBase):
+       scheduler: Scheduler = Field(default_factory=Scheduler)
+       battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
+       some_config: SomeConfig = Field(default_factory=SomeConfig)
+   ```
+   这样 arg 页面会多出一张「战斗配置」卡片，里面只有「战斗预设」一项，默认系统预设；
+   前端按 `battle_preset` 这个 schema type 渲染成下拉框（选项来自 `/battle/presets`）。
+   已接入：仙府九重天 / 世界首领 / 上古狩猎 / 域外迷窟。
+2. 任务里调用 `self.battle_preset()` 取到的就是「该任务选的预设，没选就是系统预设」；
+   `battle_simple_loop()` 内部已经这么做了，用它的任务不用改。
+3. 词条 `battle_config` / `battle_preset` / `battle_preset_help`
+   （`assets/i18n/*.json` 和前端 `i18n_battle.dart`）。
+
+### 10.7 测试
+
+- `toolkit\python.exe tests	est_battle_skills.py`：目录 / 归一化 / 识别 / 计划 / 配置（18 项，不连设备）
+- `toolkit\python.exe tests	est_battle_presets.py`：预设增删改查 / 只读默认预设 / 回落（17 项）
+- `toolkit\python.exe tests	est_battle_skill_cooldown.py`：冷却判定（11 项，不连设备）
+- 前端：`flutter test --no-pub test/battle_controller_test.dart test/battle_view_test.dart`
+  （排序 / 禁用 / 多选批量 / 只读预设 / 页面渲染，不联网）
+
+## 11. 已实现任务
 
 - `tasks/WorldBoss`：世界首领（跑图/寻路/锁定/攻击）
 - `tasks/SilverGiftBox`：银贝礼盒（每天一次，凌晨 4 点刷新）

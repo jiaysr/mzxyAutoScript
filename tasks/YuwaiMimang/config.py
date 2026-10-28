@@ -1,6 +1,7 @@
 # This Python file uses the following encoding: utf-8
 from pydantic import BaseModel, Field
 
+from tasks.Component.battle_config import BattleTaskConfig
 from tasks.Component.config_base import ConfigBase, Time
 from tasks.YuwaiMimang.config_scheduler import YuwaiMimangScheduler
 
@@ -40,4 +41,5 @@ class YuwaiMimangConfig(BaseModel):
 
 class YuwaiMimang(ConfigBase):
     scheduler: YuwaiMimangScheduler = Field(default_factory=YuwaiMimangScheduler)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
     yuwai_mimang_config: YuwaiMimangConfig = Field(default_factory=YuwaiMimangConfig)

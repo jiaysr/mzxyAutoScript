@@ -1,6 +1,7 @@
 # This Python file uses the following encoding: utf-8
 from pydantic import BaseModel, Field
 
+from tasks.Component.battle_config import BattleTaskConfig
 from tasks.Component.config_base import ConfigBase, Time
 from tasks.Component.config_scheduler import Scheduler
 
@@ -42,6 +43,7 @@ class XiewangConfig(BaseModel):
 
 class WorldBoss(ConfigBase):
     scheduler: Scheduler = Field(default_factory=Scheduler)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
     world_boss_config: WorldBossConfig = Field(default_factory=WorldBossConfig)
     manchui: ManchuiConfig = Field(default_factory=ManchuiConfig)
     wuqing: WuqingConfig = Field(default_factory=WuqingConfig)

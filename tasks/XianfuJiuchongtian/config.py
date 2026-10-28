@@ -1,6 +1,7 @@
 # This Python file uses the following encoding: utf-8
 from pydantic import BaseModel, Field
 
+from tasks.Component.battle_config import BattleTaskConfig
 from tasks.Component.config_base import ConfigBase
 from tasks.Component.config_scheduler import Scheduler
 
@@ -19,4 +20,5 @@ class XianfuConfig(BaseModel):
 
 class XianfuJiuchongtian(ConfigBase):
     scheduler: Scheduler = Field(default_factory=Scheduler)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
     xianfu_config: XianfuConfig = Field(default_factory=XianfuConfig)
