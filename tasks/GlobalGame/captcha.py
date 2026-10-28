@@ -11,8 +11,9 @@
 
 素材（tasks/GlobalGame/res/）：
   I_CAPTCHA_DIALOG     标题红字，判断弹窗在不在（模板匹配，便宜）
-  O_CAPTCHA_EXPRESSION 算式行（整行识别：'60 + 4 = ?'；识别结果可能被拆成多个框，
-                       解析时按从左到右拼回整行，见 captcha_join_expression）
+  O_CAPTCHA_EXPRESSION 算式行（Single 整行识别：'60 + 4 = ?'）
+                       优先只识别不检测（det 会漏掉细笔画的减号，见 captcha_expression_text），
+                       失败再退回检测结果按从左到右拼回整行（captcha_join_expression）
   O_CAPTCHA_OPTIONS    选项区（Full，每项一个框：'A:81'，I 常被认成 1）
 """
 import re
@@ -146,26 +147,39 @@ class CaptchaHandler(GlobalGameAssets):
         return None
 
     def captcha_expression_ocr(self) -> list:
-        """OCR 算式行，返回识别结果（坐标相对 roi 裁剪）"""
+        """OCR 算式行（检测+识别），返回识别结果（坐标相对 roi 裁剪）"""
         return self.O_CAPTCHA_EXPRESSION.detect_and_ocr(self.device.image, logDisplay=False)
+
+    def captcha_expression_text(self) -> str:
+        """
+        整行识别算式（只识别、不做文本检测）
+
+        文本检测模型会漏掉细笔画的运算符：实测减法题 '27 - 11 = ?' 的 det 只出
+        ['27', '11', '=', '?'] 四个框（'-' 连框都没有），拼起来变成 '2711?='；
+        算式行本身就是固定单行 ROI，整行识别能完整读出运算符，所以优先用它
+        """
+        return self.O_CAPTCHA_EXPRESSION.ocr_single_line(self.device.image)
 
     def captcha_parse_expression(self) -> tuple | None:
         """
         识别算式行，返回 (左操作数, 运算符, 右操作数)
 
-        算式可能被 OCR 拆成多个框（实测减法 '12 - 0 = ?' 识别成 ['12-', '0', '?']，
-        加号题则是整行一个框），所以先按从左到右拼回整行再匹配，拼不出来才逐框试；
+        优先整行识别（captcha_expression_text），失败再退回检测+按坐标拼接，
+        最后才逐框试（检测结果可能被拆成多个框）；
         运算符的形近字（CAPTCHA_OPERATOR_ALIASES）在这里归一成规范写法
         """
         items = self.captcha_expression_ocr()
         texts = [item.ocr_text for item in items]
-        for text in (self.captcha_join_expression(items), *texts):
+        candidates = [self.captcha_expression_text(),
+                      self.captcha_join_expression(items),
+                      *texts]
+        for text in candidates:
             match = CAPTCHA_EXPRESSION_RE.search(text)
             if match:
                 return (int(match.group(1)),
                         CAPTCHA_OPERATOR_CANON[match.group(2)],
                         int(match.group(3)))
-        logger.warning(f'人机验证算式识别失败: {texts}')
+        logger.warning(f'人机验证算式识别失败: {candidates}')
         return None
 
     @staticmethod

@@ -2,12 +2,17 @@
 """
 人机验证（算术题）弹窗处理的图片测试：
 
-用 image-test 目录里 2026-10-17 的两张真机截图验证（同一弹窗两道题）：
+用 image-test 目录里的真机截图验证：
 - 60 + 4 = ?  ->  答案 64 -> 选项 D（D:64）
 - 74 + 7 = ?  ->  答案 81 -> 选项 A（A:81）
+- 27 - 11 = ? ->  答案 16 -> 选项 G（G:16）
+- 83 - 5 = ?  ->  答案 78 -> 选项 F（F:78）
 
 覆盖：弹窗特征匹配（别的截图不误命中）、算式/选项识别、字母定位、
 点击坐标落在选项框内、以及 handle_captcha 的完整重放（不连设备）。
+
+注意：减法题是「整行识别」而非「检测+识别」的回归用例——文本检测模型会
+漏掉细笔画的减号（det 只出 ['27','11','=','?'] 四个框），必须靠整行识别兜住。
 
 直接用 toolkit python 跑（没装 pytest 也能跑）：
     toolkit\\python.exe tests\\test_global_captcha.py
@@ -36,6 +41,10 @@ IMAGE_DIR = r'D:\project\mzxy\image-test'
 SHOT_CAPTCHA_1 = rf'{IMAGE_DIR}\MuMu-20261017-211015-378.png'
 # 74 + 7 = ?（答案 81 -> A）
 SHOT_CAPTCHA_2 = rf'{IMAGE_DIR}\MuMu-20261017-175825-617.png'
+# 27 - 11 = ?（答案 16 -> G，减法题：检测模型会丢 '-'）
+SHOT_CAPTCHA_3 = rf'{IMAGE_DIR}\MuMu-20261027-121009-760.png'
+# 83 - 5 = ?（答案 78 -> F）
+SHOT_CAPTCHA_4 = rf'{IMAGE_DIR}\MuMu-20261026-175545-173.png'
 # 没有弹窗的普通截图（验证不误命中）
 SHOT_OTHER = rf'{IMAGE_DIR}\MuMu-20261015-171911-215.png'
 
@@ -53,6 +62,18 @@ CASES = {
          'F': 22, 'G': 74, 'H': 93, 'I': 87, 'J': 24},
         'A',
     ),
+    SHOT_CAPTCHA_3: (
+        (27, '-', 11),
+        {'A': 52, 'B': 88, 'C': 74, 'D': 37, 'E': 40,
+         'F': 69, 'G': 16, 'H': 82, 'I': 76, 'J': 53},
+        'G',
+    ),
+    SHOT_CAPTCHA_4: (
+        (83, '-', 5),
+        {'A': 22, 'B': 81, 'C': 69, 'D': 12, 'E': 57,
+         'F': 78, 'G': 6, 'H': 26, 'I': 11, 'J': 37},
+        'F',
+    ),
 }
 
 
@@ -65,16 +86,15 @@ def read_image(path: str) -> np.ndarray:
 
 def load_images() -> dict:
     """加载测试截图，素材不存在时 pytest 跳过 / 直接运行时报错"""
-    missing = [path for path in (SHOT_CAPTCHA_1, SHOT_CAPTCHA_2, SHOT_OTHER)
-               if not os.path.isfile(path)]
+    paths = (*CASES, SHOT_OTHER)
+    missing = [path for path in paths if not os.path.isfile(path)]
     if missing:
         try:
             import pytest
         except ImportError:
             raise SystemExit(f'测试图片不存在: {missing}')
         pytest.skip(f'测试图片不存在: {missing}')
-    return {path: read_image(path)
-            for path in (SHOT_CAPTCHA_1, SHOT_CAPTCHA_2, SHOT_OTHER)}
+    return {path: read_image(path) for path in paths}
 
 
 class FakeDevice:
@@ -134,6 +154,10 @@ class FakeExpressionCaptcha(CaptchaHandler):
     def captcha_expression_ocr(self) -> list:
         return self.results
 
+    def captcha_expression_text(self) -> str:
+        # 这里只重放「检测分框」的现场，整行识别结果置空，强制走拼接分支
+        return ''
+
 
 def ocr_item(text: str, x: int) -> SimpleNamespace:
     """造一个 OCR 结果框（box 为左上/右上/右下/左下四点，顺序与 BoxedResult 一致）"""
@@ -160,7 +184,7 @@ def option_boxes(image: np.ndarray) -> dict:
 # ---------------------------------------------------------------- 弹窗特征
 def test_dialog_found_on_captcha_shots():
     images = load_images()
-    for path in (SHOT_CAPTCHA_1, SHOT_CAPTCHA_2):
+    for path in CASES:
         rule = GlobalGameAssets.I_CAPTCHA_DIALOG
         assert rule.match(images[path]), f'没识别到人机验证弹窗: {Path(path).name}'
 
@@ -184,6 +208,14 @@ def test_expression_parsed_from_split_boxes():
     """减法题被 OCR 拆成多个框（实测 ['12-', '0', '?']，加号题是整行一个框）"""
     task = FakeExpressionCaptcha([ocr_item('12-', 10), ocr_item('0', 70), ocr_item('?', 120)])
     assert task.captcha_parse_expression() == (12, '-', 0)
+
+
+def test_expression_parsed_when_det_drops_operator():
+    """失败现场重放：文本检测漏掉细笔画的减号（det 只出 ['27','11','?']），
+    整行识别（只识别不检测）要能把运算符兜住"""
+    task = FakeExpressionCaptcha([ocr_item('27', 10), ocr_item('11', 70), ocr_item('?', 120)])
+    task.captcha_expression_text = lambda: '27 - 11 = ?'
+    assert task.captcha_parse_expression() == (27, '-', 11)
 
 
 def test_expression_parsed_from_split_boxes_unordered():
