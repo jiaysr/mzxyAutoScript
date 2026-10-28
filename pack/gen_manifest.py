@@ -58,6 +58,8 @@ def main() -> int:
     parser.add_argument('--channel', default='beta', choices=['stable', 'beta'])
     parser.add_argument('--api-version', type=int, default=1)
     parser.add_argument('--base-url', default='', help='资源前缀，默认用相对文件名')
+    parser.add_argument('--notes', default='', help='本次更新说明（多行）')
+    parser.add_argument('--notes-file', default='', help='从文件读更新说明，CI 里用它避免转义问题')
     parser.add_argument('--out', default='dist/manifest.json')
     args = parser.parse_args()
 
@@ -79,6 +81,17 @@ def main() -> int:
             'size': code_path.stat().st_size,
         },
     }
+
+    # 更新说明：客户端更新完会展示这段文字
+    notes = args.notes
+    if args.notes_file:
+        notes_path = Path(args.notes_file)
+        if notes_path.exists():
+            notes = notes_path.read_text(encoding='utf-8')
+        else:
+            print(f'[warn] 找不到 {notes_path}，更新说明留空')
+    if notes.strip():
+        manifest['notes'] = notes.strip()
 
     if args.env:
         env_path = Path(args.env)

@@ -119,6 +119,14 @@ jobs:
           python -m pip install --quiet -r requirements.txt --target build/toolkit/Lib/site-packages
           python pack/build_env_pack.py --source build/toolkit --out dist --compress-level 6
 
+      - name: 生成更新说明
+        shell: pwsh
+        run: |
+          # 最近 15 条提交标题作为本次更新说明，客户端更新完会展示给用户
+          $notes = git log --pretty=format:'- %s' -n 15
+          if (-not $notes) { $notes = '- 例行更新' }
+          $notes | Out-File -FilePath dist/notes.md -Encoding utf8
+
       - name: 生成清单
         shell: pwsh
         run: |
@@ -126,14 +134,14 @@ jobs:
           $envZip = Get-ChildItem dist -Filter 'env-*.zip' -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($envZip) {
             python pack/gen_manifest.py --code $code --env $envZip.FullName `
-              --channel beta --out dist/manifest.json
+              --notes-file dist/notes.md --channel beta --out dist/manifest.json
           } elseif ("${{ steps.prev.outputs.exists }}" -eq "true") {
             python pack/gen_manifest.py --code $code `
               --env-id "${{ steps.prev.outputs.env_id }}" `
               --env-url "${{ steps.prev.outputs.env_url }}" `
               --env-sha256 "${{ steps.prev.outputs.env_sha256 }}" `
               --env-size ${{ steps.prev.outputs.env_size }} `
-              --channel beta --out dist/manifest.json
+              --notes-file dist/notes.md --channel beta --out dist/manifest.json
           } else {
             throw "既没有新打的 env 包，也没有历史 env 可复用"
           }
