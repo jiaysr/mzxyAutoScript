@@ -68,7 +68,7 @@ jobs:
             "env_sha256=$($old.env.sha256)" >> $env:GITHUB_OUTPUT
             "env_size=$($old.env.size)" >> $env:GITHUB_OUTPUT
             "req_sha=$($old.env.requirements_sha256)" >> $env:GITHUB_OUTPUT
-            Write-Host "上次 env: $($old.env.id)"
+            Write-Host "上次清单: code=$($old.code.version) built_at=$($old.built_at) req=$($old.env.requirements_sha256)"
           } catch {
             Write-Host "还没有 $env:TAG 清单（首次发布）"
             "exists=false" >> $env:GITHUB_OUTPUT
@@ -79,8 +79,10 @@ jobs:
         run: |
           $cur = (Get-FileHash requirements.txt -Algorithm SHA256).Hash.ToLower()
           $old = "${{ steps.prev.outputs.req_sha }}"
-          Write-Host "当前 requirements 指纹: $cur"
+          Write-Host "上一次 requirements 指纹: [$old] 长度=$($old.Length)"
+          Write-Host "当前 requirements 指纹: [$cur]"
           if ("${{ steps.prev.outputs.exists }}" -eq "true" -and $old -ne $cur) {
+            Write-Host "::error::requirements 指纹不一致 old=[$old] cur=[$cur]"
             throw @"
           requirements.txt 变了（$old -> $cur），旧的 env 包不再匹配。
           请先重新打 env 包并上传：
