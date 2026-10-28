@@ -3,10 +3,10 @@
 # github https://github.com/runhey
 #
 import re
-from pathlib import Path
 from PySide6.QtCore import QObject, Slot, Signal
 
 from module.logger import logger
+from module.paths import CONFIG_DIR
 
 # 震惊到我姥姥家 除了第一个函数all_script_files是我自己写的
 # 后面的都是github copilot写的
@@ -23,7 +23,7 @@ class Add(QObject):
         :return: ['oas1', 'oas2']
         """
         # 获取某个路径的所有json文件名
-        config_path = Path.cwd() / 'config'
+        config_path = CONFIG_DIR
         json_files = config_path.glob('*.json')
         result = []
         for json in json_files:
@@ -39,7 +39,7 @@ class Add(QObject):
         :return: ['oas1', 'oas2']
         """
         # 获取某个路径的所有json文件名
-        config_path = Path.cwd() / 'config'
+        config_path = CONFIG_DIR
         json_files = config_path.glob('*.json')
         result = []
         for json in json_files:
@@ -58,7 +58,7 @@ class Add(QObject):
         :param template:
         :return:
         """
-        config_path = Path.cwd() / 'config'
+        config_path = CONFIG_DIR
         template_path = config_path / f'{template}.json'
         file_path = config_path / f'{file}.json'
         if file_path.exists():

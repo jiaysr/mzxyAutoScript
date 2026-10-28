@@ -229,7 +229,7 @@ if __name__ == '__main__':
     import argparse
     import os
     import sys
-    from pathlib import Path
+    from module.paths import CONFIG_DIR
 
     parser = argparse.ArgumentParser(description='DeepSeek 客户端自测')
     parser.add_argument('image', nargs='?', default='', help='答题界面截图路径，给出则走完整答题测试')
@@ -244,7 +244,7 @@ if __name__ == '__main__':
     timeout = 8
     if args.config:
         cfg = {}
-        cfg_path = Path.cwd() / 'config' / f'{args.config}.json'
+        cfg_path = CONFIG_DIR / f'{args.config}.json'
         if cfg_path.exists():
             cfg = json.loads(cfg_path.read_text(encoding='utf-8'))
         cfg = cfg.get('quiz', {}).get('quiz_config', {})
