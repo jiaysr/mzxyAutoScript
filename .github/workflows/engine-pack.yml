@@ -62,13 +62,19 @@ jobs:
           try {
             $raw = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30).Content
             $old = $raw | ConvertFrom-Json
-            "exists=true" >> $env:GITHUB_OUTPUT
-            "env_id=$($old.env.id)" >> $env:GITHUB_OUTPUT
-            "env_url=$($old.env.url)" >> $env:GITHUB_OUTPUT
-            "env_sha256=$($old.env.sha256)" >> $env:GITHUB_OUTPUT
-            "env_size=$($old.env.size)" >> $env:GITHUB_OUTPUT
-            "req_sha=$($old.env.requirements_sha256)" >> $env:GITHUB_OUTPUT
-            Write-Host "上次清单: code=$($old.code.version) built_at=$($old.built_at) req=$($old.env.requirements_sha256)"
+            $req = ("$($old.env.requirements_sha256)").Trim()
+            # 一次性写入，避免逐行 >> 追加时最后一行被吞
+            @(
+              "exists=true"
+              "env_id=$($old.env.id)"
+              "env_url=$($old.env.url)"
+              "env_sha256=$($old.env.sha256)"
+              "env_size=$($old.env.size)"
+              "req_sha=$req"
+            ) | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "上次清单: code=$($old.code.version) built_at=$($old.built_at) req=[$req] len=$($raw.Length)"
+            # 无需登录也能从 annotation 看到实际读到的值
+            Write-Host "::warning::上次清单 len=$($raw.Length) code=$($old.code.version) req=[$req]"
           } catch {
             Write-Host "还没有 $env:TAG 清单（首次发布）"
             "exists=false" >> $env:GITHUB_OUTPUT
@@ -78,7 +84,7 @@ jobs:
         shell: pwsh
         run: |
           $cur = (Get-FileHash requirements.txt -Algorithm SHA256).Hash.ToLower()
-          $old = "${{ steps.prev.outputs.req_sha }}"
+          $old = ("${{ steps.prev.outputs.req_sha }}").Trim()
           Write-Host "上一次 requirements 指纹: [$old] 长度=$($old.Length)"
           Write-Host "当前 requirements 指纹: [$cur]"
           if ("${{ steps.prev.outputs.exists }}" -eq "true" -and $old -ne $cur) {
