@@ -1,23 +1,28 @@
 # This Python file uses the following encoding: utf-8
 """
-战斗试打任务：识别技能栏 -> 按预设优先级循环攻击（暂时没有停止条件）
+战斗试打任务：锁定目标 -> 识别技能栏 -> 按预设优先级「点一次 + 校验」循环
 
-行为（实现在 `tasks/Battle/attack.py: battle_attack_loop()`）：
-1. 截一帧识别 7 个技能位分别装的是什么技能；
-2. 按预设算出优先级顺序（默认：任务配置 -> 系统预设，也可以在下面 PRESET 里写死预设 id）；
-3. 一直循环：
-   - 每次从优先级最高的技能往下挑「冷却好」的那个；
-   - 点它 CLICKS_PER_SKILL 次（默认 3 次），然后轮询确认它真的进入冷却；
-   - 回到队首重新挑 —— 所以高优先级的技能一冷却好就会立刻插队先放；
-   - 技能全在冷却时只补普通攻击（按 ATTACK_INTERVAL 节流），不会硬点冷却中的技能。
+行为（与仙府九重天任务一致，实现在 BattleAttack.battle_skill_loop）：
+1. 收起右上角菜单，锁定目标：先模板匹配确认已锁定，没锁到就点「目标」切换；
+   右下角动作按钮必须是「攻击」（可攻击目标）。
+2. 截一帧识别 7 个技能位分别装的是什么技能，按预设算优先级。
+3. 循环（队列式，不按轮）：
+   - 按优先级顺序释放技能；
+   - 每个技能双击（同一点快速点两次）-> 判断目标 -> 判断是否进入冷却；
+     没进冷切就排到「下一个技能」后面再试一次，同时只允许一个延后技能；
+     下一个技能也没进冷切时不重排，继续释放之前延后的那个；
+   - 所有技能都在冷却时才释放普通攻击；
+   - 目标丢失 / 不可攻击时自动结束。
+4. 目标丢失 / 不可攻击时自动结束（不会无限连点）。
 
-停止逻辑还没定，先做成无限循环：Ctrl+C 或者直接关进程结束。
-以后要停，给 `battle_attack_loop(stop_check=...)` 传个判断函数即可。
+目标：
+- `TARGET_NAME = ''`：不校验目标名，适用于「地图里只有一个可锁定目标」的场景（先测这个）；
+- 多个目标时把目标名写进去（支持逗号分隔），锁定后会 OCR 名字，对不上就继续切目标。
 
-直接运行（项目根目录，游戏停在能看到技能栏的画面）：
+直接运行（项目根目录，游戏停在能看到技能栏的画面，且附近有可攻击目标）：
     toolkit\\python.exe tasks\\Battle\\script_task.py
 
-想固定用某个预设：把 PRESET 改成预设 id（比如 'preset_1'）。
+想固定用某个预设：改 PRESET（预设 id，比如 'preset_1'）。
 """
 import os
 import sys
@@ -32,37 +37,57 @@ if __name__ == '__main__':
 
 from module.exception import TaskEnd
 from module.logger import logger
+from tasks.Battle.presets import resolve_preset
 from tasks.GameUi.game_ui import GameUi
 
 
 class ScriptTask(GameUi):
-    # 用哪个预设：'' = 任务配置（这里没有任务，等于系统预设）；也可以直接写预设 id
+    # 用哪个预设：预设 id；'' = 系统预设
     PRESET = 'preset_1'
-    # 每个技能连点几次（点完再判断是否进入冷却）
-    CLICKS_PER_SKILL = 3
-    # 连点间隔（秒）；None = BattleAttack.BATTLE_CLICK_INTERVAL（0.2）
-    CLICK_INTERVAL = None
-    # 点完等它进入冷却的最长等待（秒）
-    COOLDOWN_TIMEOUT = 2.0
-    # 冷却状态判不出来（没有基准素材）的技能，点过之后先晾多久（秒）
-    UNKNOWN_WAIT = 1.0
-    # 没有技能可放时，普通攻击的最小间隔（秒）
-    ATTACK_INTERVAL = 1.0
-    # 每放 N 次技能重新识别一次技能栏（换装备后用）；0 = 只识别一次
-    REIDENTIFY_CASTS = 0
+    # 目标名：'' = 不校验（单目标场景）；多个目标时填名字，支持逗号分隔
+    TARGET_NAME = ''
+    # 每个技能最多尝试几次（含第一次）：每次 = 一次双击，没进冷切就重试，超过跳过换下一个技能
+    SKILL_MAX_ATTEMPTS = 3
+    # 点完等它进入冷却的最长时间 / 轮询间隔（秒）
+    COOLDOWN_TIMEOUT = 1.2
+    COOLDOWN_POLL = 0.1
 
     def run(self) -> None:
-        logger.hr('战斗试打：按预设优先级循环攻击', level=1)
+        target_name = self.TARGET_NAME.strip() or None
+        logger.hr(f'战斗试打：目标={target_name or "不指定"} '
+                  f'预设={self.PRESET or "系统预设"}', level=1)
+
+        # 收起菜单并锁定目标（指定名称时，名字对不上会继续切目标）
+        if not self.ui_ensure_target_locked(target_name=target_name):
+            logger.warning('未能锁定可攻击目标，试打结束')
+            raise TaskEnd('Battle')
+
+        # 识别技能栏，算释放顺序
+        self.screenshot()
+        preset = None
+        if self.PRESET:
+            preset = resolve_preset(self.config.battle, self.PRESET, self.battle_catalog())
+        plan = self.battle_plan(preset=preset)
+        if plan:
+            slots = [entry.slot for entry in plan]
+            logger.info(f'技能释放顺序：{[slot + 1 for slot in slots]}')
+        else:
+            logger.warning('技能位识别失败，按 7 个技能位逐个尝试')
+            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+
         try:
-            self.battle_attack_loop(
-                preset=self.PRESET,
-                clicks_per_skill=self.CLICKS_PER_SKILL,
-                click_interval=self.CLICK_INTERVAL,
+            status = self.battle_skill_loop(
+                slots,
+                check_stop=lambda image: None if self.ui_target_attackable(image)
+                else 'target_lost',
+                target_check=lambda image: self.ui_target_attackable(image),
+                timeout=None,
+                attack_interval=1.0,
+                max_attempts=self.SKILL_MAX_ATTEMPTS,
                 cooldown_timeout=self.COOLDOWN_TIMEOUT,
-                unknown_wait=self.UNKNOWN_WAIT,
-                attack_interval=self.ATTACK_INTERVAL,
-                reidentify_casts=self.REIDENTIFY_CASTS,
+                poll_interval=self.COOLDOWN_POLL,
             )
+            logger.info(f'试打结束：{status}')
         finally:
             logger.info('战斗试打结束')
         raise TaskEnd('Battle')

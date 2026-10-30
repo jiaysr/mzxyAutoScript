@@ -43,10 +43,10 @@ class XiewangConfig(BaseModel):
 
 class WorldBoss(ConfigBase):
     scheduler: Scheduler = Field(default_factory=Scheduler)
-    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
     world_boss_config: WorldBossConfig = Field(default_factory=WorldBossConfig)
     manchui: ManchuiConfig = Field(default_factory=ManchuiConfig)
     wuqing: WuqingConfig = Field(default_factory=WuqingConfig)
     julian: JulianConfig = Field(default_factory=JulianConfig)
     fuwang: FuwangConfig = Field(default_factory=FuwangConfig)
     xiewang: XiewangConfig = Field(default_factory=XiewangConfig)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)

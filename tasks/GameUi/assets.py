@@ -69,7 +69,9 @@ class GameUiAssets:
 	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1180,200,100,120), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_target_button.png")
 	# 主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION） 
 	I_ATTACK_BUTTON = RuleImage(roi_front=(1146,597,82,60), roi_back=(1120,575,120,100), threshold=0.75, method="Template matching", file="./tasks/GameUi/res/battle/res_attack_button.png")
-	# 技能位1-「冷却好」基准素材（冷却识别只取素材算亮度x彩度基准分，不做模板匹配；见 tasks/Battle/cooldown.py） 
+	# 主页面-已锁定目标的血条框右侧雕花（判断是否锁定了任意目标；16 张真机截图实测有目标 ≥0.95、无目标 ≤0.42） 
+	I_TARGET_LOCKED = RuleImage(roi_front=(601,46,13,52), roi_back=(591,36,33,72), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_target_locked.png")
+	# 技能位1-「冷却好」基准素材（冷却识别只取素材算亮度x彩度基准分，不做模板匹配；见 navigation/battle_skill.py） 
 	I_SKILL1_READY = RuleImage(roi_front=(991,582,52,54), roi_back=(981,572,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill1_ready.png")
 	# 技能位2-「冷却好」基准素材（同上，不做模板匹配） 
 	I_SKILL2_READY = RuleImage(roi_front=(1033,484,52,54), roi_back=(1023,474,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill2_ready.png")

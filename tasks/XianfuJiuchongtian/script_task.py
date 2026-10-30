@@ -6,12 +6,17 @@
 （1=南极、2=北极、3=东极、4=西极）；打大关 M 只会掉「仙玉碎片M」
 （如持国天=M3 只掉碎片三）。翻牌颜色随机，所以按缺失的号从大到小打：
 缺 4 → 打大关4的小关N，反复打到拿到碎片4，再打大关3拿碎片3 …… 集齐后重新从大关4开始。
+配置 `fixed_daguan`（1-4）可直接指定大关，指定后跳过背包统计，一直打该大关的第 N 小关。
 
 仙石：每半小时 +1、上限 40。达到 stone_threshold 才开始清仙石，循环打到仙石 < 4 为止，
 然后按 (阈值 - 当前仙石) * 30 分钟排下一次运行。
 
-流程：挑战-仙府九重天页 -> 选大关 -> 选小关 -> 开始挑战 -> 副本内走 210,158 打怪
-      -> 翻牌领奖 -> 关面板，循环直到仙石不够。
+流程：挑战-仙府九重天页 -> 选大关 -> 选小关 -> 开始挑战 -> 副本内走 210,158
+      -> 收菜单锁定怪物（右下角按钮必须是「攻击」）
+      -> 打怪：按优先级队列释放技能，每个技能双击；
+         没进冷切就排到下一个技能后面（同时只允许一个延后），全部技能冷却时才普攻
+      -> 目标丢失/奖励面板出现即停 -> 翻牌领奖 -> 关面板，循环直到仙石不够。
+      若目标丢失后回到仙府页面仍没有奖励面板，按本关未通过处理：推送通知并继续下一轮。
 """
 import re
 from datetime import datetime, timedelta
@@ -37,6 +42,10 @@ STONE_COST = 4          # 每次挑战消耗
 MAP_NAME = '仙府九重天'
 BATTLE_TIMEOUT = 150
 BATTLE_GROUPS_MAX = 20
+# 目标消失后等奖励面板弹出的时间（秒）：怪物死亡 -> 面板弹出有一点延迟
+REWARD_PANEL_GRACE = 3.0
+# 目标丢失后等「奖励面板 / 回到仙府页面」的时间（秒）：没打过时会被传回仙府页面
+STAGE_RESULT_TIMEOUT = 10.0
 
 
 class ScriptTask(GameUi, XianfuJiuchongtianAssets):
@@ -47,11 +56,11 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
     BAG_SCAN_SCREENS = 12
 
     def run(self) -> None:
-        stage, threshold, max_battles_cfg, coord_text, click_empty = self.load_config()
-        self.BATTLE_CLICK_EMPTY_SKILLS = click_empty
+        stage, threshold, max_battles_cfg, coord_text, fixed_daguan = self.load_config()
         color = XIAOGUAN_COLORS[stage]
+        daguan_text = f'指定大关{fixed_daguan}' if fixed_daguan else '按背包自动选'
         logger.hr(f'仙府九重天 阶段{stage}({color}) 阈值{threshold} '
-                  f'最多{max_battles_cfg or "不限"}局 点空技能位={click_empty}')
+                  f'最多{max_battles_cfg or "不限"}局 {daguan_text}')
 
         self.enter_xianfu_page()
         stone = self.read_stone()
@@ -64,16 +73,25 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             self.schedule_next_run(stone, threshold)
             raise TaskEnd('XianfuJiuchongtian')
 
-        counts = self.bag_piece_counts(color)
-        logger.attr(f'{color}仙玉碎片数量', counts)
+        if fixed_daguan:
+            # 指定了大关就不需要读背包（省掉一次整包扫描和翻页）
+            counts = {}
+            logger.info(f'已指定大关 {fixed_daguan}（{DAGUAN_NAMES[fixed_daguan]}），跳过背包统计')
+        else:
+            counts = self.bag_piece_counts(color)
+            logger.attr(f'{color}仙玉碎片数量', counts)
         max_battles = stone // STONE_COST + 3
         if max_battles_cfg > 0:
             max_battles = min(max_battles, max_battles_cfg)
         battles = 0
         while stone is not None and stone >= STONE_COST and battles < max_battles:
-            target = self.pick_target(counts)
-            logger.info(f'目标：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关，'
-                        f'{color}仙玉碎片{NUMERALS[target - 1]} 当前 {counts.get(target, 0)}')
+            if fixed_daguan:
+                target = fixed_daguan
+                logger.info(f'目标（指定）：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关')
+            else:
+                target = self.pick_target(counts)
+                logger.info(f'目标：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关，'
+                            f'{color}仙玉碎片{NUMERALS[target - 1]} 当前 {counts.get(target, 0)}')
             if not self.run_one_battle(target, stage, coord_text):
                 logger.warning('战斗流程失败，停止清仙石')
                 break
@@ -100,10 +118,10 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         try:
             cfg = self.config.xianfu_jiuchongtian.xianfu_config
             return (int(cfg.stage), int(cfg.stone_threshold), int(cfg.max_battles),
-                    cfg.target_coord, bool(cfg.click_empty_skills))
+                    cfg.target_coord, int(cfg.fixed_daguan))
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'读取配置失败({e})，用默认值 阶段1/阈值40/不限局数')
-            return 1, 40, 0, '210,158', False
+            logger.warning(f'读取配置失败({e})，用默认值 阶段1/阈值40/不限局数/大关自动')
+            return 1, 40, 0, '210,158', 0
 
     @staticmethod
     def parse_coord(text: str):
@@ -366,6 +384,8 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
     # ---------------------------------------------------------------- 一场战斗
     def run_one_battle(self, daguan: int, xiaoguan: int, coord_text: str) -> bool:
         logger.hr(f'{DAGUAN_NAMES[daguan]} 第{xiaoguan}小关')
+        # 每局开始重置翻牌结果，避免本局没打到/没领奖时沿用上一局的碎片计数
+        self.last_reward = None
         self.enter_xianfu_page()
         if not self.select_daguan(daguan):
             return False
@@ -379,8 +399,18 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             return True
         if not self.start_challenge():
             return False
-        if not self.battle(self.parse_coord(coord_text)):
+        result = self.battle(self.parse_coord(coord_text))
+        if result not in ('reward', 'target_lost'):
+            logger.warning('战斗失败（副本未加载 / 锁定失败 / 超时），停止清仙石')
             return False
+        if result == 'target_lost':
+            # 目标丢失后看最终结果：回到仙府页面且没有奖励面板 = 这关没打过
+            outcome = self.wait_stage_result()
+            if outcome == 'failed':
+                self.notify_stage_failed(daguan, xiaoguan)
+                return True  # 继续下一轮
+            if outcome == 'reward':
+                logger.info('目标丢失后奖励面板出现，继续领奖')
         if self.claim_reward():
             return True
         # 领奖失败：已通关的关卡上是个宝箱，再点一次可以重新翻牌（不再消耗仙石）
@@ -471,13 +501,28 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         return False
 
     # ---------------------------------------------------------------- 战斗
+    def battle_task_preset(self) -> str:
+        """
+        本任务选的战斗预设（配置 -> battle_config.battle_preset）
+
+        共享的 BattleAttack.battle_task_preset() 取的是任务根节点的 battle_preset，
+        取不到嵌套在 battle_config 组里的字段，会静默回落到系统预设。
+        先在仙府任务里覆盖，只影响本任务。
+        """
+        return str(self.config.xianfu_jiuchongtian.battle_config.battle_preset or '')
+
     def in_xianfu_map(self):
         location = self.map_current_location()
         if location is None:
             return None
         return self.map_name_match(location[0], MAP_NAME)
 
-    def battle(self, target_coord) -> bool:
+    def battle(self, target_coord) -> str:
+        """
+        进副本打怪
+
+        :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'failed' 副本未加载/锁定失败/超时
+        """
         logger.hr('战斗')
         timer = Timer(25).start()
         while not timer.reached():
@@ -487,7 +532,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             self.device.sleep(0.5)
         else:
             logger.warning('副本未加载')
-            return False
+            return 'failed'
 
         logger.info(f'走到怪物 {target_coord}')
         # calibrate=False：副本限时 2 分钟，不想花时间做校准探测（用登记的校准值/兜底）
@@ -496,15 +541,116 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
                                 ensure_main=False, calibrate=False, timeout=60):
             logger.warning(f'走到怪物 {target_coord} 失败，将在当前位置放技能')
 
-        def stop_check():
+        # 收起右上角菜单 -> 锁定怪物：副本里只有一个可攻击目标，不校验名称。
+        # 锁定失败就不打（没有可攻击目标时放技能没有意义）
+        if not self.ui_ensure_target_locked(timeout=10, max_switch=3):
+            logger.warning('未能锁定可攻击目标，结束战斗')
+            return 'failed'
+
+        logger.info('开始释放技能（队列式：双击 -> 校验目标/冷切；全部冷却才普攻）')
+        return self.battle_loop()
+
+    # ---------------------------------------------------------------- 战斗循环
+    # 每个技能最多尝试几次（含第一次）：每次 = 一次双击，没进冷却就重试，超过跳过换下一个技能
+    SKILL_MAX_ATTEMPTS = 3
+    # 点完技能等它进入冷却的最长时间 / 轮询间隔（秒）
+    SKILL_COOLDOWN_TIMEOUT = 1.2
+    SKILL_COOLDOWN_POLL = 0.1
+
+    def battle_loop(self) -> str:
+        """
+        队列式连续释放技能，直到奖励面板出现 / 目标丢失 / 超时 / 重排次数上限
+
+        - 按优先级顺序释放；没进冷却的技能排到下一个技能后面（同时只允许一个延后）；
+        - 下一个技能也没进冷却时不重排，继续释放之前延后的那个；
+        - 所有技能都在冷却时才释放普通攻击。
+
+        :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'timeout' 超时/重排上限
+        """
+        self.screenshot()
+        plan = self.battle_plan()
+        if plan:
+            slots = [entry.slot for entry in plan]
+        else:
+            logger.warning('技能位识别失败，按 7 个技能位逐个尝试')
+            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+
+        return self.battle_skill_loop(
+            slots,
+            check_stop=self.battle_stop_reason,
+            target_check=lambda image: self.ui_target_attackable(image),
+            timeout=BATTLE_TIMEOUT,
+            max_attempts=self.SKILL_MAX_ATTEMPTS,
+            cooldown_timeout=self.SKILL_COOLDOWN_TIMEOUT,
+            poll_interval=self.SKILL_COOLDOWN_POLL,
+            max_cycles=BATTLE_GROUPS_MAX,
+        )
+
+    def battle_stop_reason(self, image=None) -> str | None:
+        """
+        战斗该结束了吗：'reward' 奖励面板出现；'target_lost' 目标丢失且等不到面板
+
+        :param image: 调用方传入的截图（同一帧已经用来识别目标/按钮/冷切）；
+                      None = 自己现截。奖励面板与目标/按钮都基于这张图判断。
+        """
+        self.reset_records()
+        if image is None:
+            image = self.screenshot()
+        if self.I_REWARD_PANEL.match(image):
+            logger.info('奖励面板出现，结束战斗')
+            return 'reward'
+        if self.ui_target_attackable(image):
+            return None
+        # 目标丢失：多半是打死了，给奖励面板一点弹出时间，别抢在面板前结束
+        timer = Timer(REWARD_PANEL_GRACE).start()
+        while not timer.reached():
+            self.device.sleep(0.3)
+            image = self.screenshot()
+            if self.I_REWARD_PANEL.match(image):
+                logger.info('奖励面板出现，结束战斗')
+                return 'reward'
+        logger.warning('目标丢失且等待奖励面板超时，结束战斗')
+        return 'target_lost'
+
+    def wait_stage_result(self, timeout: float = None) -> str | None:
+        """
+        战斗以「目标丢失」结束后，确认这一关的最终结果：
+
+        - 'reward'：奖励面板出现（其实已通关，继续领奖）
+        - 'failed'：回到仙府九重天页面且没有奖励面板（没打过，被传回来了）
+        - None：超时都没确认（按原流程继续尝试领奖）
+
+        :param timeout: 等待时间（秒），默认 STAGE_RESULT_TIMEOUT
+        """
+        timeout = STAGE_RESULT_TIMEOUT if timeout is None else float(timeout)
+        timer = Timer(timeout).start()
+        while not timer.reached():
             self.reset_records()
             self.screenshot()
-            return self.appear(self.I_REWARD_PANEL)
+            if self.appear(self.I_REWARD_PANEL):
+                logger.info('奖励面板出现')
+                return 'reward'
+            if self.ui_page_appear(page_xianfu, skip_first_screenshot=True):
+                # 页面出现后再确认一下面板（面板可能比页面晚一点弹出）
+                for _ in range(4):
+                    self.device.sleep(0.5)
+                    self.screenshot()
+                    if self.appear(self.I_REWARD_PANEL):
+                        logger.info('奖励面板出现')
+                        return 'reward'
+                logger.info('已回到仙府九重天页面，且没有奖励面板')
+                return 'failed'
+            self.device.sleep(0.5)
+        logger.warning(f'{timeout}s 内没等到奖励面板，也没回到仙府九重天页面')
+        return None
 
-        logger.info('开始释放技能（按战斗菜单里的优先级；识别失败则退回随机连点）')
-        return self.battle_simple_loop(stop_check=stop_check,
-                                       timeout=BATTLE_TIMEOUT,
-                                       groups_max=BATTLE_GROUPS_MAX)
+    def notify_stage_failed(self, daguan: int, xiaoguan: int) -> None:
+        """关卡未通过：推送通知（推送失败不影响继续下一轮）"""
+        message = (f'{DAGUAN_NAMES[daguan]} 第{xiaoguan}小关未通过'
+                   f'（目标丢失后回到仙府九重天页面，没有奖励面板）')
+        logger.warning(message)
+        self.config.notifier.push(title='仙府九重天任务关卡未通过',
+                                  content=f'<{self.config.config_name}> {message}')
 
     # ---------------------------------------------------------------- 领奖
     # 本次翻牌奖励的原文（用于判断是否还没翻开）

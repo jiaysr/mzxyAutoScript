@@ -37,6 +37,11 @@ BATTLE_SKILL_CHECK_REGIONS: Dict[int, Tuple[int, int, int, int]] = {
 # 普通攻击按钮区域
 BATTLE_ATTACK_REGION: Tuple[int, int, int, int] = (1155, 605, 64, 46)
 
+# 右下角动作按钮的圆盘（攻击/采集/交互共用同一个按钮，盘面颜色不同）：
+# 中心与内圈采样半径。分类用圆内饱和像素的中位色相，见 tasks/Battle/target_action.py
+ACTION_BUTTON_DISC_CENTER: Tuple[int, int] = (1184, 622)
+ACTION_BUTTON_DISC_RADIUS: int = 32
+
 # 技能图标在判定区域里的位置 (x, y, w, h)：只取按钮中间的图标本体，
 # 去掉外圈金属边框和高光 —— 边框所有技能都一样，带着它算相似度会把不相干的技能拉得很像
 SKILL_ICON_INSET: Tuple[int, int, int, int] = (6, 7, 40, 40)

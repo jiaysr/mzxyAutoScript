@@ -13,12 +13,13 @@ class XianfuConfig(BaseModel):
                                  description='仙石达到该值才开始清仙石（4-40，每半小时恢复1点）')
     max_battles: int = Field(default=0, ge=0,
                              description='单次最多打几局（0=不限，一直打到仙石不够）')
-    click_empty_skills: bool = Field(default=False,
-                                     description='是否也点空技能位（不同设备技能不同：有空位时不要点）')
+    fixed_daguan: int = Field(default=0, ge=0, le=4,
+                              description='指定大关：1增长天/2多闻天/3持国天/4广目天；'
+                                          '0=按背包碎片数量自动选（指定后跳过背包统计）')
     target_coord: str = Field(default='210,158', description='副本内怪物坐标 x,y')
 
 
 class XianfuJiuchongtian(ConfigBase):
     scheduler: Scheduler = Field(default_factory=Scheduler)
-    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
     xianfu_config: XianfuConfig = Field(default_factory=XianfuConfig)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)

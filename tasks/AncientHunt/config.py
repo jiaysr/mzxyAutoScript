@@ -26,5 +26,5 @@ class AncientHuntConfig(BaseModel):
 
 class AncientHunt(ConfigBase):
     scheduler: Scheduler = Field(default_factory=Scheduler)
-    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
     ancient_hunt_config: AncientHuntConfig = Field(default_factory=AncientHuntConfig)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)

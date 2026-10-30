@@ -41,5 +41,5 @@ class YuwaiMimangConfig(BaseModel):
 
 class YuwaiMimang(ConfigBase):
     scheduler: YuwaiMimangScheduler = Field(default_factory=YuwaiMimangScheduler)
-    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
     yuwai_mimang_config: YuwaiMimangConfig = Field(default_factory=YuwaiMimangConfig)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)

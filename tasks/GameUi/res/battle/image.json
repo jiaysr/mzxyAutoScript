@@ -18,6 +18,15 @@
     "description": "主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION）"
   },
   {
+    "itemName": "target_locked",
+    "imageName": "res_target_locked.png",
+    "roiFront": "601,46,13,52",
+    "roiBack": "591,36,33,72",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主页面-已锁定目标的血条框右侧雕花（判断是否锁定了任意目标；16 张真机截图实测有目标 ≥0.95、无目标 ≤0.42）"
+  },
+  {
     "itemName": "skill1_ready",
     "imageName": "res_skill1_ready.png",
     "roiFront": "991,582,52,54",

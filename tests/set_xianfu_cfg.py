@@ -11,14 +11,14 @@ from module.config.config import Config
 c = Config('oas1')
 cfg = c.xianfu_jiuchongtian.xianfu_config
 print('before:', cfg.stage, cfg.stone_threshold, cfg.max_battles,
-      cfg.click_empty_skills, cfg.target_coord)
+      cfg.fixed_daguan, cfg.target_coord)
 cfg.stage = 1                 # 阶段1 = 打各小关1（南极）
 cfg.stone_threshold = 40      # 仙石满 40 才开始清
 cfg.max_battles = 0           # 不限局数，一轮清到仙石不够
-cfg.click_empty_skills = False  # 不点空技能位
+cfg.fixed_daguan = 0          # 0 = 按背包碎片数量自动选大关
 cfg.target_coord = '210,158'
 c.save()
 print('after :', c.xianfu_jiuchongtian.xianfu_config.stage,
       c.xianfu_jiuchongtian.xianfu_config.stone_threshold,
       c.xianfu_jiuchongtian.xianfu_config.max_battles,
-      c.xianfu_jiuchongtian.xianfu_config.click_empty_skills)
+      c.xianfu_jiuchongtian.xianfu_config.fixed_daguan)
