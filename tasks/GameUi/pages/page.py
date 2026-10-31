@@ -114,9 +114,21 @@ page_role_detail.link(button=SidebarTarget('物品'), destination=page_item_bag)
 page_role_detail.link(button=SidebarTarget('挑战'), destination=page_challenge)
 page_role_detail.link(button=SidebarTarget('任务'), destination=page_task)
 page_role_detail.link(button=SidebarTarget('队伍'), destination=page_team)
-# 面板页左侧栏常驻，模块之间可直达：队伍 -> 任务（单向！反向任务->队伍
-# 会撞上单 tab 校验问题，见 AutoTask.enter_team_page，只能任务自己手动进）
+# 面板页左侧栏在所有模块页常驻，模块之间可直达（目标都是各模块的第一个 tab）。
+# 队伍模块只有一个 tab，选中态大字会被 OCR 拆成「队」「伍」，
+# ui_wait_module 对单 tab 模块有拼接兜底（见 panel.py）。
+page_item_bag.link(button=SidebarTarget('挑战'), destination=page_challenge)
+page_item_bag.link(button=SidebarTarget('任务'), destination=page_task)
+page_item_bag.link(button=SidebarTarget('队伍'), destination=page_team)
+page_challenge.link(button=SidebarTarget('物品'), destination=page_item_bag)
+page_challenge.link(button=SidebarTarget('任务'), destination=page_task)
+page_challenge.link(button=SidebarTarget('队伍'), destination=page_team)
+page_task.link(button=SidebarTarget('物品'), destination=page_item_bag)
+page_task.link(button=SidebarTarget('挑战'), destination=page_challenge)
+page_task.link(button=SidebarTarget('队伍'), destination=page_team)
 page_team.link(button=SidebarTarget('任务'), destination=page_task)
+page_team.link(button=SidebarTarget('物品'), destination=page_item_bag)
+page_team.link(button=SidebarTarget('挑战'), destination=page_challenge)
 page_task.link(button=SidebarTarget('角色'), destination=page_role_detail)
 page_team.link(button=SidebarTarget('角色'), destination=page_role_detail)
 page_task.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)

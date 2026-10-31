@@ -94,9 +94,13 @@ class PanelNavigation(BaseTask, GameUiAssets):
         if name not in self.PANEL_TABS:
             sleep(0.5)
             return True
+        # 单 tab 模块（队伍）的选中态大字常被 OCR 拆成「队」「伍」，拼接后再比对
+        single_tab = self.PANEL_TABS[name][0] if len(self.PANEL_TABS[name]) == 1 else None
         timer = Timer(timeout).start()
         while not timer.reached():
             self.screenshot()
+            if single_tab and single_tab in ''.join(self.ui_tab_visible()):
+                return True
             if self.ui_tab_guess_module() == name:
                 return True
             sleep(0.2)
