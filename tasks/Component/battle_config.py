@@ -23,6 +23,8 @@ from tasks.Component.config_base import BattlePresetName
 
 
 class BattleTaskConfig(BaseModel):
-    """任务用哪套战斗预设（默认 = 系统预设）"""
+    """任务用哪套战斗预设 + 是否点普通攻击"""
     battle_preset: BattlePresetName = Field(default=DEFAULT_PRESET_ID,
                                             description='battle_preset_help')
+    use_normal_attack: bool = Field(default=False,
+                                    description='use_normal_attack_help')

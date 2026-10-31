@@ -237,6 +237,22 @@ class BattleAttack:
             return ''
         return str(getattr(task_config, 'battle_preset', '') or '')
 
+    def battle_use_normal_attack(self) -> bool:
+        """
+        当前任务是否允许点击普通攻击（任务「战斗配置」里的 use_normal_attack，默认关闭）
+
+        没有任务上下文（如直接跑战斗试打脚本）时按关闭处理。
+        """
+        task = getattr(self.config, 'task', None)
+        command = getattr(task, 'command', '') or ''
+        if not command:
+            return False
+        task_config = getattr(self.config.model, convert_to_underscore(command), None)
+        if task_config is None:
+            return False
+        battle_config = getattr(task_config, 'battle_config', None)
+        return bool(getattr(battle_config, 'use_normal_attack', False))
+
     def battle_preset(self) -> dict:
         """
         这一场实际使用的预设：任务配置里选的那个，没选就用系统预设
@@ -364,6 +380,7 @@ class BattleAttack:
                           timeout: float = None,
                           attack_interval: float = 1.0,
                           idle_interval: float = 0.4,
+                          include_attack: bool = None,
                           max_attempts: int = 3,
                           cooldown_timeout: float = 1.2,
                           poll_interval: float = 0.1,
@@ -384,6 +401,7 @@ class BattleAttack:
         :param timeout: 总超时（秒），None = 不限
         :param attack_interval: 普通攻击的最小间隔（秒）
         :param idle_interval: 全部技能冷却时的轮询间隔（秒）
+        :param include_attack: 全部技能冷却时是否点普通攻击；None = 读任务战斗配置（默认关闭）
         :param max_attempts: 每个技能每次释放最多尝试几次（含第一次）
         :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）
         :param poll_interval: 冷却轮询间隔（秒）
@@ -403,9 +421,12 @@ class BattleAttack:
         timer = Timer(timeout).start() if timeout else None
         cycles = 0
         next_attack = 0.0
+        if include_attack is None:
+            include_attack = self.battle_use_normal_attack()
 
         logger.hr('队列式释放技能', level=2)
         logger.info(f'技能顺序：{[slot + 1 for slot in base_order]}')
+        logger.attr('普通攻击', '开启' if include_attack else '关闭')
 
         while True:
             # 每轮一张截图：停止条件、目标/按钮、7 个技能位冷切都从这张图识别
@@ -421,7 +442,7 @@ class BattleAttack:
             states = self.battle_skills_state(image=image)
             if all(states.get(slot) == SKILL_COOLING for slot in order):
                 now = time.time()
-                if now >= next_attack:
+                if include_attack and now >= next_attack:
                     self.battle_click_attack()
                     next_attack = now + float(attack_interval)
                 self.device.sleep(idle_interval)

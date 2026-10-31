@@ -215,6 +215,8 @@
   "battle_presets": "Battle Presets",
   "battle_preset": "Battle Preset",
   "battle_preset_help": "Which skill preset this task uses. The default is the built-in preset.",
+  "use_normal_attack": "Use Normal Attack",
+  "use_normal_attack_help": "Whether to tap the normal attack button in battle. Off = only cast skills and wait while all skills are cooling.",
   "battle_preset_default": "Default",
   "battle_preset_builtin": "Built-in",
   "battle_preset_builtin_hint": "The default preset comes from the skill catalog and cannot be edited. Create a preset based on it to customise.",

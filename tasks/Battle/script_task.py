@@ -51,6 +51,8 @@ class ScriptTask(GameUi):
     # 点完等它进入冷却的最长时间 / 轮询间隔（秒）
     COOLDOWN_TIMEOUT = 1.2
     COOLDOWN_POLL = 0.1
+    # 全部技能冷却时是否点普通攻击（试打脚本没有任务配置，默认关闭）
+    USE_NORMAL_ATTACK = False
 
     def run(self) -> None:
         target_name = self.TARGET_NAME.strip() or None
@@ -83,6 +85,7 @@ class ScriptTask(GameUi):
                 target_check=lambda image: self.ui_target_attackable(image),
                 timeout=None,
                 attack_interval=1.0,
+                include_attack=self.USE_NORMAL_ATTACK,
                 max_attempts=self.SKILL_MAX_ATTEMPTS,
                 cooldown_timeout=self.COOLDOWN_TIMEOUT,
                 poll_interval=self.COOLDOWN_POLL,
