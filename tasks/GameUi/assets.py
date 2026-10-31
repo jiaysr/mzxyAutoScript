@@ -88,8 +88,8 @@ class GameUiAssets:
 
 
 	# Ocr Rule Assets
-	# 主页面-当前锁定目标名（彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出） 
-	O_TARGET_NAME = RuleOcr(roi=(426,5,240,36), area=(424,9,240,36), mode="Full", method="Default", keyword="", name="target_name")
+	# 主页面-当前锁定目标名（固定在 508,4,196,39；彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出） 
+	O_TARGET_NAME = RuleOcr(roi=(508,4,196,39), area=(508,4,196,39), mode="Full", method="Default", keyword="", name="target_name")
 
 
 	# Click Rule Assets

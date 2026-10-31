@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "itemName": "boss_reward_close",
+    "roiFront": "609,525,64,35",
+    "roiBack": "598,521,83,44",
+    "description": "世界首领-首领归属奖关闭"
+  }
+]

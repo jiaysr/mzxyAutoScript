@@ -10,6 +10,11 @@ from module.atom.list import RuleList
 class WorldBossAssets: 
 
 
+	# Click Rule Assets
+	# 世界首领-首领归属奖关闭 
+	C_BOSS_REWARD_CLOSE = RuleClick(roi_front=(609,525,64,35), roi_back=(598,521,83,44), name="boss_reward_close")
+
+
 	# Image Rule Assets
 	# 世界首领-蛮锤名称 
 	I_BOSS_MANCHUI = RuleImage(roi_front=(211,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_manchui.png")
@@ -21,6 +26,18 @@ class WorldBossAssets:
 	I_BOSS_FUWANG = RuleImage(roi_front=(435,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_fuwang.png")
 	# 世界首领-蝎王名称 
 	I_BOSS_XIEWANG = RuleImage(roi_front=(738,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_xiewang.png")
+	# 世界首领-首领归属奖弹窗 
+	I_BOSS_REWARD = RuleImage(roi_front=(230,188,89,38), roi_back=(221,158,152,103), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_reward.png")
+	# 世界首领-斧王结束判定（[世界]系统消息，模板近似用高阈值区分） 
+	I_FINISH_FUWANG = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_fuwang.png")
+	# 世界首领-无情结束判定（[世界]系统消息，模板近似用高阈值区分） 
+	I_FINISH_WUQING = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_wuqing.png")
+	# 世界首领-巨镰结束判定（[世界]系统消息，模板近似用高阈值区分） 
+	I_FINISH_JULIAN = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_julian.png")
+	# 世界首领-蝎王结束判定（[世界]系统消息，模板近似用高阈值区分） 
+	I_FINISH_XIEWANG = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_xiewang.png")
+	# 世界首领-蛮锤结束判定（[世界]系统消息，模板近似用高阈值区分） 
+	I_FINISH_MANCHUI = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_manchui.png")
 
 
 	# Swipe Rule Assets

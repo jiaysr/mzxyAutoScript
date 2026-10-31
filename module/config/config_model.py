@@ -232,6 +232,9 @@ class ConfigModel(ConfigBase):
                 item["title"] = value["title"] if "title" in value else inflection.underscore(key)
                 if "description" in value:
                     item["description"] = value["description"]
+                # 配置项条件显示（前端读取 visible_when，例如同名时段双 boss 配置）
+                if "visible_when" in value:
+                    item["visible_when"] = value["visible_when"]
                 item["default"] = value["default"]
                 item["value"] = jsons[key] if key in jsons else value["default"]
                 item["type"] = value["type"] if "type" in value else "enum"

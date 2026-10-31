@@ -384,7 +384,9 @@ class BattleAttack:
                           max_attempts: int = 3,
                           cooldown_timeout: float = 1.2,
                           poll_interval: float = 0.1,
-                          max_cycles: int = None) -> str:
+                          max_cycles: int = None,
+                          max_skills: int = None,
+                          on_cast: Callable[[int], None] = None) -> str:
         """
         队列式连续释放技能（不按轮）：
 
@@ -406,7 +408,10 @@ class BattleAttack:
         :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）
         :param poll_interval: 冷却轮询间隔（秒）
         :param max_cycles: 最多重排几轮（一轮 = 所有可释放技能都尝试过一遍），None = 不限
-        :return: check_stop 的返回值 / 'target_lost' / 'timeout'
+        :param max_skills: 最多成功释放几个技能（进入冷却算 1 个），None = 不限
+        :param on_cast: 每次成功释放技能后回调，参数为本次调用内已释放的技能数；
+                        用于死亡重试等中途退出的场景在外部累计释放数
+        :return: check_stop 的返回值 / 'target_lost' / 'skill_limit' / 'timeout'
         """
         order = list(slots)
         if not order:
@@ -420,6 +425,7 @@ class BattleAttack:
         deferred = None
         timer = Timer(timeout).start() if timeout else None
         cycles = 0
+        casts = 0
         next_attack = 0.0
         if include_attack is None:
             include_attack = self.battle_use_normal_attack()
@@ -472,9 +478,16 @@ class BattleAttack:
                     return check_stop(self.screenshot()) or 'target_lost'
                 return 'target_lost'
             if result == 'cooled':
+                casts += 1
+                if on_cast is not None:
+                    # 计数可能因死亡抛异常中断本次调用，及时外传累计值
+                    on_cast(casts)
                 blocked.discard(slot)
                 if deferred == slot:
                     deferred = None
+                if max_skills is not None and casts >= max_skills:
+                    logger.info(f'已成功释放 {casts} 个技能，达到上限 {max_skills}，结束')
+                    return 'skill_limit'
                 continue
 
             # 没进冷却
