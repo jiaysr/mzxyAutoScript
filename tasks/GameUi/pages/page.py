@@ -28,6 +28,11 @@ class Page:
         self.check_button = check_button
         self.links = links
         self.additional: list = None  # 附加按钮或者是ocr检测按钮
+        # 所属模块：面板页（含第二 tab 及之后的子页）都要设，
+        # 供 tab 导航判断，也是「面板页 -> 各模块首 tab」侧栏规则的依据
+        self.module: str = None
+        # 是否为该模块的第一个 tab 页面（侧栏规则的目标页）
+        self.module_home: bool = False
         (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
         self.name = text[:text.find('=')].strip()
         PageRegistry.register(self)
@@ -73,12 +78,19 @@ page_role_detail = Page(G.I_PAGE_ROLE_DETAIL)
 # 主页面（野外/主界面）
 page_main = Page(G.I_PAGE_MAIN)
 
-# 页面所属模块（供 tab 导航判断滚动方向）
+# 页面所属模块（供 tab 导航判断滚动方向）与模块首 tab 标记（侧栏连线规则的目标页）。
+# 设置了 module 的面板页（含子页）默认都能点左栏任一模块直达该模块首 tab，
+# 所以跨模块导航只写显式 links 里需要的特殊边，其余的由引擎自动补。
 page_item_bag.module = '物品'
+page_item_bag.module_home = True
 page_challenge.module = '挑战'
+page_challenge.module_home = True
 page_task.module = '任务'
+page_task.module_home = True
 page_team.module = '队伍'
+page_team.module_home = True
 page_role_detail.module = '角色'
+page_role_detail.module_home = True
 
 page_main.link(button=G.C_PAGE_MAIN_GOTO_PLAYER, destination=page_role_detail)
 page_main.link(button=MenuTarget(G.I_ACTIVITY_ICON), destination=page_activity)
