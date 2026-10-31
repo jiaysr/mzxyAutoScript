@@ -15,7 +15,7 @@ from tasks.AutoTask.assets import AutoTaskAssets
 from tasks.AutoTask.config import BonusMultiplier
 from tasks.AutoTask.page import page_bonus, page_privilege
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_main, page_team, page_role_detail
+from tasks.GameUi.pages.page import page_main, page_team
 
 import random
 import re
@@ -238,16 +238,13 @@ class ScriptTask(GameUi, AutoTaskAssets):
         self.device.click_record_clear()
         self.device.sleep(self.PRIVILEGE_SCROLL_SLEEP)
 
-    def reset_privilege_scroll(self) -> None:
-        """切到任务加量再切回特权，列表滚动回到顶部"""
-        logger.info('Reset privilege list scroll via tab switch')
-        self.ui_tab_click('任务加量', module='任务')
-        self.ui_tab_click('任务特权', module='任务')
-
     def read_privilege_tasks(self) -> dict:
         """
-        读全量任务 + 进度：先回顶再逐屏翻页，按任务名合并；
-        滚出新名字就继续，一屏没新增（到底了）就停。
+        读全量任务 + 进度：逐屏翻页并按任务名合并（滚出新名字继续，一屏没新增即到底）
+
+        开始读时列表一定在顶部：首轮是 check_privilege 刚进入特权页且没滚动过，
+        后续轮是 detail_back_to_main 后从主页面重新进入（离开页面会复位状态）。
+        如果以后在本页连续调用两次，需要自己复位（再点一次当前 tab 或侧栏菜单）。
         :return: {任务名: (done, total)}，无进度文案的 done 为 None
         """
         logger.hr('读取特权任务列表')
@@ -256,7 +253,6 @@ class ScriptTask(GameUi, AutoTaskAssets):
         self.ui_reset_current_page()
         if not self.ui_goto(page_privilege, timeout=60):
             raise GameStuckError('Privilege page does not appear')
-        self.reset_privilege_scroll()
         merged = {}
         for index in range(self.PRIVILEGE_MAX_SCROLL + 1):
             current = self.parse_privilege_tasks()
@@ -438,7 +434,7 @@ class ScriptTask(GameUi, AutoTaskAssets):
         self.ui_reset_current_page()
         if not self.ui_goto(page_privilege, timeout=timeout):
             raise GameStuckError('Privilege page does not appear')
-        self.reset_privilege_scroll()
+        # 从任务加量页切进来，列表已随页面切换复位到顶部，不用再手动回顶
         timer = Timer(timeout).start()
         clicked = False
         while not timer.reached():
@@ -755,7 +751,10 @@ class ScriptTask(GameUi, AutoTaskAssets):
         """
         logger.hr('Ensure no team')
         self.ui_reset_current_page()
-        self.enter_team_page(timeout=timeout)
+        # 队伍页走引擎寻路：侧栏「队伍」由 ui_sidebar_click 滚动查找，
+        # 到达由 page_team 的 I_PAGE_TEAM 模板确认（单 tab 的 OCR 校验有拼接兜底）
+        if not self.ui_goto(page_team, timeout=timeout):
+            raise GameStuckError('Team page does not appear')
         timer = Timer(30).start()
         while not timer.reached():
             self.reset_records()
@@ -773,44 +772,6 @@ class ScriptTask(GameUi, AutoTaskAssets):
             logger.info('No team, proceed')
             return
         raise GameStuckError('Cannot leave team')
-
-    def enter_team_page(self, timeout: int = 60) -> None:
-        """
-        进队伍页（特殊处理，不走侧栏 tab 校验）
-
-        队伍模块只有一个 tab，选中态大黄字会被 OCR 拆成「队」「伍」两个框，
-        ui_sidebar_click 的 tab 校验永远过不了。所以这里手动点侧栏，
-        用 I_PAGE_TEAM 模板匹配确认到达（弹窗不盖 tab 栏，不影响确认）。
-        """
-        logger.hr('Enter team page')
-        self.reset_records()
-        self.screenshot()
-        if self.appear(self.I_PAGE_TEAM):
-            logger.info('Already on team page')
-            self.ui_current = page_team
-            self.ui_current_module = '队伍'
-            return
-        if not self.ui_goto(page_role_detail, timeout=timeout):
-            raise GameStuckError('Role detail page does not appear')
-        timer = Timer(timeout).start()
-        while not timer.reached():
-            self.reset_records()
-            self.screenshot()
-            if self.appear(self.I_PAGE_TEAM):
-                logger.info('Team page arrived')
-                self.ui_current = page_team
-                self.ui_current_module = '队伍'
-                return
-            coord = self.ui_sidebar_find('队伍')
-            if coord is None:
-                if not self.ui_sidebar_scroll('队伍'):
-                    raise GameStuckError('Team sidebar entry not found')
-                continue
-            logger.info(f'Click sidebar 队伍 at ({coord[0]:.0f},{coord[1]:.0f})')
-            self.device.click(x=coord[0], y=coord[1], control_name='ui_sidebar_队伍')
-            self.device.click_record_clear()
-            self.device.sleep(1.0)
-        raise GameStuckError('Team page does not appear')
 
 
 if __name__ == '__main__':
