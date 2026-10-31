@@ -130,5 +130,11 @@
     "roiFront": "1006,255,101,55",
     "roiBack": "1006,255,101,55",
     "description": "广目天-第4小关"
+  },
+  {
+    "itemName": "battle_point",
+    "roiFront": "611,362,16,9",
+    "roiBack": "611,362,16,9",
+    "description": "九重天地图-小地图上的战斗点（点击后角色自动寻路到怪物）"
   }
 ]

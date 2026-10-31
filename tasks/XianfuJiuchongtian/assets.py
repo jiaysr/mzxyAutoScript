@@ -55,6 +55,8 @@ class XianfuJiuchongtianAssets:
 	C_S4_3 = RuleClick(roi_front=(851,435,101,61), roi_back=(851,435,101,61), name="s4_3")
 	# 广目天-第4小关 
 	C_S4_4 = RuleClick(roi_front=(1006,255,101,55), roi_back=(1006,255,101,55), name="s4_4")
+	# 九重天地图-小地图上的战斗点（点击后角色自动寻路到怪物） 
+	C_BATTLE_POINT = RuleClick(roi_front=(611,362,16,9), roi_back=(611,362,16,9), name="battle_point")
 
 
 	# Image Rule Assets
@@ -78,6 +80,14 @@ class XianfuJiuchongtianAssets:
 	I_DAGUAN_4 = RuleImage(roi_front=(554,402,157,121), roi_back=(554,402,157,121), threshold=0.8, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_daguan_4.png")
 	# 背包-空物品格特征（整页出现说明下面没物品了） 
 	I_BAG_EMPTY = RuleImage(roi_front=(266,115,76,81), roi_back=(255,105,925,450), threshold=0.8, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_bag_empty.png")
+	# 背包-西极仙玉碎片（图标+第一行名字；同色碎片连续排列，搜索区覆盖最右列） 
+	I_BAG_PICK_WEST = RuleImage(roi_front=(0,0,216,43), roi_back=(240,100,980,460), threshold=0.85, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_bag_pick_west.png")
+	# 背包-东极仙玉碎片（图标+第一行名字；同色碎片连续排列） 
+	I_BAG_PICK_EAST = RuleImage(roi_front=(0,0,212,37), roi_back=(240,100,980,460), threshold=0.85, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_bag_pick_east.png")
+	# 背包-北极仙玉碎片（图标+第一行名字；同色碎片连续排列） 
+	I_BAG_PICK_NORTH = RuleImage(roi_front=(0,0,213,38), roi_back=(240,100,980,460), threshold=0.85, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_bag_pick_north.png")
+	# 背包-南极仙玉碎片（图标+第一行名字；同色碎片连续排列） 
+	I_BAG_PICK_SOUTH = RuleImage(roi_front=(0,0,209,39), roi_back=(240,100,980,460), threshold=0.85, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_bag_pick_south.png")
 
 
 	# Ocr Rule Assets

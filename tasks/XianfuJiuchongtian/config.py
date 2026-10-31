@@ -16,7 +16,6 @@ class XianfuConfig(BaseModel):
     fixed_daguan: int = Field(default=0, ge=0, le=4,
                               description='指定大关：1增长天/2多闻天/3持国天/4广目天；'
                                           '0=按背包碎片数量自动选（指定后跳过背包统计）')
-    target_coord: str = Field(default='210,158', description='副本内怪物坐标 x,y')
 
 
 class XianfuJiuchongtian(ConfigBase):

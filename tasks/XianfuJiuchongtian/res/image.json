@@ -88,5 +88,41 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "背包-空物品格特征（整页出现说明下面没物品了）"
+  },
+  {
+    "itemName": "bag_pick_west",
+    "imageName": "res_bag_pick_west.png",
+    "roiFront": "0,0,216,43",
+    "roiBack": "240,100,980,460",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "背包-西极仙玉碎片（图标+第一行名字；同色碎片连续排列，搜索区覆盖最右列）"
+  },
+  {
+    "itemName": "bag_pick_east",
+    "imageName": "res_bag_pick_east.png",
+    "roiFront": "0,0,212,37",
+    "roiBack": "240,100,980,460",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "背包-东极仙玉碎片（图标+第一行名字；同色碎片连续排列）"
+  },
+  {
+    "itemName": "bag_pick_north",
+    "imageName": "res_bag_pick_north.png",
+    "roiFront": "0,0,213,38",
+    "roiBack": "240,100,980,460",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "背包-北极仙玉碎片（图标+第一行名字；同色碎片连续排列）"
+  },
+  {
+    "itemName": "bag_pick_south",
+    "imageName": "res_bag_pick_south.png",
+    "roiFront": "0,0,209,39",
+    "roiBack": "240,100,980,460",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "背包-南极仙玉碎片（图标+第一行名字；同色碎片连续排列）"
   }
 ]
