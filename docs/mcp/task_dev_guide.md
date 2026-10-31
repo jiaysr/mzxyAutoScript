@@ -89,7 +89,7 @@ self.ui_goto(page_xxx)                                  # 通过页面注册表�
 `page_activity_dungeon`（活动-副本）、`page_activity_active`（活动-活跃），其余页面录制素材后
 按 `tasks/GameUi/pages/page.py` 中的方式注册（或在自己的 `tasks/<Task>/page.py` 扩展），
 `ui_goto` 即可自动寻路。未注册页面的任务直接继承 `BaseTask`，用图像/OCR 规则导航即可
-（当前 `Challenge`、`WorldBoss`、`Quiz`、`Restart` 都是这种方式）。
+（当前 `WorldBoss`、`Quiz`、`Restart` 都是这种方式）。
 弹窗清理和安全点击由任务类覆盖 `GameUi.ui_close`、`GameUi.ui_safe_click` 配置。
 未知页脱困 `ui_close` 默认已带 4 个公共关闭按钮（返回/绿X×2/紫X，`I_CLOSE_*`，
 全屏搜索、命中点匹配位置），页面识别不出来时会依次尝试点击，把弹窗点掉回到已知页面；
@@ -102,7 +102,7 @@ self.ui_goto(page_xxx)                                  # 通过页面注册表�
 
 ## 4. 任务骨架模板
 
-`config.py`（参数定义，参考 `tasks/Challenge/config.py`）：
+`config.py`（参数定义，参考 `tasks/Quiz/config.py`）：
 
 ```python
 # This Python file uses the following encoding: utf-8
@@ -121,7 +121,7 @@ class MyTask(ConfigBase):
     my_task_config: MyTaskConfig = Field(default_factory=MyTaskConfig)
 ```
 
-`script_task.py`（逻辑，参考 `tasks/Challenge/script_task.py`、`tasks/WorldBoss/script_task.py`）：
+`script_task.py`（逻辑，参考 `tasks/WorldBoss/script_task.py`、`tasks/Quiz/script_task.py`）：
 
 ```python
 # This Python file uses the following encoding: utf-8
@@ -505,7 +505,7 @@ ecord_skill_icon.py ^
     新任务直接调用，不要各自实现；NPC 对话后的兑换操作待补充
 - `tasks/Arena` 同服竞技、`tasks/CrossArena` 跨服竞技：报名 -> 匹配 -> 参战 -> 重启计数；
   支持「根据活跃度判断」模式（查活动-活跃页对应任务是否已完成）和等待匹配时给高优先级任务让路
-- `tasks/Challenge`、`tasks/Quiz`：挑战、答题
+- `tasks/Quiz`：答题
   - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
   - 题库定位是**题干 + 选项**（`QuestionBank.find(question, options)`）：题干只差一两个字的题

@@ -18,7 +18,6 @@ from tasks.Battle.config import Battle
 from tasks.Script.config import Script
 from tasks.Quiz.config import Quiz
 from tasks.Restart.config import Restart
-from tasks.Challenge.config import Challenge
 from tasks.WorldBoss.config import WorldBoss
 from tasks.Arena.config import Arena
 from tasks.CrossArena.config import CrossArena
@@ -42,7 +41,6 @@ class ConfigModel(ConfigBase):
 
     # 这些是任务的
     world_boss: WorldBoss = Field(default_factory=WorldBoss)
-    challenge: Challenge = Field(default_factory=Challenge)
     arena: Arena = Field(default_factory=Arena)
     cross_arena: CrossArena = Field(default_factory=CrossArena)
     war_chariot: WarChariot = Field(default_factory=WarChariot)

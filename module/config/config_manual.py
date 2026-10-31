@@ -13,7 +13,6 @@ class ConfigManual:
         > WarChariot
         > Quiz
         > WorldBoss
-        > Challenge
         > Arena
         > CrossArena
         > AncientHunt
