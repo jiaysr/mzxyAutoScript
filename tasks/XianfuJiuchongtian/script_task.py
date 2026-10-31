@@ -30,7 +30,7 @@ from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_item_bag, page_role_detail
+from tasks.GameUi.pages.page import page_item_bag
 from tasks.XianfuJiuchongtian.assets import XianfuJiuchongtianAssets
 from tasks.XianfuJiuchongtian.page import page_xianfu
 
@@ -209,15 +209,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
                         self.BAG_COUNT_SIZE[0], self.BAG_COUNT_SIZE[1])
         return text_region, count_region
 
-    def bag_back_to_top(self) -> None:
-        """
-        回到背包顶部：先去别的页面再回来，背包会自动滚到顶部
-        """
-        self.ui_goto(page_role_detail, timeout=20)
-        self.device.sleep(0.3)
-        self.ui_goto(page_item_bag, timeout=20)
-        self.device.sleep(self.BAG_SETTLE)
-
     # 碎片数字的 OCR 变体（「一」常被认成 —/－/1）
     NUMERAL_VARIANTS = {
         '一': ('碎片一', '碎片—', '碎片－', '碎片-', '碎片1'),
@@ -300,7 +291,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         self.device.sleep(self.BAG_SETTLE)
         self.bag_close_item_panel()
         self.bag_sort()
-        self.bag_back_to_top()
 
         found_any = False
         last_signature = None
