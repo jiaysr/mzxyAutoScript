@@ -817,11 +817,20 @@ class ScriptTask(GameUi, WorldBossAssets):
                 logger.warning('Cannot ensure main page before boss map check')
                 return False
 
-            location = self.map_current_location()
-            if location is None:
-                self.device.sleep(0.5)
+            # 地点名识别区很小（右上角 208x35），偶尔会读不到；重读几次再判断。
+            # 读不到的时候**不能**当成「不在目标地图」—— 那会平白触发一次传送，
+            # 而传送/列表页是覆盖式界面，聊天栏会被挡住，结束消息就再也认不到了。
+            location = None
+            for attempt in range(3):
                 location = self.map_current_location()
-            if location is not None and self.map_name_match(location[0], target):
+                if location is not None:
+                    break
+                logger.info(f'Cannot read current location (try {attempt + 1}/3)')
+                self.device.sleep(0.5)
+            if location is None:
+                logger.warning(f'Cannot read current location, skip teleport to {target}')
+                return False
+            if self.map_name_match(location[0], target):
                 logger.info(f'Already on boss map {location[0]}, skip teleport')
                 return True
 
