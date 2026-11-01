@@ -1,19 +1,21 @@
 # This Python file uses the following encoding: utf-8
 """
-参与战车（仙盟战车）：
+参与战车（血盟战车 / 仙盟战车）：
 
 1. 每天 start_time（默认 20:00）开放，提前 advance_time（默认 5 分钟）开始准备：
    游戏不在线就启动并登录，在线就切回主页面，保证开放时游戏在线且停留在主页面
 2. 到点后每 check_interval 秒（默认 2s）检测一次文字区域，
    识别到 keyword（默认「仙盟战车」）后进入参与流程（见 join_chariot）
-3. 参与流程：在按钮区域里寻找「接受」按钮图片并点击，然后确认当前地图已变成仙盟战车；
-   不是战车地图就重新识别文字重试，超过 enter_timeout 秒（默认 15s）直接报错
+3. 参与流程：在按钮区域里寻找「接受」按钮图片并点击，然后确认当前地图已变成战车地图
+   （准备地图「战车」/ 战斗地图「血盟战车」都算）；不是战车地图就重新识别文字重试，
+   超过 enter_timeout 秒（默认 20s）直接报错
 4. 进入战车地图后：等左下角准备阶段提示
-   - 「准备阶段完成，开始战斗」：切到战斗地图后移动到敌方刷新点
-     （43,138 与 45,21 的另一端）→ 锁定可攻击目标并按战斗预设攻击；连续 10 次没锁到目标就
-     在两个刷新点之间来回移动找目标，移动中锁到目标立即停下开打；离开战车地图立即结束。
+   - 「准备阶段完成，开始战斗」：切到战斗地图后**先移动到敌方刷新点**
+     （43,138 与 45,21 的另一端；开局两队各在出生点，这时没目标可锁）→ 到位后锁定可攻击
+     目标并按战斗预设攻击；没锁到就连续点「目标」最多 10 次，仍没锁到就在两个刷新点之间
+     来回移动找目标，移动中锁到目标立即停下开打；离开战车地图立即结束。
    - 「战车数量不足，无法开战」：本局轮空（对面没车队），停在准备地图直接弹胜利结算，
-     点「确定」关掉后继续参与下一局。
+     点「确定」关掉后回到战车以外的地图，继续参与下一局。
    出图后读取结算弹窗：
    - 失败（I_CHARIOT_FAIL）：点「确定」关闭弹窗后结束任务
    - 胜利（I_CHARIOT_WIN）：点「确定」关闭弹窗，继续轮询参与按钮，可重复参与
@@ -72,8 +74,10 @@ class ChariotDeadline(Exception):
 class ScriptTask(GameUi, WarChariotAssets):
     # 战车战场两个刷新点，敌方在另一端
     CHARIOT_POINTS = ((43, 138), (45, 21))
-    # 战车相关地图名：准备地图「战车」与战斗地图「仙盟战车」都含「战车」
+    # 战车相关地图名：准备地图「战车」与战斗地图「血盟战车/仙盟战车」都含「战车」
     CHARIOT_MAP_KEY = '战车'
+    # 战斗地图名后缀（血盟战车 / 仙盟战车），准备地图只有「战车」，不算战斗地图
+    CHARIOT_BATTLE_MAP_SUFFIX = '盟战车'
     # 连续点「目标」按钮的次数，全都没锁到就移动找目标
     CHARIOT_LOCK_ATTEMPTS = 10
     # 移动到达容差（坐标单位）
@@ -87,7 +91,7 @@ class ScriptTask(GameUi, WarChariotAssets):
     # 识别到战车文字后，找到接受按钮并进入战车地图的超时时间（秒）
     enter_timeout = 20
     # 进入战车地图后的地点名
-    chariot_map_name = '仙盟战车'
+    chariot_map_name = '血盟战车'
 
     def battle_task_preset(self) -> str:
         """本任务选的战斗预设（配置 -> battle_config.battle_preset）"""
@@ -202,13 +206,18 @@ class ScriptTask(GameUi, WarChariotAssets):
 
     def in_chariot_map(self, image=None) -> bool:
         """
-        当前地图是否为仙盟战车（战斗地图）
+        当前地图是否为战车战斗地图（血盟战车 / 仙盟战车）
+
+        准备地图只叫「战车」，不算战斗地图（轮空时停在准备地图）。
         :param image: 可选，传入当前帧则不再重复截图
         """
         location = self.map_current_location(image)
         if location is None:
             return False
-        return self.map_name_match(location[0], self.chariot_map_name)
+        name = location[0]
+        if name.endswith(self.CHARIOT_BATTLE_MAP_SUFFIX):
+            return True
+        return self.map_name_match(name, self.chariot_map_name)
 
     def chariot_map_entered(self, image=None) -> bool:
         """
@@ -383,10 +392,12 @@ class ScriptTask(GameUi, WarChariotAssets):
         战车地图内战斗
 
         1. 等「准备阶段完成，开始战斗」提示后开始行动
-        2. 已锁定可攻击目标：按战斗预设打，直到目标丢失
-        3. 没锁到：连续点「目标」最多 CHARIOT_LOCK_ATTEMPTS 次
-        4. 还是没锁到：向另一端刷新点移动，途中锁到目标立即停下转入攻击
-        5. 两个点之间来回移动；离开战车地图或到截止时间立即结束
+        2. 开局两队都停在各自出生点，这时没有目标可锁 —— 先移动到敌方刷新点
+           （移动途中锁到目标立刻停下开打）
+        3. 已锁定可攻击目标：按战斗预设打，直到目标丢失
+        4. 没锁到：连续点「目标」最多 CHARIOT_LOCK_ATTEMPTS 次（会清点击记录，避免连点保护）
+        5. 还是没锁到：在两个刷新点之间来回移动找目标
+        6. 离开战车地图或到截止时间立即结束
         """
         logger.hr('战车地图战斗')
         self.ui_close_menu()
@@ -417,6 +428,8 @@ class ScriptTask(GameUi, WarChariotAssets):
             # 敌方在另一端：选离当前点最远的刷新点
             move_target = max(points, key=lambda p: abs(p[0] - current[0]) + abs(p[1] - current[1]))
         logger.attr('移动目标', move_target)
+        # 开局两队都停在各自出生点，这时没有目标可锁 —— 先走到敌方位置再开打
+        reached = False
 
         while datetime.now() < deadline:
             self.screenshot()
@@ -433,6 +446,18 @@ class ScriptTask(GameUi, WarChariotAssets):
                 self.battle_attack_loop(stop_check=self.chariot_battle_stop_check(deadline))
                 continue
 
+            if not reached:
+                # 先移动到敌方位置（移动途中锁到目标就停下开打）
+                logger.info(f'先移动到敌方位置 {move_target}')
+                state = self.chariot_move_until_target(move_target[0], move_target[1], deadline)
+                if state == 'target':
+                    continue
+                if state in ('left', 'deadline'):
+                    return
+                reached = True
+                continue
+
+            # 到了敌方位置还是没目标：点「目标」按钮换目标（连点会触发框架保护，见 chariot_try_lock）
             if self.chariot_try_lock():
                 continue
 
@@ -440,15 +465,10 @@ class ScriptTask(GameUi, WarChariotAssets):
                 logger.info('已离开战车地图，结束战斗')
                 return
 
-            logger.info(f'连续 {self.CHARIOT_LOCK_ATTEMPTS} 次没锁到目标，'
-                        f'移动找目标 {move_target}')
-            state = self.chariot_move_until_target(move_target[0], move_target[1], deadline)
-            if state == 'target':
-                continue
-            if state in ('left', 'deadline'):
-                return
-            # 到达 / 受阻都换另一个点，来回移动
+            # 还是没有目标：换另一个点来回移动找目标
+            logger.info('没锁到目标，换个点继续找')
             move_target = points[1] if move_target == points[0] else points[0]
+            reached = False
 
     def chariot_battle_stop_check(self, deadline: datetime):
         """
@@ -476,12 +496,19 @@ class ScriptTask(GameUi, WarChariotAssets):
     def chariot_try_lock(self, attempts: int = None) -> bool:
         """
         连续点「目标」按钮切换目标，直到锁定到可攻击目标或次数用尽
+
+        同一个按钮连点会被框架判成「Too many click for a button」直接抛异常
+        （一个按钮点满 10 次就触发），所以每次点击前先清掉点击记录 ——
+        和 ui_ensure_target_locked 的做法一致。
         """
         attempts = self.CHARIOT_LOCK_ATTEMPTS if attempts is None else attempts
         for _ in range(attempts):
             self.screenshot()
             if self.ui_target_attackable(image=self.device.image):
                 return True
+            # 清掉点击/卡死记录，避免连点同一个按钮触发框架的连点保护
+            self.device.stuck_record_clear()
+            self.device.click_record_clear()
             if not self.ui_lock_target():
                 logger.warning('没有找到「目标」按钮，停止切换目标')
                 return False
