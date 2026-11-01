@@ -13,7 +13,7 @@
   -> 点修理后也可能直接弹「您没有装备需要修理」（无确认框），同样视为成功
 """
 from module.base.timer import Timer
-from module.exception import GameStuckError
+from module.exception import GamePageUnknownError, GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets
 from tasks.GameUi.pages.page import page_item_bag, page_main
@@ -110,12 +110,16 @@ class GeneralFunctions(BaseTask, GameUiAssets):
 
     def bag_back_to_main(self) -> None:
         """
-        收尾回主页面；失败只记日志，不覆盖调用方的原始异常
+        收尾回主页面；只吞导航类异常
+
+        不能宽泛 except Exception：任务自定义的死亡异常（如 WorldBossDeath /
+        XianfuDeath）从 screenshot 里抛上来时必须继续往上传播，否则调用方会
+        以为流程正常，实际停在半路。
         """
         try:
             if not self.ui_goto(page_main, timeout=30):
                 logger.warning('Cannot return to main page')
-        except Exception as e:  # noqa: BLE001
+        except (GameStuckError, GamePageUnknownError) as e:
             logger.warning(f'Return to main page failed: {e}')
 
     # ------------------------------------------------------------------ 通用等待

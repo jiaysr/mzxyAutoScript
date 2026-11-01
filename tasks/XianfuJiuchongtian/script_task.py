@@ -12,6 +12,14 @@
 
 仙石：每半小时 +1、上限 40。达到 stone_threshold 才开始清仙石，循环打到仙石 < 4 为止，
 然后按 (阈值 - 当前仙石) * 30 分钟排下一次运行。
+仙石够打之后、开战之前先修一次装备（每轮运行只修一次，失败不中断）。
+
+死亡：进图前/路上被玩家击杀 -> 复活（游戏设定回村庄再回主页面）后重试当前阶段，
+      不整任务重跑，已统计好的背包碎片数量不会重扫（tests/test_xianfu_death.py）。
+      仙府九重天地图内死亡不弹死亡框（直接退出到仙府页面），不会走到这条路径。
+
+TODO: 更好的做法是先传送到「安全地图」（禁止 PK）再清仙石，从源头避开被玩家击杀。
+      但传送/跑图本身仍在野外进行，中途照样可能死，所以复活重试必须保留。
 
 流程：挑战-仙府九重天页 -> 选大关 -> 选小关 -> 开始挑战
       -> 进图后打开小地图，点战斗点让角色自动寻路到怪物，然后关闭小地图
@@ -27,7 +35,7 @@ from datetime import datetime, timedelta
 import cv2
 
 from module.base.timer import Timer
-from module.exception import GameStuckError, TaskEnd
+from module.exception import GamePageUnknownError, GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.pages.page import page_item_bag
@@ -51,8 +59,20 @@ REWARD_PANEL_GRACE = 3.0
 STAGE_RESULT_TIMEOUT = 10.0
 
 
+class XianfuDeath(Exception):
+    """仙府任务内死亡：复活（回村庄/主页面）后由 run() 重试当前阶段，不整任务重跑"""
+
+    def __init__(self, stage: str):
+        super().__init__(stage)
+        self.stage = stage
+
+
 class ScriptTask(GameUi, XianfuJiuchongtianAssets):
 
+    # 单阶段因死亡重试的最大次数，避免卡在某处反复死亡时无限循环
+    MAX_DEATH_RETRY = 3
+    # 当前阶段：read_stone / bag_count / repair / battle（死亡时用于日志和重试定位）
+    _death_stage: str = 'read_stone'
     # 本次翻牌结果 (color, numeral)；每场战斗更新
     last_reward = None
     # 读背包最多扫多少屏（整页滑动，一页 4 行）
@@ -65,56 +85,136 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         logger.hr(f'仙府九重天 阶段{stage}({color}) 阈值{threshold} '
                   f'最多{max_battles_cfg or "不限"}局 {daguan_text}')
 
-        self.enter_xianfu_page()
-        stone = self.read_stone()
-        logger.attr('剩余仙石', stone)
-        if stone is None:
-            logger.warning('读不到仙石，退出')
-            raise TaskEnd('XianfuJiuchongtian')
-        if stone < threshold:
-            logger.info(f'仙石 {stone} < 阈值 {threshold}，先不开始')
-            self.schedule_next_run(stone, threshold)
-            raise TaskEnd('XianfuJiuchongtian')
-
         if fixed_daguan:
-            # 指定了大关就不需要读背包（省掉一次整包扫描和翻页）
-            counts = {}
             logger.info(f'已指定大关 {fixed_daguan}（{DAGUAN_NAMES[fixed_daguan]}），跳过背包统计')
-        else:
-            counts = self.bag_piece_counts(color)
-            logger.attr(f'{color}仙玉碎片数量', counts)
+        stone, counts = self.prepare(threshold, color, fixed_daguan)
+
+        self.repair_before_battle()
+
         max_battles = stone // STONE_COST + 3
         if max_battles_cfg > 0:
             max_battles = min(max_battles, max_battles_cfg)
         battles = 0
+        died = 0
         while stone is not None and stone >= STONE_COST and battles < max_battles:
-            if fixed_daguan:
-                target = fixed_daguan
-                logger.info(f'目标（指定）：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关')
-            else:
-                target = self.pick_target(counts)
-                logger.info(f'目标：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关，'
-                            f'{color}仙玉碎片{NUMERALS[target - 1]} 当前 {counts.get(target, 0)}')
-            if not self.run_one_battle(target, stage):
-                logger.warning('战斗流程失败，停止清仙石')
-                break
-            battles += 1
-            if self.last_reward is not None:
-                rc, rn = self.last_reward
-                if rc == color:
-                    idx = NUMERALS.index(rn) + 1
-                    counts[idx] = counts.get(idx, 0) + 1
-                    logger.info(f'拿到 {rc}仙玉碎片{rn}，数量更新 {counts}')
+            try:
+                if fixed_daguan:
+                    target = fixed_daguan
+                    logger.info(f'目标（指定）：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关')
                 else:
-                    logger.info(f'拿到 {rc}仙玉碎片{rn}（不是需要的颜色），继续打')
-            else:
-                logger.warning('本次没拿到碎片（翻牌没成），按原数量继续')
-            stone = self.read_stone()
-            logger.attr('剩余仙石', stone)
+                    target = self.pick_target(counts)
+                    logger.info(f'目标：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关，'
+                                f'{color}仙玉碎片{NUMERALS[target - 1]} 当前 {counts.get(target, 0)}')
+                self._death_stage = 'battle'
+                if not self.run_one_battle(target, stage):
+                    logger.warning('战斗流程失败，停止清仙石')
+                    break
+                battles += 1
+                if self.last_reward is not None:
+                    rc, rn = self.last_reward
+                    if rc == color:
+                        idx = NUMERALS.index(rn) + 1
+                        counts[idx] = counts.get(idx, 0) + 1
+                        logger.info(f'拿到 {rc}仙玉碎片{rn}，数量更新 {counts}')
+                    else:
+                        logger.info(f'拿到 {rc}仙玉碎片{rn}（不是需要的颜色），继续打')
+                else:
+                    logger.warning('本次没拿到碎片（翻牌没成），按原数量继续')
+                self._death_stage = 'read_stone'
+                stone = self.read_stone_ready()
+                logger.attr('剩余仙石', stone)
+            except XianfuDeath as e:
+                # 复活后回主页面：死亡这一场不计入 battles，下一轮重新选目标继续打
+                died += 1
+                if died >= self.MAX_DEATH_RETRY:
+                    logger.warning(f'本次运行已死亡 {died} 次（{e.stage}），停止清仙石')
+                    break
+                logger.warning(f'Revived during {e.stage}, continue with next battle '
+                               f'(died {died}/{self.MAX_DEATH_RETRY})')
+                continue
 
         self.schedule_next_run(stone, threshold)
         logger.info('仙府九重天清仙石结束')
         raise TaskEnd('XianfuJiuchongtian')
+
+    # ---------------------------------------------------------------- 死亡
+    def handle_death(self) -> None:
+        """
+        角色死亡：点「返回村子」复活后抛 XianfuDeath，由 run() 重试当前阶段
+
+        游戏设定：复活后回村庄再回主页面。仙府九重天地图内死亡不弹死亡框
+        （直接退出到仙府页面），所以这里只会命中「进图前/路上被玩家击杀」的情况。
+
+        不走全局默认的「复活 + 重跑任务」：重跑会把已经统计好的背包碎片数量
+        重新扫一遍（十几秒），而且 `run()` 的 finally 会把 next_run 重排，
+        把重跑设置的「立即运行」覆盖掉。
+        """
+        if not self.appear(self.I_DEATH_DIALOG):
+            return
+        death_stage = self._death_stage
+        logger.warning(f'Character died during {death_stage}, revive and resume')
+        self.revive()
+        # 等复活/地图加载稳定，加载中点击会丢
+        self.device.sleep(1)
+        raise XianfuDeath(death_stage)
+
+    # ---------------------------------------------------------------- 准备
+    def prepare(self, threshold: int, color: str, fixed_daguan: int) -> tuple:
+        """
+        准备阶段：读仙石 -> 读背包碎片数量
+
+        死亡复活后只重试出事的那一步：背包统计只做一次，成功后不再重扫。
+        :return: (stone, counts)；仙石读不到或不够时抛 TaskEnd
+        """
+        counts = {} if fixed_daguan else None
+        for attempt in range(1, self.MAX_DEATH_RETRY + 1):
+            try:
+                self._death_stage = 'read_stone'
+                stone = self.read_stone_ready()
+                logger.attr('剩余仙石', stone)
+                if stone is None:
+                    logger.warning('读不到仙石，退出')
+                    raise TaskEnd('XianfuJiuchongtian')
+                if stone < threshold:
+                    logger.info(f'仙石 {stone} < 阈值 {threshold}，先不开始')
+                    self.schedule_next_run(stone, threshold)
+                    raise TaskEnd('XianfuJiuchongtian')
+
+                if counts is None:
+                    self._death_stage = 'bag_count'
+                    counts = self.bag_piece_counts(color)
+                    logger.attr(f'{color}仙玉碎片数量', counts)
+                return stone, counts
+            except XianfuDeath as e:
+                if attempt >= self.MAX_DEATH_RETRY:
+                    logger.warning(f'准备阶段连续死亡 {attempt} 次（{e.stage}），放弃本次运行')
+                    raise TaskEnd('XianfuJiuchongtian')
+                logger.warning(f'Revived during {e.stage}, retry prepare '
+                               f'(bag counted: {counts is not None})')
+        raise TaskEnd('XianfuJiuchongtian')
+
+    def read_stone_ready(self):
+        """确保在仙府页后读仙石（死亡复活回到主页面后靠这里重新导航）"""
+        self.enter_xianfu_page()
+        return self.read_stone()
+
+    def repair_before_battle(self) -> None:
+        """开战前修一次装备：失败只记日志，不影响清仙石；死亡则重试"""
+        logger.hr('Repair equipment before battle')
+        for attempt in range(1, self.MAX_DEATH_RETRY + 1):
+            try:
+                self._death_stage = 'repair'
+                if not self.bag_repair_equipment():
+                    logger.warning('Repair equipment failed, continue anyway')
+                return
+            except XianfuDeath as e:
+                if attempt >= self.MAX_DEATH_RETRY:
+                    logger.warning(f'Repair died {attempt} times ({e.stage}), skip repair')
+                    return
+                logger.warning(f'Revived during repair, retry ({attempt}/{self.MAX_DEATH_RETRY})')
+            except (GameStuckError, GamePageUnknownError) as e:
+                logger.warning(f'Repair equipment error, continue anyway: {e}')
+                return
 
     # ---------------------------------------------------------------- 配置
     def load_config(self):
