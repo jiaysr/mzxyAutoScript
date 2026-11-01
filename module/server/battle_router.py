@@ -223,7 +223,9 @@ def _identify_once(config_name: str, preset_id: str = '') -> dict:
     image = device.screenshot()
     recognizer = SkillRecognizer.from_catalog(catalog, threshold=threshold)
     matches = recognizer.identify(image, battle_slots.BATTLE_SKILL_CHECK_REGIONS)
-    plan = build_plan(matches, order, catalog, disabled=disabled)
+    plan = build_plan(matches, order, catalog, disabled=disabled,
+                      include_unknown=bool(getattr(battle.common, 'click_unknown_slot', True)),
+                      unknown_min_score=float(getattr(battle.common, 'unknown_slot_min_score', 0.6)))
 
     logger.info(f'[battle] 技能位识别：{format_matches(matches, catalog)}')
     logger.info(f'[battle] 预设 {preset["name"]} 的释放计划：{plan_summary(plan)}')

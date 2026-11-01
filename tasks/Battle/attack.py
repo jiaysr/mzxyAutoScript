@@ -285,9 +285,20 @@ class BattleAttack:
         order = catalog.normalize_order(list(preset.get('order') or []),
                                         list(preset.get('disabled') or []))
         matches = self.battle_slot_skills(image)
+        common = getattr(self.config.battle, 'common', None)
+        include_unknown = bool(getattr(common, 'click_unknown_slot', True))
+        unknown_min_score = float(getattr(common, 'unknown_slot_min_score', 0.6))
         plan = build_plan(matches, order, catalog,
-                          disabled=list(preset.get('disabled') or []))
+                          disabled=list(preset.get('disabled') or []),
+                          include_unknown=include_unknown,
+                          unknown_min_score=unknown_min_score)
         logger.info(f'技能位识别：{format_matches(matches, catalog)}')
+        planned = {entry.slot for entry in plan}
+        dropped = [f'技能{slot + 1}({match.score:.2f})'
+                   for slot, match in sorted(matches.items())
+                   if not match.skill_id and slot not in planned]
+        if dropped:
+            logger.info(f'跳过不像技能的技能位（带的可能是物品等）：{", ".join(dropped)}')
         logger.info(f'释放计划（预设 {preset.get("name")}，{len(plan)} 个技能）：{plan_summary(plan)}')
         return plan
 

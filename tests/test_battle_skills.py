@@ -248,6 +248,25 @@ def test_plan_can_drop_unknown():
     assert plan_slots(plan) == [1]
 
 
+def test_plan_skips_low_score_unknown():
+    """未识别且分数太低的技能位（带的是物品）不点"""
+    catalog = load_catalog()
+    ids = catalog_ids()
+    matches = {0: SlotMatch(0, None, 0.5), 1: SlotMatch(1, ids[0], 0.9)}
+    plan = build_plan(matches, ids, catalog, unknown_min_score=0.6)
+    assert plan_slots(plan) == [1], f'物品位没跳过: {plan_summary(plan)}'
+
+
+def test_plan_keeps_high_score_unknown():
+    """未识别但分数够高（像技能只是分不清，比如目录没收录的新技能）照点"""
+    catalog = load_catalog()
+    ids = catalog_ids()
+    matches = {0: SlotMatch(0, None, 0.7), 1: SlotMatch(1, ids[0], 0.9)}
+    plan = build_plan(matches, ids, catalog, unknown_min_score=0.6)
+    # 未识别的排最后，但仍然会点
+    assert plan_slots(plan) == [1, 0], f'新技能被误跳过: {plan_summary(plan)}'
+
+
 def test_plan_handles_empty_input():
     """没有任何识别结果时返回空计划，不抛异常"""
     catalog = load_catalog()

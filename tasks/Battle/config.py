@@ -57,6 +57,10 @@ class BattleCommon(BaseModel):
     respect_cooldown: bool = Field(default=True, description='只点冷却好的技能')
     cast_interval: float = Field(default=0.2, ge=0.0, le=3.0,
                                  description='两次技能点击之间的间隔（秒）')
+    click_unknown_slot: bool = Field(default=True,
+                                     description='点未识别的技能位：目录里没收录的新技能可能认不出来，仍然照点')
+    unknown_slot_min_score: float = Field(default=0.6, ge=0.0, le=1.0,
+                                           description='未识别技能位的相似度下限，低于该值认为是带的物品等图标，不点击')
 
 
 class Battle(ConfigBase):
