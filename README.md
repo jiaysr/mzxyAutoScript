@@ -60,6 +60,7 @@
 
 ## 安装 Installation
 
+> 第一次用、想照着点就能装好：**[docs/tutorial.md 傻瓜式教程](docs/tutorial.md)**（准备工作 → 下载解压 → 启动服务 → 模拟器设置 → 脚本设置 → 游戏内设置）。
 > 安装与使用流程同 [OAS 官方文档](https://runhey.github.io/OnmyojiAutoScript-website/docs/user-manual/installation)，完整版见
 > **[docs/installation.md](docs/installation.md)**。
 
