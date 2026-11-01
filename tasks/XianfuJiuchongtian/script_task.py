@@ -649,12 +649,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'timeout' 超时/重排上限
         """
         self.screenshot()
-        plan = self.battle_plan()
-        if plan:
-            slots = [entry.slot for entry in plan]
-        else:
-            logger.warning('技能位识别失败，按 7 个技能位逐个尝试')
-            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+        slots = self.battle_plan_slots()
 
         return self.battle_skill_loop(
             slots,

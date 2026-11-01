@@ -69,13 +69,8 @@ class ScriptTask(GameUi):
         preset = None
         if self.PRESET:
             preset = resolve_preset(self.config.battle, self.PRESET, self.battle_catalog())
-        plan = self.battle_plan(preset=preset)
-        if plan:
-            slots = [entry.slot for entry in plan]
-            logger.info(f'技能释放顺序：{[slot + 1 for slot in slots]}')
-        else:
-            logger.warning('技能位识别失败，按 7 个技能位逐个尝试')
-            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+        slots = self.battle_plan_slots(preset=preset)
+        logger.info(f'技能释放顺序：{[slot + 1 for slot in slots]}')
 
         try:
             status = self.battle_skill_loop(

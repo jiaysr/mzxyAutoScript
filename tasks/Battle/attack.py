@@ -302,6 +302,32 @@ class BattleAttack:
         logger.info(f'释放计划（预设 {preset.get("name")}，{len(plan)} 个技能）：{plan_summary(plan)}')
         return plan
 
+    def battle_plan_slots(self, image=None, preset: dict = None,
+                          fallback_all: bool = False) -> List[int]:
+        """
+        这一场要点哪些技能位
+
+        - 识别成功：按计划顺序（预设优先级 + 禁用过滤；像技能但没认出来的排最后）
+        - **一个都没认出来：返回空列表，不盲点全部技能位**
+          技能位上带的不一定是技能 —— 可能是物品/药品/脱离卡，盲点会白耗道具，
+          在战场里甚至会直接跳出战场（战车战场第 7 位实测就是物品，识别分只有 0.50）。
+          空列表时 battle_skill_loop 只会补普通攻击。
+
+        :param image: 传入当前帧则不重新截图
+        :param preset: 指定预设（不传按任务配置）
+        :param fallback_all: True 时保留旧行为（识别失败就点全部技能位），仅调试用
+        :return: 技能位下标列表
+        """
+        plan = self.battle_plan(image=image, preset=preset)
+        if plan:
+            return [entry.slot for entry in plan]
+        if fallback_all:
+            logger.warning('技能位一个都没识别出来，按全部技能位逐个尝试')
+            return list(range(len(self.BATTLE_SKILL_REGIONS)))
+        logger.warning('技能位一个都没识别出来，本轮不放技能'
+                       '（技能位上可能带的是物品，盲点会白耗道具）')
+        return []
+
     def battle_play_plan(self, plan: List[PlanEntry],
                          respect_cooldown: bool = None,
                          interval: float = None,

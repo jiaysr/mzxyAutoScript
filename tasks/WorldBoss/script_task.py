@@ -119,6 +119,12 @@ class ScriptTask(GameUi, WorldBossAssets):
     # 目标丢失后等结束模板出现的时间/轮询间隔（秒）
     FINISH_TEMPLATE_TIMEOUT = 5.0
     FINISH_TEMPLATE_POLL = 0.2
+    # 目标丢失后原地等结束消息的时间（秒）
+    #
+    # 目标消失 = 首领大概率已死，但结束消息可能慢几秒才刷出来。
+    # 这段时间必须**原地等**（不传送、不点寻、不开活动页）—— 一旦做这些操作，
+    # 聊天栏会被新消息顶走，结束消息一没就再也认不出来，事件只能空耗到超时。
+    FINISH_WAIT_AFTER_TARGET_LOST = 30.0
     # 结束模板分数达到该值直接判定，不再做 OCR 确认
     FINISH_OCR_SKIP_SCORE = 0.98
     # 结束确认后等「首领归属奖」弹窗的时间/轮询间隔（秒）
@@ -374,6 +380,32 @@ class ScriptTask(GameUi, WorldBossAssets):
                 newly.append(boss)
         return newly
 
+    def wait_pair_finish(self, boss: dict, pair: list, state: dict,
+                         event_time: datetime, deadline: datetime,
+                         timeout: float) -> str:
+        """
+        原地等待结束消息（不移动、不传送、不点寻）
+
+        结束消息在聊天栏里，新消息会把旧消息顶走，所以消息要趁早认；
+        一旦去做导航类的操作（传送/开活动页/点寻），消息就可能被刷没了。
+
+        :return: 'finished' / 'timeout'
+        """
+        wait = min(timeout, max(0.0, (deadline - datetime.now()).total_seconds()))
+        if wait <= 0:
+            return 'timeout'
+        logger.info(f'原地等待结束消息（最多 {wait:.0f}s）')
+        timer = Timer(wait).start()
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            newly = self.pair_update_finish(self.device.image, pair, state, event_time)
+            self.handle_pair_new(newly, boss)
+            if state.get(boss['key']) or self.pair_all_done(state):
+                return 'finished'
+            self.device.sleep(self.FINISH_TEMPLATE_POLL)
+        return 'timeout'
+
     def handle_pair_new(self, newly: list, current_boss: dict,
                         allow_reward: bool = True) -> None:
         """
@@ -498,12 +530,7 @@ class ScriptTask(GameUi, WorldBossAssets):
                 cast_counter['casts'] = used + total
 
         self.screenshot()
-        plan = self.battle_plan()
-        if plan:
-            slots = [entry.slot for entry in plan]
-        else:
-            logger.warning('技能位识别失败，按全部技能位逐个尝试')
-            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+        slots = self.battle_plan_slots()
         logger.info(f'技能顺序：{[slot + 1 for slot in slots]}')
         if max_skills:
             logger.attr('先攻击技能数', f'{max_skills}（已用 {used}，本轮最多 {skill_left}）')
@@ -530,19 +557,18 @@ class ScriptTask(GameUi, WorldBossAssets):
         )
 
         if result == 'target_lost':
-            wait_timeout = min(self.FINISH_TEMPLATE_TIMEOUT,
-                               max(0.0, (deadline - datetime.now()).total_seconds()))
-            if wait_timeout > 0:
-                timer = Timer(wait_timeout).start()
-                while not timer.reached():
-                    self.reset_records()
-                    self.screenshot()
-                    newly = self.pair_update_finish(self.device.image, pair, state, event_time)
-                    self.handle_pair_new(newly, boss)
-                    if state.get(boss['key']) or self.pair_all_done(state):
-                        result = 'finished'
-                        break
-                    self.device.sleep(self.FINISH_TEMPLATE_POLL)
+            # 目标消失 = 首领大概率已死，但结束消息可能慢几秒才刷出来。
+            # 这里原地等消息（不传送、不点寻）：一旦做导航类操作，聊天消息会被顶走，
+            # 消息一没就再也认不出来，事件只能空耗到超时。
+            result = self.wait_pair_finish(boss, pair, state, event_time, deadline,
+                                           timeout=self.FINISH_WAIT_AFTER_TARGET_LOST)
+            if result != 'finished':
+                # 等了很久还没有消息：按「已被打死」收尾，避免反复传送把消息冲掉
+                logger.warning(f'{boss["name"]} 目标消失且没等到结束消息，按已结束收尾')
+                state[boss['key']] = True
+                self.mark_event_done(boss, event_time)
+                self.handle_pair_new([boss], boss)
+                result = 'finished'
 
         if result == 'timeout':
             self.screenshot()
@@ -1117,12 +1143,7 @@ class ScriptTask(GameUi, WorldBossAssets):
             return 'timeout'
 
         self.screenshot()
-        plan = self.battle_plan()
-        if plan:
-            slots = [entry.slot for entry in plan]
-        else:
-            logger.warning('技能位识别失败，按全部技能位逐个尝试')
-            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+        slots = self.battle_plan_slots()
         logger.info(f'技能顺序：{[slot + 1 for slot in slots]}')
 
         result = self.battle_skill_loop(
@@ -1135,10 +1156,16 @@ class ScriptTask(GameUi, WorldBossAssets):
             poll_interval=self.SKILL_COOLDOWN_POLL,
         )
         remaining = max(0.0, (deadline - datetime.now()).total_seconds())
-        wait_timeout = min(self.FINISH_TEMPLATE_TIMEOUT, remaining)
-        if (result == 'target_lost' and wait_timeout > 0
-                and self.wait_finish_template(boss, finish_rule, timeout=wait_timeout)):
-            result = 'finished'
+        if result == 'target_lost':
+            # 目标消失 = 首领大概率已死，但结束消息可能慢几秒才刷出来。
+            # 原地等消息（不传送、不点寻）：导航类操作会把聊天消息顶走，消息一没就认不出来了。
+            wait_timeout = min(self.FINISH_WAIT_AFTER_TARGET_LOST, remaining)
+            if wait_timeout > 0 and self.wait_finish_template(boss, finish_rule,
+                                                             timeout=wait_timeout):
+                result = 'finished'
+            else:
+                logger.warning(f"{boss['name']} 目标消失且没等到结束消息，按已结束收尾")
+                result = 'finished'
         if result == 'timeout':
             # 超时边界上结束消息可能刚出现，最后补一次模板+OCR 判断
             self.screenshot()
