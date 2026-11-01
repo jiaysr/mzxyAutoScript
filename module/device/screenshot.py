@@ -17,11 +17,12 @@ from module.device.method.windows import Window
 from module.device.method.droidcast import DroidCast
 from module.device.method.scrcpy import Scrcpy
 from module.device.method.nemu_ipc import NemuIpc
+from module.device.method.emulator_extras import EmulatorExtras
 from module.exception import RequestHumanTakeover, ScriptError
 from module.logger import logger
 
 
-class Screenshot(Adb, DroidCast, Scrcpy, Window, NemuIpc):
+class Screenshot(Adb, DroidCast, Scrcpy, Window, NemuIpc, EmulatorExtras):
     _screen_size_checked = False
     _screen_black_checked = False
     _minicap_uninstalled = False
@@ -45,7 +46,8 @@ class Screenshot(Adb, DroidCast, Scrcpy, Window, NemuIpc):
             'DroidCast_raw': self.screenshot_droidcast_raw,
             'scrcpy': self.screenshot_scrcpy,
             'window_background': self.screenshot_window_background if IS_WINDOWS else None,
-            'nemu_ipc': self.screenshot_nemu_ipc
+            'nemu_ipc': self.screenshot_nemu_ipc,
+            'EmulatorExtras': self.screenshot_emulator_extras,
         }
 
     def screenshot(self):

@@ -7,8 +7,10 @@
 
 怪物只在 10:30-11:30、15:30-16:30 刷新，其他时间可以进图但没有怪物。
 """
+import logging
 import math
 import re
+from contextlib import contextmanager
 from datetime import datetime, time, timedelta
 
 from module.base.timer import Timer
@@ -21,6 +23,31 @@ from tasks.GameUi.game_ui import GameUi
 from tasks.YuwaiMimang.assets import YuwaiMimangAssets
 
 
+class _SuppressControlInputLog(logging.Filter):
+    """
+    战斗连点期间屏蔽底层输入事件日志（control.py 的 Click / Hold drag 等 INFO）
+
+    连点每秒会产生好几条点击日志，会把进度、回位、修理这些真正有用的信息淹没；
+    输入事件本身没有阅读价值（排查问题看的是移动/回位/死亡等其他模块的日志）。
+    WARNING 及以上不过滤。
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not (record.filename == 'control.py'
+                    and record.levelno < logging.WARNING)
+
+
+@contextmanager
+def suppress_control_input_log():
+    """屏蔽 control.py 的 INFO 日志，退出上下文时自动恢复"""
+    filt = _SuppressControlInputLog()
+    logger.addFilter(filt)
+    try:
+        yield
+    finally:
+        logger.removeFilter(filt)
+
+
 class ScriptTask(GameUi, YuwaiMimangAssets):
     SCHEDULER_NAME = 'YuwaiMimang'
 
@@ -30,10 +57,17 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     # 进入后校验坐标的容差（迷窟里读数偶尔有 1~2 格抖动）
     MAP_ENTER_TOLERANCE = 6
 
-    # NPC 列表最多翻多少屏
-    NPC_LIST_MAX_SWIPE = 8
+    # NPC 列表最多翻多少屏（每次 2 行，到底会自动停）
+    NPC_LIST_MAX_SWIPE = 12
     # NPC 列表滑动区域（列表内容区，不含边框）
     NPC_LIST_REGION = (975, 190, 145, 400)
+    # 列表行距 = NPC 区域 68px + 间隙 10px（真机实测），每次滚 2 行 = 156px
+    NPC_LIST_ROW_PITCH = 78
+    NPC_LIST_SWIPE_ROWS = 2
+    # 拖动到底后按住的时间：抵消松手惯性（快速滑动一滑即抬，实测拖 240px 会甩出整整一屏）
+    NPC_LIST_HOLD = 0.4
+    # 滚完等列表停稳的固定等待（实测惯性 0.6~0.9s 内停住）
+    NPC_LIST_SETTLE_SLEEP = 1.0
 
     # 回基准坐标默认超时（秒），可用 config 的 recover_timeout 覆盖
     recover_timeout_default = 8
@@ -410,28 +444,31 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         logger.hr('开始连点打怪')
         rounds = 0
         last_repair = datetime.now()
-        while datetime.now() < end:
-            self.reset_records()
+        # 连点期间逐次点击的底层日志没有阅读价值，会把进度和异常信息淹没；
+        # 屏蔽 control.py 的 INFO，进度由「打怪进度」按轮数汇总（见 suppress_control_input_log）
+        with suppress_control_input_log():
+            while datetime.now() < end:
+                self.reset_records()
 
-            # 点「目标」锁定/切换到下一个怪
-            self.ui_lock_target()
-            self.device.sleep(interval)
+                # 点「目标」锁定/切换到下一个怪
+                self.ui_lock_target()
+                self.device.sleep(interval)
 
-            # 技能1x2、切目标+普攻、技能1x2、技能3x2、切目标+普攻
-            self.click_attacks_once()
-            rounds += 1
-            self.device.sleep(interval)
+                # 技能1x2、切目标+普攻、技能1x2、技能3x2、切目标+普攻
+                self.click_attacks_once()
+                rounds += 1
+                self.device.sleep(interval)
 
-            # 位置检查：怪会追踪把角色带着跑偏，跑偏后能锁到的怪变少，
-            # 所以每次检查都顺带回一次基准点。必须在循环内做，放到循环外等于整轮都不回位。
-            # 偏差小就轻推一下（约 0.3s，不打断攻击节奏）；偏差大才走完整闭环。
-            if rounds % self.LOCK_CHECK_EVERY:
-                continue
-            self.recover_in_battle(coord, tolerance)
-            if self.need_repair(cfg, last_repair, end):
-                self.repair_in_battle(coord, tolerance)
-                last_repair = datetime.now()
-            logger.attr('打怪进度', f'rounds={rounds}')
+                # 位置检查：怪会追踪把角色带着跑偏，跑偏后能锁到的怪变少，
+                # 所以每次检查都顺带回一次基准点。必须在循环内做，放到循环外等于整轮都不回位。
+                # 偏差小就轻推一下（约 0.3s，不打断攻击节奏）；偏差大才走完整闭环。
+                if rounds % self.LOCK_CHECK_EVERY:
+                    continue
+                self.recover_in_battle(coord, tolerance)
+                if self.need_repair(cfg, last_repair, end):
+                    self.repair_in_battle(coord, tolerance)
+                    last_repair = datetime.now()
+                logger.attr('打怪进度', f'rounds={rounds}')
 
         logger.attr('打怪结束', f'共 {rounds} 轮')
 
@@ -580,6 +617,9 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
         用 detect_and_ocr 拿全部文本框自己做包含判断，不用 ocr_appear：
         框架的 Full 模式在整串不匹配时会退化成逐字符匹配，几乎总返回 True。
+
+        滚动方式见 minimap_npc_swipe_down：慢速受控拖动 + 等停稳，
+        避免列表被甩过头导致目标行在两帧之间被跳过。
         """
         x0, y0, w, h = self.NPC_LIST_REGION
         last_signature = None
@@ -646,14 +686,24 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         return tuple(sorted(item.ocr_text.strip() for item in results))
 
     def minimap_npc_swipe_down(self) -> None:
-        """NPC 列表往下滚一屏（minitouch 滑动很快，拆成多段小滑动防止甩过头）"""
+        """
+        NPC 列表往下滚 2 行（156px）
+
+        必须用「拖动到底按住再抬手」而不是快速滑动：minitouch 的 swipe 一滑即抬，
+        实测同样拖 240px 会因惯性甩出整整一屏（>429px），目标行在两次采样之间被跳过；
+        按住 0.4s 再抬手则惯性被吃掉，实测拖 156px 只滚 ~215px（≈2.8 行 < 一屏），
+        相邻两次采样必定有重叠。滚完等列表停稳（实测 0.6~0.9s）再让上层识别。
+        """
         x0, y0, w, h = self.NPC_LIST_REGION
         center_x = x0 + w // 2
-        top, bottom = y0 + 30, y0 + h - 30
-        logger.info(f'Scroll NPC list: ({center_x},{bottom}) -> ({center_x},{top})')
-        self.ui_swipe_gentle((center_x, bottom), (center_x, top), steps=3, step_delay=0.2)
+        distance = self.NPC_LIST_ROW_PITCH * self.NPC_LIST_SWIPE_ROWS
+        start_y = y0 + h - 40
+        end_y = start_y - distance
+        logger.info(f'Scroll NPC list: ({center_x},{start_y}) -> ({center_x},{end_y}) hold={self.NPC_LIST_HOLD}s')
+        self.device.hold_drag((center_x, start_y), (center_x, end_y),
+                              hold=self.NPC_LIST_HOLD, control_name='minimap_npc_list')
         self.device.click_record_clear()
-        self.device.sleep(0.8)
+        self.device.sleep(self.NPC_LIST_SETTLE_SLEEP)
 
     def wait_npc_dialog(self, timeout: int = 60) -> bool:
         """

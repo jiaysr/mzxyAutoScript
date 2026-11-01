@@ -1,6 +1,7 @@
 # This Python file uses the following encoding: utf-8
 from pydantic import BaseModel, Field
 
+from tasks.Component.battle_config import BattleTaskConfig
 from tasks.Component.config_base import ConfigBase, Time
 from tasks.Component.config_scheduler import Scheduler
 
@@ -26,3 +27,4 @@ class AncientHuntConfig(BaseModel):
 class AncientHunt(ConfigBase):
     scheduler: Scheduler = Field(default_factory=Scheduler)
     ancient_hunt_config: AncientHuntConfig = Field(default_factory=AncientHuntConfig)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)

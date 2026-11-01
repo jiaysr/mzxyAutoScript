@@ -8,16 +8,18 @@ from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GlobalGame.assets import GlobalGameAssets
+from tasks.GlobalGame.captcha import CaptchaHandler
 
 if TYPE_CHECKING:
     from module.config.config import Config
     from module.device.device import Device
 
 
-class GlobalGame(GlobalGameAssets):
+class GlobalGame(CaptchaHandler, GlobalGameAssets):
     """
-    全局处理：所有任务的 screenshot 都会经过 handle_death / handle_global_popup
+    全局处理：所有任务的 screenshot 都会经过 handle_death / handle_captcha / handle_global_popup
     - 角色阵亡时点击「返回村子」复活，保留任务进度并立即重跑当前任务
+    - 出现人机验证弹窗时算出答案并点中对应选项（见 captcha.py）
     - 出现已知弹窗时点击对应的关闭区域，避免弹窗挡住任务操作
     """
 
@@ -32,6 +34,11 @@ class GlobalGame(GlobalGameAssets):
 
     # 任务重跑时需要保留的进度记录 {(config_name, command): record}
     _task_records: dict = {}
+
+    # 是否已请求「死亡后立即重跑本任务」：置位后，任务在 finally 里再调 set_next_run
+    # 会被忽略（见 BaseTask.set_next_run），保证 task_call 设的「立即重跑」不被覆盖。
+    # 每个任务实例独立（每次运行新建实例），特殊情况（如域外迷窟原地复活）自己覆盖 handle_death。
+    _rerun_requested: bool = False
 
     # 全局弹窗处理：识别到特征点后点击对应的关闭区域
     # 素材放 tasks/GlobalGame/popup/，命名约定：
@@ -152,6 +159,8 @@ class GlobalGame(GlobalGameAssets):
             self._task_records[(self.config.config_name, command)] = record
             logger.attr('Task record', record)
         logger.warning(f'Rerun task `{command}`')
+        # 置位后任务 finally 里的 set_next_run 会被忽略，保留下面 task_call 的「立即重跑」
+        self._rerun_requested = True
         self.config.task_call(command)
         raise TaskEnd(f'Character died, `{command}` will rerun')
 

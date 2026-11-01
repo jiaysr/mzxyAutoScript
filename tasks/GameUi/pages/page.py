@@ -28,6 +28,11 @@ class Page:
         self.check_button = check_button
         self.links = links
         self.additional: list = None  # 附加按钮或者是ocr检测按钮
+        # 所属模块：面板页（含第二 tab 及之后的子页）都要设，
+        # 供 tab 导航判断，也是「面板页 -> 各模块首 tab」侧栏规则的依据
+        self.module: str = None
+        # 是否为该模块的第一个 tab 页面（侧栏规则的目标页）
+        self.module_home: bool = False
         (filename, line_number, function_name, text) = traceback.extract_stack()[-2]
         self.name = text[:text.find('=')].strip()
         PageRegistry.register(self)
@@ -56,6 +61,7 @@ page_minimap = Page(G.I_MAP_MINIMAP_WORLD_MAP)                    # 小地图弹
 # 活动弹窗：具体页在前、容器页在后（都要放在 page_main 之前：弹窗打开时主页面特征仍会命中）
 page_activity_list = Page(G.I_PAGE_ACTIVITY_LIST)              # 活动-推荐（顶部"活动"tab 的默认子 tab）
 page_activity_world_boss = Page(G.I_PAGE_ACTIVITY_WORLD_BOSS)  # 活动-世界首领
+page_activity_dungeon = Page(G.I_PAGE_ACTIVITY_DUNGEON)        # 活动-副本
 page_activity_notice = Page(G.I_PAGE_ACTIVITY_NOTICE)          # 活动-公告
 page_activity_active = Page(G.I_PAGE_ACTIVITY_ACTIVE)          # 活动-活跃
 page_activity = Page(G.I_PAGE_ACTIVITY)                        # 活动弹窗容器（右上角绿X，兜底）
@@ -63,18 +69,33 @@ page_activity = Page(G.I_PAGE_ACTIVITY)                        # 活动弹窗容
 page_item_bag = Page(G.I_PAGE_ITEM_BAG)
 # 挑战-战场（挑战模块首页）
 page_challenge = Page(G.I_PAGE_CHALLENGE)
+# 任务-任务（任务模块首页，顶部任务 tab 选中黄字样式为特征）
+page_task = Page(G.I_PAGE_TASK)
+# 队伍（队伍模块首页，顶部宽 tab 栏：单个队伍 tab + 右侧空区）
+page_team = Page(G.I_PAGE_TEAM)
 # 角色-详情（角色模块首页，主页面点头像进入）
 page_role_detail = Page(G.I_PAGE_ROLE_DETAIL)
 # 主页面（野外/主界面）
 page_main = Page(G.I_PAGE_MAIN)
 
-# 页面所属模块（供 tab 导航判断滚动方向）
+# 页面所属模块（供 tab 导航判断滚动方向）与模块首 tab 标记（侧栏连线规则的目标页）。
+# 设置了 module 的面板页（含子页）默认都能点左栏任一模块直达该模块首 tab，
+# 所以跨模块导航只写显式 links 里需要的特殊边，其余的由引擎自动补。
 page_item_bag.module = '物品'
+page_item_bag.module_home = True
 page_challenge.module = '挑战'
+page_challenge.module_home = True
+page_task.module = '任务'
+page_task.module_home = True
+page_team.module = '队伍'
+page_team.module_home = True
 page_role_detail.module = '角色'
+page_role_detail.module_home = True
 
 page_main.link(button=G.C_PAGE_MAIN_GOTO_PLAYER, destination=page_role_detail)
 page_main.link(button=MenuTarget(G.I_ACTIVITY_ICON), destination=page_activity)
+# 背包：右上角菜单内的背包图标，点击直接打开背包页（比绕侧栏模块少一步）
+page_main.link(button=MenuTarget(G.I_MENU_BAG_ICON), destination=page_item_bag)
 # 地图：主页面 -> 小地图 -> 世界地图 -> 列表；传送弹窗「确定」后回主页面
 page_main.link(button=G.C_MAP_MINIMAP_ENTRY, destination=page_minimap)
 page_minimap.link(button=G.I_MAP_MINIMAP_WORLD_MAP, destination=page_world_map)
@@ -93,15 +114,39 @@ page_activity_active.link(button=ActivityTabTarget('公告'), destination=page_a
 # 活动弹窗内部：右侧子 tab（可上下滚动）
 page_activity_list.link(button=ActivitySubTabTarget('世界首领'), destination=page_activity_world_boss)
 page_activity_world_boss.link(button=ActivitySubTabTarget('推荐'), destination=page_activity_list)
+page_activity_list.link(button=ActivitySubTabTarget('副本'), destination=page_activity_dungeon)
+page_activity_dungeon.link(button=ActivitySubTabTarget('推荐'), destination=page_activity_list)
 # 关闭弹窗回主页面
 page_activity.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
 page_activity_notice.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
 page_activity_list.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
 page_activity_world_boss.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
+page_activity_dungeon.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
 page_activity_active.link(button=G.C_ACTIVITY_CLOSE, destination=page_main)
 page_role_detail.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
 page_role_detail.link(button=SidebarTarget('物品'), destination=page_item_bag)
 page_role_detail.link(button=SidebarTarget('挑战'), destination=page_challenge)
+page_role_detail.link(button=SidebarTarget('任务'), destination=page_task)
+page_role_detail.link(button=SidebarTarget('队伍'), destination=page_team)
+# 面板页左侧栏在所有模块页常驻，模块之间可直达（目标都是各模块的第一个 tab）。
+# 队伍模块只有一个 tab，选中态大字会被 OCR 拆成「队」「伍」，
+# ui_wait_module 对单 tab 模块有拼接兜底（见 panel.py）。
+page_item_bag.link(button=SidebarTarget('挑战'), destination=page_challenge)
+page_item_bag.link(button=SidebarTarget('任务'), destination=page_task)
+page_item_bag.link(button=SidebarTarget('队伍'), destination=page_team)
+page_challenge.link(button=SidebarTarget('物品'), destination=page_item_bag)
+page_challenge.link(button=SidebarTarget('任务'), destination=page_task)
+page_challenge.link(button=SidebarTarget('队伍'), destination=page_team)
+page_task.link(button=SidebarTarget('物品'), destination=page_item_bag)
+page_task.link(button=SidebarTarget('挑战'), destination=page_challenge)
+page_task.link(button=SidebarTarget('队伍'), destination=page_team)
+page_team.link(button=SidebarTarget('任务'), destination=page_task)
+page_team.link(button=SidebarTarget('物品'), destination=page_item_bag)
+page_team.link(button=SidebarTarget('挑战'), destination=page_challenge)
+page_task.link(button=SidebarTarget('角色'), destination=page_role_detail)
+page_team.link(button=SidebarTarget('角色'), destination=page_role_detail)
+page_task.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
+page_team.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
 page_item_bag.link(button=SidebarTarget('角色'), destination=page_role_detail)
 page_item_bag.link(button=G.C_PAGE_PLAYER_BACK, destination=page_main)
 page_challenge.link(button=SidebarTarget('角色'), destination=page_role_detail)

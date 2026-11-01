@@ -68,6 +68,10 @@ Time = Annotated[time,
                  PlainSerializer(lambda v: v.strftime('%H:%M:%S'), return_type=str),
                  WithJsonSchema({'type': 'time'}),]
 
+# 战斗预设选择：存预设 id，前端按 type 渲染成「战斗配置」下拉框
+# （选项来自 GET /battle/presets，空字符串 = 跟随全局当前预设）
+BattlePresetName = Annotated[str, WithJsonSchema({'type': 'battle_preset'})]
+
 # ---------------------------------------------------------------------------------------------------------------------
 
 @classmethod

@@ -1,0 +1,224 @@
+{
+  "_note": [
+    "技能目录：5 个职业 x 4 个技能 = 20 条，已全部录入（占位数据已全部替换为真机截图图标）。",
+    "图标是 tasks/Battle/tools/record_skill_icon.py 从真机截图裁的（40x40，圆形透明边），别手工改尺寸。",
+    "换技能名/描述只改 name / description；id 不要改 —— 预设顺序和禁用都是按 id 存的。",
+    "default_priority 决定「系统预设」的默认释放顺序：数字越小越先放。",
+    "cooldown 是技能冷却秒数，0 = 未知（按识别出的冷却状态决定，不做额外等待）。"
+  ],
+  "version": 3,
+  "classes": [
+    {
+      "id": "badao",
+      "name": "霸刀",
+      "description": "霸刀职业技能",
+      "color": "#D9534F"
+    },
+    {
+      "id": "jiyu",
+      "name": "疾羽",
+      "description": "疾羽职业技能",
+      "color": "#4CA64C"
+    },
+    {
+      "id": "yingci",
+      "name": "影刺",
+      "description": "影刺职业技能",
+      "color": "#7B5BD6"
+    },
+    {
+      "id": "wuzhu",
+      "name": "巫祝",
+      "description": "巫祝职业技能",
+      "color": "#3E9E7A"
+    },
+    {
+      "id": "lingjian",
+      "name": "灵剑",
+      "description": "灵剑职业技能",
+      "color": "#3C7DD9"
+    }
+  ],
+  "skills": [
+    {
+      "id": "badao_1",
+      "class": "badao",
+      "name": "力斩",
+      "description": "霸刀 第 1 个技能",
+      "icon": "skill_badao_1.png",
+      "cooldown": 0,
+      "default_priority": 1
+    },
+    {
+      "id": "badao_2",
+      "class": "badao",
+      "name": "绝裂",
+      "description": "霸刀 第 2 个技能",
+      "icon": "skill_badao_2.png",
+      "cooldown": 0,
+      "default_priority": 2
+    },
+    {
+      "id": "badao_3",
+      "class": "badao",
+      "name": "铁骨",
+      "description": "霸刀 第 3 个技能",
+      "icon": "skill_badao_3.png",
+      "cooldown": 0,
+      "default_priority": 3
+    },
+    {
+      "id": "badao_4",
+      "class": "badao",
+      "name": "玄武破",
+      "description": "霸刀 第 4 个技能",
+      "icon": "skill_badao_4.png",
+      "cooldown": 0,
+      "default_priority": 4
+    },
+    {
+      "id": "jiyu_1",
+      "class": "jiyu",
+      "name": "满月",
+      "description": "疾羽 第 1 个技能",
+      "icon": "skill_jiyu_1.png",
+      "cooldown": 0,
+      "default_priority": 5
+    },
+    {
+      "id": "jiyu_2",
+      "class": "jiyu",
+      "name": "多重箭",
+      "description": "疾羽 第 2 个技能",
+      "icon": "skill_jiyu_2.png",
+      "cooldown": 0,
+      "default_priority": 6
+    },
+    {
+      "id": "jiyu_3",
+      "class": "jiyu",
+      "name": "爆裂箭",
+      "description": "疾羽 第 3 个技能",
+      "icon": "skill_jiyu_3.png",
+      "cooldown": 0,
+      "default_priority": 7
+    },
+    {
+      "id": "jiyu_4",
+      "class": "jiyu",
+      "name": "雷鳞灭",
+      "description": "疾羽 第 4 个技能",
+      "icon": "skill_jiyu_4.png",
+      "cooldown": 0,
+      "default_priority": 8
+    },
+    {
+      "id": "yingci_1",
+      "class": "yingci",
+      "name": "诡刺",
+      "description": "影刺 第 1 个技能",
+      "icon": "skill_yingci_1.png",
+      "cooldown": 0,
+      "default_priority": 9
+    },
+    {
+      "id": "yingci_2",
+      "class": "yingci",
+      "name": "影袭",
+      "description": "影刺 第 2 个技能",
+      "icon": "skill_yingci_2.png",
+      "cooldown": 0,
+      "default_priority": 10
+    },
+    {
+      "id": "yingci_3",
+      "class": "yingci",
+      "name": "双刃",
+      "description": "影刺 第 3 个技能",
+      "icon": "skill_yingci_3.png",
+      "cooldown": 0,
+      "default_priority": 11
+    },
+    {
+      "id": "yingci_4",
+      "class": "yingci",
+      "name": "白虎叹",
+      "description": "影刺 第 4 个技能",
+      "icon": "skill_yingci_4.png",
+      "cooldown": 0,
+      "default_priority": 12
+    },
+    {
+      "id": "wuzhu_1",
+      "class": "wuzhu",
+      "name": "腐朽",
+      "description": "巫祝 第 1 个技能",
+      "icon": "skill_wuzhu_1.png",
+      "cooldown": 0,
+      "default_priority": 13
+    },
+    {
+      "id": "wuzhu_2",
+      "class": "wuzhu",
+      "name": "唤风",
+      "description": "巫祝 第 2 个技能",
+      "icon": "skill_wuzhu_2.png",
+      "cooldown": 0,
+      "default_priority": 14
+    },
+    {
+      "id": "wuzhu_3",
+      "class": "wuzhu",
+      "name": "调和",
+      "description": "巫祝 第 3 个技能",
+      "icon": "skill_wuzhu_3.png",
+      "cooldown": 0,
+      "default_priority": 15
+    },
+    {
+      "id": "wuzhu_4",
+      "class": "wuzhu",
+      "name": "蛟龙卷决",
+      "description": "巫祝 第 4 个技能",
+      "icon": "skill_wuzhu_4.png",
+      "cooldown": 0,
+      "default_priority": 16
+    },
+    {
+      "id": "lingjian_1",
+      "class": "lingjian",
+      "name": "噬魂术",
+      "description": "灵剑 第 1 个技能",
+      "icon": "skill_lingjian_1.png",
+      "cooldown": 0,
+      "default_priority": 17
+    },
+    {
+      "id": "lingjian_2",
+      "class": "lingjian",
+      "name": "天雷阵",
+      "description": "灵剑 第 2 个技能",
+      "icon": "skill_lingjian_2.png",
+      "cooldown": 0,
+      "default_priority": 18
+    },
+    {
+      "id": "lingjian_3",
+      "class": "lingjian",
+      "name": "寒水阵",
+      "description": "灵剑 第 3 个技能",
+      "icon": "skill_lingjian_3.png",
+      "cooldown": 0,
+      "default_priority": 19
+    },
+    {
+      "id": "lingjian_4",
+      "class": "lingjian",
+      "name": "朱雀炎",
+      "description": "灵剑 第 4 个技能",
+      "icon": "skill_lingjian_4.png",
+      "cooldown": 0,
+      "default_priority": 20
+    }
+  ]
+}

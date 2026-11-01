@@ -15,10 +15,12 @@ class GlobalGameAssets:
 	C_POPUP_ACTIVE_REWARD_CLOSE = RuleClick(roi_front=(944,249,47,44), roi_back=(942,247,49,49), name="popup_active_reward_close")
 	# 上古狩猎关闭 
 	C_POPUP_HUNT_NOTICE_CLOSE = RuleClick(roi_front=(1016,126,47,44), roi_back=(999,109,80,73), name="popup_hunt_notice_close")
-	#  
-	C_POPUP_BOSS_REWARD_CLOSE = RuleClick(roi_front=(609,525,64,35), roi_back=(598,521,83,44), name="popup_boss_reward_close")
 	# 物资争夺关闭按钮 
 	C_POPUP_SUPPLIES_CLOSE = RuleClick(roi_front=(1020,129,43,29), roi_back=(1005,120,73,54), name="popup_supplies_close")
+	# 邀请组队关闭按钮 
+	C_POPUP_INVITE_CLOSE = RuleClick(roi_front=(384,368,128,45), roi_back=(384,368,128,45), name="popup_invite_close")
+	# 采集物被抢 
+	C_POPUP_TOO_SLOW_CLOSE = RuleClick(roi_front=(944,249,47,44), roi_back=(942,247,49,49), name="popup_too_slow_close")
 
 
 	# Image Rule Assets
@@ -26,10 +28,12 @@ class GlobalGameAssets:
 	I_POPUP_ACTIVE_REWARD = RuleImage(roi_front=(338,297,226,46), roi_back=(326,292,252,56), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_active_reward.png")
 	# 上古狩猎 
 	I_POPUP_HUNT_NOTICE = RuleImage(roi_front=(576,199,122,40), roi_back=(559,185,156,69), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_hunt_notice.png")
-	# 首领归属奖 
-	I_POPUP_BOSS_REWARD = RuleImage(roi_front=(230,188,89,38), roi_back=(221,158,152,103), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_boss_reward.png")
 	# 物资争夺弹窗 
 	I_POPUP_SUPPLIES = RuleImage(roi_front=(572,197,125,47), roi_back=(554,189,158,66), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_supplies.png")
+	# 邀请组队拒绝 
+	I_POPUP_INVITE = RuleImage(roi_front=(593,297,59,32), roi_back=(510,290,361,45), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_invite.png")
+	# 采集物被强 
+	I_POPUP_TOO_SLOW = RuleImage(roi_front=(453,344,62,35), roi_back=(410,329,205,59), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_too_slow.png")
 
 
 	# Click Rule Assets
@@ -40,5 +44,14 @@ class GlobalGameAssets:
 	# Image Rule Assets
 	# 死亡弹窗-三个按钮区块（弹窗随提示文案行数上下移动，roiBack 上下放宽 ±20~40px） 
 	I_DEATH_DIALOG = RuleImage(roi_front=(486,255,310,260), roi_back=(486,235,310,300), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/res/res_death_dialog.png")
+	# 人机验证弹窗-标题红字「人机验证」（出现=需要答题） 
+	I_CAPTCHA_DIALOG = RuleImage(roi_front=(582,166,116,40), roi_back=(570,154,140,64), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/res/res_captcha_dialog.png")
+
+
+	# Ocr Rule Assets
+	# 人机验证-算术表达式行（如 60 + 4 = ?，Single 整行识别） 
+	O_CAPTCHA_EXPRESSION = RuleOcr(roi=(525,195,230,55), area=(525,195,230,55), mode="Single", method="Default", keyword="", name="captcha_expression")
+	# 人机验证-选项区（左列 A~E、右列 F~J，每项「字母: 数字」） 
+	O_CAPTCHA_OPTIONS = RuleOcr(roi=(418,248,370,250), area=(418,248,370,250), mode="Full", method="Default", keyword="", name="captcha_options")
 
 

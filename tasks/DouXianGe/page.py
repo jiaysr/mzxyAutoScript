@@ -9,6 +9,8 @@ from tasks.GameUi.pages.page import Page, page_challenge
 from tasks.GameUi.pages.targets import TabTarget
 
 page_douxian = Page(X.I_DOUXIAN_PAGE)
+# 标记所属模块：引擎据此自动补出「斗仙阁 -> 各模块首 tab」的侧栏直连
+page_douxian.module = '挑战'
 page_challenge.link(button=TabTarget('斗仙阁'), destination=page_douxian)
 page_douxian.link(button=TabTarget('战场'), destination=page_challenge)
 

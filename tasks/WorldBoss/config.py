@@ -1,8 +1,21 @@
 # This Python file uses the following encoding: utf-8
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
+from tasks.Component.battle_config import BattleTaskConfig
 from tasks.Component.config_base import ConfigBase, Time
 from tasks.Component.config_scheduler import Scheduler
+
+
+class FirstBoss(str, Enum):
+    """同一时段两个 boss 时，先攻击哪一个"""
+    AUTO = 'auto'
+    MANCHUI = 'manchui'
+    WUQING = 'wuqing'
+    JULIAN = 'julian'
+    FUWANG = 'fuwang'
+    XIEWANG = 'xiewang'
 
 
 class WorldBossConfig(BaseModel):
@@ -10,6 +23,19 @@ class WorldBossConfig(BaseModel):
     advance_time: Time = Field(default=Time(minute=5), description='world_boss_advance_time_help')
     # 锁定目标时用于匹配的目标名称，多个用英文逗号分隔；留空则使用首领名称
     target_name: str = Field(default='', description='world_boss_target_name_help')
+    # 同一时段勾选两个 boss 时生效：先打哪个、先打几个技能
+    first_boss: FirstBoss = Field(
+        default=FirstBoss.AUTO,
+        title='先攻击的首领',
+        description='world_boss_first_boss_help',
+        json_schema_extra={'visible_when': 'world_boss_dual'},
+    )
+    first_boss_skills: int = Field(
+        default=3, ge=1, le=99,
+        title='先攻击技能数',
+        description='world_boss_first_boss_skills_help',
+        json_schema_extra={'visible_when': 'world_boss_dual'},
+    )
 
 
 class ManchuiConfig(BaseModel):
@@ -48,3 +74,4 @@ class WorldBoss(ConfigBase):
     julian: JulianConfig = Field(default_factory=JulianConfig)
     fuwang: FuwangConfig = Field(default_factory=FuwangConfig)
     xiewang: XiewangConfig = Field(default_factory=XiewangConfig)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)

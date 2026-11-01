@@ -50,11 +50,14 @@ class DeepSeekClient:
         self.use_thinking = use_thinking
         self.retries = max(0, int(retries))
 
-    def _post(self, payload: dict):
+    def _post(self, payload: dict, timeout: float = None):
         """
         POST 到 chat/completions，超时/网络异常自动重试 retries 次
+        :param timeout: 本次调用的超时秒数，不传用构造时的 self.timeout
+                        （答题时按每题剩余预算收窄，见 ScriptTask.ai_timeout）
         :return: requests.Response，全部失败返回 None
         """
+        timeout = self.timeout if timeout is None else timeout
         for attempt in range(self.retries + 1):
             try:
                 return requests.post(
@@ -64,7 +67,7 @@ class DeepSeekClient:
                         'Content-Type': 'application/json',
                     },
                     data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-                    timeout=self.timeout,
+                    timeout=timeout,
                 )
             except Exception as e:
                 if attempt < self.retries:
@@ -72,7 +75,7 @@ class DeepSeekClient:
                     time.sleep(0.5)
                     continue
                 if isinstance(e, requests.Timeout):
-                    logger.warning(f'DeepSeek 超时（{self.timeout}s，已重试 {self.retries} 次）')
+                    logger.warning(f'DeepSeek 超时（{timeout}s，已重试 {self.retries} 次）')
                 else:
                     logger.error(f'DeepSeek 请求异常: {e}')
                 return None
@@ -134,7 +137,7 @@ class DeepSeekClient:
         return f'data:image/png;base64,{b64}'
 
     def answer_quiz(self, image: np.ndarray, question: str = '', options: dict = None,
-                    wrong_options: list = None) -> dict:
+                    wrong_options: list = None, timeout: float = None) -> dict:
         """
         把答题界面截图交给模型，返回结构化结果
 
@@ -145,6 +148,7 @@ class DeepSeekClient:
         :param question: 本地 OCR 的题干
         :param options: 本地 OCR 的选项 {'A': ..., 'B': ..., 'C': ...}
         :param wrong_options: 已验证错误的选项文字，会提示模型排除
+        :param timeout: 本次调用超时秒数，不传用构造时的 self.timeout
         :return: {'answer', 'answer_text', 'reason', 'confidence'}，失败返回 None
         """
         if not self.available():
@@ -193,7 +197,7 @@ class DeepSeekClient:
         if self.use_thinking:
             payload['extra_body'] = {'thinking': {'type': 'enabled'}}
 
-        resp = self._post(payload)
+        resp = self._post(payload, timeout=timeout)
         if resp is None:
             return None
 

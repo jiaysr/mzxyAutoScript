@@ -25,5 +25,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "右上角菜单内的活动图标"
+  },
+  {
+    "itemName": "menu_bag_icon",
+    "imageName": "res_menu_bag_icon.png",
+    "roiFront": "995,21,47,55",
+    "roiBack": "448,12,685,71",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右上角菜单内的背包图标（点击直接打开背包页）"
   }
 ]

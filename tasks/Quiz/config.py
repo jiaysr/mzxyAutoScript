@@ -30,7 +30,8 @@ class QuizConfig(BaseModel):
     # ---------------------------------------------------------------- 答题
     # 一局多少题
     total_questions: int = Field(default=20, description='quiz_total_questions_help')
-    # 每题倒计时秒数
+    # 每题限时秒数（和游戏里的倒计时一致）：读题/问 AI/点击都要在这个预算内完成，
+    # 预算见底就不问 AI 了，直接兜底抢答；AI 的超时也会按剩余预算收窄
     question_time_limit: int = Field(default=20, description='quiz_time_limit_help')
     # 题库里标记为未验证的题，是否仍然重新问 API（会把已排除的选项告诉模型）
     ask_again_if_unverified: bool = Field(default=True, description='quiz_ask_again_help')

@@ -14,10 +14,10 @@ from module.logger import logger
 
 # 导入配置的Python文件
 from tasks.Component.config_base import ConfigBase, TimeDelta
+from tasks.Battle.config import Battle
 from tasks.Script.config import Script
 from tasks.Quiz.config import Quiz
 from tasks.Restart.config import Restart
-from tasks.Challenge.config import Challenge
 from tasks.WorldBoss.config import WorldBoss
 from tasks.Arena.config import Arena
 from tasks.CrossArena.config import CrossArena
@@ -27,6 +27,8 @@ from tasks.XianfuJiuchongtian.config import XianfuJiuchongtian
 from tasks.YuwaiMimang.config import YuwaiMimang
 from tasks.DouXianGe.config import DouXianGe
 from tasks.SilverGiftBox.config import SilverGiftBox
+from tasks.AutoTask.config import AutoTask
+from tasks.Dungeon.config import Dungeon
 
 
 class ConfigModel(ConfigBase):
@@ -34,10 +36,11 @@ class ConfigModel(ConfigBase):
     running_task: str = ''
     script: Script = Field(default_factory=Script)
     restart: Restart = Field(default_factory=Restart)
+    # 战斗菜单：3 组技能释放顺序 + 禁用（不是任务，不进调度器）
+    battle: Battle = Field(default_factory=Battle)
 
     # 这些是任务的
     world_boss: WorldBoss = Field(default_factory=WorldBoss)
-    challenge: Challenge = Field(default_factory=Challenge)
     arena: Arena = Field(default_factory=Arena)
     cross_arena: CrossArena = Field(default_factory=CrossArena)
     war_chariot: WarChariot = Field(default_factory=WarChariot)
@@ -47,6 +50,8 @@ class ConfigModel(ConfigBase):
     dou_xian_ge: DouXianGe = Field(default_factory=DouXianGe)
     quiz: Quiz = Field(default_factory=Quiz)
     silver_gift_box: SilverGiftBox = Field(default_factory=SilverGiftBox)
+    auto_task: AutoTask = Field(default_factory=AutoTask)
+    dungeon: Dungeon = Field(default_factory=Dungeon)
 
     def __init__(self, config_name: str=None) -> None:
         """
@@ -225,6 +230,9 @@ class ConfigModel(ConfigBase):
                 item["title"] = value["title"] if "title" in value else inflection.underscore(key)
                 if "description" in value:
                     item["description"] = value["description"]
+                # 配置项条件显示（前端读取 visible_when，例如同名时段双 boss 配置）
+                if "visible_when" in value:
+                    item["visible_when"] = value["visible_when"]
                 item["default"] = value["default"]
                 item["value"] = jsons[key] if key in jsons else value["default"]
                 item["type"] = value["type"] if "type" in value else "enum"
@@ -257,27 +265,34 @@ class ConfigModel(ConfigBase):
         group = convert_to_underscore(group)
         argument = convert_to_underscore(argument)
 
+        # 官方登录凭据必须原样保存，不能按时间或布尔值解析。
+        is_credential = (task == 'restart' and group == 'login_official_config'
+                         and argument in ('account', 'password'))
+        is_password = argument == 'password'
+
         # pandtic验证
-        if isinstance(value, str) and len(value) == 8:
-            try:
-                value = datetime.strptime(value, '%H:%M:%S').time()
-            except ValueError:
-                pass
-        if isinstance(value, str) and len(value) == 11:
-            try:
-                date_time = datetime.strptime(value, '%d %H:%M:%S')
-                value = TimeDelta(days=date_time.day, hours=date_time.hour, minutes=date_time.minute, seconds=date_time.second)
-            except ValueError:
-                pass
-        if isinstance(value, str) and len(value) == 19:
-            try:
-                value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-            except ValueError:
-                pass
-        if isinstance(value, str) and value == 'true':
-            value = True
-        if isinstance(value, str) and value == 'false':
-            value = False
+        if not is_credential:
+            if isinstance(value, str) and len(value) == 8:
+                try:
+                    value = datetime.strptime(value, '%H:%M:%S').time()
+                except ValueError:
+                    pass
+            if isinstance(value, str) and len(value) == 11:
+                try:
+                    date_time = datetime.strptime(value, '%d %H:%M:%S')
+                    value = TimeDelta(days=date_time.day, hours=date_time.hour, minutes=date_time.minute, seconds=date_time.second)
+                except ValueError:
+                    pass
+            if isinstance(value, str) and len(value) == 19:
+                try:
+                    value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    pass
+            if isinstance(value, str) and value == 'true':
+                value = True
+            if isinstance(value, str) and value == 'false':
+                value = False
+        log_value = '[REDACTED]' if is_password else value
 
         task_object = getattr(self, task, None)
         group_object = getattr(task_object, group, None)
@@ -292,7 +307,7 @@ class ConfigModel(ConfigBase):
         argument_object = getattr(group_object, argument, None)
 
         if argument_object is None:
-            logger.error(f'Set arg {task}.{group}.{argument}.{value} failed')
+            logger.error(f'Set arg {task}.{group}.{argument}.{log_value} failed')
             return False
 
         # XXX temp implementation to enable oasx control the datetime configuration globally rather than a single task
@@ -304,11 +319,12 @@ class ConfigModel(ConfigBase):
         # 设置参数
         try:
             setattr(group_object, argument, value)
-            logger.info(f'Set arg {self.config_name}.{task}.{group}.{argument}.{value}')
+            logger.info(f'Set arg {self.config_name}.{task}.{group}.{argument}.{log_value}')
             self.save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            logger.error(e)
+            # Pydantic 异常包含输入值，密码字段不能直接输出异常。
+            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
             return False
 
     def copy_script_task(self, task_name: str, source_task: BaseModel) -> bool:

@@ -13,13 +13,14 @@ class ConfigManual:
         > WarChariot
         > Quiz
         > WorldBoss
-        > Challenge
         > Arena
         > CrossArena
         > AncientHunt
         > XianfuJiuchongtian
         > DouXianGe
+        > Dungeon
         > SilverGiftBox
+        > AutoTask
         """
 
     DEVICE_OVER_HTTP = False

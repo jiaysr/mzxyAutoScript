@@ -16,13 +16,15 @@ class ConfigMenu:
         # 总览
         self.menu["Overview"] = []
         self.menu['TaskList'] = []
-        # 脚本设置
-        self.menu['Script'] = ['Script', 'Restart']
+        # 脚本设置（战斗是独立页面：技能预设/顺序/禁用，不是任务，不进调度器）
+        self.menu['Script'] = ['Script', 'Battle', 'Restart']
         # 日常的任务
-        self.menu["Daily Task"] = ['Quiz', 'WarChariot', 'SilverGiftBox']
+        self.menu["Daily Task"] = ['Quiz', 'WarChariot', 'SilverGiftBox', 'AutoTask']
         # 战斗的任务
-        self.menu["Battle Task"] = ['WorldBoss', 'Challenge', 'Arena', 'CrossArena', 'AncientHunt',
+        self.menu["Battle Task"] = ['WorldBoss', 'Arena', 'CrossArena', 'AncientHunt',
                                     'XianfuJiuchongtian', 'YuwaiMimang', 'DouXianGe']
+        # 副本玩法（单独分组）
+        self.menu["Dungeon"] = ['Dungeon']
         # 开发工具
         self.menu["Tools"] = ['Image Rule', 'Ocr Rule', 'Click Rule', 'Long Click Rule', 'Swipe Rule', 'List Rule']
 

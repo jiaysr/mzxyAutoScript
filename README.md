@@ -41,9 +41,12 @@
 
 ## 功能 Features
 
-- **日常任务**: 每日答题、参与战车
-- **战斗任务**: 世界首领、挑战（页面导航）、同服竞技、跨服竞技、上古狩猎、仙府九重天、域外迷窟、斗仙阁
+- **日常任务**: 每日答题、参与战车、银贝礼盒、自动任务
+- **战斗任务**: 世界首领、同服竞技、跨服竞技、上古狩猎、仙府九重天、域外迷窟、斗仙阁
 - **脚本设置**: 设备与截图/操作方式、错误处理、调度优化、防封、重启与登录（官方 / 小七渠道）
+
+> 每个任务做到什么程度、还缺什么、哪些玩法还没做，见
+> **[任务实现状态 docs/task_status.md](docs/task_status.md)**。
 
 ### 显著特点
 
@@ -57,6 +60,7 @@
 
 ## 安装 Installation
 
+> 第一次用、想照着点就能装好：**[docs/tutorial.md 傻瓜式教程](docs/tutorial.md)**（准备工作 → 下载解压 → 启动服务 → 模拟器设置 → 脚本设置 → 游戏内设置）。
 > 安装与使用流程同 [OAS 官方文档](https://runhey.github.io/OnmyojiAutoScript-website/docs/user-manual/installation)，完整版见
 > **[docs/installation.md](docs/installation.md)**。
 
@@ -91,6 +95,7 @@
 ## 开发 Development
 
 - 新任务开发指南: [docs/mcp/task_dev_guide.md](docs/mcp/task_dev_guide.md)
+- 任务实现状态与待补清单: [docs/task_status.md](docs/task_status.md)
 - AI 辅助开发（MCP）: [docs/mcp/README.md](docs/mcp/README.md)，让支持 MCP 的 AI 客户端（如 opencode）直接读写任务代码、截图取色、生成素材与规则、单任务直跑与日志调试
 
 ## 许可证 LICENSE

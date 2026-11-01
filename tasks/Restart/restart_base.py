@@ -1,10 +1,12 @@
 # This Python file uses the following encoding: utf-8
-from datetime import datetime
+from datetime import datetime, time
 
+from module.base.timer import Timer
 from module.exception import (GameStuckError,
                               GameTooManyClickError,
                               RequestHumanTakeover,
-                              TaskEnd)
+                              TaskEnd,
+                              TaskFailed)
 from module.logger import logger
 from tasks.Restart.assets import RestartAssets
 from tasks.base_task import BaseTask
@@ -17,6 +19,18 @@ class RestartBase(BaseTask, RestartAssets):
     """
 
     login_retry = 2
+    # 登录总时长上限默认值（秒），实际取配置 restart.login_config.login_timeout；
+    # 超过仍未进入游戏即按业务失败处理（任务自己推送通知 + 抛 TaskFailed，
+    # 由「脚本设置 → 处理部分异常」handle_error 决定是否继续跑下一个任务）
+    DEFAULT_LOGIN_TIMEOUT = 240
+
+    @property
+    def login_timeout(self) -> int:
+        """登录总时长上限（秒）：读配置，读不到或非法时用默认值"""
+        try:
+            return int(self.config.restart.login_config.login_timeout)
+        except Exception:  # noqa: BLE001
+            return self.DEFAULT_LOGIN_TIMEOUT
 
     def run(self) -> None:
         if not self.delay_pending_tasks():
@@ -44,15 +58,26 @@ class RestartBase(BaseTask, RestartAssets):
     def app_handle_login(self) -> bool:
         """
         登录入口，失败时重启游戏重试
+
+        整个登录过程受 login_timeout 限制：累计超过时限仍未登录成功就记日志、推送通知，
+        并按业务失败抛 TaskFailed（框架只记一次失败，由「脚本设置 → 处理部分异常」
+        handle_error 决定是否继续跑下一个任务；不发框架通用通知、不强制重启、不存错误现场）。
         """
+        timer = Timer(self.login_timeout).start()
         for _ in range(self.login_retry):
             self.device.stuck_record_clear()
             self.device.click_record_clear()
             try:
-                self._app_handle_login()
+                self._app_handle_login(timer)
                 return True
             except (GameStuckError, GameTooManyClickError) as e:
                 logger.warning(e)
+                if timer.reached():
+                    logger.error(f'登录超过 {self.login_timeout}s 仍未进入游戏')
+                    self.config.notifier.push(
+                        title='重启任务Restart',
+                        content=f'<{self.config.config_name}> 登录超过 {self.login_timeout}s 仍未进入游戏，请检查')
+                    raise TaskFailed(f'登录超过 {self.login_timeout}s 仍未进入游戏')
                 self.device.app_stop()
                 self.device.app_start()
 
@@ -60,9 +85,11 @@ class RestartBase(BaseTask, RestartAssets):
         logger.critical('Game server may be under maintenance, or you may lost network connection')
         raise RequestHumanTakeover
 
-    def _app_handle_login(self) -> bool:
+    def _app_handle_login(self, timer: Timer = None) -> bool:
         """
         具体登录流程，由游戏客户端版本实现
+
+        :param timer: 登录总时长计时器，reached() 时应抛 GameStuckError 结束本轮登录
         """
         raise NotImplementedError
 
@@ -71,13 +98,22 @@ class RestartBase(BaseTask, RestartAssets):
         登录成功后的收尾（领取奖励、定时安排等），由游戏客户端版本按需实现
         """
 
+    # 每周维护窗口：周二 7:30-8:30（weekday: 周一=0）
+    MAINTENANCE_WEEKDAY = 1
+    MAINTENANCE_START = time(7, 30)
+    MAINTENANCE_END = time(8, 30)
+
     def delay_pending_tasks(self) -> bool:
         """
-        周三更新游戏的时候延迟
+        周二维护窗口（7:30-8:30）内延迟待办任务
         :return: 已延迟返回 True
         """
         datetime_now = datetime.now()
-        if not (datetime_now.weekday() == 2 and 6 <= datetime_now.hour <= 8):
+        in_maintenance = (
+            datetime_now.weekday() == self.MAINTENANCE_WEEKDAY
+            and self.MAINTENANCE_START <= datetime_now.time() <= self.MAINTENANCE_END
+        )
+        if not in_maintenance:
             return False
         logger.info('The game server is updating, delay the pending tasks to 9:00')
         logger.warning('Delay pending tasks')

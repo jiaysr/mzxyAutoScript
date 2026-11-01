@@ -9,6 +9,8 @@ from tasks.GameUi.pages.targets import TabTarget
 from tasks.XianfuJiuchongtian.assets import XianfuJiuchongtianAssets as X
 
 page_xianfu = Page(X.I_XIANFU_PAGE)
+# 标记所属模块：引擎据此自动补出「仙府九重天 -> 各模块首 tab」的侧栏直连
+page_xianfu.module = '挑战'
 page_challenge.link(button=TabTarget('仙府九重天'), destination=page_xianfu)
 page_xianfu.link(button=TabTarget('战场'), destination=page_challenge)
 

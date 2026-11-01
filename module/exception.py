@@ -60,3 +60,9 @@ class RequestHumanTakeover(Exception):
 
 class TaskEnd(Exception):
     pass
+
+
+class TaskFailed(Exception):
+    # 业务性失败：任务自己处理了通知/现场，不需要框架存错误现场、
+    # 发通用通知或重启游戏；调度只记失败一次，脚本继续跑下一个任务
+    pass

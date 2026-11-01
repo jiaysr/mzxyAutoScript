@@ -46,6 +46,9 @@ _log_switch_lock = threading.Lock()#线程锁
 
 
 class Script:
+    # 任务因「游戏没运行」被中断时，Restart 拉起后重跑的次数上限（防游戏反复闪退时死循环）
+    GAME_NOT_RUNNING_RETRY = 2
+
     def __init__(self, config_name: str ='oas') -> None:
         logger.hr('Start', level=0)
         self.server = None
@@ -63,6 +66,10 @@ class Script:
         # 跨进程排队管理器（仅在 queue_mode=True 时初始化）
         self.instance_guard: InstanceGuard = None
         self.anti_ban_guard: AntiBanGuard = AntiBanGuard()
+        # 因「游戏没运行」被中断的任务 -> 连续中断次数（见 _handle_game_not_running）
+        self.game_not_running_retry = {}
+        # 本次 run() 是否被「游戏没运行」中断（用于区分正常结束）
+        self.game_not_running_aborted = False
 
     @cached_property
     def config(self) -> "Config":
@@ -181,32 +188,36 @@ class Script:
         task = convert_to_underscore(task)
         group = convert_to_underscore(group)
         argument = convert_to_underscore(argument)
+        is_credential = (task == 'restart' and group == 'login_official_config'
+                         and argument in ('account', 'password'))
+        is_password = argument == 'password'
         # pandtic验证
-        if isinstance(value, str):
+        if not is_credential and isinstance(value, str):
             if len(value) == 8:
                 try:
                     value = datetime.strptime(value, '%H:%M:%S').time()
                 except ValueError:
                     pass
 
-
+        log_value = '[REDACTED]' if is_password else value
         path = f'{task}.{group}.{argument}'
         task_object = getattr(self.config.model, task, None)
         group_object = getattr(task_object, group, None)
         argument_object = getattr(group_object, argument, None)
 
         if argument_object is None:
-            logger.error(f'Set arg {task}.{group}.{argument}.{value} failed')
+            logger.error(f'Set arg {task}.{group}.{argument}.{log_value} failed')
             return False
 
         try:
             setattr(group_object, argument, value)
             argument_object = getattr(group_object, argument, None)
-            logger.info(f'Set arg {task}.{group}.{argument}.{argument_object}')
+            log_value = '[REDACTED]' if is_password else argument_object
+            logger.info(f'Set arg {task}.{group}.{argument}.{log_value}')
             self.config.save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            logger.error(e)
+            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
             return False
 
     @zerorpc.stream
@@ -551,9 +562,12 @@ class Script:
             task_module.ScriptTask(config=self.config, device=self.device).run()
         except TaskEnd:
             return True
+        except TaskFailed as e:
+            logger.error(e)
+            return False
         except GameNotRunningError as e:
             logger.warning(e)
-            self.config.task_call('Restart')
+            self._handle_game_not_running(command)
             return True
         except (GameStuckError, GameTooManyClickError) as e:
             logger.error(e)
@@ -589,13 +603,64 @@ class Script:
         except RequestHumanTakeover as e:
             logger.critical(e)
             logger.critical('Request human takeover')
-            self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> RequestHumanTakeover")
+            reason = str(e) or 'RequestHumanTakeover'
+            self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> {reason}")
             exit(1)
         except Exception as e:
             logger.exception(e)
             self.save_error_log()
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> Exception occured")
             exit(1)
+
+    def _handle_game_not_running(self, command: str) -> None:
+        """
+        任务因为游戏没运行被中断：先排 Restart 拉起游戏，再把本任务重新排上
+
+        这不是任务本身的失败——它一步都还没执行。但很多任务的 finally 会无条件
+        set_next_run（AutoTask 就把自己排到了第二天的同一时刻），只排 Restart
+        不重排本任务的话，这个任务当天就丢了（实测 2026-10-23 00:20 自动任务）。
+
+        连续中断超过 GAME_NOT_RUNNING_RETRY 次就放弃本次，避免游戏反复闪退时死循环。
+        """
+        self.config.task_call('Restart')
+        retry = self.game_not_running_retry.get(command, 0) + 1
+        self.game_not_running_retry[command] = retry
+        self.game_not_running_aborted = True
+        if retry > self.GAME_NOT_RUNNING_RETRY:
+            logger.error(f'Task `{command}` gave up: game not running {retry} times')
+            return
+        logger.info(f'Task `{command}` will run again after Restart '
+                    f'({retry}/{self.GAME_NOT_RUNNING_RETRY})')
+        self.config.task_call(command)
+
+    def _ensure_game_running_on_startup(self) -> None:
+        """
+        启动预检：游戏没运行就先启动并登录，再交给调度跑任务。
+
+        原先只有任务第一次调用 `ui_get_current_page()` 时才会发现游戏没开
+        （`GameUi` 的 app_check 是惰性的），第一个任务会在模拟器桌面上空跑一轮
+        才报错。这里在第一次真正执行任务前主动查一次。
+
+        检查本身失败（设备层/adb 异常等）只告警不阻塞启动：交给任务流程按原样
+        报错，避免把整个脚本进程拦在启动阶段。
+        """
+        try:
+            running = self.device.app_is_running()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f'启动预检：无法确认游戏运行状态（{e}），跳过预检')
+            return
+        if running:
+            logger.info('启动预检：游戏已在运行')
+            return
+
+        logger.warning('启动预检：游戏未运行，先启动并登录')
+        try:
+            from tasks.Restart.script_task import ScriptTask as RestartTask
+            RestartTask(self.config, self.device).app_restart()
+            logger.info('启动预检：游戏已启动并登录')
+        except Exception as e:  # noqa: BLE001
+            # 启动/登录失败不在这里退出：交给任务流程记录失败并按调度重试
+            logger.error(f'启动预检：启动游戏失败（{e}）')
 
     def loop(self):
         """
@@ -657,6 +722,10 @@ class Script:
             else:
                 _ = self.device
 
+            # 启动预检：第一次跑任务前确认游戏在运行（没运行就先启动并登录）
+            if self.is_first_task:
+                self._ensure_game_running_on_startup()
+
             # Run
             logger.info(f'Scheduler: Start task `{task}`')
             self.device.stuck_record_clear()
@@ -664,7 +733,12 @@ class Script:
             logger.hr(task, level=0)
             self.config.model.running_task = task
             _task_start = datetime.now()
-            success = self.run(inflection.camelize(task))
+            command = inflection.camelize(task)
+            self.game_not_running_aborted = False
+            success = self.run(command)
+            if success and not self.game_not_running_aborted:
+                # 正常跑完（不是被「游戏没运行」中断）：清掉该任务的重试计数
+                self.game_not_running_retry.pop(command, None)
             self.config.model.running_task = ''
             logger.info(f'Scheduler: End task `{task}`')
             self.is_first_task = False

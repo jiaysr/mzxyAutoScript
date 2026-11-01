@@ -7,8 +7,20 @@
   },
   {
     "itemName": "bag_general_function",
-    "roiFront": "795,591,137,48",
-    "roiBack": "780,580,167,70",
+    "roiFront": "829,588,137,48",
+    "roiBack": "829,588,137,48",
     "description": "背包-随身功能按钮（整理背包右侧）"
+  },
+  {
+    "itemName": "bag_repair_confirm",
+    "roiFront": "771,355,137,48",
+    "roiBack": "771,357,137,48",
+    "description": "背包-修理确认弹窗「确定」按钮"
+  },
+  {
+    "itemName": "bag_tip_close",
+    "roiFront": "941,286,47,49",
+    "roiBack": "944,291,42,40",
+    "description": "背包-提示条右上角关闭 X（修理成功/无需修理共用）"
   }
 ]

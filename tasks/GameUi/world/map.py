@@ -16,6 +16,7 @@
 地点初始坐标 MAP_INITIAL_POS 为真机实测的传送落点，用于判断是否在某点位的初始位置。
 """
 import re
+import cv2
 from datetime import datetime
 from difflib import SequenceMatcher
 from time import sleep
@@ -293,6 +294,177 @@ class MapNavigation(BaseTask, GameUiAssets):
         logger.warning('World map list does not appear')
         return False
 
+    # ------------------------------------------------------------------ 小地图视口平移
+    # 地图内容区（1280x720 固定布局）
+    MAP_CONTENT_REGION = (160, 115, 785, 525)
+    # 四边箭头检测 ROI：箭头只是「该侧还有内容」的边界指示，不可点击
+    MAP_ARROW_REGIONS = {
+        'top': (510, 86, 60, 24),
+        'right': (910, 345, 30, 30),
+        'bottom': (510, 612, 60, 24),
+        'left': (137, 345, 30, 30),
+    }
+    MAP_ARROW_MIN_PIXELS = 60
+    # 到某角落时，这两个方向的箭头应消失（已到该侧边界）
+    MAP_CORNER_ABSENT_ARROWS = {
+        'bottom_left': ('left', 'bottom'),
+        'top_left': ('left', 'top'),
+        'top_right': ('top', 'right'),
+        'bottom_right': ('right', 'bottom'),
+    }
+    # 拖动地图内容把视口推向目标角落（视口移动方向与内容拖动方向相反）
+    MAP_CORNER_DRAGS = {
+        'bottom_left': ((550, 450), (800, 200)),
+        'top_left': ((550, 300), (800, 550)),
+        'top_right': ((750, 300), (500, 550)),
+        'bottom_right': ((750, 450), (500, 200)),
+    }
+    # 单轴地图：只在对应轴拖动，避免另一轴永远不消失导致误判
+    MAP_HORIZONTAL_DRAGS = {
+        'left': ((550, 400), (800, 400)),   # 内容右拖 -> 视口左移
+        'right': ((750, 400), (500, 400)),
+    }
+    MAP_VERTICAL_DRAGS = {
+        'bottom': ((620, 450), (620, 200)),  # 内容上拖 -> 视口下移
+        'top': ((620, 300), (620, 550)),
+    }
+    MAP_PAN_HOLD = 0.2
+    MAP_PAN_SETTLE = 1.0
+    MAP_PAN_MAX_DRAGS = 4
+
+    def map_open_minimap_tap(self, timeout: float = 8) -> bool:
+        """
+        打开小地图（入口用 ADB tap）。
+
+        部分模拟器（LDPlayer）minitouch 上报 max_pressure=2，框架的
+        click_minitouch 会因随机压力范围无效而失败；这里只点一次入口，
+        用 ADB tap 规避，后续地图平移仍然使用 minitouch 拖动。
+        """
+        logger.info('Open minimap (adb tap)')
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if self.appear(self.I_MAP_MINIMAP_WORLD_MAP):
+                return True
+            x, y = self.C_MAP_MINIMAP_ENTRY.coord()
+            self.device.click_adb(x, y)
+            self.device.click_record_clear()
+            sleep(0.3)
+        logger.warning('Minimap does not appear')
+        return False
+
+    def map_minimap_arrows(self) -> set:
+        """识别小地图四边蓝色边界箭头，返回 {'top','right','bottom','left'} 的子集"""
+        if self.device.image is None:
+            self.screenshot()
+        hsv = cv2.cvtColor(self.device.image, cv2.COLOR_RGB2HSV)
+        mask = cv2.inRange(hsv, (95, 120, 120), (125, 255, 255))
+        arrows = set()
+        for side, (x, y, w, h) in self.MAP_ARROW_REGIONS.items():
+            if int((mask[y:y + h, x:x + w] > 0).sum()) >= self.MAP_ARROW_MIN_PIXELS:
+                arrows.add(side)
+        return arrows
+
+    @classmethod
+    def map_corner_plan(cls, corner: str, arrows):
+        """
+        根据当前四边箭头计算判角条件和拖动方向。
+
+        箭头即可滚动轴的证据：出现 left/right 说明横向可滚，
+        出现 top/bottom 说明纵向可滚。单轴地图只保留该轴的判据和拖动，
+        否则另一轴箭头永远不出现，会被误判为“还没到角落”。
+
+        :return: (absent, drag, horizontal, vertical)
+                 absent=到达该角落尚需消失的箭头集合；
+                 drag=本次拖动 (start,end)，None 表示无需拖动
+        """
+        arrows = set(arrows or ())
+        horizontal = bool({'left', 'right'} & arrows)
+        vertical = bool({'top', 'bottom'} & arrows)
+        absent = set(cls.MAP_CORNER_ABSENT_ARROWS[corner])
+        if not horizontal:
+            absent -= {'left', 'right'}
+        if not vertical:
+            absent -= {'top', 'bottom'}
+        drag = None
+        if absent:
+            if horizontal and vertical:
+                drag = cls.MAP_CORNER_DRAGS[corner]
+            elif horizontal:
+                side = 'left' if corner in ('bottom_left', 'top_left') else 'right'
+                drag = cls.MAP_HORIZONTAL_DRAGS[side]
+            elif vertical:
+                side = 'bottom' if corner in ('bottom_left', 'bottom_right') else 'top'
+                drag = cls.MAP_VERTICAL_DRAGS[side]
+        return absent, drag, horizontal, vertical
+
+    def map_pan_to_corner(self, corner: str, max_drags: int = None,
+                          settle: float = None) -> bool:
+        """
+        在小地图打开状态下，把地图视口拖到指定角落：
+        bottom_left / top_left / top_right / bottom_right。
+
+        只拖动地图内容，不点击地图点位，不会移动角色。
+        用四边箭头做反馈：到达角落时，该侧箭头应当消失。
+        兼容仅横向可滚、仅竖向可滚的地图（单轴地图四角退化为左右/上下边缘）。
+        小地图未打开时会先自动打开。
+        """
+        if corner not in self.MAP_CORNER_ABSENT_ARROWS:
+            logger.warning(f'Unknown minimap corner: {corner}')
+            return False
+        self.screenshot()
+        if not self.appear(self.I_MAP_MINIMAP_WORLD_MAP):
+            logger.info('Minimap is not open, opening')
+            if not self.map_open_minimap_tap():
+                logger.warning('Minimap is not open and failed to open')
+                return False
+
+        max_drags = max_drags if max_drags is not None else self.MAP_PAN_MAX_DRAGS
+        settle = settle if settle is not None else self.MAP_PAN_SETTLE
+        arrows = set()
+        for attempt in range(max_drags + 1):
+            self.screenshot()
+            arrows = self.map_minimap_arrows()
+            absent, drag, horizontal, vertical = self.map_corner_plan(corner, arrows)
+            logger.attr('Minimap arrows', ','.join(sorted(arrows)) or 'none')
+            logger.attr('Minimap pan axes',
+                        f'horizontal={horizontal} vertical={vertical}')
+            if not absent:
+                logger.info(f'Minimap corner [{corner}] reached (target axis not scrollable)')
+                return True
+            if not (absent & arrows):
+                logger.info(f'Minimap corner [{corner}] reached')
+                return True
+            if attempt >= max_drags:
+                break
+            if drag is None:
+                logger.warning(f'No drag direction for [{corner}], arrows={sorted(arrows)}')
+                break
+            start, end = drag
+            logger.info(f'Minimap pan to [{corner}] drag {start} -> {end} '
+                        f'({attempt + 1}/{max_drags})')
+            self.device.hold_drag(start, end, hold=self.MAP_PAN_HOLD,
+                                  control_name='map_pan_corner')
+            self.device.click_record_clear()
+            self.device.sleep(settle)
+        logger.warning(f'Minimap corner [{corner}] not reached, arrows={sorted(arrows)}')
+        return False
+
+    def map_pan_four_corners(self, corners=None) -> bool:
+        """
+        打开小地图并依次滑到四个角落（默认左下 -> 左上 -> 右上 -> 右下）。
+
+        只平移地图视口，不点击地图点位，不会移动角色；结束后小地图保持打开。
+        """
+        logger.hr('Minimap four corners')
+        if not self.map_open_minimap_tap():
+            return False
+        corners = corners or ('bottom_left', 'top_left', 'top_right', 'bottom_right')
+        for corner in corners:
+            if not self.map_pan_to_corner(corner):
+                return False
+        return True
+
     # ------------------------------------------------------------------ 传送
     def map_find_list_location(self, name: str):
         """
@@ -419,8 +591,15 @@ class MapNavigation(BaseTask, GameUiAssets):
     # ------------------------------------------------------------------ 小地图 NPC
     # 小地图右侧 NPC 列表区域（列表内容区，不含边框；各地图小地图弹窗布局一致）
     MAP_NPC_LIST_REGION = (950, 180, 170, 420)
-    # NPC 列表最多翻多少屏
-    MAP_NPC_LIST_MAX_SWIPE = 8
+    # NPC 列表最多翻多少屏（每次 2 行，到底会自动停）
+    MAP_NPC_LIST_MAX_SWIPE = 12
+    # 列表行距 = NPC 区域 68px + 间隙 10px（真机实测），每次滚 2 行 = 156px
+    MAP_NPC_LIST_ROW_PITCH = 78
+    MAP_NPC_LIST_SWIPE_ROWS = 2
+    # 拖动到底后按住的时间：抵消松手惯性（快速滑动一滑即抬，实测拖 240px 会甩出整整一屏）
+    MAP_NPC_LIST_HOLD = 0.4
+    # 滚完等列表停稳的固定等待（实测惯性 0.6~0.9s 内停住）
+    MAP_NPC_LIST_SETTLE_SLEEP = 1.0
 
     def map_open_minimap_and_click_npc(self, npc_name: str, max_swipe: int = None) -> bool:
         """
@@ -511,14 +690,24 @@ class MapNavigation(BaseTask, GameUiAssets):
         return tuple(sorted(item.ocr_text.strip() for item in results))
 
     def map_minimap_npc_swipe_down(self) -> None:
-        """NPC 列表往下滚一屏（minitouch 滑动很快，拆成多段小滑动防止甩过头）"""
+        """
+        NPC 列表往下滚 2 行（156px）
+
+        必须用「拖动到底按住再抬手」而不是快速滑动：minitouch 的 swipe 一滑即抬，
+        实测同样拖 240px 会因惯性甩出整整一屏（>429px），目标行在两次采样之间被跳过；
+        按住 0.4s 再抬手则惯性被吃掉，实测拖 156px 只滚 ~215px（≈2.8 行 < 一屏），
+        相邻两次采样必定有重叠。滚完等列表停稳（实测 0.6~0.9s）再让上层识别。
+        """
         x0, y0, w, h = self.MAP_NPC_LIST_REGION
         center_x = x0 + w // 2
-        top, bottom = y0 + 30, y0 + h - 30
-        logger.info(f'Scroll NPC list: ({center_x},{bottom}) -> ({center_x},{top})')
-        self.ui_swipe_gentle((center_x, bottom), (center_x, top), steps=3, step_delay=0.2)
+        distance = self.MAP_NPC_LIST_ROW_PITCH * self.MAP_NPC_LIST_SWIPE_ROWS
+        start_y = y0 + h - 40
+        end_y = start_y - distance
+        logger.info(f'Scroll NPC list: ({center_x},{start_y}) -> ({center_x},{end_y}) hold={self.MAP_NPC_LIST_HOLD}s')
+        self.device.hold_drag((center_x, start_y), (center_x, end_y),
+                              hold=self.MAP_NPC_LIST_HOLD, control_name='minimap_npc_list')
         self.device.click_record_clear()
-        self.device.sleep(0.8)
+        self.device.sleep(self.MAP_NPC_LIST_SETTLE_SLEEP)
 
     def map_wait_walk_arrive(self, stable_time: int = 3, timeout: int = 120,
                              tolerance: int = 2):

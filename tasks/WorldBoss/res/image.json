@@ -43,5 +43,59 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "世界首领-蝎王名称"
+  },
+  {
+    "itemName": "finish_fuwang",
+    "imageName": "res_finish_fuwang.png",
+    "roiFront": "1,641,241,36",
+    "roiBack": "0,582,305,138",
+    "method": "Template matching",
+    "threshold": 0.95,
+    "description": "世界首领-斧王结束判定（[世界]系统消息，模板近似用高阈值区分）"
+  },
+  {
+    "itemName": "finish_wuqing",
+    "imageName": "res_finish_wuqing.png",
+    "roiFront": "1,641,241,36",
+    "roiBack": "0,582,305,138",
+    "method": "Template matching",
+    "threshold": 0.95,
+    "description": "世界首领-无情结束判定（[世界]系统消息，模板近似用高阈值区分）"
+  },
+  {
+    "itemName": "finish_julian",
+    "imageName": "res_finish_julian.png",
+    "roiFront": "1,641,241,36",
+    "roiBack": "0,582,305,138",
+    "method": "Template matching",
+    "threshold": 0.95,
+    "description": "世界首领-巨镰结束判定（[世界]系统消息，模板近似用高阈值区分）"
+  },
+  {
+    "itemName": "finish_xiewang",
+    "imageName": "res_finish_xiewang.png",
+    "roiFront": "1,641,241,36",
+    "roiBack": "0,582,305,138",
+    "method": "Template matching",
+    "threshold": 0.95,
+    "description": "世界首领-蝎王结束判定（[世界]系统消息，模板近似用高阈值区分）"
+  },
+  {
+    "itemName": "finish_manchui",
+    "imageName": "res_finish_manchui.png",
+    "roiFront": "1,641,241,36",
+    "roiBack": "0,582,305,138",
+    "method": "Template matching",
+    "threshold": 0.95,
+    "description": "世界首领-蛮锤结束判定（[世界]系统消息，模板近似用高阈值区分）"
+  },
+  {
+    "itemName": "boss_reward",
+    "imageName": "res_boss_reward.png",
+    "roiFront": "230,188,89,38",
+    "roiBack": "221,158,152,103",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-首领归属奖弹窗"
   }
 ]

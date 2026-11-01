@@ -22,6 +22,8 @@ class GameUiAssets:
 	I_PAGE_ACTIVITY_LIST = RuleImage(roi_front=(1059,207,67,40), roi_back=(1045,197,92,59), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_list.png")
 	# 活动-世界首领页特征（奖按钮） 
 	I_PAGE_ACTIVITY_WORLD_BOSS = RuleImage(roi_front=(158,554,45,41), roi_back=(135,541,90,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_world_boss.png")
+	# 活动-副本页特征（传送/寻路按钮） 
+	I_PAGE_ACTIVITY_DUNGEON = RuleImage(roi_front=(794,252,171,33), roi_back=(779,238,200,60), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity_dungeon.png")
 	# 活动弹窗容器特征（右上角绿X） 
 	I_PAGE_ACTIVITY = RuleImage(roi_front=(1180,28,65,52), roi_back=(1150,10,130,90), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/activity/res_page_activity.png")
 	# 活动-活跃页特征（活跃值标题） 
@@ -41,20 +43,27 @@ class GameUiAssets:
 	# 背包-整理背包按钮 
 	C_BAG_SORT = RuleClick(roi_front=(573,591,137,48), roi_back=(573,591,137,48), name="bag_sort")
 	# 背包-随身功能按钮（整理背包右侧） 
-	C_BAG_GENERAL_FUNCTION = RuleClick(roi_front=(795,591,137,48), roi_back=(780,580,167,70), name="bag_general_function")
+	C_BAG_GENERAL_FUNCTION = RuleClick(roi_front=(829,588,137,48), roi_back=(829,588,137,48), name="bag_general_function")
+	# 背包-修理确认弹窗「确定」按钮 
+	C_BAG_REPAIR_CONFIRM = RuleClick(roi_front=(771,355,137,48), roi_back=(771,357,137,48), name="bag_repair_confirm")
+	# 背包-提示条右上角关闭 X（修理成功/无需修理共用） 
+	C_BAG_TIP_CLOSE = RuleClick(roi_front=(941,286,47,49), roi_back=(944,291,42,40), name="bag_tip_close")
+
+
+	# Image Rule Assets
+	# 背包-随身功能弹窗「修理装备」按钮（同时用于判断弹窗已打开） 
+	I_BAG_MENU_REPAIR = RuleImage(roi_front=(670,402,219,44), roi_back=(375,291,546,187), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_menu_repair.png")
+	# 背包-修理确认弹窗文案（固定片段「用于修理全部装备」，铜贝数量不固定） 
+	I_BAG_REPAIR_CONFIRM_TEXT = RuleImage(roi_front=(606,303,168,44), roi_back=(337,292,605,124), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_confirm_text.png")
+	# 背包-修理成功提示条 
+	I_BAG_REPAIR_SUCCESS = RuleImage(roi_front=(573,339,123,44), roi_back=(368,320,515,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_success.png")
+	# 背包-无需修理提示条（您没有装备需要修理） 
+	I_BAG_REPAIR_NOTHING = RuleImage(roi_front=(507,338,260,44), roi_back=(368,320,515,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_nothing.png")
 
 
 	# Ocr Rule Assets
 	# 物品-背包物品格（4 列）识别区 
 	O_BAG_GRID = RuleOcr(roi=(255,105,925,450), area=(255,105,925,450), mode="Full", method="Default", keyword="", name="bag_grid")
-	# 背包-底部按钮栏（扩充包格/整理背包/随身功能，OCR 兜底定位） 
-	O_BAG_BOTTOM = RuleOcr(roi=(250,580,700,70), area=(250,580,700,70), mode="Full", method="Default", keyword="", name="bag_bottom")
-	# 背包-随身功能 4 按钮弹窗（请选择/材料商店/杂货商店/随身仓库/修理装备） 
-	O_BAG_GENERAL_MENU = RuleOcr(roi=(280,210,720,320), area=(280,210,720,320), mode="Full", method="Default", keyword="", name="bag_general_menu")
-	# 背包-修理确认弹窗（你将花费铜贝X用于修理全部装备，数量不固定；取消/确定） 
-	O_BAG_REPAIR_CONFIRM = RuleOcr(roi=(280,285,720,150), area=(280,285,720,150), mode="Full", method="Default", keyword="", name="bag_repair_confirm")
-	# 背包-修理结果提示条（修理成功/您没有装备需要修理；提示条纵向位置有抖动，区域上下放宽） 
-	O_BAG_REPAIR_RESULT = RuleOcr(roi=(230,300,800,170), area=(230,300,800,170), mode="Full", method="Default", keyword="", name="bag_repair_result")
 
 
 	# Click Rule Assets
@@ -67,11 +76,27 @@ class GameUiAssets:
 	I_TARGET_BUTTON = RuleImage(roi_front=(1217,235,33,43), roi_back=(1180,200,100,120), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_target_button.png")
 	# 主页面-右下角普通攻击按钮（红色大按钮；区域常量见 SimpleBattle.BATTLE_ATTACK_REGION） 
 	I_ATTACK_BUTTON = RuleImage(roi_front=(1146,597,82,60), roi_back=(1120,575,120,100), threshold=0.75, method="Template matching", file="./tasks/GameUi/res/battle/res_attack_button.png")
+	# 主页面-已锁定目标的血条框右侧雕花（判断是否锁定了任意目标；16 张真机截图实测有目标 ≥0.95、无目标 ≤0.42） 
+	I_TARGET_LOCKED = RuleImage(roi_front=(601,46,13,52), roi_back=(591,36,33,72), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_target_locked.png")
+	# 技能位1-「冷却好」基准素材（冷却识别只取素材算亮度x彩度基准分，不做模板匹配；见 navigation/battle_skill.py） 
+	I_SKILL1_READY = RuleImage(roi_front=(991,582,52,54), roi_back=(981,572,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill1_ready.png")
+	# 技能位2-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL2_READY = RuleImage(roi_front=(1033,484,52,54), roi_back=(1023,474,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill2_ready.png")
+	# 技能位3-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL3_READY = RuleImage(roi_front=(1125,437,52,54), roi_back=(1115,427,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill3_ready.png")
+	# 技能位4-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL4_READY = RuleImage(roi_front=(888,582,52,54), roi_back=(878,572,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill4_ready.png")
+	# 技能位5-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL5_READY = RuleImage(roi_front=(920,479,52,54), roi_back=(910,469,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill5_ready.png")
+	# 技能位6-「冷却好」基准素材（图标中心是黑底白字，分数天然偏低，靠比例判定） 
+	I_SKILL6_READY = RuleImage(roi_front=(996,386,52,54), roi_back=(986,376,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill6_ready.png")
+	# 技能位7-「冷却好」基准素材（同上，不做模板匹配） 
+	I_SKILL7_READY = RuleImage(roi_front=(1094,331,52,54), roi_back=(1084,321,72,74), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/battle/res_skill7_ready.png")
 
 
 	# Ocr Rule Assets
-	# 主页面-当前锁定目标名（彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出） 
-	O_TARGET_NAME = RuleOcr(roi=(426,5,240,36), area=(424,9,240,36), mode="Full", method="Default", keyword="", name="target_name")
+	# 主页面-当前锁定目标名（固定在 508,4,196,39；彩色描边字，必须走 GameUi.ocr_color_name 整行放大识别，默认检测框读不出） 
+	O_TARGET_NAME = RuleOcr(roi=(508,4,196,39), area=(508,4,196,39), mode="Full", method="Default", keyword="", name="target_name")
 
 
 	# Click Rule Assets
@@ -141,6 +166,8 @@ class GameUiAssets:
 	I_MENU_EXPANDED = RuleImage(roi_front=(1153,28,15,32), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_menu_expanded.png")
 	# 右上角菜单内的活动图标 
 	I_ACTIVITY_ICON = RuleImage(roi_front=(1087,36,31,32), roi_back=(448,12,685,71), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_activity_icon.png")
+	# 右上角菜单内的背包图标（点击直接打开背包页） 
+	I_MENU_BAG_ICON = RuleImage(roi_front=(995,21,47,55), roi_back=(448,12,685,71), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_menu_bag_icon.png")
 
 
 	# Click Rule Assets
@@ -159,6 +186,16 @@ class GameUiAssets:
 	I_PAGE_ITEM_BAG = RuleImage(roi_front=(560,580,154,68), roi_back=(550,570,174,88), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_item_bag.png")
 	# 挑战-战场页特征（你的战斗力文字） 
 	I_PAGE_CHALLENGE = RuleImage(roi_front=(557,123,128,40), roi_back=(536,113,274,65), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_challenge.png")
+	# 任务-任务页特征（顶部任务tab选中样式，黄字；阈值0.85：tab边框各页相同，0.8会在队伍页误命中0.80） 
+	I_PAGE_TASK = RuleImage(roi_front=(261,12,199,61), roi_back=(241,0,239,85), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/pages/res_page_task.png")
+	# 任务页-无任务弹窗关闭绿X 
+	I_TASK_EMPTY_CLOSE = RuleImage(roi_front=(935,278,55,58), roi_back=(850,230,220,150), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_task_empty_close.png")
+	# 队伍页特征（顶部宽tab栏：单个队伍tab+右侧空区） 
+	I_PAGE_TEAM = RuleImage(roi_front=(261,8,640,77), roi_back=(241,0,680,100), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_page_team.png")
+	# 队伍页-离开队伍按钮（有队伍=组队中） 
+	I_TEAM_LEAVE = RuleImage(roi_front=(1096,597,156,68), roi_back=(1020,550,240,150), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_team_leave.png")
+	# 队伍页-弹窗绿X（无队伍提示/解散确认共用） 
+	I_TEAM_POPUP_CLOSE = RuleImage(roi_front=(935,278,55,58), roi_back=(850,230,220,150), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/pages/res_team_popup_close.png")
 
 
 	# Ocr Rule Assets

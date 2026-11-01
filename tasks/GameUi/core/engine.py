@@ -4,6 +4,7 @@
 
 - 页面识别（ui_get_current_page）
 - 页面图最短路径（反向 BFS：build_reverse_path_dict）
+- 页面出边规则（ui_page_links：显式 links + 面板页侧栏直连各模块首 tab）
 - 路径执行（_execute_path：点连线按钮 -> 等目标页出现）
 - 未知页面脱困（ui_close / ui_safe_click）
 - 统一操作入口（appear_then_operate，支持 Rule* 与 SidebarTarget/TabTarget/MenuTarget）
@@ -27,7 +28,7 @@ from module.base.timer import Timer
 from module.exception import (GameNotRunningError, GamePageUnknownError)
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets, GameUiAssets as G
-from tasks.GameUi.pages.page import Page, PageRegistry
+from tasks.GameUi.pages.page import Page, PageRegistry, page_main
 from tasks.GameUi.pages.targets import (SidebarTarget, TabTarget, MenuTarget,
                                         ActivityTabTarget, ActivitySubTabTarget)
 from tasks.base_task import BaseTask
@@ -153,6 +154,41 @@ class NavigationEngine(BaseTask, GameUiAssets):
         raise GamePageUnknownError
 
     # ------------------------------------------------------------------ 寻路
+    def ui_module_homes(self) -> dict[str, Page]:
+        """
+        模块名 -> 该模块首 tab 页面（由 Page.module_home 标记）
+
+        角色面板左侧栏在所有面板页常驻，点任一模块名都会跳到该模块的第一个 tab，
+        所以任何面板页都能直达任一模块首 tab（见 ui_page_links）。
+        """
+        homes = {}
+        for page in self.ui_pages:
+            module = getattr(page, 'module', None)
+            if module and getattr(page, 'module_home', False):
+                homes[module] = page
+        return homes
+
+    def ui_page_links(self, page: Page) -> dict:
+        """
+        页面的全部出边：显式 links + 侧栏规则
+
+        规则：凡是设置了 Page.module 的面板页（含第二 tab 及之后的子页），
+        都能点击左栏任一模块名直达该模块首 tab（游戏里点菜单会重置到第一个 tab，
+        离开当前页也会复位其列表状态）。显式 links 优先，没写的模块边自动补上，
+        录新 tab 页面时只需要标记 module，不用再逐条连到其他模块。
+
+        面板页右上角的「返回」也是常驻的，任何 tab 页都直接补一条回主页面的边，
+        避免去主页时绕进别的模块（BFS 里首页边和侧栏边等价，绕路同样短）。
+        """
+        links = dict(page.links)
+        if getattr(page, 'module', None):
+            for module, home in self.ui_module_homes().items():
+                if home is page:
+                    continue
+                links.setdefault(home, SidebarTarget(module))
+            links.setdefault(page_main, G.C_PAGE_PLAYER_BACK)
+        return links
+
     def build_reverse_path_dict(self, destination: Page) -> dict[Page, list[Page]]:
         """
         构建从每个页面到目标页面的最短路径（反向 BFS）
@@ -162,10 +198,11 @@ class NavigationEngine(BaseTask, GameUiAssets):
         """
         paths = {destination: [destination]}
         queue = deque([destination])
+        page_links = {page: self.ui_page_links(page) for page in self.ui_pages}
         while queue:
             cur = queue.popleft()
             for page in self.ui_pages:
-                if page not in paths and cur in page.links:
+                if page not in paths and cur in page_links[page]:
                     # page -> cur
                     paths[page] = [page] + paths[cur]
                     queue.append(page)
@@ -267,8 +304,8 @@ class NavigationEngine(BaseTask, GameUiAssets):
                 break
             next_page = path[i + 1]
             logger.info(f'Page switch: {current_page} -> {next_page}')
-            # 获取页面跳转操作
-            button = current_page.links.get(next_page)
+            # 获取页面跳转操作（显式连线或侧栏规则补出的模块直连）
+            button = self.ui_page_links(current_page).get(next_page)
             if not button:
                 logger.warning(f"No link from {current_page} to {next_page}")
                 continue

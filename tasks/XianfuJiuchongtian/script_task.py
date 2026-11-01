@@ -6,12 +6,28 @@
 （1=南极、2=北极、3=东极、4=西极）；打大关 M 只会掉「仙玉碎片M」
 （如持国天=M3 只掉碎片三）。翻牌颜色随机，所以按缺失的号从大到小打：
 缺 4 → 打大关4的小关N，反复打到拿到碎片4，再打大关3拿碎片3 …… 集齐后重新从大关4开始。
+配置 `fixed_daguan`（1-4）可直接指定大关，指定后跳过背包统计，一直打该大关的第 N 小关。
+背包统计：先用对应颜色的模板（图标 + 「XX仙玉」）定位碎片，没命中视为没有；命中后只 OCR
+命中格的碎片编号和数量。
 
 仙石：每半小时 +1、上限 40。达到 stone_threshold 才开始清仙石，循环打到仙石 < 4 为止，
 然后按 (阈值 - 当前仙石) * 30 分钟排下一次运行。
+仙石够打之后、开战之前先修一次装备（每轮运行只修一次，失败不中断）。
 
-流程：挑战-仙府九重天页 -> 选大关 -> 选小关 -> 开始挑战 -> 副本内走 210,158 打怪
-      -> 翻牌领奖 -> 关面板，循环直到仙石不够。
+死亡：进图前/路上被玩家击杀 -> 复活（游戏设定回村庄再回主页面）后重试当前阶段，
+      不整任务重跑，已统计好的背包碎片数量不会重扫（tests/test_xianfu_death.py）。
+      仙府九重天地图内死亡不弹死亡框（直接退出到仙府页面），不会走到这条路径。
+
+TODO: 更好的做法是先传送到「安全地图」（禁止 PK）再清仙石，从源头避开被玩家击杀。
+      但传送/跑图本身仍在野外进行，中途照样可能死，所以复活重试必须保留。
+
+流程：挑战-仙府九重天页 -> 选大关 -> 选小关 -> 开始挑战
+      -> 进图后打开小地图，点战斗点让角色自动寻路到怪物，然后关闭小地图
+      -> 收菜单锁定怪物（右下角按钮必须是「攻击」）；15s 内没进入战斗就重新点小地图移动
+      -> 打怪：按优先级队列释放技能，每个技能双击；
+         没进冷切就排到下一个技能后面（同时只允许一个延后），全部技能冷却时才普攻
+      -> 目标丢失/奖励面板出现即停 -> 翻牌领奖 -> 关面板，循环直到仙石不够。
+      若目标丢失后回到仙府页面仍没有奖励面板，按本关未通过处理：推送通知并继续下一轮。
 """
 import re
 from datetime import datetime, timedelta
@@ -19,10 +35,10 @@ from datetime import datetime, timedelta
 import cv2
 
 from module.base.timer import Timer
-from module.exception import GameStuckError, TaskEnd
+from module.exception import GamePageUnknownError, GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_item_bag, page_role_detail
+from tasks.GameUi.pages.page import page_item_bag
 from tasks.XianfuJiuchongtian.assets import XianfuJiuchongtianAssets
 from tasks.XianfuJiuchongtian.page import page_xianfu
 
@@ -37,80 +53,178 @@ STONE_COST = 4          # 每次挑战消耗
 MAP_NAME = '仙府九重天'
 BATTLE_TIMEOUT = 150
 BATTLE_GROUPS_MAX = 20
+# 目标消失后等奖励面板弹出的时间（秒）：怪物死亡 -> 面板弹出有一点延迟
+REWARD_PANEL_GRACE = 3.0
+# 目标丢失后等「奖励面板 / 回到仙府页面」的时间（秒）：没打过时会被传回仙府页面
+STAGE_RESULT_TIMEOUT = 10.0
+
+
+class XianfuDeath(Exception):
+    """仙府任务内死亡：复活（回村庄/主页面）后由 run() 重试当前阶段，不整任务重跑"""
+
+    def __init__(self, stage: str):
+        super().__init__(stage)
+        self.stage = stage
 
 
 class ScriptTask(GameUi, XianfuJiuchongtianAssets):
 
+    # 单阶段因死亡重试的最大次数，避免卡在某处反复死亡时无限循环
+    MAX_DEATH_RETRY = 3
+    # 当前阶段：read_stone / bag_count / repair / battle（死亡时用于日志和重试定位）
+    _death_stage: str = 'read_stone'
     # 本次翻牌结果 (color, numeral)；每场战斗更新
     last_reward = None
     # 读背包最多扫多少屏（整页滑动，一页 4 行）
     BAG_SCAN_SCREENS = 12
 
     def run(self) -> None:
-        stage, threshold, max_battles_cfg, coord_text, click_empty = self.load_config()
-        self.BATTLE_CLICK_EMPTY_SKILLS = click_empty
+        stage, threshold, max_battles_cfg, fixed_daguan = self.load_config()
         color = XIAOGUAN_COLORS[stage]
+        daguan_text = f'指定大关{fixed_daguan}' if fixed_daguan else '按背包自动选'
         logger.hr(f'仙府九重天 阶段{stage}({color}) 阈值{threshold} '
-                  f'最多{max_battles_cfg or "不限"}局 点空技能位={click_empty}')
+                  f'最多{max_battles_cfg or "不限"}局 {daguan_text}')
 
-        self.enter_xianfu_page()
-        stone = self.read_stone()
-        logger.attr('剩余仙石', stone)
-        if stone is None:
-            logger.warning('读不到仙石，退出')
-            raise TaskEnd('XianfuJiuchongtian')
-        if stone < threshold:
-            logger.info(f'仙石 {stone} < 阈值 {threshold}，先不开始')
-            self.schedule_next_run(stone, threshold)
-            raise TaskEnd('XianfuJiuchongtian')
+        if fixed_daguan:
+            logger.info(f'已指定大关 {fixed_daguan}（{DAGUAN_NAMES[fixed_daguan]}），跳过背包统计')
+        stone, counts = self.prepare(threshold, color, fixed_daguan)
 
-        counts = self.bag_piece_counts(color)
-        logger.attr(f'{color}仙玉碎片数量', counts)
+        self.repair_before_battle()
+
         max_battles = stone // STONE_COST + 3
         if max_battles_cfg > 0:
             max_battles = min(max_battles, max_battles_cfg)
         battles = 0
+        died = 0
         while stone is not None and stone >= STONE_COST and battles < max_battles:
-            target = self.pick_target(counts)
-            logger.info(f'目标：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关，'
-                        f'{color}仙玉碎片{NUMERALS[target - 1]} 当前 {counts.get(target, 0)}')
-            if not self.run_one_battle(target, stage, coord_text):
-                logger.warning('战斗流程失败，停止清仙石')
-                break
-            battles += 1
-            if self.last_reward is not None:
-                rc, rn = self.last_reward
-                if rc == color:
-                    idx = NUMERALS.index(rn) + 1
-                    counts[idx] = counts.get(idx, 0) + 1
-                    logger.info(f'拿到 {rc}仙玉碎片{rn}，数量更新 {counts}')
+            try:
+                if fixed_daguan:
+                    target = fixed_daguan
+                    logger.info(f'目标（指定）：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关')
                 else:
-                    logger.info(f'拿到 {rc}仙玉碎片{rn}（不是需要的颜色），继续打')
-            else:
-                logger.warning('本次没拿到碎片（翻牌没成），按原数量继续')
-            stone = self.read_stone()
-            logger.attr('剩余仙石', stone)
+                    target = self.pick_target(counts)
+                    logger.info(f'目标：{DAGUAN_NAMES[target]}(大关{target}) 第{stage}小关，'
+                                f'{color}仙玉碎片{NUMERALS[target - 1]} 当前 {counts.get(target, 0)}')
+                self._death_stage = 'battle'
+                if not self.run_one_battle(target, stage):
+                    logger.warning('战斗流程失败，停止清仙石')
+                    break
+                battles += 1
+                if self.last_reward is not None:
+                    rc, rn = self.last_reward
+                    if rc == color:
+                        idx = NUMERALS.index(rn) + 1
+                        counts[idx] = counts.get(idx, 0) + 1
+                        logger.info(f'拿到 {rc}仙玉碎片{rn}，数量更新 {counts}')
+                    else:
+                        logger.info(f'拿到 {rc}仙玉碎片{rn}（不是需要的颜色），继续打')
+                else:
+                    logger.warning('本次没拿到碎片（翻牌没成），按原数量继续')
+                self._death_stage = 'read_stone'
+                stone = self.read_stone_ready()
+                logger.attr('剩余仙石', stone)
+            except XianfuDeath as e:
+                # 复活后回主页面：死亡这一场不计入 battles，下一轮重新选目标继续打
+                died += 1
+                if died >= self.MAX_DEATH_RETRY:
+                    logger.warning(f'本次运行已死亡 {died} 次（{e.stage}），停止清仙石')
+                    break
+                logger.warning(f'Revived during {e.stage}, continue with next battle '
+                               f'(died {died}/{self.MAX_DEATH_RETRY})')
+                continue
 
         self.schedule_next_run(stone, threshold)
         logger.info('仙府九重天清仙石结束')
         raise TaskEnd('XianfuJiuchongtian')
+
+    # ---------------------------------------------------------------- 死亡
+    def handle_death(self) -> None:
+        """
+        角色死亡：点「返回村子」复活后抛 XianfuDeath，由 run() 重试当前阶段
+
+        游戏设定：复活后回村庄再回主页面。仙府九重天地图内死亡不弹死亡框
+        （直接退出到仙府页面），所以这里只会命中「进图前/路上被玩家击杀」的情况。
+
+        不走全局默认的「复活 + 重跑任务」：重跑会把已经统计好的背包碎片数量
+        重新扫一遍（十几秒），而且 `run()` 的 finally 会把 next_run 重排，
+        把重跑设置的「立即运行」覆盖掉。
+        """
+        if not self.appear(self.I_DEATH_DIALOG):
+            return
+        death_stage = self._death_stage
+        logger.warning(f'Character died during {death_stage}, revive and resume')
+        self.revive()
+        # 等复活/地图加载稳定，加载中点击会丢
+        self.device.sleep(1)
+        raise XianfuDeath(death_stage)
+
+    # ---------------------------------------------------------------- 准备
+    def prepare(self, threshold: int, color: str, fixed_daguan: int) -> tuple:
+        """
+        准备阶段：读仙石 -> 读背包碎片数量
+
+        死亡复活后只重试出事的那一步：背包统计只做一次，成功后不再重扫。
+        :return: (stone, counts)；仙石读不到或不够时抛 TaskEnd
+        """
+        counts = {} if fixed_daguan else None
+        for attempt in range(1, self.MAX_DEATH_RETRY + 1):
+            try:
+                self._death_stage = 'read_stone'
+                stone = self.read_stone_ready()
+                logger.attr('剩余仙石', stone)
+                if stone is None:
+                    logger.warning('读不到仙石，退出')
+                    raise TaskEnd('XianfuJiuchongtian')
+                if stone < threshold:
+                    logger.info(f'仙石 {stone} < 阈值 {threshold}，先不开始')
+                    self.schedule_next_run(stone, threshold)
+                    raise TaskEnd('XianfuJiuchongtian')
+
+                if counts is None:
+                    self._death_stage = 'bag_count'
+                    counts = self.bag_piece_counts(color)
+                    logger.attr(f'{color}仙玉碎片数量', counts)
+                return stone, counts
+            except XianfuDeath as e:
+                if attempt >= self.MAX_DEATH_RETRY:
+                    logger.warning(f'准备阶段连续死亡 {attempt} 次（{e.stage}），放弃本次运行')
+                    raise TaskEnd('XianfuJiuchongtian')
+                logger.warning(f'Revived during {e.stage}, retry prepare '
+                               f'(bag counted: {counts is not None})')
+        raise TaskEnd('XianfuJiuchongtian')
+
+    def read_stone_ready(self):
+        """确保在仙府页后读仙石（死亡复活回到主页面后靠这里重新导航）"""
+        self.enter_xianfu_page()
+        return self.read_stone()
+
+    def repair_before_battle(self) -> None:
+        """开战前修一次装备：失败只记日志，不影响清仙石；死亡则重试"""
+        logger.hr('Repair equipment before battle')
+        for attempt in range(1, self.MAX_DEATH_RETRY + 1):
+            try:
+                self._death_stage = 'repair'
+                if not self.bag_repair_equipment():
+                    logger.warning('Repair equipment failed, continue anyway')
+                return
+            except XianfuDeath as e:
+                if attempt >= self.MAX_DEATH_RETRY:
+                    logger.warning(f'Repair died {attempt} times ({e.stage}), skip repair')
+                    return
+                logger.warning(f'Revived during repair, retry ({attempt}/{self.MAX_DEATH_RETRY})')
+            except (GameStuckError, GamePageUnknownError) as e:
+                logger.warning(f'Repair equipment error, continue anyway: {e}')
+                return
 
     # ---------------------------------------------------------------- 配置
     def load_config(self):
         try:
             cfg = self.config.xianfu_jiuchongtian.xianfu_config
             return (int(cfg.stage), int(cfg.stone_threshold), int(cfg.max_battles),
-                    cfg.target_coord, bool(cfg.click_empty_skills))
+                    int(cfg.fixed_daguan))
         except Exception as e:  # noqa: BLE001
-            logger.warning(f'读取配置失败({e})，用默认值 阶段1/阈值40/不限局数')
-            return 1, 40, 0, '210,158', False
-
-    @staticmethod
-    def parse_coord(text: str):
-        match = re.search(r'(\d{1,4})\s*[,，]\s*(\d{1,4})', text or '')
-        if not match:
-            return 210, 158
-        return int(match.group(1)), int(match.group(2))
+            logger.warning(f'读取配置失败({e})，用默认值 阶段1/阈值40/不限局数/大关自动')
+            return 1, 40, 0, 0
 
     def schedule_next_run(self, stone, threshold) -> None:
         """按仙石恢复速度排下一次运行时间"""
@@ -175,6 +289,18 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
     BAG_COUNT_DY = 55
     BAG_COUNT_SIZE = (35, 30)
 
+    # 颜色 -> 该颜色碎片的模板规则（模板 = 图标 + 第一行「XX仙玉」）
+    PICK_RULES = {
+        '西极': 'I_BAG_PICK_WEST',
+        '东极': 'I_BAG_PICK_EAST',
+        '北极': 'I_BAG_PICK_NORTH',
+        '南极': 'I_BAG_PICK_SOUTH',
+    }
+    # 模板命中框 -> 格子图标中心的偏移（四张模板实测约 25px）
+    PICK_ICON_DX = 25
+    # 格子图标中心相对行顶的偏移（行高 120，图标约 50 高）
+    PICK_ICON_HALF = 25
+
     def bag_cell_regions(self, col_x, row_top):
         """返回该物品格的 (文字区域, 数量区域)，格式 x,y,w,h"""
         text_region = (col_x + self.BAG_TEXT_DX, row_top,
@@ -182,15 +308,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         count_region = (col_x + self.BAG_COUNT_DX, row_top + self.BAG_COUNT_DY,
                         self.BAG_COUNT_SIZE[0], self.BAG_COUNT_SIZE[1])
         return text_region, count_region
-
-    def bag_back_to_top(self) -> None:
-        """
-        回到背包顶部：先去别的页面再回来，背包会自动滚到顶部
-        """
-        self.ui_goto(page_role_detail, timeout=20)
-        self.device.sleep(0.3)
-        self.ui_goto(page_item_bag, timeout=20)
-        self.device.sleep(self.BAG_SETTLE)
 
     # 碎片数字的 OCR 变体（「一」常被认成 —/－/1）
     NUMERAL_VARIANTS = {
@@ -208,53 +325,24 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
                 return numeral
         return None
 
-    def bag_page_boxes(self):
-        """整块背包网格 OCR -> [(文本, 左边缘x, 中心y)]（补充手段，容忍边界行）"""
-        rule = self.O_BAG_GRID
-        results = rule.detect_and_ocr(self.device.image, logDisplay=False)
-        roi = rule.roi
-        boxes = []
-        for item in results:
-            box = item.box
-            xs = [point[0] for point in box]
-            ys = [point[1] for point in box]
-            boxes.append((item.ocr_text.strip(), min(xs) + roi[0], (min(ys) + max(ys)) / 2 + roi[1]))
-        return boxes
-
-    def match_piece_boxes(self, boxes, color: str, found: dict) -> None:
+    def bag_cell_from_hit(self, x, y, w, h):
         """
-        整块 OCR 的内容配对（补充固定区域）：颜色行「XX仙玉」附近找「碎片X」，再读邻近数字
+        模板命中框 -> 所在格子的 (列图标 x, 行 top)
 
-        只在本屏内配对（跨屏无法校验颜色，会把别的颜色的碎片配错）
+        模板是「图标 + 第一行名字」：命中框左边约在图标中心 -PICK_ICON_DX，
+        框中心 y 约在图标中心，换算后吸附到最近的行列。
         """
-        for text, x, y in boxes:
-            if '仙玉' not in text or color not in text:
-                continue
-            numeral = self.parse_numeral(text)
-            count = None
-            if numeral is None:
-                for text2, x2, y2 in boxes:
-                    if abs(x2 - x) > 120 or abs(y2 - y) > 80:
-                        continue
-                    numeral = self.parse_numeral(text2)
-                    if numeral:
-                        match = re.match(r'\s*(\d+)', text2)
-                        count = int(match.group(1)) if match else None
-                        break
-            if numeral is None:
-                continue
-            if count is None:
-                for text2, x2, y2 in boxes:
-                    digits = text2.strip()
-                    if not digits.isdigit():
-                        continue
-                    if abs(x2 - x) <= 70 and 15 <= (y2 - y) <= 75:
-                        count = max(count or 0, int(digits))
-            idx = NUMERALS.index(numeral) + 1
-            if count:
-                found[idx] = max(found.get(idx, 0), count)
-            else:
-                found.setdefault(idx, 1)
+        icon_x = x + self.PICK_ICON_DX
+        icon_y = y + h / 2
+        col = min(self.BAG_COLUMN_CENTERS, key=lambda c: abs(c - icon_x))
+        row_top = min(self.BAG_ROW_TOPS, key=lambda r: abs(r - (icon_y - self.PICK_ICON_HALF)))
+        return col, row_top
+
+    def bag_page_signature(self, image) -> bytes:
+        """背包页的粗粒度指纹：滑动后内容没变就说明到底了（比整页 OCR 便宜）"""
+        x, y, w, h = self.O_BAG_GRID.roi
+        gray = cv2.cvtColor(image[y:y + h, x:x + w], cv2.COLOR_RGB2GRAY)
+        return cv2.resize(gray, (64, 32), interpolation=cv2.INTER_AREA).tobytes()
 
     def bag_region_digits(self, region) -> int:
         """
@@ -282,79 +370,76 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
 
     def bag_piece_counts(self, color: str) -> dict:
         """
-        读背包里该颜色仙玉碎片一二三四的数量
+        读背包里该颜色仙玉碎片一二三四的数量（模板定位 + 只 OCR 命中格）
 
-        - 回顶：先去别的页面再回背包（游戏会自动回顶）
-        - 翻页：`device.swipe((490,570) -> (490,80))`，一页 4 行
-        - 识别：每个物品格用固定文字区/数量区（见 BAG_* 常量）
-        - 数量为 1 时游戏不显示数字，所以「有名字但没读到数字」按 1 算
-        :return: {1: 数量, 2: 数量, 3: 数量, 4: 数量}（物品不存在按 0）
+        同色碎片在背包里连续排列：用该颜色的「图标 + XX仙玉」模板逐页找命中，
+        - 没命中：该颜色没有碎片，返回全 0（不再整包 OCR）；
+        - 命中：只对命中的格子 OCR「碎片X」和数量（数量为 1 时不显示数字，按 1 算）。
+
+        :return: {1: 数量, 2: 数量, 3: 数量, 4: 数量}（不存在的碎片按 0）
         """
-        logger.hr(f'读背包 {color}仙玉碎片数量')
+        logger.hr(f'读背包 {color}仙玉碎片数量（模板定位）')
+        rule_name = self.PICK_RULES.get(color)
+        rule = getattr(self, rule_name, None) if rule_name else None
+        result = {i: 0 for i in range(1, len(NUMERALS) + 1)}
+        if rule is None:
+            logger.warning(f'没有 {color} 的碎片模板（{rule_name}），视为没有碎片')
+            return result
+
         if not self.ui_goto(page_item_bag, timeout=40):
             raise GameStuckError('Item bag page does not appear')
         self.device.sleep(self.BAG_SETTLE)
         self.bag_close_item_panel()
         self.bag_sort()
-        self.bag_back_to_top()
 
-        found = {}
-        found_sup = {}
+        found_any = False
         last_signature = None
         for page in range(1, self.BAG_SCAN_SCREENS + 1):
             self.screenshot()
-            page_texts = []
-            for row_top in self.BAG_ROW_TOPS:
-                for col_x in self.BAG_COLUMN_CENTERS:
-                    text_region, count_region = self.bag_cell_regions(col_x, row_top)
-                    text = self.bag_region_text(text_region)
-                    if not text:
+            image = self.device.image
+            hits = rule.match_all_any(image, threshold=rule.threshold)
+            page_cells = set()
+            page_hit = False
+            for score, x, y, w, h in sorted(hits, key=lambda hit: -hit[0]):
+                cell = self.bag_cell_from_hit(x, y, w, h)
+                if cell in page_cells:
+                    continue
+                page_cells.add(cell)
+                col_x, row_top = cell
+                text_region, count_region = self.bag_cell_regions(col_x, row_top)
+                text = self.bag_region_text(text_region)
+                numeral = self.parse_numeral(text)
+                if numeral is None:
+                    # 「一」是一横，OCR 常整个丢掉；命中格有这个颜色就按「一」兜底
+                    if f'{color}仙玉碎片' in text:
+                        numeral = '一'
+                    else:
+                        logger.warning(f'命中格读不到碎片编号: {text!r} @ ({x},{y})')
                         continue
-                    page_texts.append(text)
-                    if color not in text:
-                        continue
-                    numeral = self.parse_numeral(text)
-                    if numeral is None:
-                        # 「一」是一横，OCR 常整个丢掉（读成「北极仙玉碎片」），这里按「一」兜底
-                        if f'{color}仙玉碎片' in text:
-                            logger.info(f'「{text}」没读到碎片数字，按「一」处理')
-                            numeral = '一'
-                        else:
-                            continue
-                    count = self.bag_region_digits(count_region)
-                    # 数量为 1 时游戏不显示数字
-                    count = count if count else 1
-                    idx = NUMERALS.index(numeral) + 1
-                    found[idx] = max(found.get(idx, 0), count)
-            # 补充：整块 OCR 内容配对（固定区域在翻页边界会漏行），只用来补空缺
-            boxes = self.bag_page_boxes()
-            self.match_piece_boxes(boxes, color, found_sup)
-            logger.info(f'第{page}页物品: {page_texts}')
-            if not page_texts:
-                logger.info('背包已到空行')
-                break
+                count = self.bag_region_digits(count_region) or 1
+                idx = NUMERALS.index(numeral) + 1
+                result[idx] = max(result[idx], count)
+                page_hit = found_any = True
+                logger.info(f'命中 {color}仙玉碎片{numeral} x{count} '
+                            f'@ ({x},{y}) score={score:.3f}')
+            if not page_hit:
+                logger.info(f'第{page}页未命中 {color} 碎片模板')
+
+            # 翻页停止：空物品格 / 内容不再变化 / 页数上限
             if self.appear(self.I_BAG_EMPTY):
-                logger.info('本页出现空物品格（物品已按从有到无排序），下面没有物品了')
+                logger.info('本页出现空物品格，停止翻页')
                 break
-            signature = tuple(page_texts)
+            signature = self.bag_page_signature(image)
             if signature == last_signature:
-                logger.info('背包没有继续滚动（可能开了面板或到底），停止')
+                logger.info('背包没有继续滚动，停止')
                 break
             last_signature = signature
             self.device.swipe(p1=(490, 570), p2=(490, 80))
             self.device.click_record_clear()
             self.device.sleep(1.2)
 
-        # 固定区域优先，补充只补空缺
-        result = {}
-        for i in range(len(NUMERALS)):
-            idx = i + 1
-            if idx in found:
-                result[idx] = found[idx]
-            elif idx in found_sup:
-                result[idx] = found_sup[idx]
-            else:
-                result[idx] = 0
+        if not found_any:
+            logger.info(f'模板未命中，视为没有 {color} 仙玉碎片')
         logger.attr(f'{color}仙玉碎片数量', result)
         return result
 
@@ -364,8 +449,10 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         return min((1, 2, 3, 4), key=lambda n: (counts.get(n, 0), -n))
 
     # ---------------------------------------------------------------- 一场战斗
-    def run_one_battle(self, daguan: int, xiaoguan: int, coord_text: str) -> bool:
+    def run_one_battle(self, daguan: int, xiaoguan: int) -> bool:
         logger.hr(f'{DAGUAN_NAMES[daguan]} 第{xiaoguan}小关')
+        # 每局开始重置翻牌结果，避免本局没打到/没领奖时沿用上一局的碎片计数
+        self.last_reward = None
         self.enter_xianfu_page()
         if not self.select_daguan(daguan):
             return False
@@ -379,8 +466,18 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             return True
         if not self.start_challenge():
             return False
-        if not self.battle(self.parse_coord(coord_text)):
+        result = self.battle()
+        if result not in ('reward', 'target_lost'):
+            logger.warning('战斗失败（副本未加载 / 小地图移动失败 / 超时），停止清仙石')
             return False
+        if result == 'target_lost':
+            # 目标丢失后看最终结果：回到仙府页面且没有奖励面板 = 这关没打过
+            outcome = self.wait_stage_result()
+            if outcome == 'failed':
+                self.notify_stage_failed(daguan, xiaoguan)
+                return True  # 继续下一轮
+            if outcome == 'reward':
+                logger.info('目标丢失后奖励面板出现，继续领奖')
         if self.claim_reward():
             return True
         # 领奖失败：已通关的关卡上是个宝箱，再点一次可以重新翻牌（不再消耗仙石）
@@ -471,13 +568,37 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         return False
 
     # ---------------------------------------------------------------- 战斗
+    def battle_task_preset(self) -> str:
+        """
+        本任务选的战斗预设（配置 -> battle_config.battle_preset）
+
+        共享的 BattleAttack.battle_task_preset() 取的是任务根节点的 battle_preset，
+        取不到嵌套在 battle_config 组里的字段，会静默回落到系统预设。
+        先在仙府任务里覆盖，只影响本任务。
+        """
+        return str(self.config.xianfu_jiuchongtian.battle_config.battle_preset or '')
+
     def in_xianfu_map(self):
         location = self.map_current_location()
         if location is None:
             return None
         return self.map_name_match(location[0], MAP_NAME)
 
-    def battle(self, target_coord) -> bool:
+    # 关闭小地图后，多少秒内没进入战斗就重新打开小地图移动
+    BATTLE_ENTER_TIMEOUT = 15
+    # 小地图移动最多重试几次（防止点不到战斗点时死循环）
+    BATTLE_MOVE_RETRY = 5
+
+    def battle(self) -> str:
+        """
+        进副本打怪
+
+        - 进图后打开小地图，点战斗点让角色自动寻路到怪物，然后关闭小地图
+        - 关闭小地图后 BATTLE_ENTER_TIMEOUT 秒内锁定到可攻击目标就开始战斗；
+          超时还没进入战斗就重新打开小地图再点一次
+
+        :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'failed' 副本未加载/移动失败/超时
+        """
         logger.hr('战斗')
         timer = Timer(25).start()
         while not timer.reached():
@@ -487,24 +608,130 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             self.device.sleep(0.5)
         else:
             logger.warning('副本未加载')
-            return False
+            return 'failed'
 
-        logger.info(f'走到怪物 {target_coord}')
-        # calibrate=False：副本限时 2 分钟，不想花时间做校准探测（用登记的校准值/兜底）
-        # 返回值必须看：走不到就只会在原地放技能，日志里要有明确记录
-        if not self.map_move_to(target_coord[0], target_coord[1],
-                                ensure_main=False, calibrate=False, timeout=60):
-            logger.warning(f'走到怪物 {target_coord} 失败，将在当前位置放技能')
+        for attempt in range(1, self.BATTLE_MOVE_RETRY + 1):
+            logger.info(f'打开小地图，点击战斗点（第{attempt}次）')
+            self.map_close_main_popup()
+            if not self.map_open_minimap():
+                logger.warning('小地图没有打开')
+                continue
+            self.click(self.C_BATTLE_POINT)
+            self.device.sleep(0.5)
+            self.map_close_minimap()
 
-        def stop_check():
+            logger.info(f'等待进入战斗（{self.BATTLE_ENTER_TIMEOUT}s）')
+            # max_switch 放大，让 15s 超时而不是切换次数先到
+            if self.ui_ensure_target_locked(timeout=self.BATTLE_ENTER_TIMEOUT, max_switch=30):
+                logger.info('已锁定可攻击目标，开始释放技能'
+                            '（队列式：双击 -> 校验目标/冷切；全部冷却才普攻）')
+                return self.battle_loop()
+            logger.warning(f'{self.BATTLE_ENTER_TIMEOUT}s 内没有进入战斗，重新打开小地图移动')
+
+        logger.warning(f'重试 {self.BATTLE_MOVE_RETRY} 次仍未进入战斗，结束战斗')
+        return 'failed'
+
+    # ---------------------------------------------------------------- 战斗循环
+    # 每个技能最多尝试几次（含第一次）：每次 = 一次双击，没进冷却就重试，超过跳过换下一个技能
+    SKILL_MAX_ATTEMPTS = 3
+    # 点完技能等它进入冷却的最长时间 / 轮询间隔（秒）
+    SKILL_COOLDOWN_TIMEOUT = 1.2
+    SKILL_COOLDOWN_POLL = 0.1
+
+    def battle_loop(self) -> str:
+        """
+        队列式连续释放技能，直到奖励面板出现 / 目标丢失 / 超时 / 重排次数上限
+
+        - 按优先级顺序释放；没进冷却的技能排到下一个技能后面（同时只允许一个延后）；
+        - 下一个技能也没进冷却时不重排，继续释放之前延后的那个；
+        - 所有技能都在冷却时才释放普通攻击。
+
+        :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'timeout' 超时/重排上限
+        """
+        self.screenshot()
+        plan = self.battle_plan()
+        if plan:
+            slots = [entry.slot for entry in plan]
+        else:
+            logger.warning('技能位识别失败，按 7 个技能位逐个尝试')
+            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+
+        return self.battle_skill_loop(
+            slots,
+            check_stop=self.battle_stop_reason,
+            target_check=lambda image: self.ui_target_attackable(image),
+            timeout=BATTLE_TIMEOUT,
+            max_attempts=self.SKILL_MAX_ATTEMPTS,
+            cooldown_timeout=self.SKILL_COOLDOWN_TIMEOUT,
+            poll_interval=self.SKILL_COOLDOWN_POLL,
+            max_cycles=BATTLE_GROUPS_MAX,
+        )
+
+    def battle_stop_reason(self, image=None) -> str | None:
+        """
+        战斗该结束了吗：'reward' 奖励面板出现；'target_lost' 目标丢失且等不到面板
+
+        :param image: 调用方传入的截图（同一帧已经用来识别目标/按钮/冷切）；
+                      None = 自己现截。奖励面板与目标/按钮都基于这张图判断。
+        """
+        self.reset_records()
+        if image is None:
+            image = self.screenshot()
+        if self.I_REWARD_PANEL.match(image):
+            logger.info('奖励面板出现，结束战斗')
+            return 'reward'
+        if self.ui_target_attackable(image):
+            return None
+        # 目标丢失：多半是打死了，给奖励面板一点弹出时间，别抢在面板前结束
+        timer = Timer(REWARD_PANEL_GRACE).start()
+        while not timer.reached():
+            self.device.sleep(0.3)
+            image = self.screenshot()
+            if self.I_REWARD_PANEL.match(image):
+                logger.info('奖励面板出现，结束战斗')
+                return 'reward'
+        logger.warning('目标丢失且等待奖励面板超时，结束战斗')
+        return 'target_lost'
+
+    def wait_stage_result(self, timeout: float = None) -> str | None:
+        """
+        战斗以「目标丢失」结束后，确认这一关的最终结果：
+
+        - 'reward'：奖励面板出现（其实已通关，继续领奖）
+        - 'failed'：回到仙府九重天页面且没有奖励面板（没打过，被传回来了）
+        - None：超时都没确认（按原流程继续尝试领奖）
+
+        :param timeout: 等待时间（秒），默认 STAGE_RESULT_TIMEOUT
+        """
+        timeout = STAGE_RESULT_TIMEOUT if timeout is None else float(timeout)
+        timer = Timer(timeout).start()
+        while not timer.reached():
             self.reset_records()
             self.screenshot()
-            return self.appear(self.I_REWARD_PANEL)
+            if self.appear(self.I_REWARD_PANEL):
+                logger.info('奖励面板出现')
+                return 'reward'
+            if self.ui_page_appear(page_xianfu, skip_first_screenshot=True):
+                # 页面出现后再确认一下面板（面板可能比页面晚一点弹出）
+                for _ in range(4):
+                    self.device.sleep(0.5)
+                    self.screenshot()
+                    if self.appear(self.I_REWARD_PANEL):
+                        logger.info('奖励面板出现')
+                        return 'reward'
+                logger.info('已回到仙府九重天页面，且没有奖励面板')
+                return 'failed'
+            self.device.sleep(0.5)
+        logger.warning(f'{timeout}s 内没等到奖励面板，也没回到仙府九重天页面')
+        return None
 
-        logger.info('开始释放技能（7 技能 + 普通攻击，每组顺序随机）')
-        return self.battle_simple_loop(stop_check=stop_check,
-                                       timeout=BATTLE_TIMEOUT,
-                                       groups_max=BATTLE_GROUPS_MAX)
+    def notify_stage_failed(self, daguan: int, xiaoguan: int) -> None:
+        """关卡未通过：推送通知（推送失败不影响继续下一轮）"""
+        message = (f'{DAGUAN_NAMES[daguan]} 第{xiaoguan}小关未通过'
+                   f'（目标丢失后回到仙府九重天页面，没有奖励面板）')
+        logger.warning(message)
+        self.config.notifier.push(title='仙府九重天任务关卡未通过',
+                                  content=f'<{self.config.config_name}> {message}')
 
     # ---------------------------------------------------------------- 领奖
     # 本次翻牌奖励的原文（用于判断是否还没翻开）
