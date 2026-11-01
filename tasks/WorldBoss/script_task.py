@@ -631,7 +631,22 @@ class ScriptTask(GameUi, WorldBossAssets):
                 self._death_stage = 'attack'
                 return self.pair_attack_loop(boss, pair, state, event_time, deadline,
                                              max_skills, cast_counter)
-            except WorldBossFinished:
+            except WorldBossFinished as e:
+                # 结束消息可能是「另一个 boss」的：监听状态还指着上一个 boss，
+                # 消息在切回来的这一帧才冒出来。必须按 e.key 归因 ——
+                # 记到当前 boss 头上会让另一个 boss 永远「没打完」，
+                # 于是反复传送过去再打一遍（每次传送 500 铜贝）。
+                if e.key and e.key != boss['key']:
+                    other = next((item for item in pair if item['key'] == e.key), None)
+                    self.watch_finish_stop()
+                    if other is None:
+                        logger.info(f'Boss {e.key} finished (watched, unknown boss)')
+                        return 'finished'
+                    logger.info(f'{other["name"]} finished (watched, 当前在打 {boss["name"]})')
+                    state[other['key']] = True
+                    self.mark_event_done(other, event_time)
+                    self.handle_finish(other)
+                    return 'finished'
                 logger.info(f"{boss['name']} finished (watched)")
                 self.watch_finish_stop()
                 state[boss['key']] = True
