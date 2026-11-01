@@ -132,13 +132,16 @@ class MapNavigation(BaseTask, GameUiAssets):
             best = min(candidates, key=lambda c: abs(len(str(c[0])) - len(str(c[1]))))
         return name, best[0], best[1]
 
-    def map_current_location(self):
+    def map_current_location(self, image=None):
         """
         读取主页面右上角当前地点与坐标
+        :param image: 可选，传入当前帧则不再重复截图
         :return: (地点名, x, y)；识别失败返回 None
         """
-        self.screenshot()
-        results = self.O_MAP_LOCATION.detect_and_ocr(self.device.image, logDisplay=False)
+        if image is None:
+            self.screenshot()
+            image = self.device.image
+        results = self.O_MAP_LOCATION.detect_and_ocr(image, logDisplay=False)
         text = ''.join(item.ocr_text for item in results)
         location = self.map_parse_location(text, hint=self._last_map_location)
         logger.attr('Map current location', f'{text} -> {location}')
