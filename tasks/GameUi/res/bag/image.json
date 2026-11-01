@@ -1,0 +1,38 @@
+[
+  {
+    "itemName": "bag_menu_repair",
+    "imageName": "res_bag_menu_repair.png",
+    "roiFront": "670,402,219,44",
+    "roiBack": "375,291,546,187",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "背包-随身功能弹窗「修理装备」按钮（同时用于判断弹窗已打开）"
+  },
+  {
+    "itemName": "bag_repair_confirm_text",
+    "imageName": "res_bag_repair_confirm_text.png",
+    "roiFront": "606,303,168,44",
+    "roiBack": "337,292,605,124",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "背包-修理确认弹窗文案（固定片段「用于修理全部装备」，铜贝数量不固定）"
+  },
+  {
+    "itemName": "bag_repair_success",
+    "imageName": "res_bag_repair_success.png",
+    "roiFront": "573,339,123,44",
+    "roiBack": "368,320,515,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "背包-修理成功提示条"
+  },
+  {
+    "itemName": "bag_repair_nothing",
+    "imageName": "res_bag_repair_nothing.png",
+    "roiFront": "507,338,260,44",
+    "roiBack": "368,320,515,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "背包-无需修理提示条（您没有装备需要修理）"
+  }
+]

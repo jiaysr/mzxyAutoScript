@@ -43,20 +43,27 @@ class GameUiAssets:
 	# 背包-整理背包按钮 
 	C_BAG_SORT = RuleClick(roi_front=(573,591,137,48), roi_back=(573,591,137,48), name="bag_sort")
 	# 背包-随身功能按钮（整理背包右侧） 
-	C_BAG_GENERAL_FUNCTION = RuleClick(roi_front=(795,591,137,48), roi_back=(780,580,167,70), name="bag_general_function")
+	C_BAG_GENERAL_FUNCTION = RuleClick(roi_front=(829,588,137,48), roi_back=(829,588,137,48), name="bag_general_function")
+	# 背包-修理确认弹窗「确定」按钮 
+	C_BAG_REPAIR_CONFIRM = RuleClick(roi_front=(771,355,137,48), roi_back=(771,357,137,48), name="bag_repair_confirm")
+	# 背包-提示条右上角关闭 X（修理成功/无需修理共用） 
+	C_BAG_TIP_CLOSE = RuleClick(roi_front=(941,286,47,49), roi_back=(944,291,42,40), name="bag_tip_close")
+
+
+	# Image Rule Assets
+	# 背包-随身功能弹窗「修理装备」按钮（同时用于判断弹窗已打开） 
+	I_BAG_MENU_REPAIR = RuleImage(roi_front=(670,402,219,44), roi_back=(375,291,546,187), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_menu_repair.png")
+	# 背包-修理确认弹窗文案（固定片段「用于修理全部装备」，铜贝数量不固定） 
+	I_BAG_REPAIR_CONFIRM_TEXT = RuleImage(roi_front=(606,303,168,44), roi_back=(337,292,605,124), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_confirm_text.png")
+	# 背包-修理成功提示条 
+	I_BAG_REPAIR_SUCCESS = RuleImage(roi_front=(573,339,123,44), roi_back=(368,320,515,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_success.png")
+	# 背包-无需修理提示条（您没有装备需要修理） 
+	I_BAG_REPAIR_NOTHING = RuleImage(roi_front=(507,338,260,44), roi_back=(368,320,515,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_nothing.png")
 
 
 	# Ocr Rule Assets
 	# 物品-背包物品格（4 列）识别区 
 	O_BAG_GRID = RuleOcr(roi=(255,105,925,450), area=(255,105,925,450), mode="Full", method="Default", keyword="", name="bag_grid")
-	# 背包-底部按钮栏（扩充包格/整理背包/随身功能，OCR 兜底定位） 
-	O_BAG_BOTTOM = RuleOcr(roi=(250,580,700,70), area=(250,580,700,70), mode="Full", method="Default", keyword="", name="bag_bottom")
-	# 背包-随身功能 4 按钮弹窗（请选择/材料商店/杂货商店/随身仓库/修理装备） 
-	O_BAG_GENERAL_MENU = RuleOcr(roi=(280,210,720,320), area=(280,210,720,320), mode="Full", method="Default", keyword="", name="bag_general_menu")
-	# 背包-修理确认弹窗（你将花费铜贝X用于修理全部装备，数量不固定；取消/确定） 
-	O_BAG_REPAIR_CONFIRM = RuleOcr(roi=(280,285,720,150), area=(280,285,720,150), mode="Full", method="Default", keyword="", name="bag_repair_confirm")
-	# 背包-修理结果提示条（修理成功/您没有装备需要修理；提示条纵向位置有抖动，区域上下放宽） 
-	O_BAG_REPAIR_RESULT = RuleOcr(roi=(230,300,800,170), area=(230,300,800,170), mode="Full", method="Default", keyword="", name="bag_repair_result")
 
 
 	# Click Rule Assets
@@ -159,6 +166,8 @@ class GameUiAssets:
 	I_MENU_EXPANDED = RuleImage(roi_front=(1153,28,15,32), roi_back=(1136,18,50,54), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_menu_expanded.png")
 	# 右上角菜单内的活动图标 
 	I_ACTIVITY_ICON = RuleImage(roi_front=(1087,36,31,32), roi_back=(448,12,685,71), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_activity_icon.png")
+	# 右上角菜单内的背包图标（点击直接打开背包页） 
+	I_MENU_BAG_ICON = RuleImage(roi_front=(995,21,47,55), roi_back=(448,12,685,71), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/menu/res_menu_bag_icon.png")
 
 
 	# Click Rule Assets

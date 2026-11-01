@@ -94,6 +94,8 @@ page_role_detail.module_home = True
 
 page_main.link(button=G.C_PAGE_MAIN_GOTO_PLAYER, destination=page_role_detail)
 page_main.link(button=MenuTarget(G.I_ACTIVITY_ICON), destination=page_activity)
+# 背包：右上角菜单内的背包图标，点击直接打开背包页（比绕侧栏模块少一步）
+page_main.link(button=MenuTarget(G.I_MENU_BAG_ICON), destination=page_item_bag)
 # 地图：主页面 -> 小地图 -> 世界地图 -> 列表；传送弹窗「确定」后回主页面
 page_main.link(button=G.C_MAP_MINIMAP_ENTRY, destination=page_minimap)
 page_minimap.link(button=G.I_MAP_MINIMAP_WORLD_MAP, destination=page_world_map)
