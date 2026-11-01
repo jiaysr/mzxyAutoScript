@@ -81,7 +81,7 @@ class ScriptTask(GameUi, WarChariotAssets):
     # 单段移动超时（秒）
     CHARIOT_MOVE_TIMEOUT = 20
     # 等待「准备阶段完成，开始战斗」提示的最长时间（秒）
-    CHARIOT_MOVE_PROMPT_TIMEOUT = 20
+    CHARIOT_MOVE_PROMPT_TIMEOUT = 90
     # 等待轮空结算弹窗的最长时间（秒）
     CHARIOT_RESULT_TIMEOUT = 15
     # 识别到战车文字后，找到接受按钮并进入战车地图的超时时间（秒）
