@@ -73,6 +73,14 @@ class WorldBossDeath(Exception):
         self.stage = stage
 
 
+class WorldBossFinished(Exception):
+    """结束模板命中：由截图钩子在任何阶段抛出，事件流程捕获后标记该 boss 已完成"""
+
+    def __init__(self, key: str = ''):
+        super().__init__(key)
+        self.key = key
+
+
 class ScriptTask(GameUi, WorldBossAssets):
     """
     世界首领：按配置的时间段提前出发，自动寻路到首领位置
@@ -80,7 +88,11 @@ class ScriptTask(GameUi, WorldBossAssets):
     同一时段两个 boss：先打配置选中的 A 共 N 个技能，再打 B；全程同时轮询双方结束模板，
     B 结束后 A 还没结束就回 A 继续打。
     整点后最多参与 event_window（10 分钟）：没锁定到目标、也没出结束模板就到点结束。
-    角色阵亡由 BaseTask.screenshot 的全局死亡检测处理（复活后重跑本任务）
+
+    两个跨阶段的机制都由异常抛给事件流程统一处理：
+    - 阵亡：handle_death 复活后抛 WorldBossDeath，按死亡阶段续跑（寻路 / 锁定 / 攻击）；
+    - 结束：首领刷新后 watch_finish_start 开启监听，之后任何一次截图命中结束模板
+      都会抛 WorldBossFinished —— 锁定、攻击、复活、重新寻路都不会漏掉这条聊天消息。
 
     TODO:
       - 天师的幻影（全服 boss，12:00/22:00）尚未接入，见 BOSS_LIST 顶部说明。
@@ -102,6 +114,8 @@ class ScriptTask(GameUi, WorldBossAssets):
     SKILL_MAX_ATTEMPTS = 3
     SKILL_COOLDOWN_TIMEOUT = 1.2
     SKILL_COOLDOWN_POLL = 0.1
+    # 锁定阶段连续没有目标多久，提示「首领可能已被击败」（秒）
+    NO_TARGET_HINT = 20
     # 目标丢失后等结束模板出现的时间/轮询间隔（秒）
     FINISH_TEMPLATE_TIMEOUT = 5.0
     FINISH_TEMPLATE_POLL = 0.2
@@ -114,6 +128,54 @@ class ScriptTask(GameUi, WorldBossAssets):
     done_events: set = None
     # 当前阶段：navigate=寻路/锁定，attack=攻击（死亡时用于日志和恢复）
     _death_stage: str = 'navigate'
+
+    # ---------------------------------------------------------------- 结束监听
+    # 结束模板是聊天栏系统消息，会随新消息往上滚走。从首领刷新到「结束 / 超时」之间，
+    # 任何一次截图都要顺带查一次：锁定、攻击、阵亡复活、重新寻路都不再需要各自记得轮询。
+    _watch_boss: dict = None
+    _watch_rule = None
+    _watch_deadline: datetime = None
+    # 监听期间临时静音（check_finish / handle_finish 自己要看模板时用，避免钩子抢跑抛异常）
+    _watch_muted: bool = False
+
+    def watch_finish_start(self, boss: dict, finish_rule, deadline: datetime) -> None:
+        """首领刷新后开启结束监听，直到命中、超时或手动停止"""
+        self._watch_boss = boss
+        self._watch_rule = finish_rule
+        self._watch_deadline = deadline
+        self._watch_muted = False
+        if finish_rule is None:
+            logger.warning(f'{boss["name"]} 缺少结束模板素材，无法监听首领结束')
+
+    def watch_finish_stop(self) -> None:
+        """关闭结束监听（命中、切换 boss、任务收尾时调用）"""
+        self._watch_boss = None
+        self._watch_rule = None
+        self._watch_deadline = None
+        self._watch_muted = False
+
+    def screenshot(self):
+        """所有截图统一入口：截完先做全局处理，再查一次结束模板"""
+        image = super().screenshot()
+        self.watch_finish_check(image)
+        return image
+
+    def watch_finish_check(self, image) -> None:
+        """
+        监听中就用这一帧判断首领是否结束，命中直接抛 WorldBossFinished
+
+        为什么用异常：结束可能发生在任何阶段（锁定、攻击、死亡复活、重新寻路），
+        抛异常让当前深层层级直接退出，统一由事件流程标记完成并处理归属奖，
+        比让每个循环各自 return 'finished' 更难漏。
+        """
+        boss = self._watch_boss
+        if boss is None or self._watch_muted or self._watch_rule is None:
+            return
+        if self._watch_deadline is not None and datetime.now() >= self._watch_deadline:
+            return
+        if self.finish_confirmed(boss, self._watch_rule, image):
+            logger.info(f'{boss["name"]} finish confirmed while watching')
+            raise WorldBossFinished(boss['key'])
 
     def run(self) -> None:
         self.reset_records()
@@ -144,11 +206,20 @@ class ScriptTask(GameUi, WorldBossAssets):
                     self.simultaneous_flow(pending, event_time)
                 else:
                     self.world_boss_flow(pending[0], event_time)
+            except WorldBossFinished as e:
+                # 理论上流程内部会捕获；这里兜底层，避免监听异常直接打死任务
+                logger.info(f'Boss {e.key} finished (watched, unhandled)')
+                self.watch_finish_stop()
+                for boss in group:
+                    if boss['key'] == e.key:
+                        self.mark_event_done(boss, event_time)
+                        break
             except WorldBossDeath as e:
                 # 理论上流程内部会捕获；这里兜底层，避免死亡异常直接打死任务
                 logger.warning(f'Unhandled death during {e.stage}, rerun task')
                 self.rerun_task()
 
+        self.watch_finish_stop()
         self.clear_task_record()
         self.schedule_next_event()
         raise TaskEnd('WorldBoss')
@@ -205,6 +276,7 @@ class ScriptTask(GameUi, WorldBossAssets):
             logger.warning(f"{boss['name']} event window already passed: {deadline:%H:%M:%S}")
             return
 
+        finish_rule = self.finish_rule(boss)
         while datetime.now() < deadline:
             if self.event_key_for(boss, event_time) in (self.done_events or set()):
                 return
@@ -217,10 +289,15 @@ class ScriptTask(GameUi, WorldBossAssets):
                     return
 
                 remaining = max(1, int((deadline - datetime.now()).total_seconds()))
-                if not self.wait_until_arrive(boss, timeout=min(180, remaining)):
+                arrive = self.wait_until_arrive(boss, timeout=min(180, remaining),
+                                                finish_rule=finish_rule)
+                if arrive == 'finished':
+                    self.mark_event_done(boss, event_time)
+                    self.handle_finish(boss)
+                    return
+                if arrive != 'arrived':
                     logger.warning(f"Did not arrive at {boss['target_map']}{boss['target_coord']}")
 
-                finish_rule = self.finish_rule(boss)
                 while datetime.now() < deadline:
                     self._death_stage = 'navigate'
                     lock_result = self.lock_boss(boss, event_time, finish_rule, deadline)
@@ -245,8 +322,19 @@ class ScriptTask(GameUi, WorldBossAssets):
 
                 logger.warning(f"{boss['name']} engagement timeout at {deadline:%H:%M:%S}")
                 return
+            except WorldBossFinished:
+                logger.info(f"{boss['name']} finished (watched)")
+                self.watch_finish_stop()
+                self.mark_event_done(boss, event_time)
+                self.handle_finish(boss)
+                return
             except WorldBossDeath as e:
                 logger.warning(f'Revived during {e.stage}, re-path to {boss["name"]}')
+                # 复活/重新寻路这几十秒没有战斗循环，结束消息最容易在这段被刷走
+                if self.check_finish(boss, finish_rule, 'revive'):
+                    self.mark_event_done(boss, event_time)
+                    self.handle_finish(boss)
+                    return
                 continue
 
         logger.warning(f"{boss['name']} engagement timeout at {deadline:%H:%M:%S}")
@@ -313,12 +401,18 @@ class ScriptTask(GameUi, WorldBossAssets):
         """
         logger.hr(f"Lock {boss['name']} (double boss)")
         self.wait_until_spawn(event_time)
+        self.watch_finish_start(boss, self.finish_rule(boss), deadline)
         lock_deadline = deadline
         if lock_timeout:
             lock_deadline = min(deadline, datetime.now() + timedelta(seconds=lock_timeout))
         keywords = self.target_keywords(boss)
         logger.attr('Target keywords', ', '.join(keywords))
         self.collapse_menu()
+
+        # 连续锁不到目标的次数：用于降噪（只在第一次打 INFO）和「可能已被打死」提示
+        no_target_rounds = 0
+        no_target_hint = False
+        no_target_timer = Timer(self.NO_TARGET_HINT).start()
 
         while datetime.now() < lock_deadline:
             self.reset_records()
@@ -333,6 +427,7 @@ class ScriptTask(GameUi, WorldBossAssets):
                 return 'all_done'
 
             if self.ui_target_locked(image=image):
+                no_target_rounds = 0
                 action = self.ui_target_action(image=image)
                 if action == ACTION_ATTACK:
                     name = self.ui_target_name(scales=self.target_name_scales,
@@ -344,7 +439,17 @@ class ScriptTask(GameUi, WorldBossAssets):
                 else:
                     logger.info(f'Target action is {action}, need attack, switch target')
             else:
-                logger.info('No target locked, click target button')
+                no_target_rounds += 1
+                # 长时间锁不到目标时这行会每 1.3 秒刷一次，只保留第一次
+                if no_target_rounds == 1:
+                    logger.info('No target locked, click target button')
+                else:
+                    logger.debug(f'No target locked (round {no_target_rounds}), click target button')
+                if not no_target_hint and no_target_timer.reached():
+                    no_target_hint = True
+                    logger.warning(f'No target near {boss["name"]} for {self.NO_TARGET_HINT}s, '
+                                   f'it may already be finished; '
+                                   f'still trying until {lock_deadline:%H:%M:%S}')
 
             self.appear_then_click(self.I_TARGET_BUTTON, action=self.C_TARGET_BUTTON_CLICK)
             self.device.sleep(self.TARGET_LOCK_SWITCH_INTERVAL)
@@ -477,7 +582,9 @@ class ScriptTask(GameUi, WorldBossAssets):
                         logger.warning(f"Unable to seek {boss['name']}")
                         return 'navigate_failed'
                     remaining = max(1, int((deadline - datetime.now()).total_seconds()))
-                    if not self.wait_until_arrive(boss, timeout=min(180, remaining)):
+                    arrive = self.wait_until_arrive(boss, timeout=min(180, remaining),
+                                                    finish_rule=self.finish_rule(boss))
+                    if arrive == 'timeout':
                         logger.warning(f"Did not arrive at {boss['target_map']}{boss['target_coord']}")
                 except (GameStuckError, GamePageUnknownError, GameNotRunningError) as e:
                     logger.warning(f"Navigate {boss['name']} failed: {e}")
@@ -498,6 +605,13 @@ class ScriptTask(GameUi, WorldBossAssets):
                 self._death_stage = 'attack'
                 return self.pair_attack_loop(boss, pair, state, event_time, deadline,
                                              max_skills, cast_counter)
+            except WorldBossFinished:
+                logger.info(f"{boss['name']} finished (watched)")
+                self.watch_finish_stop()
+                state[boss['key']] = True
+                self.mark_event_done(boss, event_time)
+                self.handle_finish(boss)
+                return 'finished'
             except WorldBossDeath as e:
                 logger.warning(f'Revived during {e.stage}, return to {boss["name"]} and continue')
                 continue
@@ -786,9 +900,15 @@ class ScriptTask(GameUi, WorldBossAssets):
         """
         logger.hr(f"Lock {boss['name']}")
         self.wait_until_spawn(event_time)
+        self.watch_finish_start(boss, finish_rule, deadline)
         keywords = self.target_keywords(boss)
         logger.attr('Target keywords', ', '.join(keywords))
         self.collapse_menu()
+
+        # 连续锁不到目标的次数：用于降噪（只在第一次打 INFO）和「可能已被打死」提示
+        no_target_rounds = 0
+        no_target_hint = False
+        no_target_timer = Timer(self.NO_TARGET_HINT).start()
 
         while datetime.now() < deadline:
             self.reset_records()
@@ -800,6 +920,7 @@ class ScriptTask(GameUi, WorldBossAssets):
                 return 'finished'
 
             if self.ui_target_locked(image=image):
+                no_target_rounds = 0
                 action = self.ui_target_action(image=image)
                 if action == ACTION_ATTACK:
                     name = self.ui_target_name(scales=self.target_name_scales,
@@ -811,7 +932,17 @@ class ScriptTask(GameUi, WorldBossAssets):
                 else:
                     logger.info(f'Target action is {action}, need attack, switch target')
             else:
-                logger.info('No target locked, click target button')
+                no_target_rounds += 1
+                # 长时间锁不到目标时这行会每 1.3 秒刷一次，只保留第一次
+                if no_target_rounds == 1:
+                    logger.info('No target locked, click target button')
+                else:
+                    logger.debug(f'No target locked (round {no_target_rounds}), click target button')
+                if not no_target_hint and no_target_timer.reached():
+                    no_target_hint = True
+                    logger.warning(f'No target near {boss["name"]} for {self.NO_TARGET_HINT}s, '
+                                   f'it may already be finished; '
+                                   f'still trying until {deadline:%H:%M:%S}')
 
             self.appear_then_click(self.I_TARGET_BUTTON, action=self.C_TARGET_BUTTON_CLICK)
             self.device.sleep(self.TARGET_LOCK_SWITCH_INTERVAL)
@@ -919,6 +1050,29 @@ class ScriptTask(GameUi, WorldBossAssets):
             self.device.sleep(self.FINISH_TEMPLATE_POLL)
         return False
 
+    def check_finish(self, boss: dict, finish_rule, stage: str = '') -> bool:
+        """
+        用当前画面判断首领是否已经结束（复活后等没有战斗循环托管的时机调用）
+
+        结束模板是聊天栏里的系统消息，会随新消息往上滚走。死亡复活 + 重新寻路动辄几十秒，
+        这期间没人轮询，等回到 lock_boss 往往已经看不到消息了，所以复活后要立刻补查一次。
+
+        :param stage: 调用时机（只用于日志）
+        :return: 是否确认结束
+        """
+        if finish_rule is None:
+            return False
+        self._watch_muted = True
+        try:
+            self.screenshot()
+        finally:
+            self._watch_muted = False
+        if self.finish_confirmed(boss, finish_rule, self.device.image):
+            logger.info(f'{boss["name"]} finish confirmed'
+                        f'{f" after {stage}" if stage else ""}')
+            return True
+        return False
+
     def handle_finish(self, boss: dict) -> None:
         """
         首领结束后的额外处理：2 秒内出现「首领归属奖」弹窗就点关闭，没出现直接结束
@@ -927,6 +1081,7 @@ class ScriptTask(GameUi, WorldBossAssets):
         只在这里轮询，避免全局处理和其他弹窗混在一起。
         """
         logger.info(f"World boss {boss['name']} finished")
+        self.watch_finish_stop()
         timer = Timer(self.FINISH_REWARD_WINDOW).start()
         clicked = False
         while not timer.reached():
@@ -1017,7 +1172,8 @@ class ScriptTask(GameUi, WorldBossAssets):
         raise WorldBossDeath(stage)
 
     # ---------------------------------------------------------------- 到达
-    def wait_until_arrive(self, boss: dict, timeout: int = 180) -> bool:
+    def wait_until_arrive(self, boss: dict, timeout: int = 180,
+                          finish_rule=None) -> str:
         """
         等待自动寻路到达首领坐标
 
@@ -1027,6 +1183,10 @@ class ScriptTask(GameUi, WorldBossAssets):
         自动寻路中途会卡住（被障碍挡住 / 点击打断 / 寻路提前结束），此时坐标会长时间
         停在原地。这里做卡住检测：坐标连续 ARRIVE_STALL_SECONDS 秒没变化就重新点「寻」
         重启寻路（reseek_boss），避免干等到超时。
+
+        :param finish_rule: 结束模板。传入后走位过程同步轮询「首领已结束」——
+                            复活后重新寻路要几十秒，这段没有战斗循环，结束消息最容易漏
+        :return: 'arrived' / 'finished' / 'timeout'
         """
         logger.hr('Wait until arrive')
         target_map = boss['target_map']
@@ -1038,13 +1198,18 @@ class ScriptTask(GameUi, WorldBossAssets):
         while 1:
             self.reset_records()
             location = self.map_current_location()
+            # map_current_location 已经截过一帧，直接复用这张图检查结束模板
+            if finish_rule is not None and self.finish_confirmed(boss, finish_rule,
+                                                                self.device.image):
+                logger.info(f"{boss['name']} finish confirmed while navigating")
+                return 'finished'
             if location is not None:
                 map_name, coord_x, coord_y = location
                 distance = abs(coord_x - target_coord[0]) + abs(coord_y - target_coord[1])
                 logger.attr('Position', f'{map_name}{coord_x},{coord_y} distance {distance}')
                 if self.map_name_match(map_name, target_map) and distance <= ARRIVE_TOLERANCE:
                     logger.info(f"Arrived at {map_name}{coord_x},{coord_y}")
-                    return True
+                    return 'arrived'
                 key = (map_name, coord_x, coord_y)
             else:
                 # 读不到坐标：当作「没有变化」，让卡住计时器继续走
@@ -1065,7 +1230,7 @@ class ScriptTask(GameUi, WorldBossAssets):
 
             if timer.reached():
                 logger.warning(f"Arrive timeout, now at {last_key}")
-                return False
+                return 'timeout'
             self.device.sleep(1)
 
     def reseek_boss(self, boss: dict) -> bool:

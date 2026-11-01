@@ -60,21 +60,25 @@ class Control(Minitouch, Adb, Scrcpy, Window):
     #     )
     #     method(x, y)
 
-    def click(self, x: int, y: int, control_check=True, control_name='Click') -> None:
+    def click(self, x: int, y: int, control_check=True, control_name='Click', log: bool = True) -> None:
         """
 
         :param control_name:
         :param x:
         :param y:
         :param control_check:
+        :param log: 是否用 INFO 记录本次点击。高频连点（如战斗技能）传 False，
+                    只会写 DEBUG，避免把任务日志冲掉
         :return:
         """
         if control_check:
             self.handle_control_check(control_name)
         x, y = ensure_int(x, y)
-        logger.info(
-            'Click %s @ %s' % (point2str(x, y), control_name)
-        )
+        message = 'Click %s @ %s' % (point2str(x, y), control_name)
+        if log:
+            logger.info(message)
+        else:
+            logger.debug(message)
         method = self.click_methods.get(
             self.config.script.device.control_method,
             self.click_adb

@@ -89,6 +89,10 @@ class BattleAttack:
     BATTLE_SKILL_CLICKS = 2
     BATTLE_SKILL_CLICK_INTERVAL = 0.1
 
+    # 战斗区域的点击是否写 INFO 日志。一轮技能十几行「Click (x, y) @ BATTLE_SKILLn」，
+    # 会把真正的战斗日志（识别/冷却/目标）冲掉；默认只写 DEBUG，排查点击坐标时改 True。
+    BATTLE_CLICK_LOG = False
+
     # ---------------------------------------------------------------- 单次点击
     def battle_click_once(self, region, control_name: str = 'BATTLE_BUTTON') -> None:
         """
@@ -101,7 +105,7 @@ class BattleAttack:
         x, y, w, h = region
         px = random.randint(x, x + w - 1)
         py = random.randint(y, y + h - 1)
-        self.device.click(x=px, y=py, control_name=control_name)
+        self.device.click(x=px, y=py, control_name=control_name, log=self.BATTLE_CLICK_LOG)
         self.device.click_record_clear()
 
     def battle_click_attack(self) -> None:
@@ -143,7 +147,8 @@ class BattleAttack:
         px = random.randint(x, x + w - 1)
         py = random.randint(y, y + h - 1)
         for i in range(clicks):
-            self.device.click(x=px, y=py, control_name=f'BATTLE_SKILL{index + 1}')
+            self.device.click(x=px, y=py, control_name=f'BATTLE_SKILL{index + 1}',
+                              log=self.BATTLE_CLICK_LOG)
             self.device.click_record_clear()
             if i + 1 < clicks:
                 self.device.sleep(interval)
@@ -161,7 +166,7 @@ class BattleAttack:
         for _ in range(self.BATTLE_CLICK_TIMES):
             px = random.randint(x, x + w - 1)
             py = random.randint(y, y + h - 1)
-            self.device.click(x=px, y=py, control_name='BATTLE_SKILL')
+            self.device.click(x=px, y=py, control_name='BATTLE_SKILL', log=self.BATTLE_CLICK_LOG)
             self.device.click_record_clear()
             self.device.sleep(self.BATTLE_CLICK_INTERVAL)
 
