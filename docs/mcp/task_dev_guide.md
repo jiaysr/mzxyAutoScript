@@ -483,7 +483,11 @@ ecord_skill_icon.py ^
    已接入：仙府九重天 / 世界首领 / 上古狩猎 / 域外迷窟。
 2. 任务里调用 `self.battle_preset()` 取到的就是「该任务选的预设，没选就是系统预设」；
    `battle_simple_loop()` 内部已经这么做了，用它的任务不用改。
-3. 词条 `battle_config` / `battle_preset` / `battle_preset_help`
+3. **坑**：`BattleAttack.battle_task_preset()` 读的是任务**根节点**的 `battle_preset`，
+   而字段实际在嵌套的 `battle_config` 组里 —— 不覆盖就会静默回落系统预设。
+   世界首领 / 仙府九重天 / 战车战场 / 域外迷窟都各自覆盖了一层，
+   写法见 `tasks/YuwaiMimang/script_task.py` 的 `battle_task_preset()`。
+4. 词条 `battle_config` / `battle_preset` / `battle_preset_help`
    （`assets/i18n/*.json` 和前端 `i18n_battle.dart`）。
 
 ### 10.7 测试
@@ -581,22 +585,42 @@ ecord_skill_icon.py ^
       改配置要重建整个子模型（`Config(...)= XxxConfig(...)`）或直接改 json
   - **打怪流程**（`battle_coord=304,76` 容差 2）
     - 进图 -> `recover_position` 走到基准点 -> `ui_close_menu()` 收起菜单
-      （收起后右侧竖排才露出「目标」按钮）-> 循环「切换目标 -> 三连击」
+      （收起后右侧竖排才露出「目标」按钮）
+    - **只打「战斗目标」白名单**（`battle_config.target_names`，默认 `小鬼,鬼王,鬼将`）：
+      `acquire_target()` 调 `ui_ensure_target_locked(target_name=..., action=attack)`，
+      逐个点「目标」切换并 OCR 校验名字，列表外的怪不碰；白名单留空 = 不校验名字
+    - 打怪两种模式，由 `battle_config.fast_click` 选：
+      * **按预设（默认）**：`battle_plan_slots()` 识别技能位并按预设优先级排序 ->
+        `battle_skill_loop()` 队列式双击释放（进冷却校验、冷却好的高优先级技能插队）；
+        默认**不点普攻**（`use_normal_attack` 共享默认关，技能全冷却时等冷却）；
+        目标丢失才换下一只，打不死的怪不会被每轮切走
+      * **秒杀快打**：`fast_click_once()` 固定顺序连点
+        （技能1x2 -> 普攻 -> 技能1x2 -> 技能3x2 -> 普攻），不识别技能、不等冷却；
+        中间**不点「目标」**（换目标统一交给 `acquire_target`）
+      * 预设模式下技能位一个都认不出来时，自动退回秒杀快打，避免干站着
     - 迷窟的「目标/普通攻击/技能」按钮与 WorldBoss、上古狩猎**用的是同一批素材**，
-      已统一收进 GameUi：`self.ui_lock_target()` / `self.battle_click_attack()` /
-      `self.battle_click_skill(0|2)`。迷窟里实测坐标逐个吻合，
+      已统一收进 GameUi / `tasks/Battle/slots.py`，迷窟里实测坐标逐个吻合，
       **不要再在各任务 res/ 里重复录一遍**
-    - 每轮：点「目标」切换 -> `click_attacks_once` 把普通攻击 + 技能1 + 技能3 各点一遍；
-      **不读目标名、不读剩余怪物数量**，一直连点到时段结束
+    - 停止条件只有时段到点（`battle_stop_reason` 返回 `window_end`，即 11:30 / 16:30）：
+      怪物在时段内一直刷新，不存在「打完了」，所以**不要**加「剩余怪物为 0 就收工」
+      这类判断（读到 0 只是瞬间，会误收工）
     - 中途修理：勾选 `repair_enable` 后每 `repair_interval_minutes` 分钟（默认 20）
       调一次 `bag_repair_equipment`（背包随身功能一键修理，站桩修完原地继续打；
       时段剩余不足 3 分钟时跳过；修完收起菜单并回一次基准点）
-    - 位置检测保留：每 `LOCK_CHECK_EVERY`（3）轮调 `recover_in_battle` 回基准点——
+    - 位置检测保留：秒杀快打每 3 轮、按预设模式每 6 次释放调一次 `recover_in_battle`——
       偏差小轻推（`map_move_nudge`，约 0.3s）、偏差大才走完整闭环 `map_move_to`；
       怪会追踪把角色带着跑偏，必须在循环内回位
     - **单步位移下限约 2 个坐标单位**（见上面 move.py 实测），与容差 2 同量级，
       `map_move_to` 会在目标附近震荡；实测 `306,41 -> 302,76` 能在 4 步内收敛到 `dist 2.0`，
       但要稳定命中最好把 `battle_tolerance` 设为 3
+    - **离场（`leave_mimang`）**：小地图上有三个出口，按 `LEAVE_EXITS` 顺序逐个试——
+      开小地图 -> `map_pan_to_corner(corner)` -> 点该出口 -> 关小地图
+      -> `wait_leave_mimang()` 等 60s 看地点名是否变化 -> 还在迷窟就换下一个出口，
+      三个都失败才算离场失败。出口区域（1280x720，实测图标中心）：
+      `(704,134,31,32)` / `(233,411,31,32)` / `(247,571,31,32)`；
+      **前两个在「拖到右上角」的视图里，第三个要拖到底部**（地图窗口 785x525 装不下三个出口，
+      两张截图里四边蓝色箭头一个是「只有底边」、一个是「只有顶边」，3 号图标只在底部视图出现）。
+      不拖到对应角落就点，坐标会因为视口跟着角色走而漂到空地上
     - **死亡不重跑**：覆盖 `handle_death` 为「点「返回村子」复活后原地继续打」——
       迷窟内「返回村子」是原地复活；全局默认的「复活 + 重跑任务」在本任务行不通：
       重跑要重新准备/进图，且 `run()` 的 finally 一定会把 next_run 重排到下个时段，
