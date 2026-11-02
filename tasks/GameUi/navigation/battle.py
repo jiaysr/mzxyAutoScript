@@ -80,6 +80,59 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
                                       action=self.C_TARGET_BUTTON_CLICK,
                                       interval=interval)
 
+    # ---------------------------------------------------------------- 快速补锁
+    # 目标死后快速补锁：点「目标」后等界面刷新的时间（秒）。
+    # 通用流程是 TARGET_LOCK_SWITCH_INTERVAL=0.5s，实测迷窟里换目标几乎即时，0.15s 够。
+    RELOCK_SETTLE = 0.15
+    # 补锁最多切几次目标（切到可攻击 / 白名单里的活怪为止；第一下常锁到刚死的地尸）
+    RELOCK_MAX_SWITCH = 3
+
+    def battle_relock_target(self, names=None) -> bool:
+        """
+        目标死后快速补锁（连续刷怪场景专用）
+
+        为什么不复用 `ui_ensure_target_locked`：它一次约 1.1s，而开销几乎不在 OCR 上
+        —— 目标名 OCR 实测只有 ~20ms，大头是 `ui_close_menu`、0.5s 的换目标间隔
+        和每次判定各截一次图。这里直接点固定坐标的「目标」按钮（战斗中它一直在），
+        换目标只等 RELOCK_SETTLE。
+
+        每切一次都判「已锁定 + 动作按钮是攻击」，并按需校验名字：
+        同一坐标周围可能路过玩家，只看「能攻击」会打错人。
+
+        :param names: 目标名白名单（None / 空 = 不校验名字）
+        :return: True = 已锁到可打的目标；False = 没锁到，交给调用方走完整流程
+        """
+        for _ in range(self.RELOCK_MAX_SWITCH):
+            x, y = self.C_TARGET_BUTTON_CLICK.coord()
+            self.device.click(x=x, y=y, control_name='BATTLE_TARGET')
+            self.device.click_record_clear()
+            self.device.sleep(self.RELOCK_SETTLE)
+            image = self.screenshot()
+            if not self.ui_target_attackable(image=image):
+                continue
+            if not names:
+                return True
+            name = self.ui_target_name()
+            if name and any(self.ocr_name_match(name, expected) for expected in names):
+                return True
+            logger.info(f'补锁到 [{name or "?"}]，不在白名单 {list(names)}，继续切')
+        logger.info('快速补锁没锁到目标，交回完整流程')
+        return False
+
+    def battle_on_target_lost(self, names=None):
+        """
+        生成 `battle_skill_loop(on_target_lost=...)` 的回调
+
+        按任务「战斗配置」里的 `fast_relock` 决定：
+        - 开：目标丢了就原地补锁，返回 True 继续打（连续刷怪、限时多杀）；
+        - 关：返回 False，循环按原逻辑结束（单 boss / 刷怪间隔长，等刷新更划算）。
+        """
+        def _relock() -> bool:
+            if not self.battle_fast_relock():
+                return False
+            return self.battle_relock_target(names)
+        return _relock
+
     # ---------------------------------------------------------------- 锁定目标把关
     def ui_target_locked(self, image=None) -> bool:
         """

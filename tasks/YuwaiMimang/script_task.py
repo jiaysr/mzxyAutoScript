@@ -461,44 +461,17 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                            f'继续等待（不会打白名单外的目标）')
         return False
 
-    # 补锁：点「目标」后等界面刷新的时间（秒）
-    # 通用流程里是 0.5s（TARGET_LOCK_SWITCH_INTERVAL），迷窟里换目标几乎即时，
-    # 实测 0.15s 就够，每只怪能省 0.35s
-    RELOCK_SETTLE = 0.15
-    # 补锁最多切几次目标（切到白名单里的活怪为止；第一下常锁到刚死的地尸）
-    RELOCK_MAX_SWITCH = 3
-
     def relock_target(self, names: list = None) -> bool:
         """
-        目标死后快速补锁，交给 battle_skill_loop 的 on_target_lost 用
+        目标死后快速补锁（实现见 SimpleBattle.battle_relock_target）
 
-        为什么要一条快路径：迷窟里一刀一只，每杀一只都要重新锁目标；
-        完整 acquire_target 实测约 1.1s/只，而其中名字 OCR 只有 ~20ms，
-        其余全是「收菜单 / 换目标等 0.5s / 多截几次图」的固定开销。
-
-        这里直接点固定坐标的「目标」按钮（战斗中它一直在），换目标只等 0.15s，
-        每切一次都判「已锁定 + 动作按钮是攻击」**并读名字**：
-        迷窟里会锁到路过的玩家，不能只看「能攻击」就开打。
-
-        :return: True = 已锁到白名单里的活怪；False = 让外层走完整流程
+        迷窟属于「一个坐标周围持续刷怪、刷新间隔约 3s、要求在时段内尽量多杀」的场景：
+        一刀一只时每只都要重锁，完整重锁 ~1.1s、补锁 ~0.3s，所以默认开启
+        （配置 -> 战斗配置 -> fast_relock）。关掉后退回正常流程：
+        目标丢失 -> 结束本次释放循环 -> 外层用完整 acquire_target 重锁。
         """
         names = self.battle_target_names() if names is None else names
-        for _ in range(self.RELOCK_MAX_SWITCH):
-            x, y = self.C_TARGET_BUTTON_CLICK.coord()
-            self.device.click(x=x, y=y, control_name='mimang_target')
-            self.device.click_record_clear()
-            self.device.sleep(self.RELOCK_SETTLE)
-            image = self.screenshot()
-            if not self.ui_target_attackable(image=image):
-                continue
-            if not names:
-                return True
-            name = self.ui_target_name()
-            if name and any(self.ocr_name_match(name, expected) for expected in names):
-                return True
-            logger.info(f'补锁到 [{name or "?"}]，不在白名单 {names}，继续切')
-        logger.info('快速补锁没锁到白名单里的活怪，交回完整流程')
-        return False
+        return self.battle_relock_target(names)
 
     def fast_click_once(self) -> None:
         """
@@ -689,7 +662,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                     cooldown_timeout=self.SKILL_COOLDOWN_TIMEOUT,
                     poll_interval=self.SKILL_COOLDOWN_POLL,
                     on_cast=on_cast,
-                    on_target_lost=self.relock_target)
+                    on_target_lost=self.battle_on_target_lost(names))
 
                 if reason == 'window_end':
                     break
@@ -715,11 +688,12 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         self.reset_battle_progress(end)
         rounds = 0
         last_repair = datetime.now()
+        # 开了「快速补锁」就先走 0.3s 的快路径，锁不到再走完整流程
+        relock = self.battle_on_target_lost(names)
         with suppress_control_input_log():
             while datetime.now() < end:
                 self.reset_records()
-                # 先走快速补锁（每 N 只才读名字），锁不到再走完整流程
-                if not self.relock_target(names) and not self.acquire_target(names):
+                if not relock() and not self.acquire_target(names):
                     logger.info('附近没有白名单里的可攻击目标，等 1s 再找')
                     self.device.sleep(1)
                     continue

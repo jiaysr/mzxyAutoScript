@@ -60,6 +60,7 @@ def test_config_defaults():
     assert battle.battle_preset == 'default', battle.battle_preset
     assert battle.use_normal_attack is False, '本任务不点普通攻击，沿用共享默认（关）'
     assert battle.fast_click is False, '默认按预设打'
+    assert battle.fast_relock is True, '迷窟是连续刷怪 + 限时多杀，补锁默认开'
     assert battle.target_names == '小鬼,鬼王,鬼将', battle.target_names
 
     task_config = YuwaiMimang()
@@ -156,7 +157,7 @@ def test_preset_loop_uses_skill_loop():
     assert kwargs['attack_interval'] == task.NORMAL_ATTACK_INTERVAL
     assert kwargs['max_attempts'] == task.SKILL_MAX_ATTEMPTS
     assert callable(kwargs['check_stop']) and callable(kwargs['on_cast'])
-    assert kwargs['on_target_lost'] == task.relock_target, '目标死了要快速补锁，别退回外层重锁'
+    assert callable(kwargs['on_target_lost']), '目标死了要能快速补锁，别退回外层重锁'
     assert task._battle_deadline == end, '停止条件要能读到本场截止时间'
     print('test_preset_loop_uses_skill_loop OK')
 
@@ -252,6 +253,33 @@ def test_relock_target_without_whitelist_skips_name():
     print('test_relock_target_without_whitelist_skips_name OK')
 
 
+def test_relock_target_uses_config_whitelist():
+    """不传 names 时用配置里的战斗目标"""
+    task, clicks = _relock_task()
+    got = []
+    task.battle_relock_target = lambda names=None: got.append(names) or True
+    assert task.relock_target() is True
+    assert got == [['小鬼', '鬼王', '鬼将']], got
+    assert clicks == []
+    print('test_relock_target_uses_config_whitelist OK')
+
+
+def test_fast_relock_switch_off_uses_normal_flow():
+    """关掉 fast_relock（单 boss / 刷怪间隔 5s+）：目标丢了就按原逻辑结束循环"""
+    task, _ = make_task(YuwaiBattleConfig(fast_relock=False))
+    called = []
+    task.battle_relock_target = lambda names=None: called.append(names) or True
+    handler = task.battle_on_target_lost(['小鬼'])
+    assert handler() is False, '没开补锁时不能接管循环'
+    assert called == [], '开关关掉就不该去点目标'
+
+    # 打开时才真的补锁
+    task2, _ = make_task(YuwaiBattleConfig(fast_relock=True))
+    task2.battle_relock_target = lambda names=None: True
+    assert task2.battle_on_target_lost(['小鬼'])() is True
+    print('test_fast_relock_switch_off_uses_normal_flow OK')
+
+
 def test_fast_loop_prefers_fast_relock():
     task, _ = make_task(YuwaiBattleConfig(fast_click=True))
     calls = {'relock': 0, 'acquire': 0}
@@ -266,7 +294,7 @@ def test_fast_loop_prefers_fast_relock():
     def fast_click_once():
         raise _Stop()
 
-    task.relock_target = relock
+    task.battle_relock_target = relock
     task.acquire_target = lambda names=None: calls.__setitem__('acquire', calls['acquire'] + 1)
     task.fast_click_once = fast_click_once
     try:
@@ -290,7 +318,7 @@ def test_fast_loop_uses_fixed_sequence():
         if len(clicks) == 3:
             raise _Stop()
 
-    task.relock_target = lambda names=None: False
+    task.battle_relock_target = lambda names=None: False
     task.acquire_target = lambda names=None: True
     task.fast_click_once = fast_click_once
     end = datetime.now() + timedelta(seconds=60)

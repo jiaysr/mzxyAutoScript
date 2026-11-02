@@ -8,20 +8,25 @@ from tasks.YuwaiMimang.config_scheduler import YuwaiMimangScheduler
 
 class YuwaiBattleConfig(BattleTaskConfig):
     """
-    域外迷窟的战斗配置：共享的「战斗预设 + 普通攻击」+ 本任务专属的两项
+    域外迷窟的战斗配置：共享的「战斗预设 + 普通攻击」+ 本任务专属的三项
 
     - fast_click：秒杀快打，跳过技能识别/冷却判定，锁好目标后按固定顺序连点；
+    - fast_relock：目标死后原地补锁（连打场景）。迷窟是「一个坐标周围持续刷怪、
+      刷新间隔约 3s、要求在时段内尽量多杀」，所以默认**开**：
+      一刀一只时每只都要重锁，完整重锁 ~1.1s、补锁 ~0.3s，不开会白白少杀一半；
     - target_names：只打这份白名单里的怪，锁目标时逐个切换并 OCR 校验名字。
 
     为什么放在这里而不是塞进共享的 BattleTaskConfig：
-    这两个开关只对迷窟有意义（别的任务的目标是 boss、精英，不存在挑怪问题），
-    塞进共享组会让所有任务的设置页都多出两个用不上的选项。
+    这些开关只对迷窟有意义（单 boss、刷怪间隔 5s+ 的场景用正常流程更合适），
+    塞进共享组会让所有任务的设置页都多出用不上的选项。
 
     `use_normal_attack` 沿用共享默认（关）：本任务不点普通攻击，
     技能全冷却时就等冷却，不做额外补刀。
     """
     # 秒杀快打：不走技能识别 / 冷却判定，锁好目标后固定顺序连点
     fast_click: bool = Field(default=False, description='fast_click_help')
+    # 目标死后原地补锁（连续刷怪场景。单 boss / 刷怪间隔长时关掉，走正常流程）
+    fast_relock: bool = Field(default=True, description='fast_relock_help')
     # 战斗目标白名单：逗号分隔，空 = 不校验目标名
     target_names: str = Field(default='小鬼,鬼王,鬼将', description='target_names_help')
 

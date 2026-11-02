@@ -242,21 +242,40 @@ class BattleAttack:
             return ''
         return str(getattr(task_config, 'battle_preset', '') or '')
 
+    def battle_task_battle_config(self):
+        """
+        当前任务「战斗配置」组的对象（没有任务上下文时返回 None）
+
+        字段都放在各任务 config 的 `battle_config` 组里，这里按
+        `self.config.task.command` 反查，供 use_normal_attack / fast_relock 这类开关使用。
+        """
+        task = getattr(self.config, 'task', None)
+        command = getattr(task, 'command', '') or ''
+        if not command:
+            return None
+        task_config = getattr(self.config.model, convert_to_underscore(command), None)
+        if task_config is None:
+            return None
+        return getattr(task_config, 'battle_config', None)
+
     def battle_use_normal_attack(self) -> bool:
         """
         当前任务是否允许点击普通攻击（任务「战斗配置」里的 use_normal_attack，默认关闭）
 
         没有任务上下文（如直接跑战斗试打脚本）时按关闭处理。
         """
-        task = getattr(self.config, 'task', None)
-        command = getattr(task, 'command', '') or ''
-        if not command:
-            return False
-        task_config = getattr(self.config.model, convert_to_underscore(command), None)
-        if task_config is None:
-            return False
-        battle_config = getattr(task_config, 'battle_config', None)
-        return bool(getattr(battle_config, 'use_normal_attack', False))
+        return bool(getattr(self.battle_task_battle_config(), 'use_normal_attack', False))
+
+    def battle_fast_relock(self) -> bool:
+        """
+        当前任务是否开启「目标死了原地补锁」（任务「战斗配置」里的 fast_relock）
+
+        只对连续刷怪、且要求在限定时间内尽量多杀的场景有意义：
+        一刀一只时每只怪都要重锁，完整重锁 ~1.1s，补锁只要 ~0.3s。
+        单 boss（世界首领）、刷怪间隔长（5s+，等刷新比省那 0.8s 更划算）的场景保持关闭，
+        走正常流程（目标丢失 -> 结束循环 -> 外层重新锁）。
+        """
+        return bool(getattr(self.battle_task_battle_config(), 'fast_relock', False))
 
     def battle_preset(self) -> dict:
         """

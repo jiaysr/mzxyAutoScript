@@ -598,16 +598,22 @@ ecord_skill_icon.py ^
         （技能1x2 -> 普攻 -> 技能1x2 -> 技能3x2 -> 普攻），不识别技能、不等冷却；
         中间**不点「目标」**（换目标统一交给 `acquire_target`）
       * 预设模式下技能位一个都认不出来时，自动退回秒杀快打，避免干站着
-    - **目标死后快速补锁（性能关键）**：一刀一只的号每杀一只都要重新锁目标。
-      完整 `acquire_target()` 实测约 1.1s/只，但**开销几乎不在 OCR**：
-      目标名 OCR（2x/3x 两档）实测只有 ~20ms，大头是 `ui_close_menu`、
-      通用换目标间隔 `TARGET_LOCK_SWITCH_INTERVAL=0.5s` 和每次判定各截一次图。
-      所以 `battle_skill_loop(on_target_lost=self.relock_target)`：
-      目标一丢就回调节器内补锁 —— 直接点固定坐标的「目标」按钮、
-      换目标只等 `RELOCK_SETTLE=0.15s`、**每次都读名字**（20ms，防止锁到路过的玩家），
-      最多切 `RELOCK_MAX_SWITCH=3` 次，失败才交回完整流程。
-      实测每只怪开销 ~2.3s -> ~0.6s。
-      **注意**：`on_target_lost` 是可选的，不传时行为与以前一致（世界首领/仙府不受影响）
+    - **目标死后快速补锁（可选能力，任务开关 `fast_relock`）**
+      三种战斗场景要分开对待：
+      * **单点 boss**（世界首领）——目标死了就是打完了，走正常流程（不补锁）；
+      * **同点连续刷怪、且限时内尽量多杀**（域外迷窟，刷新约 3s）——**开补锁**：
+        一刀一只时每只都要重锁，完整重锁 ~1.1s、补锁 ~0.3s，不开会白少一半击杀；
+      * **同点刷怪但刷新慢**（5s+）——走正常流程，等刷新的时间里省那 0.8s 没意义。
+      实现分两层：
+      `SimpleBattle.battle_relock_target(names=None)` 直接点固定坐标的「目标」按钮、
+      换目标只等 `RELOCK_SETTLE=0.15s`、每切一次都判「锁定 + 可攻击」并读名字
+      （OCR 实测仅 ~20ms；不校验名字会锁到路过的玩家），最多切 `RELOCK_MAX_SWITCH=3` 次；
+      `battle_on_target_lost(names)` 按任务配置 `fast_relock` 生成
+      `battle_skill_loop(on_target_lost=...)` 的回调——开关关掉就返回 False，行为与以前一致，
+      所以世界首领 / 仙府 / 战车不传、不开就是老流程。
+      **性能账**：完整 `acquire_target()` 1.1s 里，OCR 只占 20ms，
+      大头是 `ui_close_menu`、`TARGET_LOCK_SWITCH_INTERVAL=0.5s` 和每次判定各截一张图
+      （~0.1s/张）。实测迷窟每只怪开销 ~2.3s -> ~0.6s
     - 迷窟的「目标/普通攻击/技能」按钮与 WorldBoss、上古狩猎**用的是同一批素材**，
       已统一收进 GameUi / `tasks/Battle/slots.py`，迷窟里实测坐标逐个吻合，
       **不要再在各任务 res/ 里重复录一遍**
