@@ -1,0 +1,3029 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>图片裁剪器 · 明珠轩辕素材工具</title>
+<!--
+  离线图片裁剪器（单文件，无外部依赖）
+  - 双击直接用 Chrome / Edge 打开即可，不需要启动 OAS 服务。
+  - 可多选/拖拽图片，逐张框选裁剪区域，选择文件夹后直接写入 PNG。
+  - 项目约定：截图基准 1280x720，素材命名常用 res_<itemName>.png（模板可改）。
+  - 浏览器不支持 File System Access API 时，保存改为下载文件。
+-->
+<style>
+:root {
+  --bg: #0a0f15;
+  --bg-elev: #0e151d;
+  --surface: #111922;
+  --surface-2: #17222d;
+  --surface-3: #1d2b39;
+  --border: #243343;
+  --border-strong: #33485e;
+  --text: #e9f0f8;
+  --text-dim: #a4b5c8;
+  --text-mute: #74879e;
+  --accent: #3ec7f4;
+  --accent-strong: #83e0fb;
+  --accent-ink: #04131c;
+  --success: #3ddc97;
+  --warning: #f5c451;
+  --danger: #ff7f8a;
+  --radius: 10px;
+  --shadow: 0 18px 50px rgba(0, 0, 0, .45);
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  display: grid;
+  grid-template-rows: 58px minmax(0, 1fr) 30px;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+input { min-width: 0; }
+[hidden] { display: none !important; }
+::selection { background: rgba(62, 199, 244, .28); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.svg-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 16px;
+  background: rgba(14, 21, 29, .94);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  z-index: 20;
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgba(62, 199, 244, .22), rgba(62, 199, 244, .05));
+  border: 1px solid rgba(62, 199, 244, .36);
+  color: var(--accent);
+}
+.brand-mark .icon { width: 18px; height: 18px; }
+.brand-text { min-width: 0; }
+.brand-text h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+.brand-text p {
+  margin: 1px 0 0;
+  font-size: 11px;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  min-width: 0;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  flex: 0 0 auto;
+}
+.pill.is-ok { border-color: rgba(61, 220, 151, .34); color: #b8f4d8; }
+.pill.is-ok::before { background: var(--success); }
+.pill.is-warn { border-color: rgba(245, 196, 81, .34); color: #f7e2ab; }
+.pill.is-warn::before { background: var(--warning); }
+.pill.subtle { background: transparent; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background .16s ease, border-color .16s ease, color .16s ease, transform .12s ease;
+}
+.btn:hover:not(:disabled) { background: var(--surface-3); border-color: #44607a; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.btn.primary:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); }
+.btn.wide { width: 100%; }
+.btn.tiny { min-height: 28px; padding: 0 9px; font-size: 11.5px; font-weight: 550; }
+.btn.danger { color: var(--danger); border-color: rgba(255, 127, 138, .3); }
+.btn.danger:hover:not(:disabled) { background: rgba(255, 127, 138, .1); }
+.btn kbd { margin-left: 2px; }
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+.icon-btn:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
+.icon-btn.danger:hover:not(:disabled) { background: rgba(255, 127, 138, .12); color: var(--danger); }
+.icon-btn .icon { width: 17px; height: 17px; }
+
+/* ---------- 主区域 ---------- */
+.workspace {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr) 324px;
+  min-height: 0;
+}
+
+/* 左侧图片列表 */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 13px 12px 10px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.panel-heading h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .02em;
+}
+.panel-heading p { margin: 2px 0 0; }
+.heading-actions { display: flex; gap: 2px; margin-top: -4px; margin-right: -4px; }
+.sidebar-hint {
+  margin: 9px 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-mute);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.image-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px;
+  margin: -2px;
+  border-radius: 8px;
+}
+.image-item {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 9px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .14s ease, border-color .14s ease;
+}
+.image-item:hover { background: var(--surface-2); }
+.image-item.active {
+  background: rgba(62, 199, 244, .09);
+  border-color: rgba(62, 199, 244, .5);
+}
+.thumb {
+  width: 58px;
+  height: 42px;
+  display: block;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background-color: #0a0f14;
+  background-image:
+    linear-gradient(45deg, #141c25 25%, transparent 25%),
+    linear-gradient(-45deg, #141c25 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #141c25 75%),
+    linear-gradient(-45deg, transparent 75%, #141c25 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+  overflow: hidden;
+}
+.thumb canvas { display: block; width: 100%; height: 100%; }
+.item-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.item-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 550;
+}
+.item-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-mute);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+.item-remove {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-mute);
+  opacity: 0;
+  transition: opacity .14s ease, background .14s ease, color .14s ease;
+}
+.image-item:hover .item-remove,
+.image-item.active .item-remove,
+.item-remove:focus-visible { opacity: 1; }
+.item-remove:hover { background: rgba(255, 127, 138, .14); color: var(--danger); }
+.item-remove .icon { width: 14px; height: 14px; }
+.list-empty {
+  margin: auto;
+  padding: 26px 10px;
+  text-align: center;
+  color: var(--text-mute);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.sidebar-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 2px 0;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-mute);
+  font-size: 11px;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px rgba(61, 220, 151, .1);
+}
+
+/* 中间画布 */
+.stage-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 30px;
+  background: #1a1c20;
+}
+.stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  background:
+    linear-gradient(90deg, rgba(148, 164, 186, .16) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(rgba(148, 164, 186, .16) 1px, transparent 1px) 0 0 / 24px 24px,
+    #1a1c20;
+}
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 7px;
+  border: 1px solid rgba(52, 71, 91, .8);
+  border-radius: 10px;
+  background: rgba(14, 21, 29, .82);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+.stage-toolbar > * { pointer-events: auto; }
+.toolbar-group { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.toolbar-sep { width: 1px; height: 18px; margin: 0 4px; background: var(--border); }
+.zoom-label {
+  min-width: 48px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-mute);
+  font-size: 11px;
+}
+#imageMeta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 46vw;
+}
+.badge {
+  flex: 0 0 auto;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.badge.ok { color: #b8f4d8; border-color: rgba(61, 220, 151, .35); background: rgba(61, 220, 151, .08); }
+.badge.warn { color: #f7e2ab; border-color: rgba(245, 196, 81, .3); background: rgba(245, 196, 81, .07); }
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 90px 24px 40px;
+  text-align: center;
+  pointer-events: none;
+}
+.empty-state > * { pointer-events: auto; }
+.empty-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+  border-radius: 16px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface);
+  color: var(--text-mute);
+}
+.empty-icon .icon { width: 26px; height: 26px; }
+.empty-state h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.empty-state p { margin: 0 0 10px; color: var(--text-mute); font-size: 12px; }
+.empty-state .btn { min-width: 120px; }
+
+.drop-overlay {
+  position: absolute;
+  inset: 10px;
+  z-index: 9;
+  display: grid;
+  place-items: center;
+  border: 2px dashed rgba(62, 199, 244, .7);
+  border-radius: 14px;
+  background: rgba(62, 199, 244, .07);
+  color: var(--accent-strong);
+  font-size: 15px;
+  font-weight: 600;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .16s ease, visibility .16s ease;
+  pointer-events: none;
+}
+body.dragging .drop-overlay { opacity: 1; visibility: visible; }
+
+.stage-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-mute);
+  font-size: 11px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+#cursorPos { min-width: 118px; color: var(--text-dim); }
+#cropInfo { min-width: 96px; color: var(--text-dim); }
+.stage-tip { margin-left: auto; overflow: hidden; text-overflow: ellipsis; }
+
+/* 右侧设置 */
+.inspector {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+.inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.card-head h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .03em;
+  color: var(--text-dim);
+}
+.card-actions { display: flex; align-items: center; gap: 10px; }
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 550;
+}
+.link-btn:hover { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.block { margin-bottom: 9px; }
+.field > span {
+  color: var(--text-mute);
+  font-size: 10.5px;
+  letter-spacing: .03em;
+}
+.field input {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: #0a121a;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.field input[type="text"] { font-family: var(--font); }
+.field input:hover { border-color: #3d5670; }
+.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(62, 199, 244, .12); }
+.crop-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-mute);
+  font-size: 10.5px;
+}
+.preview-box {
+  position: relative;
+  height: 150px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #0a0f14;
+  background-image:
+    linear-gradient(45deg, #141c25 25%, transparent 25%),
+    linear-gradient(-45deg, #141c25 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #141c25 75%),
+    linear-gradient(-45deg, transparent 75%, #141c25 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+}
+.preview-box canvas { display: block; width: 100%; height: 100%; }
+.preview-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  font-size: 11px;
+  pointer-events: none;
+}
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: -1px 0 9px; }
+.chip {
+  height: 25px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+.chip:hover { background: var(--surface-3); color: var(--text); border-color: var(--border-strong); }
+.filename-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+  color: var(--text-mute);
+  font-size: 10.5px;
+}
+.filename-preview span { flex: 0 0 auto; }
+.filename-preview strong {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 11px;
+}
+.help {
+  margin: 0;
+  color: var(--text-mute);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+.help code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.folder-state {
+  margin: 8px 0;
+  min-height: 32px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.55;
+  word-break: break-all;
+}
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 8px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.check-line input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.inspector-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px 13px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.btn.primary .count { background: rgba(4, 19, 28, .14); color: var(--accent-ink); }
+
+kbd {
+  display: inline-block;
+  padding: 1px 4px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-mute);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+/* 底部状态条 */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-mute);
+  font-size: 11px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+#statusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#statusText[data-tone="ok"] { color: #9becc9; }
+#statusText[data-tone="warn"] { color: #f7dc9d; }
+#statusText[data-tone="error"] { color: #ffb3ba; }
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* 提示 */
+.toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: 44px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.toast {
+  max-width: 100%;
+  padding: 9px 13px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: rgba(23, 34, 45, .97);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0;
+  transform: translateY(7px);
+  transition: opacity .18s ease, transform .18s ease;
+  word-break: break-word;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast-success { border-left-color: var(--success); }
+.toast-warn { border-left-color: var(--warning); }
+.toast-error { border-left-color: var(--danger); }
+
+/* 帮助对话框 */
+.help-dialog {
+  width: min(580px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 64px));
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.help-dialog::backdrop { background: rgba(2, 6, 11, .66); backdrop-filter: blur(3px); }
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.dialog-head h2 { margin: 0; font-size: 15px; font-weight: 650; }
+.dialog-body { padding: 14px 16px 18px; overflow: auto; max-height: calc(100vh - 180px); }
+.dialog-body h3 {
+  margin: 16px 0 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .05em;
+  color: var(--text-mute);
+}
+.dialog-body h3:first-child { margin-top: 0; }
+.dialog-body ol { margin: 0; padding-left: 20px; color: var(--text-dim); font-size: 12px; line-height: 1.8; }
+.dialog-body p { margin: 6px 0; color: var(--text-dim); font-size: 12px; line-height: 1.7; }
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 16px;
+  margin: 6px 0 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.shortcut-grid span { display: flex; align-items: center; gap: 6px; }
+.note {
+  margin-top: 14px;
+  padding: 9px 11px;
+  border: 1px solid rgba(62, 199, 244, .2);
+  border-radius: 8px;
+  background: rgba(62, 199, 244, .06);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.65;
+}
+
+/* 滚动条 */
+* { scrollbar-width: thin; scrollbar-color: #33485e transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: #33485e;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: #44607a; }
+
+/* 响应式：窄屏改为上下布局 */
+@media (max-width: 1180px) {
+  .workspace { grid-template-columns: 218px minmax(0, 1fr) 298px; }
+  .stage-tip { display: none; }
+  .brand-text p { display: none; }
+}
+@media (max-width: 940px) {
+  body { display: block; height: auto; min-height: 100%; overflow: auto; }
+  .topbar { position: sticky; top: 0; }
+  .workspace { display: flex; flex-direction: column; }
+  .sidebar { order: 2; height: 230px; border-right: 0; border-top: 1px solid var(--border); }
+  .stage-wrap { order: 1; height: 62vh; min-height: 420px; }
+  .inspector { order: 3; display: block; border-left: 0; border-top: 1px solid var(--border); }
+  .inspector-scroll { overflow: visible; }
+  .inspector-actions { position: static; box-shadow: none; }
+  .topbar-status { display: none; }
+  .sidebar-hint { display: none; }
+  .toast-region { bottom: 96px; }
+}
+@media (max-width: 560px) {
+  .brand-text h1 { font-size: 14px; }
+  .topbar { gap: 10px; padding: 0 10px; }
+  .btn { padding: 0 10px; }
+  .stage-toolbar { flex-wrap: wrap; }
+  #imageMeta { max-width: 100%; }
+  .stage-footer { gap: 8px; padding: 0 8px; }
+  #cursorPos { min-width: 0; }
+  .field-grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<svg class="svg-sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-4.5-4.5L7 20"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+  <symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></symbol>
+  <symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"><svg class="icon"><use href="#i-crop"/></svg></span>
+    <div class="brand-text">
+      <h1>图片裁剪器</h1>
+      <p>明珠轩辕 · 素材工具</p>
+    </div>
+  </div>
+  <div class="topbar-status">
+    <span class="pill subtle">离线本地处理</span>
+    <span class="pill" id="folderPill">未连接文件夹</span>
+  </div>
+  <div class="topbar-actions">
+    <button id="openBtn" class="btn primary" type="button">
+      <svg class="icon"><use href="#i-folder"/></svg>
+      选择图片
+    </button>
+    <button id="helpBtn" class="icon-btn" type="button" aria-label="使用说明" title="使用说明">
+      <svg class="icon"><use href="#i-help"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="workspace">
+  <aside class="sidebar" aria-label="图片列表">
+    <div class="panel-heading">
+      <div>
+        <h2>图片</h2>
+        <p class="help" id="imageCount">0 张</p>
+      </div>
+      <div class="heading-actions">
+        <button id="addBtn" class="icon-btn" type="button" title="添加图片" aria-label="添加图片">
+          <svg class="icon"><use href="#i-plus"/></svg>
+        </button>
+        <button id="clearBtn" class="icon-btn danger" type="button" title="清空列表" aria-label="清空列表" disabled>
+          <svg class="icon"><use href="#i-trash"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="sidebar-hint">支持多选和拖拽。点击缩略图切换，悬停后点 × 移除。</div>
+    <div id="imageList" class="image-list" role="listbox" aria-label="已添加的图片" tabindex="0"></div>
+    <div class="sidebar-foot"><span class="dot"></span> 所有图片只在本机处理</div>
+  </aside>
+
+  <section class="stage-wrap" aria-label="裁剪画布">
+    <div class="stage-toolbar">
+      <div class="toolbar-group">
+        <button id="zoomOutBtn" class="icon-btn" type="button" aria-label="缩小" title="缩小">
+          <svg class="icon"><use href="#i-zoom-out"/></svg>
+        </button>
+        <span id="zoomLabel" class="zoom-label" aria-live="off">100%</span>
+        <button id="zoomInBtn" class="icon-btn" type="button" aria-label="放大" title="放大">
+          <svg class="icon"><use href="#i-zoom-in"/></svg>
+        </button>
+        <span class="toolbar-sep" aria-hidden="true"></span>
+        <button id="fitBtn" class="btn tiny" type="button" title="适应窗口 (F)">适应</button>
+        <button id="actualBtn" class="btn tiny" type="button" title="实际像素 (1)">1:1</button>
+      </div>
+      <div class="toolbar-meta">
+        <span id="imageMeta">未选择图片</span>
+        <span id="resBadge" class="badge" hidden></span>
+      </div>
+    </div>
+    <div id="stage" class="stage" tabindex="0" role="application"
+         aria-label="裁剪画布：拖动框选区域，拖动控制点调整，滚轮缩放，空格或中键平移">
+      <canvas id="canvas"></canvas>
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon"><svg class="icon"><use href="#i-image"/></svg></div>
+        <h2>把图片拖到这里</h2>
+        <p>支持 PNG / JPG / WebP / BMP，可一次选择多张</p>
+        <button id="emptyOpenBtn" class="btn primary" type="button">
+          <svg class="icon"><use href="#i-folder"/></svg>
+          选择图片
+        </button>
+      </div>
+      <div id="dropOverlay" class="drop-overlay"><div>松开鼠标，添加图片</div></div>
+    </div>
+    <div class="stage-footer">
+      <span id="cursorPos" class="mono">x — &nbsp; y —</span>
+      <span id="cropInfo" class="mono">—</span>
+      <span class="stage-tip">拖动红框移动 · 四角缩放 · 全图时拖动重选 · 滚轮缩放 · 空格平移</span>
+    </div>
+  </section>
+
+  <aside class="inspector" aria-label="裁剪设置">
+    <div class="inspector-scroll">
+      <section class="card">
+        <div class="card-head">
+          <h2>裁剪区域</h2>
+          <div class="card-actions">
+            <button id="applyCropAllBtn" class="link-btn" type="button" title="把当前裁剪框复制到所有图片">应用到全部</button>
+            <button id="resetCropBtn" class="link-btn" type="button">全图</button>
+          </div>
+        </div>
+        <div class="field-grid">
+          <label class="field"><span>X</span><input id="cropX" type="number" min="0" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label class="field"><span>Y</span><input id="cropY" type="number" min="0" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label class="field"><span>宽 W</span><input id="cropW" type="number" min="1" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label class="field"><span>高 H</span><input id="cropH" type="number" min="1" step="1" inputmode="numeric" autocomplete="off"></label>
+        </div>
+        <div class="crop-summary">
+          <span id="cropPercent">选区 —</span>
+          <span id="cropPixels">—</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>预览</h2>
+          <span id="previewSize" class="mono help">—</span>
+        </div>
+        <div class="preview-box">
+          <canvas id="previewCanvas"></canvas>
+          <div id="previewEmpty" class="preview-empty">裁剪后效果</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>命名</h2>
+          <button id="applyNameAllBtn" class="link-btn" type="button">应用到全部</button>
+        </div>
+        <label class="field block">
+          <span>文件名模板</span>
+          <input id="templateInput" type="text" spellcheck="false" autocomplete="off">
+        </label>
+        <div class="chip-row">
+          <button class="chip" type="button" data-template="{name}.png">原名</button>
+          <button class="chip" type="button" data-template="res_{name}.png">res_ 前缀</button>
+          <button class="chip" type="button" data-template="{name}_crop.png">_crop 后缀</button>
+        </div>
+        <label class="field block">
+          <span>当前文件名</span>
+          <input id="filenameInput" type="text" spellcheck="false" autocomplete="off">
+        </label>
+        <p class="help">模板变量：<code>{name}</code> 原文件名、<code>{index}</code> 序号；导出统一为 PNG。</p>
+        <div class="filename-preview">
+          <span>将保存为</span>
+          <strong id="filenamePreview" class="mono">—</strong>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>保存位置</h2></div>
+        <button id="pickFolderBtn" class="btn wide" type="button">
+          <svg class="icon"><use href="#i-folder"/></svg>
+          选择保存文件夹
+        </button>
+        <div id="folderState" class="folder-state">未选择文件夹时，保存会下载到浏览器默认下载目录。</div>
+        <label class="check-line">
+          <input id="overwriteInput" type="checkbox" checked>
+          同名文件覆盖（关闭后自动加 _1、_2）
+        </label>
+        <p class="help" id="saveHint">Chrome / Edge 可直接写入所选文件夹；其他浏览器走下载。</p>
+      </section>
+    </div>
+
+    <div class="inspector-actions">
+      <button id="saveCurrentBtn" class="btn primary wide" type="button" disabled>
+        <svg class="icon"><use href="#i-save"/></svg>
+        保存当前
+        <kbd>Ctrl S</kbd>
+      </button>
+      <button id="saveAllBtn" class="btn wide" type="button" disabled>
+        <svg class="icon"><use href="#i-download"/></svg>
+        保存全部
+        <span id="saveAllCount" class="count">0</span>
+      </button>
+    </div>
+  </aside>
+</main>
+
+<footer class="statusbar">
+  <span id="statusText">就绪：拖入图片或点击「选择图片」开始</span>
+  <span class="status-right"><span class="dot"></span> 图片不会上传</span>
+</footer>
+
+<div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="false"></div>
+
+<dialog id="helpDialog" class="help-dialog" aria-labelledby="helpTitle">
+  <div class="dialog-head">
+    <h2 id="helpTitle">使用说明</h2>
+    <button id="closeHelpBtn" class="icon-btn" type="button" aria-label="关闭帮助">
+      <svg class="icon"><use href="#i-x"/></svg>
+    </button>
+  </div>
+  <div class="dialog-body">
+    <h3>基本流程</h3>
+    <ol>
+      <li>选择或拖入一张/多张截图，左侧列表切换图片。</li>
+      <li>在画布上拖动红框移动裁剪区域，拖红框四角缩放；默认红框与标注器一致为 100×100，点「全图」可恢复整张图片。</li>
+      <li>选择保存文件夹（推荐 Chrome / Edge），确认文件名后点「保存当前」或「保存全部」。</li>
+    </ol>
+
+    <h3>快捷键</h3>
+    <div class="shortcut-grid">
+      <span><kbd>Ctrl</kbd> + <kbd>S</kbd></span><span>保存当前图片</span>
+      <span><kbd>Ctrl</kbd> + <kbd>O</kbd></span><span>选择图片</span>
+      <span><kbd>F</kbd> / <kbd>0</kbd></span><span>适应窗口</span>
+      <span><kbd>1</kbd></span><span>实际像素 1:1</span>
+      <span>方向键 / <kbd>Shift</kbd> + 方向键</span><span>微调裁剪框 1px / 10px</span>
+      <span><kbd>空格</kbd> + 拖动 / 中键拖动</span><span>平移画布</span>
+      <span>滚轮</span><span>以鼠标位置缩放</span>
+    </div>
+
+    <h3>保存说明</h3>
+    <p>选择文件夹使用浏览器 File System Access API：保存时直接写入所选目录，不经过服务端。首次使用需要授权；浏览器允许时会记住上次的文件夹。</p>
+    <p>出于安全限制，浏览器只暴露所选文件夹的名称（如 <code>res</code>），不会显示完整磁盘路径；保存结果以文件名预览为准。</p>
+    <p>Firefox / Safari 等不支持该能力时，保存按钮会改为下载文件；多张会连续下载，浏览器可能提示「允许多个下载」。</p>
+
+    <h3>项目约定</h3>
+    <p>截图基准为 1280×720；素材命名常用 <code>res_&lt;itemName&gt;.png</code>，可直接点「res_ 前缀」模板。裁剪导出固定为 PNG，坐标按原图像素取整并限制在图片范围内。</p>
+
+    <div class="note">所有图片处理都在本机浏览器内完成，不会上传到任何服务器，也不需要启动 OAS 服务。</div>
+  </div>
+</dialog>
+
+<input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif,image/avif" multiple hidden>
+
+<script>
+(() => {
+  'use strict';
+
+  const DB_NAME = 'mzxy-image-cropper';
+  const DB_STORE = 'kv';
+  const HANDLE_KEY = 'output-directory';
+  const PREFS_KEY = 'mzxy-image-cropper-prefs';
+  const DEFAULT_TEMPLATE = '{name}.png';
+  // 与标注器一致：新规则/新图片的默认 ROI 为左上角 100×100
+  const DEFAULT_ROI = { x: 0, y: 0, w: 100, h: 100 };
+  const IMAGE_EXT_RE = /\.(png|jpe?g|webp|bmp|gif|avif)$/i;
+
+  const $ = (id) => document.getElementById(id);
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const supportsFs = typeof window.showDirectoryPicker === 'function';
+
+  const els = {
+    canvas: $('canvas'),
+    stage: $('stage'),
+    dropOverlay: $('dropOverlay'),
+    emptyState: $('emptyState'),
+    imageList: $('imageList'),
+    imageCount: $('imageCount'),
+    imageMeta: $('imageMeta'),
+    resBadge: $('resBadge'),
+    zoomLabel: $('zoomLabel'),
+    cursorPos: $('cursorPos'),
+    cropInfo: $('cropInfo'),
+    cropX: $('cropX'),
+    cropY: $('cropY'),
+    cropW: $('cropW'),
+    cropH: $('cropH'),
+    cropPercent: $('cropPercent'),
+    cropPixels: $('cropPixels'),
+    previewCanvas: $('previewCanvas'),
+    previewEmpty: $('previewEmpty'),
+    previewSize: $('previewSize'),
+    templateInput: $('templateInput'),
+    filenameInput: $('filenameInput'),
+    filenamePreview: $('filenamePreview'),
+    folderPill: $('folderPill'),
+    pickFolderBtn: $('pickFolderBtn'),
+    folderState: $('folderState'),
+    saveHint: $('saveHint'),
+    overwriteInput: $('overwriteInput'),
+    saveCurrentBtn: $('saveCurrentBtn'),
+    saveAllBtn: $('saveAllBtn'),
+    saveAllCount: $('saveAllCount'),
+    openBtn: $('openBtn'),
+    addBtn: $('addBtn'),
+    clearBtn: $('clearBtn'),
+    emptyOpenBtn: $('emptyOpenBtn'),
+    helpBtn: $('helpBtn'),
+    helpDialog: $('helpDialog'),
+    closeHelpBtn: $('closeHelpBtn'),
+    fileInput: $('fileInput'),
+    statusText: $('statusText'),
+    toastRegion: $('toastRegion'),
+    zoomInBtn: $('zoomInBtn'),
+    zoomOutBtn: $('zoomOutBtn'),
+    fitBtn: $('fitBtn'),
+    actualBtn: $('actualBtn'),
+    resetCropBtn: $('resetCropBtn'),
+    applyCropAllBtn: $('applyCropAllBtn'),
+    applyNameAllBtn: $('applyNameAllBtn'),
+    templateChips: Array.from(document.querySelectorAll('.chip[data-template]')),
+  };
+
+  const state = {
+    images: [],
+    activeId: null,
+    view: { scale: 1, ox: 0, oy: 0, userZoomed: false },
+    drag: null,
+    pan: null,
+    space: false,
+    hoverCursor: 'crosshair',
+    template: DEFAULT_TEMPLATE,
+    overwrite: true,
+    folderHandle: null,
+    folderStatus: 'none', // none | granted | prompt | unsupported
+    busy: false,
+    previewRaf: 0,
+    seq: 0,
+    lastSaveDirName: '',
+  };
+
+  // ---------------------------------------------------------------------------
+  // 基础工具
+  // ---------------------------------------------------------------------------
+
+  function icon(name) {
+    return `<svg class="icon" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+  }
+
+  function setStatus(text, tone = '') {
+    els.statusText.textContent = text;
+    if (tone) {
+      els.statusText.dataset.tone = tone;
+    } else {
+      delete els.statusText.dataset.tone;
+    }
+  }
+
+  function toast(message, type = 'info', timeout = 3600) {
+    const node = document.createElement('div');
+    node.className = `toast toast-${type}`;
+    node.setAttribute('role', 'status');
+    node.textContent = message;
+    els.toastRegion.appendChild(node);
+    while (els.toastRegion.children.length > 4) {
+      els.toastRegion.firstElementChild.remove();
+    }
+    requestAnimationFrame(() => node.classList.add('show'));
+    window.setTimeout(() => {
+      node.classList.remove('show');
+      window.setTimeout(() => node.remove(), 220);
+    }, timeout);
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  function isImageFile(file) {
+    if (!file) return false;
+    return (file.type && file.type.startsWith('image/')) || IMAGE_EXT_RE.test(file.name || '');
+  }
+
+  function baseName(name) {
+    const stem = String(name || 'image').replace(/\.[^./\\]+$/, '');
+    return stem || 'image';
+  }
+
+  function sanitizeFileName(name, fallback) {
+    let value = String(name || '').trim() || fallback || 'image.png';
+    value = value
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+      .replace(/\s+/g, ' ')
+      .replace(/^\.+/, '')
+      .replace(/[. ]+$/g, '')
+      .trim();
+    if (!value) value = fallback || 'image.png';
+    if (/\.(png|jpe?g|webp|bmp|gif|avif)$/i.test(value)) {
+      if (!/\.png$/i.test(value)) value = value.replace(/\.[^.]+$/, '') + '.png';
+    } else {
+      value += '.png';
+    }
+    if (value.length > 120) value = value.slice(0, 116) + '.png';
+    return value;
+  }
+
+  function applyTemplate(template, image, index) {
+    const stem = baseName(image.name);
+    let value = String(template || DEFAULT_TEMPLATE);
+    value = value.replace(/\{name\}/gi, () => stem).replace(/\{index\}/gi, () => String(index));
+    return sanitizeFileName(value, `${stem}.png`);
+  }
+
+  function activeImage() {
+    return state.images.find((image) => image.id === state.activeId) || null;
+  }
+
+  function roundCrop(image) {
+    const raw = image.crop;
+    let x = Math.round(raw.x);
+    let y = Math.round(raw.y);
+    let w = Math.round(raw.w);
+    let h = Math.round(raw.h);
+    x = clamp(x, 0, Math.max(0, image.width - 1));
+    y = clamp(y, 0, Math.max(0, image.height - 1));
+    w = clamp(w, 1, image.width - x);
+    h = clamp(h, 1, image.height - y);
+    return { x, y, w, h };
+  }
+
+  function clampCrop(crop, image, min = 1) {
+    let x = Number(crop.x) || 0;
+    let y = Number(crop.y) || 0;
+    let w = Number(crop.w) || min;
+    let h = Number(crop.h) || min;
+    x = clamp(x, 0, Math.max(0, image.width - min));
+    y = clamp(y, 0, Math.max(0, image.height - min));
+    w = clamp(w, min, image.width - x);
+    h = clamp(h, min, image.height - y);
+    return { x, y, w, h };
+  }
+
+  function releaseImage(image) {
+    if (image && image.bitmap && typeof image.bitmap.close === 'function') {
+      try { image.bitmap.close(); } catch (error) { /* ignore */ }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 偏好与目录记忆
+  // ---------------------------------------------------------------------------
+
+  function loadPrefs() {
+    try {
+      const prefs = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+      if (typeof prefs.template === 'string' && prefs.template.trim()) {
+        state.template = prefs.template;
+      }
+      if (typeof prefs.overwrite === 'boolean') {
+        state.overwrite = prefs.overwrite;
+      }
+    } catch (error) {
+      // file:// 下个别浏览器会禁用 localStorage，忽略即可
+    }
+  }
+
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({
+        template: state.template,
+        overwrite: state.overwrite,
+      }));
+    } catch (error) {
+      // ignore
+    }
+  }
+
+  let dbPromise = null;
+
+  function openDb() {
+    if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB unavailable'));
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        request.onupgradeneeded = () => {
+          if (!request.result.objectStoreNames.contains(DB_STORE)) {
+            request.result.createObjectStore(DB_STORE);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('IndexedDB open failed'));
+      });
+    }
+    return dbPromise;
+  }
+
+  async function idbSet(key, value) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbGet(key) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readonly');
+      const request = tx.objectStore(DB_STORE).get(key);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 读取图片
+  // ---------------------------------------------------------------------------
+
+  function decodeWithElement(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('图片解码失败'));
+      };
+      image.src = url;
+    });
+  }
+
+  async function decodeImage(file) {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        return await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } catch (error) {
+        try {
+          return await createImageBitmap(file);
+        } catch (innerError) {
+          // fall through to <img>
+        }
+      }
+    }
+    return decodeWithElement(file);
+  }
+
+  async function addFiles(fileList) {
+    if (state.busy) {
+      toast('正在处理中，请稍候', 'warn');
+      return;
+    }
+    const files = Array.from(fileList || []).filter(isImageFile);
+    if (!files.length) {
+      toast('没有找到可读取的图片文件', 'warn');
+      return;
+    }
+
+    setBusy(true, `正在读取 0/${files.length} 张图片…`);
+    let loaded = 0;
+    let failed = 0;
+    const firstNewId = state.activeId;
+
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      setStatus(`正在读取 ${index + 1}/${files.length}：${file.name}`);
+      try {
+        const bitmap = await decodeImage(file);
+        const width = bitmap.width || bitmap.naturalWidth;
+        const height = bitmap.height || bitmap.naturalHeight;
+        if (!width || !height) throw new Error('图片尺寸无效');
+        const image = {
+          id: ++state.seq,
+          file,
+          name: file.name || `image_${state.seq}.png`,
+          bitmap,
+          width,
+          height,
+          crop: clampCrop({ ...DEFAULT_ROI }, { width, height }),
+          outName: '',
+        };
+        image.outName = applyTemplate(state.template, image, state.images.length + 1);
+        state.images.push(image);
+        loaded += 1;
+      } catch (error) {
+        failed += 1;
+        console.error('[image-crop] 读取失败', file.name, error);
+      }
+    }
+
+    renderImageList();
+    const nextActive = state.activeId || firstNewId || (state.images[0] && state.images[0].id);
+    if (nextActive) {
+      setActive(nextActive);
+    } else {
+      updateSelectionUI();
+    }
+    setBusy(false);
+
+    if (loaded) {
+      setStatus(`已加载 ${state.images.length} 张图片`, 'ok');
+      toast(`已添加 ${loaded} 张图片${failed ? `，${failed} 张读取失败` : ''}`, failed ? 'warn' : 'success');
+    } else {
+      setStatus('图片读取失败', 'error');
+      toast('图片读取失败，请确认文件格式是否受浏览器支持', 'error', 5000);
+    }
+    if (state.images.length && !els.emptyState.hidden) {
+      els.emptyState.hidden = true;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 图片列表
+  // ---------------------------------------------------------------------------
+
+  function drawThumb(canvas, image) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = 58;
+    const height = 42;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const scale = Math.min(width / image.width, height / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    const drawX = (width - drawWidth) / 2;
+    const drawY = (height - drawHeight) / 2;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image.bitmap, drawX, drawY, drawWidth, drawHeight);
+    const crop = image.crop;
+    ctx.strokeStyle = 'rgba(62, 199, 244, .95)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      drawX + crop.x * scale + .5,
+      drawY + crop.y * scale + .5,
+      Math.max(0, crop.w * scale - 1),
+      Math.max(0, crop.h * scale - 1),
+    );
+  }
+
+  function itemMetaText(image) {
+    const crop = roundCrop(image);
+    return `${image.width}×${image.height} · ${crop.w}×${crop.h}`;
+  }
+
+  function renderImageList() {
+    els.imageList.textContent = '';
+    els.imageCount.textContent = `${state.images.length} 张`;
+
+    if (!state.images.length) {
+      const empty = document.createElement('div');
+      empty.className = 'list-empty';
+      empty.innerHTML = '还没有图片<br><span class="help">拖入图片或点左上角 + 添加</span>';
+      els.imageList.appendChild(empty);
+      updateSelectionUI();
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    state.images.forEach((image) => {
+      const item = document.createElement('div');
+      item.className = 'image-item';
+      item.dataset.id = String(image.id);
+      item.tabIndex = 0;
+      item.setAttribute('role', 'option');
+      item.setAttribute('aria-selected', 'false');
+
+      const thumb = document.createElement('span');
+      thumb.className = 'thumb';
+      const thumbCanvas = document.createElement('canvas');
+      thumb.appendChild(thumbCanvas);
+
+      const text = document.createElement('span');
+      text.className = 'item-text';
+      const name = document.createElement('span');
+      name.className = 'item-name';
+      name.textContent = image.name;
+      name.title = image.name;
+      const meta = document.createElement('span');
+      meta.className = 'item-meta';
+      meta.textContent = itemMetaText(image);
+      text.append(name, meta);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'item-remove';
+      remove.title = `移除 ${image.name}`;
+      remove.setAttribute('aria-label', `移除 ${image.name}`);
+      remove.innerHTML = icon('x');
+      remove.addEventListener('click', (event) => {
+        event.stopPropagation();
+        removeImage(image.id);
+      });
+
+      item.addEventListener('click', () => selectImage(image.id));
+      item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectImage(image.id);
+        }
+      });
+
+      item.append(thumb, text, remove);
+      fragment.appendChild(item);
+      drawThumb(thumbCanvas, image);
+    });
+
+    els.imageList.appendChild(fragment);
+    updateSelectionUI();
+  }
+
+  function updateActiveThumb() {
+    const image = activeImage();
+    if (!image) return;
+    const item = els.imageList.querySelector(`.image-item[data-id="${image.id}"]`);
+    const canvas = item && item.querySelector('canvas');
+    if (canvas) drawThumb(canvas, image);
+  }
+
+  function updateActiveMeta() {
+    const image = activeImage();
+    if (!image) return;
+    const item = els.imageList.querySelector(`.image-item[data-id="${image.id}"]`);
+    const meta = item && item.querySelector('.item-meta');
+    if (meta) meta.textContent = itemMetaText(image);
+  }
+
+  function updateSelectionUI() {
+    const image = activeImage();
+    const hasImage = Boolean(image);
+    els.imageCount.textContent = `${state.images.length} 张`;
+    els.saveAllCount.textContent = String(state.images.length);
+    els.emptyState.hidden = hasImage;
+    els.imageList.classList.toggle('has-items', state.images.length > 0);
+
+    if (hasImage) {
+      els.imageMeta.textContent = `${image.name} · ${image.width} × ${image.height}`;
+      els.imageMeta.title = image.name;
+      if (image.width === 1280 && image.height === 720) {
+        els.resBadge.hidden = false;
+        els.resBadge.textContent = '1280×720 标准';
+        els.resBadge.className = 'badge ok';
+      } else {
+        els.resBadge.hidden = false;
+        els.resBadge.textContent = '非 1280×720';
+        els.resBadge.className = 'badge warn';
+      }
+    } else {
+      els.imageMeta.textContent = '未选择图片';
+      els.imageMeta.title = '';
+      els.resBadge.hidden = true;
+    }
+
+    els.imageList.querySelectorAll('.image-item').forEach((item) => {
+      const selected = hasImage && item.dataset.id === String(image.id);
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+
+    updateSaveState();
+  }
+
+  function updateSaveState() {
+    const hasImage = Boolean(activeImage());
+    const hasAny = state.images.length > 0;
+    els.saveCurrentBtn.disabled = state.busy || !hasImage;
+    els.saveAllBtn.disabled = state.busy || !hasAny;
+    els.openBtn.disabled = state.busy;
+    els.addBtn.disabled = state.busy;
+    els.emptyOpenBtn.disabled = state.busy;
+    els.clearBtn.disabled = state.busy || !hasAny;
+    els.pickFolderBtn.disabled = state.busy || !supportsFs;
+  }
+
+  function setBusy(busy, text = '') {
+    state.busy = busy;
+    document.body.classList.toggle('is-busy', busy);
+    updateSelectionUI();
+    if (text) setStatus(text);
+  }
+
+  function selectImage(id) {
+    setActive(id);
+  }
+
+  function setActive(id, options = {}) {
+    const image = state.images.find((item) => item.id === id);
+    if (!image) return;
+    state.activeId = image.id;
+    state.drag = null;
+    state.pan = null;
+    syncCropInputs();
+    updateFilenameInput();
+    if (options.fit !== false) {
+      fitView();
+    } else {
+      draw();
+    }
+    updatePreview();
+    updateSelectionUI();
+    updateActiveMeta();
+    const item = els.imageList.querySelector(`.image-item[data-id="${image.id}"]`);
+    if (item) item.scrollIntoView({ block: 'nearest' });
+    els.stage.focus({ preventScroll: true });
+  }
+
+  function removeImage(id) {
+    const index = state.images.findIndex((image) => image.id === id);
+    if (index < 0) return;
+    const [removed] = state.images.splice(index, 1);
+    releaseImage(removed);
+    if (state.activeId === id) {
+      const next = state.images[index] || state.images[index - 1] || null;
+      state.activeId = next ? next.id : null;
+    }
+    renderImageList();
+    if (state.activeId) {
+      setActive(state.activeId);
+    } else {
+      state.view.userZoomed = false;
+      draw();
+      updatePreview();
+      syncCropInputs();
+      updateFilenameInput();
+      updateSelectionUI();
+      setStatus(state.images.length ? `已移除 ${removed.name}` : '图片列表已清空');
+    }
+  }
+
+  function clearImages() {
+    if (!state.images.length) return;
+    if (!window.confirm(`确认移除全部 ${state.images.length} 张图片？`)) return;
+    state.images.forEach(releaseImage);
+    state.images = [];
+    state.activeId = null;
+    state.drag = null;
+    state.pan = null;
+    state.view.userZoomed = false;
+    renderImageList();
+    draw();
+    updatePreview();
+    syncCropInputs();
+    updateFilenameInput();
+    updateSelectionUI();
+    setStatus('图片列表已清空');
+  }
+
+  // ---------------------------------------------------------------------------
+  // 视图与绘制
+  // ---------------------------------------------------------------------------
+
+  const checkerPatterns = new WeakMap();
+
+  function makeCheckerPattern(ctx) {
+    const cached = checkerPatterns.get(ctx);
+    if (cached) return cached;
+    const tile = document.createElement('canvas');
+    tile.width = 16;
+    tile.height = 16;
+    const tileCtx = tile.getContext('2d');
+    tileCtx.fillStyle = '#141c25';
+    tileCtx.fillRect(0, 0, 16, 16);
+    tileCtx.fillStyle = '#0b1118';
+    tileCtx.fillRect(0, 0, 8, 8);
+    tileCtx.fillRect(8, 8, 8, 8);
+    const pattern = ctx.createPattern(tile, 'repeat');
+    checkerPatterns.set(ctx, pattern);
+    return pattern;
+  }
+
+  function fitView() {
+    const image = activeImage();
+    const width = els.canvas.clientWidth;
+    const height = els.canvas.clientHeight;
+    if (!image || width < 2 || height < 2) {
+      draw();
+      return;
+    }
+    const padding = Math.min(56, Math.min(width, height) * 0.09);
+    const toolbar = els.stage.querySelector('.stage-toolbar');
+    const toolbarBottom = toolbar
+      ? Math.max(0, toolbar.getBoundingClientRect().bottom - els.canvas.getBoundingClientRect().top)
+      : 0;
+    const topPadding = Math.max(padding, toolbarBottom + 34);
+    const availableHeight = Math.max(40, height - topPadding - padding);
+    const scale = clamp(
+      Math.min((width - padding * 2) / image.width, availableHeight / image.height),
+      0.02,
+      8,
+    );
+    state.view.scale = scale;
+    state.view.ox = (width - image.width * scale) / 2;
+    state.view.oy = topPadding + (availableHeight - image.height * scale) / 2;
+    state.view.userZoomed = false;
+    draw();
+    updateZoomLabel();
+  }
+
+  function updateZoomLabel() {
+    els.zoomLabel.textContent = `${Math.round(state.view.scale * 100)}%`;
+  }
+
+  function clampView() {
+    const image = activeImage();
+    if (!image) return;
+    const width = els.canvas.clientWidth;
+    const height = els.canvas.clientHeight;
+    const { scale } = state.view;
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    if (drawWidth <= width) {
+      state.view.ox = (width - drawWidth) / 2;
+    } else {
+      state.view.ox = clamp(state.view.ox, width - drawWidth - 40, 40);
+    }
+    if (drawHeight <= height) {
+      state.view.oy = (height - drawHeight) / 2;
+    } else {
+      state.view.oy = clamp(state.view.oy, height - drawHeight - 40, 40);
+    }
+  }
+
+  function screenToImage(point) {
+    return {
+      x: (point.x - state.view.ox) / state.view.scale,
+      y: (point.y - state.view.oy) / state.view.scale,
+    };
+  }
+
+  function canvasPoint(event) {
+    const rect = els.canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function cropScreenRect(image) {
+    const { scale, ox, oy } = state.view;
+    return {
+      x: ox + image.crop.x * scale,
+      y: oy + image.crop.y * scale,
+      w: image.crop.w * scale,
+      h: image.crop.h * scale,
+    };
+  }
+
+  function fillRoundRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, width, height, radius);
+    } else {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + width, y, x + width, y + height, r);
+      ctx.arcTo(x + width, y + height, x, y + height, r);
+      ctx.arcTo(x, y + height, x, y, r);
+      ctx.arcTo(x, y, x + width, y, r);
+      ctx.closePath();
+    }
+    ctx.fill();
+  }
+
+  function cropTagRect(cx, cy) {
+    const width = els.canvas.clientWidth;
+    const tagWidth = 32;
+    const tagHeight = 17;
+    let x = cx;
+    let y = cy - 19;
+    if (y < 4) y = cy + 3;
+    if (x + tagWidth > width - 4) x = width - 4 - tagWidth;
+    if (x < 4) x = 4;
+    return { x, y, w: tagWidth, h: tagHeight };
+  }
+
+  function imageRoundRectPath(ctx, x, y, width, height, radius) {
+    const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, width, height, r);
+      return;
+    }
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+  }
+
+  function drawCropTag(ctx, cx, cy, cw, ch) {
+    const text = '裁剪';
+    const tag = cropTagRect(cx, cy);
+    ctx.font = '10px "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif';
+    const textWidth = ctx.measureText(text).width;
+    const padX = 5;
+    ctx.fillStyle = 'rgba(10, 12, 14, .86)';
+    fillRoundRect(ctx, tag.x, tag.y, Math.max(tag.w, textWidth + padX * 2), tag.h, 4);
+    ctx.fillStyle = '#f3f8ff';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, tag.x + padX, tag.y + tag.h / 2 + .5);
+  }
+
+  function draw() {
+    const width = els.canvas.clientWidth;
+    const height = els.canvas.clientHeight;
+    if (!width || !height) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetWidth = Math.round(width * dpr);
+    const targetHeight = Math.round(height * dpr);
+    if (els.canvas.width !== targetWidth || els.canvas.height !== targetHeight) {
+      els.canvas.width = targetWidth;
+      els.canvas.height = targetHeight;
+    }
+
+    const ctx = els.canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const image = activeImage();
+    if (!image) return;
+
+    const { scale, ox, oy } = state.view;
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+
+    // 图片底板（透明 PNG 也和标注器一样显示在深色底上）
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, .36)';
+    ctx.shadowBlur = 24;
+    ctx.shadowOffsetY = 12;
+    ctx.fillStyle = '#111317';
+    imageRoundRectPath(ctx, ox, oy, drawWidth, drawHeight, 6);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    imageRoundRectPath(ctx, ox, oy, drawWidth, drawHeight, 6);
+    ctx.clip();
+    ctx.fillStyle = '#111317';
+    ctx.fillRect(ox, oy, drawWidth, drawHeight);
+    ctx.imageSmoothingEnabled = scale < 1;
+    if (scale < 1) ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image.bitmap, ox, oy, drawWidth, drawHeight);
+    ctx.restore();
+
+    ctx.strokeStyle = '#43464d';
+    ctx.lineWidth = 1;
+    imageRoundRectPath(ctx, ox + .5, oy + .5, Math.max(0, drawWidth - 1), Math.max(0, drawHeight - 1), 6);
+    ctx.stroke();
+
+    const rect = cropScreenRect(image);
+    const cx = rect.x;
+    const cy = rect.y;
+    const cw = Math.max(0, rect.w);
+    const ch = Math.max(0, rect.h);
+
+    // 单层红框，和网页标注器的 roi-front 一致
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx + 1, cy + 1, Math.max(0, cw - 2), Math.max(0, ch - 2));
+
+    const handles = [
+      [cx, cy], [cx + cw, cy],
+      [cx, cy + ch], [cx + cw, cy + ch],
+    ];
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 1;
+    handles.forEach(([x, y]) => {
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(x - 5, y - 5, 10, 10, 2);
+      } else {
+        ctx.rect(x - 5, y - 5, 10, 10);
+      }
+      ctx.fill();
+      ctx.stroke();
+    });
+
+    drawCropTag(ctx, cx, cy, cw, ch);
+  }
+
+  function updateCropSummary() {
+    const image = activeImage();
+    if (!image) {
+      els.cropPercent.textContent = '选区 —';
+      els.cropPixels.textContent = '—';
+      return;
+    }
+    const crop = roundCrop(image);
+    const percent = (crop.w * crop.h) / (image.width * image.height) * 100;
+    els.cropPercent.textContent = `选区 ${percent.toFixed(1)}%`;
+    els.cropPixels.textContent = `${crop.x}, ${crop.y} · ${crop.w} × ${crop.h}`;
+  }
+
+  function syncCropInputs() {
+    const image = activeImage();
+    if (!image) {
+      [els.cropX, els.cropY, els.cropW, els.cropH].forEach((input) => { input.value = ''; });
+      els.cropInfo.textContent = '—';
+      updateCropSummary();
+      return;
+    }
+    const crop = roundCrop(image);
+    els.cropX.value = String(crop.x);
+    els.cropY.value = String(crop.y);
+    els.cropW.value = String(crop.w);
+    els.cropH.value = String(crop.h);
+    els.cropInfo.textContent = `${crop.w} × ${crop.h} px`;
+    updateCropSummary();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 缩放与平移
+  // ---------------------------------------------------------------------------
+
+  function zoomTo(scale, centerX, centerY) {
+    const image = activeImage();
+    if (!image) return;
+    const width = els.canvas.clientWidth;
+    const height = els.canvas.clientHeight;
+    const cx = centerX == null ? width / 2 : centerX;
+    const cy = centerY == null ? height / 2 : centerY;
+    const imagePoint = screenToImage({ x: cx, y: cy });
+    const nextScale = clamp(scale, 0.02, 16);
+    state.view.scale = nextScale;
+    state.view.ox = cx - imagePoint.x * nextScale;
+    state.view.oy = cy - imagePoint.y * nextScale;
+    state.view.userZoomed = true;
+    clampView();
+    draw();
+    updateZoomLabel();
+  }
+
+  function zoomBy(factor, centerX, centerY) {
+    zoomTo(state.view.scale * factor, centerX, centerY);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 裁剪交互
+  // ---------------------------------------------------------------------------
+
+  function cursorForHit(hit) {
+    switch (hit) {
+      case 'nw':
+      case 'se': return 'nwse-resize';
+      case 'ne':
+      case 'sw': return 'nesw-resize';
+      case 'n':
+      case 's': return 'ns-resize';
+      case 'e':
+      case 'w': return 'ew-resize';
+      case 'move': return 'move';
+      default: return 'crosshair';
+    }
+  }
+
+  function hitTest(point) {
+    const image = activeImage();
+    if (!image) return null;
+    const rect = cropScreenRect(image);
+    const tolerance = 12;
+    const nearLeft = Math.abs(point.x - rect.x) <= tolerance;
+    const nearRight = Math.abs(point.x - (rect.x + rect.w)) <= tolerance;
+    const nearTop = Math.abs(point.y - rect.y) <= tolerance;
+    const nearBottom = Math.abs(point.y - (rect.y + rect.h)) <= tolerance;
+
+    if (nearLeft && nearTop) return 'nw';
+    if (nearRight && nearTop) return 'ne';
+    if (nearLeft && nearBottom) return 'sw';
+    if (nearRight && nearBottom) return 'se';
+    const tag = cropTagRect(rect.x, rect.y);
+    if (point.x >= tag.x && point.x <= tag.x + tag.w && point.y >= tag.y && point.y <= tag.y + tag.h) {
+      return 'move';
+    }
+    const edgeSlop = 2;
+    if (point.x >= rect.x - edgeSlop && point.x <= rect.x + rect.w + edgeSlop
+      && point.y >= rect.y - edgeSlop && point.y <= rect.y + rect.h + edgeSlop) {
+      return 'move';
+    }
+    return null;
+  }
+
+  function updateCanvasCursor() {
+    if (!activeImage()) {
+      els.canvas.style.cursor = 'default';
+      return;
+    }
+    if (state.space) {
+      els.canvas.style.cursor = state.pan ? 'grabbing' : 'grab';
+      return;
+    }
+    if (state.pan) {
+      els.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    if (state.drag) {
+      els.canvas.style.cursor = state.drag.mode === 'move' ? 'move' : cursorForHit(state.drag.handle || '');
+      return;
+    }
+    els.canvas.style.cursor = state.hoverCursor;
+  }
+
+  function beginPan(event) {
+    state.pan = {
+      startX: event.clientX,
+      startY: event.clientY,
+      ox: state.view.ox,
+      oy: state.view.oy,
+    };
+    try { els.canvas.setPointerCapture(event.pointerId); } catch (error) { /* ignore */ }
+    updateCanvasCursor();
+  }
+
+  function onPointerDown(event) {
+    if (!activeImage()) return;
+    if (event.button !== 0 && event.button !== 1) return;
+    if (event.button === 1) event.preventDefault();
+    els.stage.focus({ preventScroll: true });
+
+    if (event.button === 1 || state.space) {
+      beginPan(event);
+      return;
+    }
+
+    const point = canvasPoint(event);
+    if (point.x < 0 || point.y < 0 || point.x > els.canvas.clientWidth || point.y > els.canvas.clientHeight) {
+      return;
+    }
+    const image = activeImage();
+    const imagePoint = screenToImage(point);
+    const hit = hitTest(point);
+    const coversAll = image.crop.x <= .5 && image.crop.y <= .5
+      && image.crop.w >= image.width - .5 && image.crop.h >= image.height - .5;
+
+    if (hit === 'move' && !coversAll) {
+      state.drag = {
+        mode: 'move',
+        handle: '',
+        pointerId: event.pointerId,
+        startPoint: point,
+        startImage: imagePoint,
+        crop0: { ...image.crop },
+        moved: false,
+      };
+    } else if (hit && hit !== 'move') {
+      state.drag = {
+        mode: 'resize',
+        handle: hit,
+        pointerId: event.pointerId,
+        startPoint: point,
+        startImage: imagePoint,
+        crop0: { ...image.crop },
+        moved: false,
+      };
+    } else {
+      const startX = clamp(imagePoint.x, 0, image.width);
+      const startY = clamp(imagePoint.y, 0, image.height);
+      state.drag = {
+        mode: 'new',
+        handle: '',
+        pointerId: event.pointerId,
+        startPoint: point,
+        startImage: { x: startX, y: startY },
+        crop0: { ...image.crop },
+        moved: false,
+      };
+      image.crop = clampCrop({ x: startX, y: startY, w: 1, h: 1 }, image);
+      syncCropInputs();
+      draw();
+      schedulePreview();
+    }
+
+    try { els.canvas.setPointerCapture(event.pointerId); } catch (error) { /* ignore */ }
+    updateCanvasCursor();
+    event.preventDefault();
+  }
+
+  function onPointerMove(event) {
+    if (!activeImage()) return;
+    const point = canvasPoint(event);
+    const inside = point.x >= 0 && point.y >= 0 && point.x <= els.canvas.clientWidth && point.y <= els.canvas.clientHeight;
+
+    if (inside) {
+      const imagePoint = screenToImage(point);
+      els.cursorPos.textContent = `x ${Math.round(imagePoint.x)}  y ${Math.round(imagePoint.y)}`;
+    } else if (!state.drag && !state.pan) {
+      els.cursorPos.textContent = 'x —  y —';
+    }
+
+    if (state.pan) {
+      state.view.ox = state.pan.ox + (event.clientX - state.pan.startX);
+      state.view.oy = state.pan.oy + (event.clientY - state.pan.startY);
+      clampView();
+      draw();
+      event.preventDefault();
+      return;
+    }
+
+    if (!state.drag) {
+      if (inside) {
+        state.hoverCursor = cursorForHit(hitTest(point));
+      }
+      updateCanvasCursor();
+      return;
+    }
+
+    const drag = state.drag;
+    const image = activeImage();
+    if (!image) return;
+    const imagePoint = screenToImage(point);
+    const dx = imagePoint.x - drag.startImage.x;
+    const dy = imagePoint.y - drag.startImage.y;
+    if (Math.abs(point.x - drag.startPoint.x) > 2 || Math.abs(point.y - drag.startPoint.y) > 2) {
+      drag.moved = true;
+    }
+
+    if (drag.mode === 'move') {
+      const next = {
+        x: clamp(drag.crop0.x + dx, 0, Math.max(0, image.width - drag.crop0.w)),
+        y: clamp(drag.crop0.y + dy, 0, Math.max(0, image.height - drag.crop0.h)),
+        w: drag.crop0.w,
+        h: drag.crop0.h,
+      };
+      image.crop = next;
+    } else if (drag.mode === 'new') {
+      const x1 = clamp(drag.startImage.x, 0, image.width);
+      const y1 = clamp(drag.startImage.y, 0, image.height);
+      const x2 = clamp(imagePoint.x, 0, image.width);
+      const y2 = clamp(imagePoint.y, 0, image.height);
+      image.crop = clampCrop({
+        x: Math.min(x1, x2),
+        y: Math.min(y1, y2),
+        w: Math.max(1, Math.abs(x2 - x1)),
+        h: Math.max(1, Math.abs(y2 - y1)),
+      }, image);
+    } else if (drag.mode === 'resize') {
+      const handle = drag.handle;
+      const base = drag.crop0;
+      let left = base.x;
+      let top = base.y;
+      let right = base.x + base.w;
+      let bottom = base.y + base.h;
+      if (handle.includes('w')) left = clamp(imagePoint.x, 0, right - 1);
+      if (handle.includes('e')) right = clamp(imagePoint.x, left + 1, image.width);
+      if (handle.includes('n')) top = clamp(imagePoint.y, 0, bottom - 1);
+      if (handle.includes('s')) bottom = clamp(imagePoint.y, top + 1, image.height);
+      image.crop = clampCrop({ x: left, y: top, w: right - left, h: bottom - top }, image);
+    }
+
+    syncCropInputs();
+    draw();
+    schedulePreview();
+    updateCanvasCursor();
+    event.preventDefault();
+  }
+
+  function onPointerUp(event) {
+    try {
+      if (els.canvas.hasPointerCapture(event.pointerId)) {
+        els.canvas.releasePointerCapture(event.pointerId);
+      }
+    } catch (error) { /* ignore */ }
+
+    if (state.pan) {
+      state.pan = null;
+      updateCanvasCursor();
+      return;
+    }
+    if (!state.drag) return;
+    const drag = state.drag;
+    const image = activeImage();
+    state.drag = null;
+    if (image) {
+      if (drag.mode === 'new' && (!drag.moved || image.crop.w < 2 || image.crop.h < 2)) {
+        image.crop = drag.crop0;
+      }
+      image.crop = roundCrop(image);
+      syncCropInputs();
+      draw();
+      updatePreview();
+      updateActiveThumb();
+      updateActiveMeta();
+    }
+    updateCanvasCursor();
+  }
+
+  function nudgeCrop(dx, dy) {
+    const image = activeImage();
+    if (!image) return;
+    image.crop = clampCrop({
+      x: image.crop.x + dx,
+      y: image.crop.y + dy,
+      w: image.crop.w,
+      h: image.crop.h,
+    }, image);
+    commitCrop();
+  }
+
+  function commitCrop() {
+    const image = activeImage();
+    if (!image) return;
+    image.crop = roundCrop(image);
+    syncCropInputs();
+    draw();
+    updatePreview();
+    updateActiveThumb();
+    updateActiveMeta();
+  }
+
+  function applyCropInputs() {
+    const image = activeImage();
+    if (!image) return;
+    const values = [els.cropX, els.cropY, els.cropW, els.cropH].map((input) => Number(input.value));
+    if (values.some((value) => !Number.isFinite(value))) {
+      syncCropInputs();
+      return;
+    }
+    image.crop = clampCrop({
+      x: values[0], y: values[1], w: values[2], h: values[3],
+    }, image);
+    commitCrop();
+  }
+
+  function applyCropToAll() {
+    const image = activeImage();
+    if (!image) return;
+    const crop = roundCrop(image);
+    state.images.forEach((item) => {
+      item.crop = clampCrop({ ...crop }, item);
+    });
+    commitCrop();
+    renderImageList();
+    updateSelectionUI();
+    toast(`裁剪区域已应用到 ${state.images.length} 张图片`, 'success');
+  }
+
+  // ---------------------------------------------------------------------------
+  // 预览
+  // ---------------------------------------------------------------------------
+
+  function schedulePreview() {
+    if (state.previewRaf) return;
+    state.previewRaf = requestAnimationFrame(() => {
+      state.previewRaf = 0;
+      updatePreview();
+    });
+  }
+
+  function updatePreview() {
+    const canvas = els.previewCanvas;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (!width || !height) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const targetWidth = Math.round(width * dpr);
+    const targetHeight = Math.round(height * dpr);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const image = activeImage();
+    if (!image) {
+      els.previewEmpty.hidden = false;
+      els.previewSize.textContent = '—';
+      return;
+    }
+    els.previewEmpty.hidden = true;
+    const crop = roundCrop(image);
+    ctx.fillStyle = makeCheckerPattern(ctx);
+    ctx.fillRect(0, 0, width, height);
+    const scale = Math.min((width - 12) / crop.w, (height - 12) / crop.h);
+    const drawWidth = crop.w * scale;
+    const drawHeight = crop.h * scale;
+    const drawX = (width - drawWidth) / 2;
+    const drawY = (height - drawHeight) / 2;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image.bitmap, crop.x, crop.y, crop.w, crop.h, drawX, drawY, drawWidth, drawHeight);
+    ctx.strokeStyle = 'rgba(255, 255, 255, .2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(drawX + .5, drawY + .5, Math.max(0, drawWidth - 1), Math.max(0, drawHeight - 1));
+    els.previewSize.textContent = `${crop.w} × ${crop.h}`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 命名
+  // ---------------------------------------------------------------------------
+
+  function updateFilenameInput() {
+    const image = activeImage();
+    if (!image) {
+      els.filenameInput.value = '';
+      els.filenamePreview.textContent = '—';
+      return;
+    }
+    els.filenameInput.value = image.outName || applyTemplate(state.template, image, state.images.indexOf(image) + 1);
+    updateFilenamePreview();
+  }
+
+  function updateFilenamePreview() {
+    const image = activeImage();
+    if (!image) {
+      els.filenamePreview.textContent = '—';
+      return;
+    }
+    const filename = sanitizeFileName(els.filenameInput.value, applyTemplate(state.template, image, state.images.indexOf(image) + 1));
+    const directory = state.folderHandle && state.folderStatus === 'granted' ? `${state.folderHandle.name}/` : '';
+    els.filenamePreview.textContent = directory + filename;
+    els.filenamePreview.title = directory + filename;
+  }
+
+  function commitFilenameInput() {
+    const image = activeImage();
+    if (!image) return;
+    image.outName = sanitizeFileName(
+      els.filenameInput.value,
+      applyTemplate(state.template, image, state.images.indexOf(image) + 1),
+    );
+    els.filenameInput.value = image.outName;
+    updateFilenamePreview();
+  }
+
+  function applyNameTemplateToAll() {
+    state.images.forEach((image, index) => {
+      image.outName = applyTemplate(state.template, image, index + 1);
+    });
+    updateFilenameInput();
+    toast(`已按模板重命名 ${state.images.length} 张图片`, 'success');
+  }
+
+  // ---------------------------------------------------------------------------
+  // 保存文件夹
+  // ---------------------------------------------------------------------------
+
+  function updateFolderUI() {
+    if (!supportsFs) {
+      state.folderStatus = 'unsupported';
+      els.folderPill.textContent = '下载模式';
+      els.folderPill.className = 'pill is-warn';
+      els.pickFolderBtn.innerHTML = `${icon('download')} 浏览器不支持写文件夹`;
+      els.folderState.textContent = '当前浏览器不支持直接写入文件夹，保存会下载到默认下载目录。推荐使用 Chrome / Edge。';
+      els.saveHint.textContent = '保存时按文件名下载；多张会连续下载。';
+      updateSaveState();
+      return;
+    }
+
+    if (!state.folderHandle) {
+      state.folderStatus = 'none';
+      els.folderPill.textContent = '未连接文件夹';
+      els.folderPill.className = 'pill';
+      els.pickFolderBtn.innerHTML = `${icon('folder')} 选择保存文件夹`;
+      els.folderState.textContent = '未选择文件夹时，保存会下载到浏览器默认下载目录。';
+      els.saveHint.textContent = 'Chrome / Edge 可直接写入所选文件夹；其他浏览器走下载。';
+      updateSaveState();
+      return;
+    }
+
+    if (state.folderStatus === 'granted') {
+      els.folderPill.textContent = `文件夹 · ${state.folderHandle.name}`;
+      els.folderPill.className = 'pill is-ok';
+      els.pickFolderBtn.innerHTML = `${icon('folder')} 更换文件夹`;
+      els.folderState.textContent = `已连接「${state.folderHandle.name}」，保存会直接写入该文件夹。`;
+      els.saveHint.textContent = '同名文件按上面的开关处理；批量保存时同批次自动去重。';
+    } else {
+      state.folderStatus = 'prompt';
+      els.folderPill.textContent = '文件夹待授权';
+      els.folderPill.className = 'pill is-warn';
+      els.pickFolderBtn.innerHTML = `${icon('refresh')} 重新授权文件夹`;
+      els.folderState.textContent = `上次使用的文件夹「${state.folderHandle.name}」需要重新授权后才能写入。`;
+      els.saveHint.textContent = '点击「重新授权文件夹」并允许写入，或重新选择其他文件夹。';
+    }
+    updateFilenamePreview();
+    updateSaveState();
+  }
+
+  async function restoreFolder() {
+    if (!supportsFs) {
+      updateFolderUI();
+      return;
+    }
+    try {
+      const handle = await idbGet(HANDLE_KEY);
+      if (!handle) {
+        updateFolderUI();
+        return;
+      }
+      state.folderHandle = handle;
+      const permission = await handle.queryPermission({ mode: 'readwrite' });
+      state.folderStatus = permission === 'granted' ? 'granted' : 'prompt';
+    } catch (error) {
+      console.warn('[image-crop] 恢复文件夹失败', error);
+      state.folderHandle = null;
+      state.folderStatus = 'none';
+    }
+    updateFolderUI();
+  }
+
+  async function chooseFolder() {
+    if (!supportsFs) {
+      toast('当前浏览器不支持选择文件夹，请使用 Chrome / Edge；保存会改为下载', 'warn', 5000);
+      return;
+    }
+
+    if (state.folderHandle && state.folderStatus !== 'granted') {
+      try {
+        const permission = await state.folderHandle.requestPermission({ mode: 'readwrite' });
+        if (permission === 'granted') {
+          state.folderStatus = 'granted';
+          updateFolderUI();
+          try { await idbSet(HANDLE_KEY, state.folderHandle); } catch (error) { /* ignore */ }
+          toast('文件夹已重新授权', 'success');
+          return;
+        }
+      } catch (error) {
+        console.warn('[image-crop] 重新授权失败', error);
+      }
+    }
+
+    try {
+      const handle = await window.showDirectoryPicker({ id: 'mzxy-crop-output', mode: 'readwrite' });
+      state.folderHandle = handle;
+      state.folderStatus = 'granted';
+      updateFolderUI();
+      try {
+        await idbSet(HANDLE_KEY, handle);
+      } catch (error) {
+        console.warn('[image-crop] 无法记住文件夹', error);
+      }
+      toast(`已连接文件夹「${handle.name}」`, 'success');
+    } catch (error) {
+      if (error && error.name === 'AbortError') return;
+      console.error('[image-crop] 选择文件夹失败', error);
+      toast(`无法打开文件夹选择器：${error.message || error}`, 'error', 5000);
+    }
+  }
+
+  async function ensureFolderGranted() {
+    const handle = state.folderHandle;
+    if (!handle) return null;
+    try {
+      const granted = await handle.queryPermission({ mode: 'readwrite' });
+      if (granted === 'granted') {
+        state.folderStatus = 'granted';
+        updateFolderUI();
+        return handle;
+      }
+      const permission = await handle.requestPermission({ mode: 'readwrite' });
+      if (permission === 'granted') {
+        state.folderStatus = 'granted';
+        updateFolderUI();
+        return handle;
+      }
+    } catch (error) {
+      console.warn('[image-crop] 文件夹权限检查失败', error);
+    }
+    state.folderStatus = 'prompt';
+    updateFolderUI();
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 导出与保存
+  // ---------------------------------------------------------------------------
+
+  function cropToCanvas(image) {
+    const crop = roundCrop(image);
+    const canvas = document.createElement('canvas');
+    canvas.width = crop.w;
+    canvas.height = crop.h;
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) throw new Error('无法创建导出画布');
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image.bitmap, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
+    return canvas;
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('PNG 编码失败'));
+      }, 'image/png');
+    });
+  }
+
+  async function cropBlob(image) {
+    return canvasToBlob(cropToCanvas(image));
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  function uniqueInSet(name, used) {
+    if (!used.has(name.toLowerCase())) return name;
+    const stem = name.replace(/\.png$/i, '');
+    for (let index = 2; index < 1000; index += 1) {
+      const candidate = `${stem}_${index}.png`;
+      if (!used.has(candidate.toLowerCase())) return candidate;
+    }
+    return `${stem}_${Date.now()}.png`;
+  }
+
+  async function existsInFolder(directory, name) {
+    try {
+      await directory.getFileHandle(name);
+      return true;
+    } catch (error) {
+      if (error && (error.name === 'NotFoundError' || error.code === 8)) return false;
+      throw error;
+    }
+  }
+
+  async function uniqueInFolder(directory, name) {
+    if (!(await existsInFolder(directory, name))) return name;
+    const stem = name.replace(/\.png$/i, '');
+    for (let index = 1; index < 1000; index += 1) {
+      const candidate = `${stem}_${index}.png`;
+      if (!(await existsInFolder(directory, candidate))) return candidate;
+    }
+    return `${stem}_${Date.now()}.png`;
+  }
+
+  async function writeBlob(directory, name, blob) {
+    const fileHandle = await directory.getFileHandle(name, { create: true });
+    const writable = await fileHandle.createWritable();
+    try {
+      await writable.write(blob);
+      await writable.close();
+    } catch (error) {
+      try { await writable.abort(); } catch (abortError) { /* ignore */ }
+      throw error;
+    }
+  }
+
+  function buildOutputName(image, used) {
+    const fallback = applyTemplate(state.template, image, state.images.indexOf(image) + 1);
+    let name = sanitizeFileName(image.outName, fallback);
+    name = uniqueInSet(name, used);
+    used.add(name.toLowerCase());
+    return name;
+  }
+
+  async function saveImages(images) {
+    if (state.busy || !images.length) return;
+    let directory = null;
+    if (supportsFs && state.folderHandle) {
+      directory = await ensureFolderGranted();
+      if (!directory) {
+        toast('保存文件夹未授权，请点击「重新授权文件夹」', 'warn', 4500);
+        return;
+      }
+    }
+
+    setBusy(true, images.length > 1 ? `正在保存 0/${images.length} 张…` : '正在保存…');
+    const used = new Set();
+    const failures = [];
+    let saved = 0;
+
+    for (let index = 0; index < images.length; index += 1) {
+      const image = images[index];
+      let name = buildOutputName(image, used);
+      setStatus(`正在保存 ${index + 1}/${images.length}：${name}`);
+      try {
+        if (directory) {
+          if (!state.overwrite) {
+            name = await uniqueInFolder(directory, name);
+            used.add(name.toLowerCase());
+          }
+          const blob = await cropBlob(image);
+          await writeBlob(directory, name, blob);
+        } else {
+          const blob = await cropBlob(image);
+          downloadBlob(blob, name);
+          if (index < images.length - 1) await delay(220);
+        }
+        saved += 1;
+      } catch (error) {
+        console.error('[image-crop] 保存失败', image.name, error);
+        failures.push(`${image.name}: ${error.message || error}`);
+      }
+    }
+
+    setBusy(false);
+    if (failures.length) {
+      setStatus(`保存完成 ${saved}/${images.length}，失败 ${failures.length} 张`, 'error');
+      toast(`保存完成 ${saved}/${images.length} 张，失败：${failures[0]}`, 'error', 6000);
+    } else if (directory) {
+      setStatus(`已保存 ${saved} 张到「${directory.name}」`, 'ok');
+      toast(`已保存 ${saved} 张图片到「${directory.name}」`, 'success');
+    } else {
+      setStatus(`已下载 ${saved} 张图片`, 'ok');
+      toast(`已下载 ${saved} 张图片${saved > 1 ? '（浏览器可能询问是否允许多个下载）' : ''}`, 'success', 4500);
+    }
+  }
+
+  function saveCurrent() {
+    const image = activeImage();
+    if (!image) {
+      toast('请先选择一张图片', 'warn');
+      return;
+    }
+    saveImages([image]);
+  }
+
+  function saveAll() {
+    if (!state.images.length) {
+      toast('图片列表是空的', 'warn');
+      return;
+    }
+    saveImages(state.images.slice());
+  }
+
+  // ---------------------------------------------------------------------------
+  // 事件绑定
+  // ---------------------------------------------------------------------------
+
+  function openFilePicker() {
+    if (state.busy) return;
+    els.fileInput.click();
+  }
+
+  function bindEvents() {
+    els.openBtn.addEventListener('click', openFilePicker);
+    els.addBtn.addEventListener('click', openFilePicker);
+    els.emptyOpenBtn.addEventListener('click', openFilePicker);
+    els.fileInput.addEventListener('change', (event) => {
+      const files = event.target.files;
+      if (files && files.length) addFiles(files);
+      event.target.value = '';
+    });
+
+    els.clearBtn.addEventListener('click', clearImages);
+    els.saveCurrentBtn.addEventListener('click', saveCurrent);
+    els.saveAllBtn.addEventListener('click', saveAll);
+
+    els.helpBtn.addEventListener('click', () => {
+      if (typeof els.helpDialog.showModal === 'function') els.helpDialog.showModal();
+      else els.helpDialog.setAttribute('open', '');
+    });
+    els.closeHelpBtn.addEventListener('click', () => els.helpDialog.close());
+    els.helpDialog.addEventListener('click', (event) => {
+      if (event.target === els.helpDialog) els.helpDialog.close();
+    });
+
+    els.zoomInBtn.addEventListener('click', () => zoomBy(1.25));
+    els.zoomOutBtn.addEventListener('click', () => zoomBy(0.8));
+    els.fitBtn.addEventListener('click', fitView);
+    els.actualBtn.addEventListener('click', () => zoomTo(1));
+
+    els.resetCropBtn.addEventListener('click', () => {
+      const image = activeImage();
+      if (!image) return;
+      image.crop = { x: 0, y: 0, w: image.width, h: image.height };
+      commitCrop();
+    });
+    els.applyCropAllBtn.addEventListener('click', applyCropToAll);
+
+    [els.cropX, els.cropY, els.cropW, els.cropH].forEach((input) => {
+      input.addEventListener('change', applyCropInputs);
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          applyCropInputs();
+          input.blur();
+        }
+      });
+    });
+
+    els.templateInput.addEventListener('input', () => {
+      state.template = els.templateInput.value;
+      savePrefs();
+      updateFilenamePreview();
+    });
+    els.templateInput.addEventListener('blur', () => {
+      if (!els.templateInput.value.trim()) {
+        state.template = DEFAULT_TEMPLATE;
+        els.templateInput.value = DEFAULT_TEMPLATE;
+        savePrefs();
+        updateFilenamePreview();
+      }
+    });
+
+    els.templateChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const template = chip.dataset.template || DEFAULT_TEMPLATE;
+        state.template = template;
+        els.templateInput.value = template;
+        savePrefs();
+        updateFilenamePreview();
+        toast(`模板已切换为 ${template}；点「应用到全部」可重命名现有图片`, 'info', 3800);
+      });
+    });
+
+    els.applyNameAllBtn.addEventListener('click', applyNameTemplateToAll);
+
+    els.filenameInput.addEventListener('input', () => updateFilenamePreview());
+    els.filenameInput.addEventListener('blur', commitFilenameInput);
+    els.filenameInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commitFilenameInput();
+        els.filenameInput.blur();
+      }
+    });
+
+    els.overwriteInput.addEventListener('change', () => {
+      state.overwrite = els.overwriteInput.checked;
+      savePrefs();
+    });
+
+    els.pickFolderBtn.addEventListener('click', chooseFolder);
+
+    els.imageList.addEventListener('keydown', (event) => {
+      if (!state.images.length) return;
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      event.stopPropagation();
+      const index = state.images.findIndex((image) => image.id === state.activeId);
+      const nextIndex = clamp(index + (event.key === 'ArrowDown' ? 1 : -1), 0, state.images.length - 1);
+      setActive(state.images[nextIndex].id);
+      const item = els.imageList.querySelector(`.image-item[data-id="${state.images[nextIndex].id}"]`);
+      if (item) item.focus({ preventScroll: true });
+    });
+
+    els.canvas.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    els.canvas.addEventListener('pointerleave', () => {
+      if (!state.drag && !state.pan) {
+        els.cursorPos.textContent = 'x —  y —';
+        els.canvas.style.cursor = activeImage() ? 'crosshair' : 'default';
+      }
+    });
+    els.canvas.addEventListener('wheel', (event) => {
+      if (!activeImage()) return;
+      event.preventDefault();
+      const point = canvasPoint(event);
+      const factor = Math.exp(-event.deltaY * 0.0015);
+      zoomBy(factor, point.x, point.y);
+    }, { passive: false });
+    els.canvas.addEventListener('dblclick', fitView);
+
+    document.addEventListener('keydown', (event) => {
+      const target = event.target;
+      const tagName = target && target.tagName ? target.tagName.toLowerCase() : '';
+      const typing = tagName === 'input' || tagName === 'textarea' || tagName === 'select' || (target && target.isContentEditable);
+      const interactiveControl = tagName === 'button' || tagName === 'a' || tagName === 'summary';
+
+      if (els.helpDialog.open) return;
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveCurrent();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') {
+        event.preventDefault();
+        openFilePicker();
+        return;
+      }
+      if (typing) return;
+
+      if (event.code === 'Space' && !interactiveControl) {
+        event.preventDefault();
+        if (!state.space) {
+          state.space = true;
+          updateCanvasCursor();
+        }
+        return;
+      }
+      if (event.key === 'Escape') {
+        if (state.drag) {
+          const image = activeImage();
+          if (image) {
+            image.crop = state.drag.crop0;
+            state.drag = null;
+            commitCrop();
+          }
+        }
+        return;
+      }
+      if (!activeImage()) return;
+
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        const step = event.shiftKey ? 10 : 1;
+        if (event.key === 'ArrowLeft') nudgeCrop(-step, 0);
+        if (event.key === 'ArrowRight') nudgeCrop(step, 0);
+        if (event.key === 'ArrowUp') nudgeCrop(0, -step);
+        if (event.key === 'ArrowDown') nudgeCrop(0, step);
+        return;
+      }
+      if (event.key === 'f' || event.key === 'F' || event.key === '0') {
+        event.preventDefault();
+        fitView();
+        return;
+      }
+      if (event.key === '1') {
+        event.preventDefault();
+        zoomTo(1);
+      }
+    });
+
+    document.addEventListener('keyup', (event) => {
+      if (event.code === 'Space') {
+        state.space = false;
+        updateCanvasCursor();
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      state.space = false;
+      updateCanvasCursor();
+    });
+
+    let dragDepth = 0;
+    const hasFiles = (event) => Boolean(event.dataTransfer && Array.from(event.dataTransfer.types || []).includes('Files'));
+    window.addEventListener('dragenter', (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragDepth += 1;
+      document.body.classList.add('dragging');
+    });
+    window.addEventListener('dragover', (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    });
+    window.addEventListener('dragleave', () => {
+      if (!dragDepth) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) document.body.classList.remove('dragging');
+    });
+    window.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+      if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+        addFiles(event.dataTransfer.files);
+      }
+    });
+    window.addEventListener('dragend', () => {
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+    });
+
+    window.addEventListener('resize', () => {
+      if (!activeImage()) {
+        draw();
+        return;
+      }
+      if (!state.view.userZoomed) fitView();
+      else {
+        clampView();
+        draw();
+      }
+      updatePreview();
+    });
+
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(() => {
+        if (!activeImage()) {
+          draw();
+          updatePreview();
+          return;
+        }
+        if (!state.view.userZoomed) fitView();
+        else {
+          clampView();
+          draw();
+        }
+        updatePreview();
+      });
+      observer.observe(els.stage);
+      observer.observe(els.previewCanvas.parentElement);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 初始化
+  // ---------------------------------------------------------------------------
+
+  function init() {
+    loadPrefs();
+    els.templateInput.value = state.template;
+    els.overwriteInput.checked = state.overwrite;
+
+    if (!supportsFs) {
+      state.folderStatus = 'unsupported';
+    }
+
+    bindEvents();
+    renderImageList();
+    updateFolderUI();
+    restoreFolder();
+    draw();
+    updatePreview();
+    updateZoomLabel();
+    setTimeout(() => {
+      if (activeImage()) fitView();
+    }, 0);
+
+    // 便于调试/自动化测试的最小只读接口
+    window.__imageCropper = {
+      getState() {
+        return {
+          activeId: state.activeId,
+          folderStatus: state.folderStatus,
+          folderName: state.folderHandle ? state.folderHandle.name : '',
+          template: state.template,
+          images: state.images.map((image) => ({
+            id: image.id,
+            name: image.name,
+            width: image.width,
+            height: image.height,
+            crop: roundCrop(image),
+            outName: image.outName,
+          })),
+          view: { ...state.view },
+        };
+      },
+      getActiveCrop() {
+        const image = activeImage();
+        return image ? roundCrop(image) : null;
+      },
+      getView() {
+        return { ...state.view };
+      },
+      setCrop(x, y, w, h) {
+        const image = activeImage();
+        if (!image) return null;
+        image.crop = clampCrop({ x, y, w, h }, image);
+        commitCrop();
+        return roundCrop(image);
+      },
+      select(id) {
+        setActive(id, { fit: false });
+        return state.activeId;
+      },
+      setFolderForTest(handle) {
+        state.folderHandle = handle;
+        state.folderStatus = 'granted';
+        updateFolderUI();
+      },
+      exportCropBlob() {
+        const image = activeImage();
+        return image ? cropBlob(image) : Promise.reject(new Error('no active image'));
+      },
+      addFiles(files) {
+        return addFiles(files);
+      },
+    };
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
