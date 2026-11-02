@@ -8,9 +8,8 @@ from tasks.YuwaiMimang.config_scheduler import YuwaiMimangScheduler
 
 class YuwaiBattleConfig(BattleTaskConfig):
     """
-    域外迷窟的战斗配置：共享的「战斗预设 + 普通攻击」+ 本任务专属的三项
+    域外迷窟的战斗配置：共享的「战斗预设 + 普通攻击」+ 本任务专属的两项
 
-    - fast_click：秒杀快打，跳过技能识别/冷却判定，锁好目标后按固定顺序连点；
     - fast_relock：目标死后原地补锁（连打场景）。迷窟是「一个坐标周围持续刷怪、
       刷新间隔约 3s、要求在时段内尽量多杀」，所以默认**开**：
       一刀一只时每只都要重锁，完整重锁 ~1.1s、补锁 ~0.3s，不开会白白少杀一半；
@@ -23,8 +22,6 @@ class YuwaiBattleConfig(BattleTaskConfig):
     `use_normal_attack` 沿用共享默认（关）：本任务不点普通攻击，
     技能全冷却时就等冷却，不做额外补刀。
     """
-    # 秒杀快打：不走技能识别 / 冷却判定，锁好目标后固定顺序连点
-    fast_click: bool = Field(default=False, description='fast_click_help')
     # 目标死后原地补锁（连续刷怪场景。单 boss / 刷怪间隔长时关掉，走正常流程）
     fast_relock: bool = Field(default=True, description='fast_relock_help')
     # 战斗目标白名单：逗号分隔，空 = 不校验目标名
@@ -53,10 +50,6 @@ class YuwaiMimangConfig(BaseModel):
     battle_coord: str = Field(default='304,76', description='打怪基准坐标 x,y（进图后站这里，被追踪跑偏后回来）')
     # 基准坐标容差（坐标点）
     battle_tolerance: int = Field(default=2, description='基准坐标容差（坐标点，最大容错 2）')
-    # 秒杀快打模式下每轮点完攻击后的等待（秒）
-    # 按预设模式不用它：那边由「等技能进入冷却」自然控制节奏
-    attack_interval: float = Field(default=0.1,
-                                   description='秒杀快打每轮点击后的等待（秒）；按预设模式不使用')
 
     # ---------------- 中途修理 ----------------
     # 打怪过程中是否定期修理装备（修理时角色站桩不动，修完原地继续打）

@@ -589,15 +589,13 @@ ecord_skill_icon.py ^
     - **只打「战斗目标」白名单**（`battle_config.target_names`，默认 `小鬼,鬼王,鬼将`）：
       `acquire_target()` 调 `ui_ensure_target_locked(target_name=..., action=attack)`，
       逐个点「目标」切换并 OCR 校验名字，列表外的怪不碰；白名单留空 = 不校验名字
-    - 打怪两种模式，由 `battle_config.fast_click` 选：
-      * **按预设（默认）**：`battle_plan_slots()` 识别技能位并按预设优先级排序 ->
-        `battle_skill_loop()` 队列式双击释放（进冷却校验、冷却好的高优先级技能插队）；
-        默认**不点普攻**（`use_normal_attack` 共享默认关，技能全冷却时等冷却）；
-        目标丢失才换下一只，打不死的怪不会被每轮切走
-      * **秒杀快打**：`fast_click_once()` 固定顺序连点
-        （技能1x2 -> 普攻 -> 技能1x2 -> 技能3x2 -> 普攻），不识别技能、不等冷却；
-        中间**不点「目标」**（换目标统一交给 `acquire_target`）
-      * 预设模式下技能位一个都认不出来时，自动退回秒杀快打，避免干站着
+    - 打怪只有一种流程：`battle_plan_slots()` 识别技能位并按预设优先级排序 ->
+      `battle_skill_loop()` 队列式双击释放（进冷却校验、冷却好的高优先级技能插队）；
+      默认**不点普攻**（`use_normal_attack` 共享默认关，技能全冷却时等冷却）；
+      目标丢失才换下一只，打不死的怪不会被每轮切走
+    - 技能位识别（`recognize_skill_slots()`）：连试 3 次、每次间隔 1s；
+      **一直认不出来就本时段收工，不盲点技能位**（技能位上可能带的是物品/药品）
+    - （旧版的「秒杀快打」固定连点已移除：迷窟改为统一走预设队列 + 快速补锁）
     - **目标死后快速补锁（可选能力，任务开关 `fast_relock`）**
       三种战斗场景要分开对待：
       * **单点 boss**（世界首领）——目标死了就是打完了，走正常流程（不补锁）；
@@ -623,7 +621,7 @@ ecord_skill_icon.py ^
     - 中途修理：勾选 `repair_enable` 后每 `repair_interval_minutes` 分钟（默认 20）
       调一次 `bag_repair_equipment`（背包随身功能一键修理，站桩修完原地继续打；
       时段剩余不足 3 分钟时跳过；修完收起菜单并回一次基准点）
-    - 位置检测保留：秒杀快打每 3 轮、按预设模式每 6 次释放调一次 `recover_in_battle`——
+    - 位置检测：每 `RECOVER_EVERY_CASTS`（6）次释放调一次 `recover_in_battle`——
       偏差小轻推（`map_move_nudge`，约 0.3s）、偏差大才走完整闭环 `map_move_to`；
       怪会追踪把角色带着跑偏，必须在循环内回位
     - **单步位移下限约 2 个坐标单位**（见上面 move.py 实测），与容差 2 同量级，

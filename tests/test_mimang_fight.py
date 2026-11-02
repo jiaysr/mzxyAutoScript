@@ -25,13 +25,10 @@ from tasks.YuwaiMimang.script_task import ScriptTask
 
 TIMEOUT = 30
 ENTER = True
-INTERVAL = None
 
 for i, arg in enumerate(sys.argv):
     if arg == '--timeout' and i + 1 < len(sys.argv):
         TIMEOUT = float(sys.argv[i + 1])
-    if arg == '--interval' and i + 1 < len(sys.argv):
-        INTERVAL = float(sys.argv[i + 1])
     if arg == '--no-enter':
         ENTER = False
 
@@ -41,14 +38,8 @@ def main():
     device = Device(config)
     t = ScriptTask(config, device)
     cfg = config.model.yuwai_mimang.yuwai_mimang_config
-    if INTERVAL is not None:
-        # 注意：直接给 pydantic 子模型赋值会**落盘**到 config/oas1.json
-        #（实测 --interval 1.0 那次把配置改掉了），测完要记得改回来
-        cfg.attack_interval = INTERVAL
-        print(f'攻击间隔改为 {INTERVAL}s（会写入 config/oas1.json！）')
 
-    print(f'=== 0. 当前状态 (timeout={TIMEOUT}s, enter={ENTER}, '
-          f'interval={cfg.attack_interval}) ===')
+    print(f'=== 0. 当前状态 (timeout={TIMEOUT}s, enter={ENTER}) ===')
     start = t.map_move_read_pos()
     print('location:', start)
     if start is None:

@@ -6,15 +6,13 @@
      -> 人物自动走到 NPC 处 -> 等对话弹窗 -> 点「进入域外迷窟」-> 进入迷窟地图
      -> 锁白名单目标 -> 打怪 -> 时段结束（11:30 / 16:30）后离场
 
-打怪两种模式（配置 -> 战斗配置 -> 秒杀快打）：
-- **按预设**（默认）：进图后识别 7 个技能位分别是什么技能，按任务选的战斗预设
-  排队释放（双击 -> 校验进冷却 -> 冷却好的高优先级技能立刻插队）；
+打怪（配置 -> 战斗配置）：
+- 进图后识别 7 个技能位分别是什么技能，按任务选的战斗预设排队释放
+  （双击 -> 校验进冷却 -> 冷却好的高优先级技能立刻插队）；
   默认不点普通攻击（任务「战斗配置」里可以打开），技能全冷却时等冷却；
-- **秒杀快打**：跳过识别和冷却判定，锁好目标后按固定顺序连点
-  （技能1 x2 -> 普攻 -> 技能1 x2 -> 技能3 x2 -> 普攻），适合一下带走一只的号。
-
-两种模式都只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪：
-锁目标时逐个切换并 OCR 名字校验，列表外的怪不碰（见 acquire_target）。
+- 只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪：锁目标时逐个切换并
+  OCR 名字校验，列表外的怪（例如路过的玩家）不碰（见 acquire_target）；
+- 一刀一只时目标死了就地快速补锁（`fast_relock`，默认开），单只重锁 ~1.1s -> ~0.3s。
 
 怪物在 10:30-11:30、15:30-16:30 两个时段内**一直刷新**（不会打完），
 所以打怪不判「清完了」，只在时段到点（11:30 / 16:30）时收工离场。
@@ -397,7 +395,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
     # ---------------------------------------------------------------- 战斗配置 / 目标
     def yuwai_battle_config(self):
-        """本任务的「战斗配置」组（预设 / 普通攻击 / 秒杀快打 / 战斗目标）"""
+        """本任务的「战斗配置」组（预设 / 普通攻击 / 快速补锁 / 战斗目标）"""
         return self.config.yuwai_mimang.battle_config
 
     def battle_task_preset(self) -> str:
@@ -473,26 +471,6 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         names = self.battle_target_names() if names is None else names
         return self.battle_relock_target(names)
 
-    def fast_click_once(self) -> None:
-        """
-        秒杀快打一轮：当前目标已经锁好（且名字在白名单里），按固定顺序点一遍
-
-        技能1 x2 -> 普攻 -> 技能1 x2 -> 技能3 x2 -> 普攻
-
-        技能2 不参与连点；按钮区域复用 GameUi 的实测常量，不重复录素材。
-        **中间不再点「目标」**：旧版靠点「目标」在击杀后切到下一只，但切到的是
-        任意目标（可能不在白名单里）。换目标统一交给 acquire_target（带名字校验），
-        这里只在当前目标上输出伤害；目标死了后续点击打在空处，代价很小。
-        """
-        self.battle_click_skill(0)
-        self.battle_click_skill(0)
-        self.battle_click_attack()
-        self.battle_click_skill(0)
-        self.battle_click_skill(0)
-        self.battle_click_skill(2)
-        self.battle_click_skill(2)
-        self.battle_click_attack()
-
     def recover_position(self, coord, tolerance: int, timeout: int = None) -> bool:
         """
         回到打怪基准坐标（被怪追踪会带着跑偏）
@@ -518,14 +496,12 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                                 tolerance=tolerance, timeout=timeout,
                                 ensure_main=False, calibrate=False)
 
-    # 每打这么多轮做一次位置检查（不读目标名/剩余数量，只回基准点）
-    LOCK_CHECK_EVERY = 3
     # 时段剩余时间少于这个秒数就不进图了（进图流程本身要几十秒，
     # 进去也打不了多久，还把时段尾部白白占住）
     MIN_WINDOW_REMAIN = 60
 
-    # 预设模式：每成功释放这么多次技能做一次位置检查 / 中途修理
-    # （一次释放 = 一次「双击 + 等进冷却」，和旧的 LOCK_CHECK_EVERY 轮大致同量级）
+    # 每成功释放这么多次技能做一次位置检查 / 中途修理
+    # （一次释放 = 一次「双击 + 等进冷却」）
     RECOVER_EVERY_CASTS = 6
     # 预设模式：所有技能都在冷却时，普攻的最小间隔（秒）
     NORMAL_ATTACK_INTERVAL = 1.0
@@ -540,16 +516,12 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
     def handle_window(self, windows: list, slot: tuple, cfg, deadline: datetime = None) -> None:
         """
-        时段内打怪：锁白名单目标 -> 输出伤害 -> 打完换下一只，一直打到时段到点
+        时段内打怪：锁白名单目标 -> 按预设释放技能 -> 打完换下一只，直到时段到点
         （11:30 / 16:30；怪物在时段内一直刷新，所以不判「清完了」）
 
         - 进图后先走到基准坐标（304,76），容差 2
         - 收起菜单（收起后右侧竖排才露出「目标」按钮）
-        - 按配置选打怪模式：
-          * 按预设（默认）：识别技能位 -> 按预设优先级队列释放（双击 + 校验进冷却），
-            所有技能都在冷却时才补普攻（见 preset_battle_loop）
-          * 秒杀快打：跳过识别，锁好目标后固定顺序连点（见 fast_battle_loop）
-        - 两种模式都只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪
+        - 只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪（见 acquire_target）
         - 每打若干次回一次基准坐标（见 recover_in_battle），并按 repair_interval_minutes
           中途修理装备（时段剩余不足 REPAIR_MIN_REMAIN 秒时跳过）
 
@@ -558,13 +530,10 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         logger.hr('迷窟内打怪')
         coord = self.parse_coord(cfg.battle_coord)
         tolerance = int(cfg.battle_tolerance)
-        interval = float(cfg.attack_interval)
         end = deadline if deadline is not None else slot[1]
-        battle_cfg = self.yuwai_battle_config()
         names = self.battle_target_names()
-        mode = '秒杀快打' if battle_cfg.fast_click else '按预设'
 
-        logger.attr('打怪配置', f'模式={mode} 目标={names or "不限"} 基准={coord} '
+        logger.attr('打怪配置', f'目标={names or "不限"} 基准={coord} '
                                f'容差={tolerance} 打到={end.strftime("%H:%M")}')
 
         # 进图后先站到基准点
@@ -576,10 +545,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         self.device.sleep(0.5)
 
         try:
-            if battle_cfg.fast_click:
-                self.fast_battle_loop(coord, tolerance, interval, end, names, cfg)
-            else:
-                self.preset_battle_loop(coord, tolerance, end, names, cfg)
+            self.preset_battle_loop(coord, tolerance, end, names, cfg)
         finally:
             # 不管正常收工还是中途报错，都要离开迷窟回中转地图，
             # 别把角色留在迷窟里（报错路径更要清场，否则下次进来还得先找出口）
@@ -594,6 +560,28 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         """重置本场打怪的进度状态（时段截止时间）"""
         self._battle_deadline = end
 
+    # 技能位识别：连试几次（刚进战斗时技能栏可能还在动画 / 被特效挡住）
+    SLOT_RECOGNIZE_ATTEMPTS = 3
+    SLOT_RECOGNIZE_WAIT = 1.0
+
+    def recognize_skill_slots(self) -> list:
+        """
+        识别本场技能位并按预设优先级排序；多次都认不出来返回空列表
+
+        认不出来时**不盲点**技能位：技能位上带的可能是物品/药品，
+        盲点会白耗道具（战车战场第 7 位实测就是物品），宁可这一场不打。
+        """
+        for attempt in range(1, self.SLOT_RECOGNIZE_ATTEMPTS + 1):
+            self.screenshot()
+            slots = self.battle_plan_slots()
+            if slots:
+                logger.info(f'本场技能位：{[slot + 1 for slot in slots]}')
+                return slots
+            logger.warning(f'技能位没识别出来（第 {attempt}/{self.SLOT_RECOGNIZE_ATTEMPTS} 次），'
+                           f'等 {self.SLOT_RECOGNIZE_WAIT}s 再试')
+            self.device.sleep(self.SLOT_RECOGNIZE_WAIT)
+        return []
+
     def preset_battle_loop(self, coord, tolerance: int, end: datetime,
                            names: list = None, cfg=None) -> None:
         """
@@ -605,8 +593,8 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         与旧版的区别：**打不死的怪不会被每轮切掉**，技能一直往它身上放；
         只有目标丢失才换（鬼王这种要多打的怪能正常磨死）。
 
-        - 技能位只在第一次锁到目标后识别一次（一场里技能栏不会变）；
-        - 一个技能都没识别出来：本场退回秒杀快打，避免干站着不出手；
+        - 技能位只在第一次锁到目标后识别一次（一场里技能栏不会变），认不出来就多试几次；
+        - 一直认不出来时**不盲点技能位**（可能是物品/药品），本时段收工；
         - 位置检查 / 中途修理按累计释放次数触发（见 on_cast）；
         - **不判「清完了」**：时段内怪物一直刷新，读到 0 也只是瞬间，一律打满时段
           （11:30 / 16:30 到点由 battle_stop_reason 结束）。
@@ -641,16 +629,11 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                     continue
 
                 if not slots:
-                    self.screenshot()
-                    slots = self.battle_plan_slots()
+                    slots = self.recognize_skill_slots()
                     if not slots:
-                        logger.warning('技能位一个都没识别出来（可能不在战斗画面），'
-                                       '本时段退回秒杀快打')
-                        fallback_interval = float(getattr(cfg, 'attack_interval', 0.1) or 0.1)
-                        self.fast_battle_loop(coord, tolerance, fallback_interval,
-                                              end, names, cfg)
-                        return
-                    logger.info(f'本场技能位：{[slot + 1 for slot in slots]}')
+                        logger.warning('技能位一直认不出来（技能栏被挡 / 素材不匹配），'
+                                       '本时段不再盲点技能位，收工')
+                        break
 
                 reason = self.battle_skill_loop(
                     slots,
@@ -672,47 +655,6 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                 self.device.sleep(0.2)
 
         logger.attr('打怪结束', f'共释放 {progress["casts"]} 次技能')
-
-    # ---------------------------------------------------------------- 打怪：秒杀快打
-    def fast_battle_loop(self, coord, tolerance: int, interval: float, end: datetime,
-                         names: list = None, cfg=None) -> None:
-        """
-        秒杀快打：锁一只白名单里的怪 -> 固定顺序点一遍 -> 再锁下一只
-
-        适合一下带走一只的号：不走技能识别、不等冷却，一轮点击就能清掉一只。
-        与旧版只有一处区别：**换目标必须过名字校验**（acquire_target），
-        不再 blindly 点「目标」切到哪只打哪只。
-        """
-        names = self.battle_target_names() if names is None else names
-        logger.hr('开始秒杀快打')
-        self.reset_battle_progress(end)
-        rounds = 0
-        last_repair = datetime.now()
-        # 开了「快速补锁」就先走 0.3s 的快路径，锁不到再走完整流程
-        relock = self.battle_on_target_lost(names)
-        with suppress_control_input_log():
-            while datetime.now() < end:
-                self.reset_records()
-                if not relock() and not self.acquire_target(names):
-                    logger.info('附近没有白名单里的可攻击目标，等 1s 再找')
-                    self.device.sleep(1)
-                    continue
-
-                self.fast_click_once()
-                rounds += 1
-                self.device.sleep(interval)
-
-                if rounds % self.LOCK_CHECK_EVERY:
-                    continue
-                # 位置检查：怪会追踪把角色带着跑偏，跑偏后能锁到的怪变少，
-                # 所以每次检查都顺带回一次基准点（偏差小轻推、偏差大走完整闭环）
-                self.recover_in_battle(coord, tolerance)
-                if self.need_repair(cfg, last_repair, end):
-                    self.repair_in_battle(coord, tolerance)
-                    last_repair = datetime.now()
-                logger.attr('打怪进度', f'rounds={rounds}')
-
-        logger.attr('打怪结束', f'共 {rounds} 轮')
 
     # ---------------------------------------------------------------- 打怪：停止条件
     def battle_stop_reason(self, image=None):

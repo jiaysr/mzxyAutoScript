@@ -3,15 +3,15 @@
 域外迷窟「接进战斗预设体系 + 战斗目标白名单」单测（不连设备）
 
 覆盖：
-- 战斗配置的默认值（预设 / 普通攻击关闭 / 秒杀快打 / 目标白名单）
+- 战斗配置的默认值（预设 / 普通攻击关闭 / 快速补锁 / 目标白名单）
 - battle_task_preset 从嵌套的 battle_config 组里取预设 id（不会静默回落系统预设）
 - 目标白名单的解析（中英文逗号、分号、空格）
-- acquire_target 把白名单和动作要求透传给 ui_ensure_target_locked，连续失败有兜底
-- 按预设模式走 battle_plan_slots + battle_skill_loop（而不是旧的硬编码连点）
-- 秒杀快打模式走固定序列，不再 blindly 点「目标」
+- acquire_target 把白名单和动作要求透传给 ui_ensure_target_locked，锁不到也不降级
+- 按预设模式走 battle_plan_slots + battle_skill_loop（认不出技能位就不盲点）
+- 目标死后快速补锁（点固定坐标、每次都验名字、玩家跳过）
 - 停止条件只有时段到点（怪物在时段内一直刷新，没有「打完」）
-- 离场依次点三个出口（每个「开图 -> 拖到右上角 -> 点 -> 等 60s」）
-- handle_window 按 fast_click 分发，且无论成败都会离开迷窟
+- 离场依次点三个出口（每个「开图 -> 拖到对应角落 -> 点 -> 等 60s」）
+- handle_window 无论成败都会离开迷窟
 
     python tests\\test_yuwai_battle_preset.py
 """
@@ -59,7 +59,6 @@ def test_config_defaults():
     battle = YuwaiBattleConfig()
     assert battle.battle_preset == 'default', battle.battle_preset
     assert battle.use_normal_attack is False, '本任务不点普通攻击，沿用共享默认（关）'
-    assert battle.fast_click is False, '默认按预设打'
     assert battle.fast_relock is True, '迷窟是连续刷怪 + 限时多杀，补锁默认开'
     assert battle.target_names == '小鬼,鬼王,鬼将', battle.target_names
 
@@ -174,23 +173,17 @@ def test_preset_loop_respects_normal_attack_switch():
     print('test_preset_loop_respects_normal_attack_switch OK')
 
 
-def test_preset_loop_falls_back_to_fast_click():
+def test_preset_loop_gives_up_when_slots_unknown():
+    """技能位认不出来时不盲点（可能带的是物品），本时段收工交给 finally 离场"""
     task, _ = make_task()
-    calls = {}
+    looped = []
     task.acquire_target = lambda names=None: True
-    task.battle_plan_slots = lambda: []
-    task.battle_skill_loop = lambda *a, **kw: calls.setdefault('skill_loop', True) or 'timeout'
-    task.fast_battle_loop = lambda *a, **kw: calls.setdefault('fast', a)
-    task.device = SimpleNamespace(sleep=lambda seconds: None, image=None)
-
-    class FastCfg:
-        attack_interval = 0.1
-
+    task.recognize_skill_slots = lambda: []
+    task.battle_skill_loop = lambda *a, **kw: looped.append(1) or 'window_end'
     task.preset_battle_loop((304, 76), 2, datetime.now() + timedelta(seconds=30),
-                            ['小鬼'], FastCfg())
-    assert 'fast' in calls, '一个技能位都认不出来时必须退回快打，不能干站着'
-    assert 'skill_loop' not in calls
-    print('test_preset_loop_falls_back_to_fast_click OK')
+                            ['小鬼'], SimpleNamespace())
+    assert looped == [], '认不出技能位就不该进释放循环（会盲点物品/药品）'
+    print('test_preset_loop_gives_up_when_slots_unknown OK')
 
 
 # ------------------------------------------------------------------ 目标死后快速补锁
@@ -280,71 +273,6 @@ def test_fast_relock_switch_off_uses_normal_flow():
     print('test_fast_relock_switch_off_uses_normal_flow OK')
 
 
-def test_fast_loop_prefers_fast_relock():
-    task, _ = make_task(YuwaiBattleConfig(fast_click=True))
-    calls = {'relock': 0, 'acquire': 0}
-
-    class _Stop(Exception):
-        pass
-
-    def relock(names=None):
-        calls['relock'] += 1
-        return True
-
-    def fast_click_once():
-        raise _Stop()
-
-    task.battle_relock_target = relock
-    task.acquire_target = lambda names=None: calls.__setitem__('acquire', calls['acquire'] + 1)
-    task.fast_click_once = fast_click_once
-    try:
-        task.fast_battle_loop((304, 76), 2, 0.1, datetime.now() + timedelta(seconds=30), ['小鬼'])
-    except _Stop:
-        pass
-    assert calls == {'relock': 1, 'acquire': 0}, calls
-    print('test_fast_loop_prefers_fast_relock OK')
-
-
-# ------------------------------------------------------------------ 秒杀快打
-def test_fast_loop_uses_fixed_sequence():
-    task, battle = make_task(YuwaiBattleConfig(fast_click=True))
-    clicks = []
-
-    class _Stop(Exception):
-        pass
-
-    def fast_click_once():
-        clicks.append(1)
-        if len(clicks) == 3:
-            raise _Stop()
-
-    task.battle_relock_target = lambda names=None: False
-    task.acquire_target = lambda names=None: True
-    task.fast_click_once = fast_click_once
-    end = datetime.now() + timedelta(seconds=60)
-    try:
-        task.fast_battle_loop((304, 76), 2, 0.1, end, ['小鬼'])
-        assert False, '应该被 _Stop 打断（循环本身会打到时段结束）'
-    except _Stop:
-        pass
-    assert len(clicks) == 3, clicks
-    print('test_fast_loop_uses_fixed_sequence OK')
-
-
-def test_fast_click_once_order():
-    task, _ = make_task()
-    seq = []
-    name = {'battle_click_skill': 'skill', 'battle_click_attack': 'attack'}
-    for method in name:
-        setattr(task, method, (lambda key: lambda index=None: seq.append(
-            (key, index) if index is not None else (key,)))(name[method]))
-    task.fast_click_once()
-    assert [item[0] for item in seq] == ['skill', 'skill', 'attack',
-                                         'skill', 'skill', 'skill', 'skill', 'attack'], seq
-    assert [item[1] for item in seq if item[0] == 'skill'] == [0, 0, 0, 0, 2, 2], seq
-    print('test_fast_click_once_order OK')
-
-
 # ------------------------------------------------------------------ 停止条件
 def test_stop_reason_only_window_end():
     """怪物在时段内一直刷新，所以只有时段到点才停，不存在「清完了」"""
@@ -431,8 +359,8 @@ def test_wait_leave_mimang_detects_map_change():
 
 
 # ------------------------------------------------------------------ 分发
-def _window_task(fast_click: bool, leave_ok=True, raise_inside=None):
-    task, battle = make_task(YuwaiBattleConfig(fast_click=fast_click))
+def _window_task(leave_ok=True, raise_inside=False):
+    task, battle = make_task()
     task.parse_coord = lambda text: (304, 76)
     task.recover_position = lambda coord, tolerance, timeout=None: True
     task.ui_close_menu = lambda: None
@@ -441,40 +369,32 @@ def _window_task(fast_click: bool, leave_ok=True, raise_inside=None):
     class Cfg:
         battle_coord = '304,76'
         battle_tolerance = 2
-        attack_interval = 0.1
 
-    calls = {'preset': 0, 'fast': 0, 'leave': 0}
-    task.preset_battle_loop = lambda *a, **kw: calls.__setitem__('preset', calls['preset'] + 1)
-    task.fast_battle_loop = lambda *a, **kw: calls.__setitem__('fast', calls['fast'] + 1)
+    calls = {'preset': 0, 'leave': 0}
+    if raise_inside:
+        task.preset_battle_loop = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('boom'))
+    else:
+        task.preset_battle_loop = lambda *a, **kw: calls.__setitem__('preset', calls['preset'] + 1)
 
     def leave(cfg):
         calls['leave'] += 1
         return leave_ok
 
     task.leave_mimang = leave
-    if raise_inside:
-        setattr(task, f'{raise_inside}_battle_loop',
-                lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('boom')))
     return task, Cfg(), calls
 
 
-def test_handle_window_dispatch():
-    task, cfg, calls = _window_task(fast_click=False)
+def test_handle_window_runs_preset_loop():
+    task, cfg, calls = _window_task()
     task.handle_window([], (datetime.now(), datetime.now() + timedelta(minutes=5)),
                        cfg, deadline=datetime.now() + timedelta(seconds=5))
-    assert calls['preset'] == 1 and calls['fast'] == 0, calls
+    assert calls['preset'] == 1, calls
     assert calls['leave'] == 1, '收工必须离开迷窟'
-
-    task, cfg, calls = _window_task(fast_click=True)
-    task.handle_window([], (datetime.now(), datetime.now() + timedelta(minutes=5)),
-                       cfg, deadline=datetime.now() + timedelta(seconds=5))
-    assert calls['fast'] == 1 and calls['preset'] == 0, calls
-    assert calls['leave'] == 1
-    print('test_handle_window_dispatch OK')
+    print('test_handle_window_runs_preset_loop OK')
 
 
 def test_handle_window_always_leaves():
-    task, cfg, calls = _window_task(fast_click=False, raise_inside='preset')
+    task, cfg, calls = _window_task(raise_inside=True)
     try:
         task.handle_window([], (datetime.now(), datetime.now() + timedelta(minutes=5)),
                            cfg, deadline=datetime.now() + timedelta(seconds=5))
