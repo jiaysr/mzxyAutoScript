@@ -117,6 +117,72 @@ def test_scan_dedups_same_cell():
     print('test_scan_dedups_same_cell OK')
 
 
+# ------------------------------------------------------------------ 打开/重置背包页
+def test_open_ready_resets_when_already_in_bag():
+    """已经在背包页：点左侧角色再点回物品（游戏才会把列表滚回顶部）"""
+    from tasks.GameUi.pages.page import page_item_bag
+
+    bag = make_bag()
+    bag.__dict__.pop('bag_open_ready', None)
+    calls = []
+    bag.ui_page_appear = lambda page, skip_first_screenshot=True: page is page_item_bag
+    bag.ui_goto = lambda page, **kw: calls.append(('goto', page)) or True
+    bag.bag_reset_page = lambda: calls.append(('reset', None)) or True
+    bag.bag_sort = lambda: calls.append(('sort', None))
+
+    bag.bag_open_ready()
+    assert calls == [('reset', None), ('sort', None)], calls
+    print('test_open_ready_resets_when_already_in_bag OK')
+
+
+def test_open_ready_enters_bag_when_elsewhere():
+    from tasks.GameUi.pages.page import page_item_bag
+
+    bag = make_bag()
+    bag.__dict__.pop('bag_open_ready', None)
+    calls = []
+    bag.ui_page_appear = lambda page, skip_first_screenshot=True: False
+    bag.ui_goto = lambda page, **kw: calls.append(('goto', page)) or True
+    bag.bag_reset_page = lambda: calls.append(('reset', None)) or True
+    bag.bag_sort = lambda: calls.append(('sort', None))
+
+    bag.bag_open_ready()
+    assert calls == [('goto', page_item_bag), ('reset', None), ('sort', None)], calls
+    print('test_open_ready_enters_bag_when_elsewhere OK')
+
+
+def test_reset_page_clicks_sidebar_tab():
+    """重置 = 直接点左侧「物品」页签（游戏设定：点当前模块会重置到第一个 tab）"""
+    from tasks.GameUi.pages.page import page_item_bag
+
+    bag = make_bag()
+    bag.__dict__.pop('bag_reset_page', None)
+    calls = []
+    bag.ui_sidebar_visible = lambda: ['商城', '角色', '物品', '任务']
+    bag.ui_sidebar_click = lambda name, **kw: calls.append(('sidebar', name)) or True
+    bag.bag_close_item_panel = lambda: calls.append(('close', None))
+
+    assert bag.bag_reset_page() is True
+    assert calls[0] == ('sidebar', page_item_bag.module), calls
+    assert calls[0][1] == '物品', calls
+    assert calls[-1] == ('close', None), calls
+    print('test_reset_page_clicks_sidebar_tab OK')
+
+
+def test_reset_page_skips_when_sidebar_hidden():
+    """主页面没有左侧栏：不点页签，只关一下可能开着的详情面板"""
+    bag = make_bag()
+    bag.__dict__.pop('bag_reset_page', None)
+    calls = []
+    bag.ui_sidebar_visible = lambda: []
+    bag.ui_sidebar_click = lambda name, **kw: calls.append(('sidebar', name)) or True
+    bag.bag_close_item_panel = lambda: calls.append(('close', None))
+
+    assert bag.bag_reset_page() is False
+    assert calls == [('close', None)], calls
+    print('test_reset_page_skips_when_sidebar_hidden OK')
+
+
 # ------------------------------------------------------------------ 找物品
 def test_find_item_prefers_template():
     bag = make_bag(hits=[(0.93, 279, 114, 214, 41)])
@@ -132,7 +198,7 @@ def test_find_item_rejects_wrong_item():
     """模板命中但格子文字对不上（别的物品长得像）：不能点，继续找/退回 OCR"""
     bag = make_bag(hits=[(0.93, 279, 114, 214, 41)])
     bag.bag_region_text = lambda region: '神秘仙府券'
-    bag.bag_scroll_to_top = lambda: None
+    bag.bag_reset_page = lambda: True
     bag.bag_find_by_ocr = lambda name: None
     assert bag.bag_find_item('趣味答题券', rule=bag.rule) is None
     print('test_find_item_rejects_wrong_item OK')
@@ -140,7 +206,7 @@ def test_find_item_rejects_wrong_item():
 
 def test_find_item_falls_back_to_ocr():
     bag = make_bag(hits=[])
-    bag.bag_scroll_to_top = lambda: None
+    bag.bag_reset_page = lambda: True
     bag.bag_find_by_ocr = lambda name: (500, 300)
     coord = bag.bag_find_item('趣味答题券', rule=bag.rule)
     assert coord == (500, 300), '模板没命中要退回 OCR'

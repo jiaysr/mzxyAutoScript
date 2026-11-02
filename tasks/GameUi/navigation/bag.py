@@ -74,18 +74,42 @@ class BagNavigation(BaseTask, GameUiAssets):
     # ---------------------------------------------------------------- 公共外壳
     def bag_open_ready(self) -> None:
         """
-        进物品-背包页并收拾到可扫描状态：关残留详情面板 -> 整理 -> 滚回顶部
+        进物品-背包页并收拾到可扫描状态：关残留详情面板 -> 整理
 
-        步骤顺序不能换：详情面板会挡住格子且不响应滚动，整理必须等动画结束，
-        回到顶部是为了「上一次调用把包滚到过底部」时也能找全。
+        **已经在背包页时先重置**：背包是长列表，游戏只在「重新进入」时才回到顶部，
+        停在当前滚动位置直接扫描会漏掉上面的物品；重置办法是点左侧别的模块
+        （角色）再点回「物品」，比手动往回滑稳得多（仙府也是这么做的）。
         """
         logger.hr('Open bag', level=2)
-        if not self.ui_goto(page_item_bag, timeout=40):
-            raise GameStuckError('Item bag page does not appear')
+        if not self.ui_page_appear(page_item_bag, skip_first_screenshot=False):
+            if not self.ui_goto(page_item_bag, timeout=40):
+                raise GameStuckError('Item bag page does not appear')
+            self.device.sleep(self.BAG_SETTLE)
+        # 无论怎么进来的，都点一次左侧「物品」页签把模块重置到第一个 tab（背包）：
+        # 已经在背包页时这是唯一能让列表回顶部的方式；刚进来时是一次无害的确认
+        self.bag_reset_page()
+        self.bag_sort()
+
+    def bag_reset_page(self) -> bool:
+        """
+        重置背包页：点左侧「物品」页签（游戏设定：点当前模块会重置到第一个 tab）
+
+        背包是长列表，停在当前滚动位置直接扫描会漏掉上面的物品；
+        点一次当前页签游戏就会重新加载背包（回顶部、关掉详情面板）。
+        注意：直接 `ui_goto(page_item_bag)` 在已经处于该页时是原地不动，不能用来重置。
+
+        :return: 是否真的点了页签（主页面没有左侧栏时返回 False，只关一下面板）
+        """
+        logger.info('Reset bag page (click sidebar 物品)')
+        if page_item_bag.module not in self.ui_sidebar_visible():
+            logger.info('Sidebar is not visible, skip bag reset')
+            self.bag_close_item_panel()
+            return False
+        if not self.ui_sidebar_click(page_item_bag.module):
+            logger.warning('点击左侧「物品」页签失败，按当前页继续')
         self.device.sleep(self.BAG_SETTLE)
         self.bag_close_item_panel()
-        self.bag_sort()
-        self.bag_scroll_to_top()
+        return True
 
     def bag_scan_rule(self, rule, on_hit=None, max_screens: int = None,
                       empty_rule=None) -> bool:
@@ -148,8 +172,8 @@ class BagNavigation(BaseTask, GameUiAssets):
             coord = self.bag_find_by_rule(rule, name)
             if coord is not None:
                 return coord
-            logger.info(f'模板未命中 [{name}]，退回 OCR 名字匹配')
-            self.bag_scroll_to_top()
+            logger.info(f'模板未命中 [{name}]，重置背包页后走 OCR 名字匹配')
+            self.bag_reset_page()
         return self.bag_find_by_ocr(name)
 
     def bag_find_by_rule(self, rule, name: str = ''):
@@ -421,17 +445,3 @@ class BagNavigation(BaseTask, GameUiAssets):
         self.device.swipe(p1=self.BAG_SCROLL_P1, p2=self.BAG_SCROLL_P2)
         self.device.click_record_clear()
         self.device.sleep(self.BAG_SCROLL_SETTLE)
-
-    def bag_scroll_to_top(self) -> None:
-        """滚回背包顶部（整页反向滑动；再滚一屏内容不变就说明到顶了）"""
-        last_signature = None
-        for _ in range(self.BAG_SCAN_SCREENS):
-            self.screenshot()
-            signature = self.bag_page_signature(self.device.image)
-            if signature == last_signature:
-                return
-            last_signature = signature
-            self.device.swipe(p1=self.BAG_SCROLL_P2, p2=self.BAG_SCROLL_P1)
-            self.device.click_record_clear()
-            self.device.sleep(self.BAG_SCROLL_SETTLE)
-        logger.warning('Bag does not scroll back to top')

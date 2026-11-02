@@ -34,13 +34,12 @@ def snapshot(task, name):
 
 def main() -> int:
     config = Config('oas1')
-    # 本机 LDPlayer 的 minitouch 点击不生效（max_pressure=2），临时改用 adb tap 跑测试
-    config.script.device.control_method = 'adb'
-    print(f'control_method = {config.script.device.control_method}')
+    # 曾经因设备上残留的旧 minitouch 进程不发 BTN_TOUCH（点击被系统判成 hover）而临时
+    # 改用 adb tap；重启 atx-agent 后已恢复，这里跟随配置走 minitouch。
     device = Device(config)
     task = ScriptTask(config, device)
 
-    print('=== 1. 打开背包（进背包页 -> 关面板 -> 整理 -> 回顶部）===')
+    print('=== 1. 打开背包（进背包页 / 重置到顶部 -> 整理）===')
     t0 = time.time()
     task.bag_open_ready()
     print(f'  耗时 {time.time() - t0:.1f}s')
