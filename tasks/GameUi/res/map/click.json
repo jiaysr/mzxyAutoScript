@@ -12,12 +12,6 @@
     "description": "世界地图-右上角关闭按钮（固定位置，关闭后回主页面）"
   },
   {
-    "itemName": "map_world_map_list_close",
-    "roiFront": "983,45,46,53",
-    "roiBack": "983,45,46,53",
-    "description": "世界地图列表-右上角关闭按钮（关闭后回世界地图）"
-  },
-  {
     "itemName": "map_teleport_confirm",
     "roiFront": "790,380,72,36",
     "roiBack": "790,380,72,36",

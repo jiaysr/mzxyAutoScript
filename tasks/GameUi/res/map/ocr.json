@@ -10,12 +10,12 @@
   },
   {
     "itemName": "map_world_map_list",
-    "roiFront": "280,140,720,475",
-    "roiBack": "280,140,720,475",
+    "roiFront": "280,100,740,590",
+    "roiBack": "280,100,740,590",
     "mode": "Full",
     "method": "Default",
     "keyword": "",
-    "description": "世界地图列表-地点条目识别区（供按名称点击传送使用）"
+    "description": "世界地图列表-地点条目识别区（供按名称点击传送使用；覆盖 10/11 行两种布局）"
   },
   {
     "itemName": "map_teleport_dialog",

@@ -21,10 +21,19 @@
     "itemName": "map_world_map_list_page",
     "imageName": "res_map_world_map_list_page.png",
     "roiFront": "591,92,95,37",
-    "roiBack": "559,73,159,79",
+    "roiBack": "559,30,159,122",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "世界地图列表页-「请选择」标题（列表页特征）"
+    "description": "世界地图列表页-「请选择」标题（列表页特征；地点越多面板越高，标题上下浮动约 48px）"
+  },
+  {
+    "itemName": "map_world_map_list_close_icon",
+    "imageName": "res_map_popup_close.png",
+    "roiFront": "984,13,41,51",
+    "roiBack": "950,0,302,240",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "世界地图列表-右上角关闭按钮（绿X，位置随列表行数上下浮动）"
   },
   {
     "itemName": "map_popup_close",

@@ -129,8 +129,6 @@ class GameUiAssets:
 	C_MAP_MINIMAP_ENTRY = RuleClick(roi_front=(1208,18,62,54), roi_back=(1208,18,62,54), name="map_minimap_entry")
 	# 世界地图-右上角关闭按钮（固定位置，关闭后回主页面） 
 	C_MAP_WORLD_MAP_CLOSE = RuleClick(roi_front=(968,40,43,62), roi_back=(968,40,43,62), name="map_world_map_close")
-	# 世界地图列表-右上角关闭按钮（关闭后回世界地图） 
-	C_MAP_WORLD_MAP_LIST_CLOSE = RuleClick(roi_front=(983,45,46,53), roi_back=(983,45,46,53), name="map_world_map_list_close")
 	# 传送确认弹窗-确定按钮（两种弹窗确认位置有偏差，这里取公共区域） 
 	C_MAP_TELEPORT_CONFIRM = RuleClick(roi_front=(790,380,72,36), roi_back=(790,380,72,36), name="map_teleport_confirm")
 
@@ -140,8 +138,10 @@ class GameUiAssets:
 	I_MAP_MINIMAP_WORLD_MAP = RuleImage(roi_front=(971,118,126,42), roi_back=(794,9,1210,314), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_minimap_world_map.png")
 	# 世界地图页-列表按钮（世界地图页特征，点击进入世界地图列表） 
 	I_MAP_WORLD_MAP_LIST_BUTTON = RuleImage(roi_front=(1008,587,73,45), roi_back=(988,570,114,84), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_world_map_list_button.png")
-	# 世界地图列表页-「请选择」标题（列表页特征） 
-	I_MAP_WORLD_MAP_LIST_PAGE = RuleImage(roi_front=(591,92,95,37), roi_back=(559,73,159,79), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_world_map_list_page.png")
+	# 世界地图列表页-「请选择」标题（列表页特征；地点越多面板越高，标题上下浮动约 48px） 
+	I_MAP_WORLD_MAP_LIST_PAGE = RuleImage(roi_front=(591,92,95,37), roi_back=(559,30,159,122), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_world_map_list_page.png")
+	# 世界地图列表-右上角关闭按钮（绿X，位置随列表行数上下浮动） 
+	I_MAP_WORLD_MAP_LIST_CLOSE_ICON = RuleImage(roi_front=(984,13,41,51), roi_back=(950,0,302,240), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/map/res_map_popup_close.png")
 	# 小地图-右上角关闭按钮（通用绿X，位置随弹窗大小变化） 
 	I_MAP_POPUP_CLOSE = RuleImage(roi_front=(1131,44,41,51), roi_back=(1007,0,245,223), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_popup_close.png")
 	# 传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px） 
@@ -151,8 +151,8 @@ class GameUiAssets:
 	# Ocr Rule Assets
 	# 主页面右上角-当前地点与坐标（如 沼泽427,59） 
 	O_MAP_LOCATION = RuleOcr(roi=(1072,84,208,35), area=(1072,84,208,35), mode="Full", method="Default", keyword="", name="map_location")
-	# 世界地图列表-地点条目识别区（供按名称点击传送使用） 
-	O_MAP_WORLD_MAP_LIST = RuleOcr(roi=(280,140,720,475), area=(280,140,720,475), mode="Full", method="Default", keyword="", name="map_world_map_list")
+	# 世界地图列表-地点条目识别区（供按名称点击传送使用；覆盖 10/11 行两种布局） 
+	O_MAP_WORLD_MAP_LIST = RuleOcr(roi=(280,100,740,590), area=(280,100,740,590), mode="Full", method="Default", keyword="", name="map_world_map_list")
 	# 传送确认弹窗-文案区（免费传送与花费铜贝两种弹窗都含「传送」） 
 	O_MAP_TELEPORT_DIALOG = RuleOcr(roi=(300,240,680,140), area=(300,240,680,140), mode="Full", method="Default", keyword="传送", name="map_teleport_dialog")
 	# 传送确认弹窗-确定按钮（OCR 定位后点击，兼容两种弹窗） 

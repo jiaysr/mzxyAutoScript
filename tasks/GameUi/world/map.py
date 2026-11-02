@@ -266,7 +266,9 @@ class MapNavigation(BaseTask, GameUiAssets):
             self.screenshot()
             if not self.appear(self.I_MAP_WORLD_MAP_LIST_PAGE):
                 return True
-            self.click(self.C_MAP_WORLD_MAP_LIST_CLOSE, interval=1)
+            # 列表行数不同（10/11 行）会让「请选择」面板整体上下浮动约 48px，
+            # 关闭按钮不能写死坐标，按绿X模板的实际匹配位置点
+            self.appear_then_click(self.I_MAP_WORLD_MAP_LIST_CLOSE_ICON, interval=1)
             sleep(0.2)
         logger.warning('World map list does not close')
         return False
@@ -284,6 +286,9 @@ class MapNavigation(BaseTask, GameUiAssets):
                 logger.info('World map list is open')
                 self.device.sleep(self.MAP_LIST_SETTLE)
                 return True
+            # 页面没识别出来时会反复点同一个按钮，清掉点击记录避免撞上
+            # 框架的「同一按钮 10 次」连点保护（GameTooManyClickError）
+            self.device.click_record_clear()
             if self.appear(self.I_MAP_MINIMAP_WORLD_MAP):
                 # 小地图弹窗：点「世界地图」
                 self.appear_then_click(self.I_MAP_MINIMAP_WORLD_MAP, interval=1)

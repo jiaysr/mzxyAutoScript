@@ -102,7 +102,7 @@ page_minimap.link(button=G.I_MAP_MINIMAP_WORLD_MAP, destination=page_world_map)
 page_minimap.link(button=G.I_MAP_POPUP_CLOSE, destination=page_main)
 page_world_map.link(button=G.I_MAP_WORLD_MAP_LIST_BUTTON, destination=page_world_map_list)
 page_world_map.link(button=G.C_MAP_WORLD_MAP_CLOSE, destination=page_main)
-page_world_map_list.link(button=G.C_MAP_WORLD_MAP_LIST_CLOSE, destination=page_world_map)
+page_world_map_list.link(button=G.I_MAP_WORLD_MAP_LIST_CLOSE_ICON, destination=page_world_map)
 page_teleport_dialog.link(button=G.I_MAP_DIALOG_CONFIRM_BUTTON, destination=page_main)
 # 活动弹窗内部：顶部 tab 从容器页进入（切"活动"tab 会重置到推荐子 tab）
 page_activity.link(button=ActivityTabTarget('公告'), destination=page_activity_notice)
