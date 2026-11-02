@@ -45,6 +45,16 @@ class YuwaiMimangConfig(BaseModel):
     # 进入迷窟后等待地图加载的秒数
     enter_wait: int = Field(default=2, description='进入迷窟后等待地图加载（秒）')
 
+    # ---------------- 参与场次 ----------------
+    # monster_times 里可以配多场，这里选参加哪一场（只对前两场生效，更多场次视为参加）
+    join_first_window: bool = Field(default=True, description='join_first_window_help')
+    join_second_window: bool = Field(default=True, description='join_second_window_help')
+    # 上午 11:00 的世界首领：到点前先离场，别把它堵到过期
+    join_world_boss: bool = Field(default=True, description='join_world_boss_help')
+    # 首领打完多少分钟后回迷窟继续打本场（0 = 不回，直接等下一场）
+    world_boss_back_minutes: int = Field(default=10, ge=0, le=30,
+                                         description='world_boss_back_help')
+
     # ---------------- 打怪 ----------------
     # 打怪基准坐标：进图后先走到这里，被怪追踪跑偏后也要回到这里
     battle_coord: str = Field(default='304,76', description='打怪基准坐标 x,y（进图后站这里，被追踪跑偏后回来）')

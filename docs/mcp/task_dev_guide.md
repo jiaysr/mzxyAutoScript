@@ -618,6 +618,17 @@ ecord_skill_icon.py ^
     - 停止条件只有时段到点（`battle_stop_reason` 返回 `window_end`，即 11:30 / 16:30）：
       怪物在时段内一直刷新，不存在「打完了」，所以**不要**加「剩余怪物为 0 就收工」
       这类判断（读到 0 只是瞬间，会误收工）
+    - **参与场次**：`join_first_window` / `join_second_window` 对应 `monster_times`
+      解析后的第 1、2 场（`selected_windows()` 过滤，默认都参加）；排期也只用过滤后的
+      场次算 `next_prepare_time`，关掉第一场时下一场直接排到下午
+    - **给 11:00 世界首领让路**（`world_boss_yield_times()`）：
+      三个条件同时满足才生效 —— 本任务 `join_world_boss`、世界首领任务
+      `scheduler.enable`、且 `manchui/wuqing/julian/fuwang/xiewang` 里有 `time_11`
+      （`world_boss_at()` 扫这几个组，不全信我们自己的开关）。
+      生效时本场 `deadline` 收到 `11:00 - 3min`，到点正常离场；
+      收尾用 `schedule_after_session()` 排到 `11:00 + world_boss_back_minutes` 回场
+      （0 = 不回；回场时间超过本场结束也不回）。已经落在 10:57~11:00 之间才轮到时，
+      直接跳过本场不进图，等首领结束再回
     - 中途修理：勾选 `repair_enable` 后每 `repair_interval_minutes` 分钟（默认 20）
       调一次 `bag_repair_equipment`（背包随身功能一键修理，站桩修完原地继续打；
       时段剩余不足 3 分钟时跳过；修完收起菜单并回一次基准点）

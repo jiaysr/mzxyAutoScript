@@ -17,6 +17,12 @@
 怪物在 10:30-11:30、15:30-16:30 两个时段内**一直刷新**（不会打完），
 所以打怪不判「清完了」，只在时段到点（11:30 / 16:30）时收工离场。
 其他时间可以进图但没有怪物。
+
+场次与让路：
+- `join_first_window` / `join_second_window` 决定参加 `monster_times` 里的第 1、2 场；
+- 上午 11:00 世界首领：本任务勾了 `join_world_boss`、且世界首领任务启用了并勾了
+  11 点那场时，本场提前 3 分钟（10:57）收工离场，离场后再排到 11:00 + back 分钟回场
+  （见 world_boss_yield_times / schedule_after_session）。
 """
 import logging
 import math
@@ -87,6 +93,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     def run(self) -> None:
         cfg = self.config.yuwai_mimang.yuwai_mimang_config
         logger.hr(f'域外迷窟 时段={cfg.monster_times} 提前={cfg.advance_time}')
+        self._world_boss_resume = None
 
         windows = self.parse_time_windows(cfg.monster_times)
         if not windows:
@@ -97,16 +104,38 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                               success=None, finish=True, server=False)
             raise TaskEnd('YuwaiMimang')
 
+        # 只保留勾选的场次（默认两场都参加）
+        selected = self.selected_windows(windows, cfg)
+        if not selected:
+            logger.warning('没有勾选任何参与场次（join_first_window / join_second_window），跳过')
+            self.schedule_next_run(windows)
+            raise TaskEnd('YuwaiMimang')
+
         now = datetime.now()
-        slot = self.pick_slot(windows, now, self.advance())
+        slot = self.pick_slot(selected, now, self.advance())
         if slot is None:
             # 不在任何时段的准备窗口内：直接排期，把主页面让给其他任务
-            self.schedule_next_run(windows)
+            self.schedule_next_run(selected)
             raise TaskEnd('YuwaiMimang')
 
         start, end = slot
         logger.attr('域外迷窟时段', f'{start.strftime("%H:%M")} ~ {end.strftime("%H:%M")} '
                                    f'(提前 {self.advance()} 准备)')
+
+        # 11:00 的世界首领：本任务和世界首领两边都勾了，才让路（提前收工离场）
+        boss_at, leave_at, resume_at = self.world_boss_yield_times(slot, cfg)
+        effective_end = end
+        if leave_at is not None and now < leave_at:
+            effective_end = leave_at
+            logger.attr('世界首领让路', f'{leave_at:%H:%M} 收工离场（首领 {boss_at:%H:%M}）')
+            self._world_boss_resume = resume_at
+        elif boss_at is not None and now < boss_at:
+            # 已经过了让路时间、首领还没刷：这场别进了，等首领结束再回场
+            logger.info(f'已过让路时间 {leave_at:%H:%M}（首领 {boss_at:%H:%M}），本场不进图')
+            self._world_boss_resume = resume_at
+            self.schedule_after_session(selected)
+            raise TaskEnd('YuwaiMimang')
+
         # 无论后面是正常打完还是抛异常，都必须重排。
         # 本任务优先级最高，一旦 next_run 停在过去就会一直霸占 pending 第一位、
         # 把其他任务全堵死；异常路径下 task_delay 不会被调用，所以要在这里兜住。
@@ -117,27 +146,28 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                 self.wait_until(start)
 
                 # 等太久可能已经跨过时段结束（时段短或上一轮排期太晚），没怪就没必要进图
-                if datetime.now() >= end:
+                if datetime.now() >= effective_end:
                     logger.warning(f'Window {start:%H:%M}-{end:%H:%M} already passed while waiting, '
                                    f'skip this round')
                     # 用异常统一走 finally 的重排 + TaskEnd，避免 return 跳过收尾
                     raise TaskEnd('YuwaiMimang')
             # 时段已经过了大半就别进图了（进图流程本身要几十秒）
-            remain = (end - datetime.now()).total_seconds()
+            remain = (effective_end - datetime.now()).total_seconds()
             if remain < self.MIN_WINDOW_REMAIN:
-                logger.warning(f'Window {start:%H:%M}-{end:%H:%M} only {int(remain)}s left, skip')
+                cut = '' if effective_end == end else f'，让路到 {effective_end:%H:%M}'
+                logger.warning(f'Window {start:%H:%M}-{end:%H:%M} only {int(remain)}s left{cut}, skip')
                 raise TaskEnd('YuwaiMimang')
 
             if not self.enter_mimang(cfg):
                 logger.warning('Enter mimang failed')
 
-            # 时段内一直打怪，直到时段结束（如 11:30 / 16:30）
-            self.handle_window(windows, slot, cfg)
+            # 时段内一直打怪，直到本场结束（让路时提前到 10:57）
+            self.handle_window(selected, slot, cfg, deadline=effective_end)
         finally:
             # 先重排再抛 TaskEnd：TaskEnd 会被 script.py 捕获并 return True，
             # 而异常路径（如 GameStuckError）根本不会调 task_delay，
             # 所以重排必须放在 finally 里兜住，否则 next_run 停在过去会一直霸占调度。
-            self.schedule_next_run(windows)
+            self.schedule_after_session(selected)
         raise TaskEnd('YuwaiMimang')
 
     # ---------------------------------------------------------------- 调度
@@ -249,6 +279,91 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             self.device.sleep(min(2, remain))
             self.reset_records()
         logger.info(f'时段开始 {event_time.strftime("%H:%M")}')
+
+    # ---------------------------------------------------------------- 参与场次 / 世界首领
+    # 上午 11:00 刷新的世界首领：本任务在时段内一直霸占调度，必须提前收工让路
+    WORLD_BOSS_TIME = time(11, 0)
+    # 提前这么多分钟离场（离场流程本身要几十秒，走太晚世界首领任务就过期了）
+    WORLD_BOSS_LEAD_MINUTES = 3
+    # 因世界首领让路时的回场时间（run 收尾排期用）
+    _world_boss_resume = None
+
+    def selected_windows(self, windows: list, cfg) -> list:
+        """
+        只保留勾选的参与场次（join_first_window / join_second_window）
+
+        场次按 monster_times 解析后的顺序（已按开始时间排序）对应：
+        第 1 场 = 第一个时段（默认 10:30-11:30），第 2 场 = 第二个（默认 15:30-16:30）。
+        配了两个以上时段时，第 3 场及之后视为参加（只给前两场提供开关）。
+        """
+        flags = (bool(getattr(cfg, 'join_first_window', True)),
+                 bool(getattr(cfg, 'join_second_window', True)))
+        selected = [window for index, window in enumerate(windows)
+                    if index >= len(flags) or flags[index]]
+        if len(selected) != len(windows):
+            readable = ['{}-{}'.format(s.strftime('%H:%M'), e.strftime('%H:%M'))
+                        for s, e in selected]
+            logger.attr('参与场次', readable or 'none')
+        return selected
+
+    def world_boss_at(self, hour: int) -> bool:
+        """
+        世界首领任务是否勾选了 hour 点的首领（且任务本身是启用的）
+
+        迷窟要不要让路，除了自己的开关，还得看世界首领那边到底打不打：
+        任务没启用、或者没勾这一场，就没必要白让出半小时。
+        """
+        wb = getattr(getattr(self.config, 'model', None), 'world_boss', None)
+        if wb is None or not getattr(getattr(wb, 'scheduler', None), 'enable', False):
+            return False
+        field = f'time_{int(hour):02d}'
+        for group_name in ('manchui', 'wuqing', 'julian', 'fuwang', 'xiewang'):
+            group = getattr(wb, group_name, None)
+            if group is not None and getattr(group, field, False):
+                logger.attr('世界首领', f'{group_name} {int(hour):02d}:00 已勾选，到点让路')
+                return True
+        return False
+
+    def world_boss_yield_times(self, slot, cfg):
+        """
+        本场是否需要给 11:00 的世界首领让路
+
+        三个条件都要满足：本任务勾了 join_world_boss、
+        世界首领任务启用了且勾了 11 点那场、11:00 落在本时段内。
+
+        :return: (boss_at, leave_at, resume_at)；不让路时三个都是 None。
+                 resume_at = 首领时间 + world_boss_back_minutes；
+                 回场设置为 0、或者回场时本场已经结束，则为 None（直接等下一场）
+        """
+        if not getattr(cfg, 'join_world_boss', False):
+            return None, None, None
+        start, end = slot
+        boss_at = datetime.combine(start.date(), self.WORLD_BOSS_TIME)
+        if not (start <= boss_at < end):
+            return None, None, None
+        if not self.world_boss_at(boss_at.hour):
+            logger.info(f'{boss_at:%H:%M} 的世界首领没勾选（或任务未启用），本场不让路')
+            return None, None, None
+        leave_at = boss_at - timedelta(minutes=self.WORLD_BOSS_LEAD_MINUTES)
+        back = int(getattr(cfg, 'world_boss_back_minutes', 0) or 0)
+        resume_at = boss_at + timedelta(minutes=back) if back > 0 else None
+        if resume_at is not None and resume_at >= end:
+            resume_at = None
+        return boss_at, leave_at, resume_at
+
+    def schedule_after_session(self, windows: list) -> None:
+        """
+        收尾排期：因世界首领让路收工 -> 排到「首领结束 + back 分钟」回场打剩下的时段；
+        其余情况按原逻辑排下一个时段的准备时间。
+        """
+        resume = self._world_boss_resume
+        self._world_boss_resume = None
+        if resume is not None and resume > datetime.now():
+            logger.attr('下次运行', f'{resume:%Y-%m-%d %H:%M:%S}（世界首领结束后回场）')
+            self.set_next_run(task='YuwaiMimang', target=resume, success=None,
+                              finish=True, server=False)
+            return
+        self.schedule_next_run(windows)
 
     # ---------------------------------------------------------------- 准备
     def prepare_game(self) -> None:
