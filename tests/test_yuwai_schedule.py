@@ -153,6 +153,27 @@ def test_schedule_after_session_without_boss():
     print('test_schedule_after_session_without_boss OK')
 
 
+# ------------------------------------------------------------------ 调度优先级
+def test_world_boss_outranks_mimang():
+    """世界首领排在迷窟前面：Filter 顺序 + Priority 数值都要成立"""
+    from module.config.config_manual import ConfigManual
+    from module.config.scheduler import TaskScheduler
+    from tasks.WorldBoss.config_scheduler import WorldBossScheduler
+    from tasks.YuwaiMimang.config_scheduler import YuwaiMimangScheduler
+
+    assert WorldBossScheduler().priority == 1, '世界首领应该拿到原来的 1'
+    assert YuwaiMimangScheduler().priority == 5, '迷窟退回共享默认 5'
+
+    order = [part.strip() for part in ConfigManual.SCHEDULER_PRIORITY.split('>')]
+    order = [name for name in order if name]
+    assert order[0] == 'Restart', 'Restart 必须留在最前'
+    assert order.index('WorldBoss') < order.index('YuwaiMimang'), order
+
+    pending = [SimpleNamespace(command=name) for name in ('YuwaiMimang', 'WorldBoss')]
+    assert [obj.command for obj in TaskScheduler.filter.apply(pending)][0] == 'WorldBoss'
+    print('test_world_boss_outranks_mimang OK')
+
+
 # ------------------------------------------------------------------ run() 入口
 def test_run_skips_when_no_window_selected():
     task = make_task()

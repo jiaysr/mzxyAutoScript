@@ -571,13 +571,15 @@ ecord_skill_icon.py ^
       时段排期会被冲掉
     - `parse_time_windows` 支持跨零点（`23:00-01:00`）；`pick_slot` 要同时检查
       「昨天的时段跨到今天」这一段，否则 `00:30` 匹配不到
-    - **优先级最高**：本任务 `YuwaiMimangScheduler.priority = 1`（Restart 是 0），
-      且在 `ConfigManual.SCHEDULER_PRIORITY` 里排在 `Restart` 之后第一位。
-      Restart 必须留在最前——游戏崩了要先重启，它是恢复机制，不能被业务任务压住。
-      调度循环启动时首个 Restart 会被跳过并重排（script.py:648-652），之后本任务第一个跑
-    - **重排必须放`finally`**：本任务优先级最高，一旦 `next_run` 停在过去就会一直霸占
-      pending 第一位、把其他任务全堵死；异常路径（GameStuckError）下 `task_delay`
-      根本不会被调用，只靠正常结束时的 `set_next_run` 兜不住
+    - **优先级**：本任务用共享默认值（`YuwaiMimangScheduler.priority = 5`），
+      `WorldBossScheduler.priority = 1`（Restart 是 0）——**世界首领排在迷窟之前**：
+      11:00 的首领只刷一次、错过就过期，迷窟晚回去几分钟只是少打一会儿。
+      两边的 `ConfigManual.SCHEDULER_PRIORITY` 顺序也是 WorldBoss 在前、YuwaiMimang 在后
+      （Filter 规则下以此为准）。Restart 必须留在最前——游戏崩了要先重启，它是恢复机制，
+      不能被业务任务压住。调度循环启动时首个 Restart 会被跳过并重排（script.py:648-652）
+    - **重排必须放`finally`**：时段内本任务一旦到期就是 pending，`next_run` 停在过去会
+      一直占着 pending 第一位、把其他任务全堵死；异常路径（GameStuckError）下
+      `task_delay` 根本不会被调用，只靠正常结束时的 `set_next_run` 兜不住
     - 坑：`run()` 里不要用 `return` 提前退出（会跳过 `raise TaskEnd`，
       调度器认为任务没结束），要么走完流程要么 `raise TaskEnd`
     - 坑：pydantic 模型的字段**不能直接赋字符串**（绕过校验），

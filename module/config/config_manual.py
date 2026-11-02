@@ -9,10 +9,10 @@ class ConfigManual:
 
     SCHEDULER_PRIORITY = """
         Restart
-        > YuwaiMimang
+        > WorldBoss
         > WarChariot
         > Quiz
-        > WorldBoss
+        > YuwaiMimang
         > Arena
         > CrossArena
         > AncientHunt
