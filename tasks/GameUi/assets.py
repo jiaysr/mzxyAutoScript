@@ -59,6 +59,8 @@ class GameUiAssets:
 	I_BAG_REPAIR_SUCCESS = RuleImage(roi_front=(573,339,123,44), roi_back=(368,320,515,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_success.png")
 	# 背包-无需修理提示条（您没有装备需要修理） 
 	I_BAG_REPAIR_NOTHING = RuleImage(roi_front=(507,338,260,44), roi_back=(368,320,515,80), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_repair_nothing.png")
+	# 背包-趣味答题券（图标+第一行名字，用于模板匹配寻物） 
+	I_BAG_QUIZ_TICKET = RuleImage(roi_front=(0,0,214,41), roi_back=(240,100,980,460), threshold=0.85, method="Template matching", file="./tasks/GameUi/res/bag/res_bag_quiz_ticket.png")
 
 
 	# Ocr Rule Assets

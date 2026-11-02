@@ -254,15 +254,23 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 
 ## 9. 公共能力（GameUi）
 
-- 背包找物品：`bag_find_item(name)` 返回物品图标中心坐标、`bag_click_item(name)` 查找并点击；
-  OCR 物品名 + 慢速滚动逐屏扫描，几何常量（4 列、行距 120px）在 `tasks/GameUi/navigation/bag.py`
+- 背包找物品（`tasks/GameUi/navigation/bag.py`）：**优先模板匹配，OCR 只是兜底**
+  - `bag_find_item(name, rule)`：先按物品模板（图标 + 第一行名字，约 200x40）逐屏匹配，
+    命中框反推格子图标中心；模板没命中才退回 OCR 名字匹配
+  - `bag_scan_rule(rule, on_hit, empty_rule)`：逐屏扫描的公共外壳
+    （进背包 -> 关详情面板 -> 整理 -> **滚回顶部** -> 逐屏匹配 -> 滚动 -> 到底停止），
+    仙府读碎片数量就是挂在 `on_hit` 上
+  - `bag_click_item(name, rule)` / `bag_use_item(name, rule)`：点开详情面板后
+    **轮询等面板出现**（`bag_wait_panel`，最多 4s）再点「立即使用」，不再固定等 1s
+  - 几何常量（4 列 x=304/541/778/1015、行 top=110/228/350/471、图标中心≈行顶+25、
+    文字区/数量区）都在这一个文件里；滚动统一 `ui_swipe_gentle`（每屏 2 行，保证重叠）
+  - 新物品要寻物：在 `tasks/GameUi/res/bag/image.json` 里加一条模板
+    （建议裁「图标 + 第一行名字」），跑 `dev_tools/assets_extract.py` 生成 `I_BAG_xxx`
 - 修理装备：`bag_repair_equipment()`（`tasks/GameUi/navigation/general.py`，已混入 `GameUi`，后续其他通用功能也放这里）：
   背包页 -> 点「随身功能」-> 4 按钮弹窗点「修理装备」-> 确认弹窗点「确定」
   （确认文案只匹配「用于修理全部装备」固定片段，铜贝数量不固定不匹配）-> 关「修理成功」提示 -> 回主页面；
   按钮用 OCR 定位（`O_BAG_GENERAL_MENU` / `O_BAG_REPAIR_CONFIRM` / `O_BAG_REPAIR_RESULT`），
   「随身功能」另有固定坐标 `C_BAG_GENERAL_FUNCTION` 优先点击、OCR 兜底
-- 背包用物品：`bag_use_item(name)` = 查找并点击物品 -> 在详情面板 OCR 定位并点击「立即使用」
-  （面板文案里有「使用后可参与…」的说明，所以按按钮文字精确匹配，不要匹配「使用」两字）
 - 活跃任务状态：`active_task_completed(name)`
 - 弹窗文案：`dialog_appear(rule, text)`；长时间等待：`reset_records()`、`ui_swipe_gentle(p1, p2)`
 - 重启游戏：`ui_restart_game()`（跑一遍重启+登录流程，并作废页面缓存）
@@ -661,18 +669,15 @@ ecord_skill_icon.py ^
   - 逻辑：打大关 M 只掉「仙玉碎片M」（持国天=3 只掉碎片三）；翻牌随机颜色
   - 选关：进背包读该颜色碎片一二三四的**数量**，挑**数量最少**的碎片号去打、数量相同优先大号
     （都缺就从大关4开始）；打完一局用「恭喜您获得 XXX」OCR 给对应数量 +1，OCR 失败才重查背包
-  - 背包识别（`bag_piece_counts`）：
-    - 回顶：`ui_goto(page_role_detail)` 再回 `ui_goto(page_item_bag)`（游戏会自动滚回顶部）
-    - 翻页：`device.swipe((490,570) -> (490,80))` + `sleep 1.2`，一次一页 4 行
-      （实测改成 3 行会让固定区域对不上；这也印证了「每行物品的屏幕位置是固定的」）
-    - 识别（主）：每个物品格用固定区域——文字区 `图标x+48, 行top, 152x118`、数量区 `图标x+22, 行top+55, 35x30`，
+  - 背包识别（`bag_piece_counts`，外壳在公共层 `BagNavigation.bag_scan_rule`）：
+    - 回顶 / 翻页 / 关面板 / 整理：全部由 `bag_scan_rule` 负责，滚动是 `ui_swipe_gentle`
+      每屏 2 行（相邻两屏有重叠，模板不会因为跳过一行而漏）
+    - 识别（主）：每个命中格用固定区域——文字区 `图标x+48, 行top, 152x118`、数量区 `图标x+22, 行top+55, 35x30`，
       行 top = 110/228/350/471，图标 x = 304/541/778/1015（区域比实测值略放宽，避免裁掉「碎片一」末字）
-    - 识别（补）：整块 OCR 内容配对，只在固定区域没读到该碎片时补空缺。
-      **不要做跨屏配对**（数字行没有颜色信息，会把别颜色的碎片配错，实测把 632 配给了北极四）
     - 「一」兜底：OCR 常把「一」整字丢掉（读成「南极仙玉碎片」），此时按「一」算
     - 数量：数量区转灰度放大 2x/3x 再识别（小字直接 OCR 常读不出）；
       **数量为 1 时游戏不显示数字** → 有名字但没读到数字算 1，名字都没有才是 0
-    - 整页无文字 / 出现空物品格特征 `I_BAG_EMPTY`（整理背包后物品从有到无排列，见空格说明下面没物品了）= 到底；
+    - 到底：出现空物品格特征 `I_BAG_EMPTY`（整理背包后物品从有到无排列）或页面指纹不再变化
       滑动后内容没变 = 停（防面板卡住）
   - 仙石：每半小时 +1、上限 40；达到 `stone_threshold` 才开始清，仙石 <4 停止，
     下次运行 = now + (阈值 - 当前仙石) * 30 分钟（`set_next_run`）
