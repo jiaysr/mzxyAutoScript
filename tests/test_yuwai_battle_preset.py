@@ -160,6 +160,7 @@ def test_preset_loop_uses_skill_loop():
     assert kwargs['attack_interval'] == task.NORMAL_ATTACK_INTERVAL
     assert kwargs['max_attempts'] == task.SKILL_MAX_ATTEMPTS
     assert callable(kwargs['check_stop']) and callable(kwargs['on_cast'])
+    assert kwargs['on_target_lost'] == task.relock_target, '目标死了要快速补锁，别退回外层重锁'
     assert task._battle_deadline == end, '停止条件要能读到本场截止时间'
     print('test_preset_loop_uses_skill_loop OK')
 
@@ -195,6 +196,65 @@ def test_preset_loop_falls_back_to_fast_click():
     print('test_preset_loop_falls_back_to_fast_click OK')
 
 
+# ------------------------------------------------------------------ 目标死后快速补锁
+def _relock_task(attackable=True):
+    task, battle = make_task()
+    task.screenshot = lambda: object()
+    task.ui_target_attackable = lambda image=None: attackable
+    locks = []
+    task.ui_lock_target = lambda interval=None: locks.append(1) or True
+    acquires = []
+    task.acquire_target = lambda names=None: acquires.append(names) or True
+    return task, locks, acquires
+
+
+def test_relock_target_uses_cheap_path():
+    """平时只点一次「目标」+ 判可攻击；每 N 只才读一次名字（OCR 是主要开销）"""
+    task, locks, acquires = _relock_task()
+    task._relock_count = 0
+    for _ in range(task.RELOCK_NAME_VERIFY_EVERY - 1):
+        assert task.relock_target(['小鬼']) is True
+    assert len(locks) == task.RELOCK_NAME_VERIFY_EVERY - 1, locks
+    assert acquires == [], '没到抽查点，不该走完整流程（省掉 OCR）'
+
+    assert task.relock_target(['小鬼']) is True
+    assert len(acquires) == 1, '每到抽查点走完整 acquire_target'
+    print('test_relock_target_uses_cheap_path OK')
+
+
+def test_relock_target_gives_up_when_nothing_locked():
+    task, locks, _ = _relock_task(attackable=False)
+    task._relock_count = 1
+    assert task.relock_target(['小鬼']) is False, '锁不到就交回完整流程'
+    assert len(locks) == 1
+    print('test_relock_target_gives_up_when_nothing_locked OK')
+
+
+def test_fast_loop_prefers_fast_relock():
+    task, _ = make_task(YuwaiBattleConfig(fast_click=True))
+    calls = {'relock': 0, 'acquire': 0}
+
+    class _Stop(Exception):
+        pass
+
+    def relock(names=None):
+        calls['relock'] += 1
+        return True
+
+    def fast_click_once():
+        raise _Stop()
+
+    task.relock_target = relock
+    task.acquire_target = lambda names=None: calls.__setitem__('acquire', calls['acquire'] + 1)
+    task.fast_click_once = fast_click_once
+    try:
+        task.fast_battle_loop((304, 76), 2, 0.1, datetime.now() + timedelta(seconds=30), ['小鬼'])
+    except _Stop:
+        pass
+    assert calls == {'relock': 1, 'acquire': 0}, calls
+    print('test_fast_loop_prefers_fast_relock OK')
+
+
 # ------------------------------------------------------------------ 秒杀快打
 def test_fast_loop_uses_fixed_sequence():
     task, battle = make_task(YuwaiBattleConfig(fast_click=True))
@@ -208,6 +268,7 @@ def test_fast_loop_uses_fixed_sequence():
         if len(clicks) == 3:
             raise _Stop()
 
+    task.relock_target = lambda names=None: False
     task.acquire_target = lambda names=None: True
     task.fast_click_once = fast_click_once
     end = datetime.now() + timedelta(seconds=60)

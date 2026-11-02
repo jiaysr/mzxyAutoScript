@@ -428,7 +428,8 @@ class BattleAttack:
                           poll_interval: float = 0.1,
                           max_cycles: int = None,
                           max_skills: int = None,
-                          on_cast: Callable[[int], None] = None) -> str:
+                          on_cast: Callable[[int], None] = None,
+                          on_target_lost: Callable[[], bool] = None) -> str:
         """
         队列式连续释放技能（不按轮）：
 
@@ -453,6 +454,9 @@ class BattleAttack:
         :param max_skills: 最多成功释放几个技能（进入冷却算 1 个），None = 不限
         :param on_cast: 每次成功释放技能后回调，参数为本次调用内已释放的技能数；
                         用于死亡重试等中途退出的场景在外部累计释放数
+        :param on_target_lost: 目标丢失时的回调（无参）。返回 True 表示「已经补锁到新目标」，
+                               循环接着打（刷小怪一刀一只的场景，省掉退回外层重锁的开销）；
+                               返回 False / 不传 -> 按原逻辑结束循环
         :return: check_stop 的返回值 / 'target_lost' / 'skill_limit' / 'timeout'
         """
         order = list(slots)
@@ -515,6 +519,11 @@ class BattleAttack:
                 slot, image=image, target_check=target_check, max_attempts=max_attempts,
                 cooldown_timeout=cooldown_timeout, poll_interval=poll_interval)
             if result == 'target_lost':
+                # 目标死了/被拉走：允许调用方立刻补锁下一个目标，接着在同一轮里打
+                # （刷小怪时一刀一只，每只都退回外层重锁会白花 1s 以上）
+                if on_target_lost is not None and on_target_lost():
+                    logger.info('已补锁到下一个目标，继续释放技能')
+                    continue
                 # 交给调用方再确认一次（比如等奖励面板），没有结论就按目标丢失结束
                 if check_stop is not None:
                     return check_stop(self.screenshot()) or 'target_lost'

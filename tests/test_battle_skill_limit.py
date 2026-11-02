@@ -66,6 +66,49 @@ def test_without_limit_keeps_going_until_stop():
     assert host.casts == [0, 1, 2], host.casts
 
 
+def test_on_target_lost_relocks_and_continues():
+    """目标死了：on_target_lost 补锁成功就接着打，失败才结束循环"""
+    class LostHost(FakeSkillHost):
+        def __init__(self):
+            super().__init__()
+            self.releases = 0
+
+        def battle_skill_release(self, slot, image=None, target_check=None,
+                                 max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1):
+            self.releases += 1
+            return 'target_lost'
+
+    host = LostHost()
+    calls = {'n': 0}
+
+    def relock():
+        calls['n'] += 1
+        return calls['n'] <= 2   # 前两次补锁成功，第三次失败
+
+    result = BattleAttack.battle_skill_loop(host, [0, 1], on_target_lost=relock)
+    assert result == 'target_lost', result
+    assert host.releases == 3, f'补锁成功时应留在循环里，实际释放 {host.releases} 次'
+    assert calls['n'] == 3, calls
+
+
+def test_without_relock_callback_stops_immediately():
+    """不传 on_target_lost：保持旧行为（目标一丢就返回），不影响世界首领/仙府"""
+    class LostHost(FakeSkillHost):
+        def __init__(self):
+            super().__init__()
+            self.releases = 0
+
+        def battle_skill_release(self, slot, image=None, target_check=None,
+                                 max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1):
+            self.releases += 1
+            return 'target_lost'
+
+    host = LostHost()
+    result = BattleAttack.battle_skill_loop(host, [0, 1])
+    assert result == 'target_lost'
+    assert host.releases == 1, host.releases
+
+
 if __name__ == '__main__':
     tests = [(name, func) for name, func in sorted(globals().items())
              if name.startswith('test_') and callable(func)]

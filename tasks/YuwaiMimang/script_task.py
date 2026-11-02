@@ -466,6 +466,38 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             max_switch=self.TARGET_SWITCH_MAX,
             timeout=self.TARGET_SWITCH_TIMEOUT)
 
+    # 目标死后快速补锁：每这么多次抽查一次目标名，其余只做「已锁定 + 可攻击」判定
+    RELOCK_NAME_VERIFY_EVERY = 5
+    # 点完「目标」等界面刷新的时间（秒）
+    RELOCK_SETTLE = 0.2
+    _relock_count = 0
+
+    def relock_target(self, names: list = None) -> bool:
+        """
+        目标死后快速补锁，交给 battle_skill_loop 的 on_target_lost 用
+
+        为什么要一条快路径：迷窟里一刀一只，每杀一只都要重新锁目标。
+        完整 acquire_target 实测约 1.1s/只（其中目标名 OCR 约 0.7s），
+        而同一片刷怪区刷出来的都是白名单里的怪，名字不必每只都读。
+        所以：
+        - 平时只做便宜的两步：点一次「目标」+ 判「已锁定且动作按钮是攻击」；
+        - 每 RELOCK_NAME_VERIFY_EVERY 只抽查一次名字（走完整 acquire_target）。
+
+        :return: True = 已锁到可攻击目标，循环接着打；False = 让外层走完整流程
+        """
+        names = self.battle_target_names() if names is None else names
+        self._relock_count += 1
+        if names and self._relock_count % self.RELOCK_NAME_VERIFY_EVERY == 0:
+            return self.acquire_target(names)
+
+        self.ui_lock_target()
+        self.device.sleep(self.RELOCK_SETTLE)
+        image = self.screenshot()
+        if self.ui_target_attackable(image=image):
+            return True
+        logger.info('快速补锁没锁到可攻击目标，交回完整流程')
+        return False
+
     def fast_click_once(self) -> None:
         """
         秒杀快打一轮：当前目标已经锁好（且名字在白名单里），按固定顺序点一遍
@@ -654,7 +686,8 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                     max_attempts=self.SKILL_MAX_ATTEMPTS,
                     cooldown_timeout=self.SKILL_COOLDOWN_TIMEOUT,
                     poll_interval=self.SKILL_COOLDOWN_POLL,
-                    on_cast=on_cast)
+                    on_cast=on_cast,
+                    on_target_lost=self.relock_target)
 
                 if reason == 'window_end':
                     break
@@ -683,7 +716,8 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         with suppress_control_input_log():
             while datetime.now() < end:
                 self.reset_records()
-                if not self.acquire_target(names):
+                # 先走快速补锁（每 N 只才读名字），锁不到再走完整流程
+                if not self.relock_target(names) and not self.acquire_target(names):
                     logger.info('附近没有白名单里的可攻击目标，等 1s 再找')
                     self.device.sleep(1)
                     continue
