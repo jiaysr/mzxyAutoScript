@@ -5,7 +5,7 @@
 覆盖：
 - selected_windows：只参加第一场 / 只参加第二场 / 两场都参加 / 都不参加
 - world_boss_yield_times：本任务开关 + 世界首领任务启用 + 勾了 11 点，三个条件都满足才让路
-- schedule_after_session：让路收工后排「首领时间 + back 分钟」回场，否则排下一场
+- schedule_after_session：让路收工后排到首领时间（之后按正常优先级排队），否则排下一场
 - run()：一个场次都没勾时直接跳过并排期
 
     python tests\\test_yuwai_schedule.py
@@ -51,14 +51,13 @@ def make_model(world_boss_enable=True, manchui_11=True, wuqing_19=True):
     )
 
 
-def make_cfg(join_first=True, join_second=True, join_world_boss=True, back=10):
+def make_cfg(join_first=True, join_second=True, join_world_boss=True):
     return SimpleNamespace(
         monster_times='10:30-11:30,15:30-16:30',
         advance_time=SimpleNamespace(hour=0, minute=3, second=0),
         join_first_window=join_first,
         join_second_window=join_second,
         join_world_boss=join_world_boss,
-        world_boss_back_minutes=back,
     )
 
 
@@ -92,7 +91,7 @@ def test_world_boss_yield_requires_both_sides():
     boss_at, leave_at, resume_at = make_task().world_boss_yield_times(slot, cfg)
     assert boss_at == DAY.replace(hour=11), boss_at
     assert leave_at == DAY.replace(hour=10, minute=57), '提前 3 分钟收工'
-    assert resume_at == DAY.replace(hour=11, minute=10), '默认 10 分钟后回场'
+    assert resume_at == DAY.replace(hour=11), '到首领时间重新排队（之后按正常优先级）'
 
     # 世界首领任务没启用 -> 不让路
     assert make_task(world_boss_enable=False).world_boss_yield_times(slot, cfg) == (None, None, None)
@@ -108,20 +107,25 @@ def test_world_boss_yield_requires_both_sides():
     print('test_world_boss_yield_requires_both_sides OK')
 
 
-def test_world_boss_yield_resume_edge_cases():
-    cfg = make_cfg(back=0)
-    boss_at, leave_at, resume_at = make_task().world_boss_yield_times(MORNING, cfg)
-    assert resume_at is None, '0 分钟 = 不回场'
+def test_world_boss_yield_time_edges():
+    """首领时间不在本场内就不让路；到点后靠正常优先级排队，不额外加延迟"""
+    cfg = make_cfg()
 
-    # 回场时间已经超过本场结束（11:00 + 60min > 11:30）-> 不回场
-    cfg = make_cfg(back=30)
-    boss_at, leave_at, resume_at = make_task().world_boss_yield_times(MORNING, cfg)
-    assert boss_at is not None and resume_at is None, (boss_at, resume_at)
-
-    # 上午场勾了下午场的时间不误判：世界首领时间按场次日期算
+    # 上午 9-10 点那场不跨 11:00
     assert make_task().world_boss_yield_times(
         (DAY.replace(hour=9), DAY.replace(hour=10)), cfg) == (None, None, None)
-    print('test_world_boss_yield_resume_edge_cases OK')
+
+    # 时段正好在 11:00 结束（10:30-11:00）：11:00 不算落在场次内
+    assert make_task().world_boss_yield_times(
+        (DAY.replace(hour=10, minute=30), DAY.replace(hour=11)), cfg) == (None, None, None)
+
+    # 时段的开始正好是 11:00（11:00-11:30）：首领时间算在场内
+    boss_at, leave_at, resume_at = make_task().world_boss_yield_times(
+        (DAY.replace(hour=11), DAY.replace(hour=11, minute=30)), cfg)
+    assert boss_at == DAY.replace(hour=11)
+    assert leave_at == DAY.replace(hour=10, minute=57)
+    assert resume_at == DAY.replace(hour=11), '回场时间 = 首领时间'
+    print('test_world_boss_yield_time_edges OK')
 
 
 # ------------------------------------------------------------------ 收尾排期

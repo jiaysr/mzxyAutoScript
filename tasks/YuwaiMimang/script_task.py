@@ -332,8 +332,10 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         世界首领任务启用了且勾了 11 点那场、11:00 落在本时段内。
 
         :return: (boss_at, leave_at, resume_at)；不让路时三个都是 None。
-                 resume_at = 首领时间 + world_boss_back_minutes；
-                 回场设置为 0、或者回场时本场已经结束，则为 None（直接等下一场）
+                 leave_at = 首领时间 - WORLD_BOSS_LEAD_MINUTES（提前离场走流程）；
+                 resume_at = 首领时间本身 —— 到点后本任务重新进入 pending，
+                 世界首领任务还在跑就继续等，它一结束（自带 10 分钟超时）
+                 调度器按正常优先级把它排上，所以不需要额外的「回场延迟」
         """
         if not getattr(cfg, 'join_world_boss', False):
             return None, None, None
@@ -345,21 +347,18 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             logger.info(f'{boss_at:%H:%M} 的世界首领没勾选（或任务未启用），本场不让路')
             return None, None, None
         leave_at = boss_at - timedelta(minutes=self.WORLD_BOSS_LEAD_MINUTES)
-        back = int(getattr(cfg, 'world_boss_back_minutes', 0) or 0)
-        resume_at = boss_at + timedelta(minutes=back) if back > 0 else None
-        if resume_at is not None and resume_at >= end:
-            resume_at = None
+        resume_at = boss_at if boss_at < end else None
         return boss_at, leave_at, resume_at
 
     def schedule_after_session(self, windows: list) -> None:
         """
-        收尾排期：因世界首领让路收工 -> 排到「首领结束 + back 分钟」回场打剩下的时段；
+        收尾排期：因世界首领让路收工 -> 排到首领时间（之后按正常优先级排队）；
         其余情况按原逻辑排下一个时段的准备时间。
         """
         resume = self._world_boss_resume
         self._world_boss_resume = None
         if resume is not None and resume > datetime.now():
-            logger.attr('下次运行', f'{resume:%Y-%m-%d %H:%M:%S}（世界首领结束后回场）')
+            logger.attr('下次运行', f'{resume:%Y-%m-%d %H:%M:%S}（到首领时间重新排队）')
             self.set_next_run(task='YuwaiMimang', target=resume, success=None,
                               finish=True, server=False)
             return

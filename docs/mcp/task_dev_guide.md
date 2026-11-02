@@ -626,8 +626,9 @@ ecord_skill_icon.py ^
       `scheduler.enable`、且 `manchui/wuqing/julian/fuwang/xiewang` 里有 `time_11`
       （`world_boss_at()` 扫这几个组，不全信我们自己的开关）。
       生效时本场 `deadline` 收到 `11:00 - 3min`，到点正常离场；
-      收尾用 `schedule_after_session()` 排到 `11:00 + world_boss_back_minutes` 回场
-      （0 = 不回；回场时间超过本场结束也不回）。已经落在 10:57~11:00 之间才轮到时，
+      收尾用 `schedule_after_session()` 把 next_run 排到 **11:00** 本身：
+      世界首领任务还在跑就继续等，它一结束（自带 10 分钟超时）调度器按正常优先级
+      把本任务排上，**不要**再设「回场延迟」这类配置。已经落在 10:57~11:00 之间才轮到时，
       直接跳过本场不进图，等首领结束再回
     - 中途修理：勾选 `repair_enable` 后每 `repair_interval_minutes` 分钟（默认 20）
       调一次 `bag_repair_equipment`（背包随身功能一键修理，站桩修完原地继续打；

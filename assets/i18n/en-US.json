@@ -8,8 +8,6 @@
   "join_second_window_help": "Second session = the second window in monster_times (default 15:30-16:30). Turn off to skip it.",
   "join_world_boss": "Join 11:00 World Boss",
   "join_world_boss_help": "World boss at 11:00. When on, this task leaves 3 minutes early so the world boss task does not expire in the queue; skipped if that task is disabled or the 11:00 boss is not ticked.",
-  "world_boss_back_minutes": "Return After Boss (min)",
-  "world_boss_back_help": "Minutes after the world boss time to come back and farm the rest of the window; 0 = do not return.",
   "world_boss_advance_time_help": "How early to depart for the boss spot, e.g. 00:05:00 means 5 minutes early",
   "target_name": "Lock Target Name",
   "world_boss_target_name_help": "Keywords matched against the target name after clicking the target button, separated by commas; empty means using the boss name",

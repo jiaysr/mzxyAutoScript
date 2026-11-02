@@ -8,8 +8,6 @@
   "join_second_window_help": "第二场 = monster_times 里的第二个时段（默认 15:30-16:30）；关掉就不再参加这一场",
   "join_world_boss": "参加 11 点世界首领",
   "join_world_boss_help": "上午 11:00 刷新的世界首领。开启后本任务提前 3 分钟收工离场，避免世界首领任务排队到过期；世界首领任务没启用、或没勾 11 点那场时不会让路",
-  "world_boss_back_minutes": "首领后回场分钟",
-  "world_boss_back_help": "世界首领时间过后多少分钟回迷窟继续打本场；0 = 不回，直接等下一场",
   "world_boss_advance_time_help": "提前多久出发前往首领位置，例如 00:05:00 表示提前 5 分钟",
   "target_name": "锁定目标名称",
   "world_boss_target_name_help": "点击目标按钮后用于匹配的名称关键字，多个用英文逗号分隔；留空则用首领名称",

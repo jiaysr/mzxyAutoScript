@@ -51,9 +51,6 @@ class YuwaiMimangConfig(BaseModel):
     join_second_window: bool = Field(default=True, description='join_second_window_help')
     # 上午 11:00 的世界首领：到点前先离场，别把它堵到过期
     join_world_boss: bool = Field(default=True, description='join_world_boss_help')
-    # 首领打完多少分钟后回迷窟继续打本场（0 = 不回，直接等下一场）
-    world_boss_back_minutes: int = Field(default=10, ge=0, le=30,
-                                         description='world_boss_back_help')
 
     # ---------------- 打怪 ----------------
     # 打怪基准坐标：进图后先走到这里，被怪追踪跑偏后也要回到这里
