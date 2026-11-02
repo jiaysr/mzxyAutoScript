@@ -204,20 +204,28 @@ class ScriptTask(GameUi, WarChariotAssets):
         keyword = self.config.war_chariot.war_chariot_config.keyword
         return any(text_match(text, keyword) for text in self.ocr_texts())
 
+    def chariot_battle_map_name(self, name: str) -> bool:
+        """
+        地点名是否属于战车战斗地图（血盟战车 / 仙盟战车）
+
+        准备地图只叫「战车」，不算战斗地图（轮空时停在准备地图）。
+        """
+        if not name:
+            return False
+        if name.endswith(self.CHARIOT_BATTLE_MAP_SUFFIX):
+            return True
+        return self.map_name_match(name, self.chariot_map_name)
+
     def in_chariot_map(self, image=None) -> bool:
         """
         当前地图是否为战车战斗地图（血盟战车 / 仙盟战车）
 
-        准备地图只叫「战车」，不算战斗地图（轮空时停在准备地图）。
         :param image: 可选，传入当前帧则不再重复截图
         """
         location = self.map_current_location(image)
         if location is None:
             return False
-        name = location[0]
-        if name.endswith(self.CHARIOT_BATTLE_MAP_SUFFIX):
-            return True
-        return self.map_name_match(name, self.chariot_map_name)
+        return self.chariot_battle_map_name(location[0])
 
     def chariot_map_entered(self, image=None) -> bool:
         """
@@ -279,7 +287,10 @@ class ScriptTask(GameUi, WarChariotAssets):
                 if self.text_appear():
                     self.join_chariot()
                     joined_once = True
-                    self.chariot_battle(deadline)
+                    result = self.chariot_battle(deadline)
+                    if result == 'fail':
+                        logger.info('战车战结束：失败')
+                        return 'fail'
                     last_text_check = None
                     continue
 
@@ -309,6 +320,27 @@ class ScriptTask(GameUi, WarChariotAssets):
             self.device.sleep(0.3)
         logger.warning('结算弹窗未关闭')
 
+    def chariot_result(self, image=None) -> str | None:
+        """
+        当前帧是否出现战车结算弹窗，命中就点「确定」关闭
+
+        结算弹窗会盖住右上角地图名（「仙盟战车」只剩「战车」/「车」），
+        所以等待/战斗循环里要先判结算，再判地图名。
+
+        :param image: 传入当前帧则不重新截图
+        :return: 'win' / 'fail'；未出现返回 None
+        """
+        image = image if image is not None else self.screenshot()
+        if self.I_CHARIOT_FAIL.match(image):
+            logger.info('战车战结算：失败')
+            self.close_result_popup(self.I_CHARIOT_FAIL)
+            return 'fail'
+        if self.I_CHARIOT_WIN.match(image):
+            logger.info('战车战结算：胜利')
+            self.close_result_popup(self.I_CHARIOT_WIN)
+            return 'win'
+        return None
+
     # ---------------------------------------------------------------- 死亡
     def handle_death(self) -> None:
         """
@@ -334,12 +366,18 @@ class ScriptTask(GameUi, WarChariotAssets):
         - 「战车数量不足，无法开战」：本局轮空（对面没车队），会直接弹胜利结算
         提示在左下角聊天栏，会闪烁约 1.5s，所以按帧轮询（截图本身即节流）。
 
-        :return: 'move' / 'bye' / 'timeout'
+        :return: 'move' / 'bye' / 'win' / 'fail' / 'timeout'
         """
         logger.hr('等待准备阶段提示')
         timer = Timer(self.CHARIOT_MOVE_PROMPT_TIMEOUT).start()
         while not timer.reached() and datetime.now() < deadline:
+            # 这个等待最长 90s，期间没有点击，必须自己清卡死记录（否则 60s 会被判成卡死）
+            self.reset_records()
             self.screenshot()
+            # 对面没队伍时可能刚「开始战斗」就结算，弹窗会盖住地图名，先处理结算
+            result = self.chariot_result(self.device.image)
+            if result:
+                return result
             if self.I_CHARIOT_BYE.match(self.device.image):
                 logger.info('提示「战车数量不足，无法开战」，本局轮空')
                 return 'bye'
@@ -352,42 +390,44 @@ class ScriptTask(GameUi, WarChariotAssets):
         logger.warning(f'{self.CHARIOT_MOVE_PROMPT_TIMEOUT}s 内没看到准备阶段提示')
         return 'timeout'
 
-    def wait_chariot_battle_map(self, deadline: datetime) -> bool:
+    def wait_chariot_battle_map(self, deadline: datetime) -> str:
         """
         提示「可以移动」之后，人物会从准备地图切到战斗地图（仙盟战车），等它切过去
+
+        :return: 'map' 已切到战斗地图 / 'win' / 'fail' 先出现结算 / 'timeout'
         """
         timer = Timer(10).start()
         while not timer.reached() and datetime.now() < deadline:
+            self.reset_records()
             self.screenshot()
+            result = self.chariot_result(self.device.image)
+            if result:
+                return result
             if self.in_chariot_map(self.device.image):
-                return True
+                return 'map'
             self.device.sleep(0.5)
         logger.warning('没等到切换到战斗地图')
-        return False
+        return 'timeout'
 
-    def wait_chariot_result(self, deadline: datetime) -> str:
+    def wait_chariot_result(self, deadline: datetime) -> str | None:
         """
         轮空后等结算弹窗（胜利/失败），出现就点「确定」关闭
 
-        :return: 'win' / 'fail' / 'none'
+        :return: 'win' / 'fail' / 没等到返回 None
         """
         logger.hr('等待轮空结算弹窗')
         timer = Timer(self.CHARIOT_RESULT_TIMEOUT).start()
         while not timer.reached() and datetime.now() < deadline:
+            self.reset_records()
             self.screenshot()
-            if self.I_CHARIOT_WIN.match(self.device.image):
-                logger.info('轮空结算：胜利')
-                self.close_result_popup(self.I_CHARIOT_WIN)
-                return 'win'
-            if self.I_CHARIOT_FAIL.match(self.device.image):
-                logger.info('轮空结算：失败')
-                self.close_result_popup(self.I_CHARIOT_FAIL)
-                return 'fail'
+            result = self.chariot_result(self.device.image)
+            if result:
+                return result
             self.device.sleep(0.3)
         logger.warning('轮空后没等到结算弹窗')
-        return 'none'
+        return None
 
-    def chariot_battle(self, deadline: datetime) -> None:
+    def chariot_battle(self, deadline: datetime) -> str | None:
         """
         战车地图内战斗
 
@@ -398,24 +438,29 @@ class ScriptTask(GameUi, WarChariotAssets):
         4. 没锁到：连续点「目标」最多 CHARIOT_LOCK_ATTEMPTS 次（会清点击记录，避免连点保护）
         5. 还是没锁到：在两个刷新点之间来回移动找目标
         6. 离开战车地图或到截止时间立即结束
+
+        :return: 'win' / 'fail' 本局结算已出现（弹窗已关闭）；未结束返回 None
         """
         logger.hr('战车地图战斗')
         self.ui_close_menu()
         state = self.wait_chariot_move(deadline)
 
+        if state in ('win', 'fail'):
+            return state
+
         if state == 'bye':
             # 轮空：对面没有车队，不会进战斗地图，倒计时结束直接弹胜利结算
-            self.wait_chariot_result(deadline)
-            return
+            return self.wait_chariot_result(deadline)
 
         if state == 'timeout':
             # 提示没抓到：不在战斗地图就按轮空处理，在战斗地图就继续打
             if not self.in_chariot_map(self.device.image):
                 logger.warning('没有准备阶段提示且不在战斗地图，按轮空处理')
-                self.wait_chariot_result(deadline)
-                return
+                return self.wait_chariot_result(deadline)
         else:
-            self.wait_chariot_battle_map(deadline)
+            state = self.wait_chariot_battle_map(deadline)
+            if state in ('win', 'fail'):
+                return state
 
         points = self.CHARIOT_POINTS
         location = self.map_current_location()
@@ -432,14 +477,19 @@ class ScriptTask(GameUi, WarChariotAssets):
         reached = False
 
         while datetime.now() < deadline:
+            self.reset_records()
             self.screenshot()
             # 活动整体结束的消息在地图里也会刷出来，命中就收工
             if self.I_CHARIOT_FINISH.match(self.device.image):
                 logger.info('战车战结束：世界频道提示「系统战车战结束」')
-                return
+                return None
+            # 结算弹窗会盖住右上角地图名（仙盟战车 -> 战车/车），必须先判结算
+            result = self.chariot_result(self.device.image)
+            if result:
+                return result
             if not self.in_chariot_map(self.device.image):
                 logger.info('已离开战车地图，结束战斗')
-                return
+                return None
 
             if self.ui_target_attackable(image=self.device.image):
                 logger.info('锁定到可攻击目标，开始攻击')
@@ -453,7 +503,7 @@ class ScriptTask(GameUi, WarChariotAssets):
                 if state == 'target':
                     continue
                 if state in ('left', 'deadline'):
-                    return
+                    return None
                 reached = True
                 continue
 
@@ -463,7 +513,7 @@ class ScriptTask(GameUi, WarChariotAssets):
 
             if not self.in_chariot_map(self.device.image):
                 logger.info('已离开战车地图，结束战斗')
-                return
+                return None
 
             # 还是没有目标：换另一个点来回移动找目标
             logger.info('没锁到目标，换个点继续找')
@@ -472,12 +522,12 @@ class ScriptTask(GameUi, WarChariotAssets):
 
     def chariot_battle_stop_check(self, deadline: datetime):
         """
-        攻击循环的停止条件：目标丢失 / 离开战车地图 / 到任务截止时间
+        攻击循环的停止条件：目标丢失 / 结算弹窗出现 / 离开战车地图 / 到任务截止时间
 
         地图名 OCR 比较重，2s 判一次即可。
         """
         lost = self.ui_target_lost_check()
-        state = {'probe': 0.0}
+        state = {'probe': datetime.now()}
 
         def _check() -> bool:
             if datetime.now() >= deadline:
@@ -486,9 +536,15 @@ class ScriptTask(GameUi, WarChariotAssets):
             now = datetime.now()
             if (now - state['probe']).total_seconds() >= 2:
                 state['probe'] = now
-                if self.exist_image() and not self.in_chariot_map(self.device.image):
-                    logger.info('Attack stopped: left chariot map')
-                    return True
+                if self.exist_image():
+                    image = self.device.image
+                    # 结算弹窗会盖住地图名，先看弹窗；这里不关闭，交给外层统一处理
+                    if self.I_CHARIOT_WIN.match(image) or self.I_CHARIOT_FAIL.match(image):
+                        logger.info('Attack stopped: settlement popup appeared')
+                        return True
+                    if not self.in_chariot_map(image):
+                        logger.info('Attack stopped: left chariot map')
+                        return True
             return lost()
 
         return _check
@@ -526,7 +582,7 @@ class ScriptTask(GameUi, WarChariotAssets):
         def on_position(name, cx, cy):
             if datetime.now() >= deadline:
                 raise ChariotDeadline
-            if not self.map_name_match(name, self.chariot_map_name):
+            if not self.chariot_battle_map_name(name):
                 raise ChariotLeftMap
             # map_move_read_pos 刚截过图，直接复用当前帧
             if self.ui_target_attackable(image=self.device.image):
