@@ -468,8 +468,11 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
     # 目标死后快速补锁：每这么多次抽查一次目标名，其余只做「已锁定 + 可攻击」判定
     RELOCK_NAME_VERIFY_EVERY = 5
-    # 点完「目标」等界面刷新的时间（秒）
+    # 点完「目标」等界面刷新的时间（秒）；第二次会等 2 倍
     RELOCK_SETTLE = 0.2
+    # 补锁最多点几次「目标」：怪物刚死时目标框还会残留一会儿（点下去锁到的是地尸），
+    # 再点一次就能切到下一只活怪，比退回完整流程（≈1.1s）便宜
+    RELOCK_CLICKS = 2
     _relock_count = 0
 
     def relock_target(self, names: list = None) -> bool:
@@ -480,7 +483,8 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         完整 acquire_target 实测约 1.1s/只（其中目标名 OCR 约 0.7s），
         而同一片刷怪区刷出来的都是白名单里的怪，名字不必每只都读。
         所以：
-        - 平时只做便宜的两步：点一次「目标」+ 判「已锁定且动作按钮是攻击」；
+        - 平时只做便宜的两步：点「目标」+ 判「已锁定且动作按钮是攻击」，
+          一次判不过就再点一次（第一次常锁到刚死的地尸）；
         - 每 RELOCK_NAME_VERIFY_EVERY 只抽查一次名字（走完整 acquire_target）。
 
         :return: True = 已锁到可攻击目标，循环接着打；False = 让外层走完整流程
@@ -490,11 +494,12 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         if names and self._relock_count % self.RELOCK_NAME_VERIFY_EVERY == 0:
             return self.acquire_target(names)
 
-        self.ui_lock_target()
-        self.device.sleep(self.RELOCK_SETTLE)
-        image = self.screenshot()
-        if self.ui_target_attackable(image=image):
-            return True
+        for attempt in range(1, self.RELOCK_CLICKS + 1):
+            self.ui_lock_target()
+            self.device.sleep(self.RELOCK_SETTLE * attempt)
+            image = self.screenshot()
+            if self.ui_target_attackable(image=image):
+                return True
         logger.info('快速补锁没锁到可攻击目标，交回完整流程')
         return False
 

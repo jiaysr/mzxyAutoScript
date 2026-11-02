@@ -226,8 +226,20 @@ def test_relock_target_gives_up_when_nothing_locked():
     task, locks, _ = _relock_task(attackable=False)
     task._relock_count = 1
     assert task.relock_target(['小鬼']) is False, '锁不到就交回完整流程'
-    assert len(locks) == 1
+    assert len(locks) == task.RELOCK_CLICKS == 2, '一次判不过要再点一次（地尸残留）'
     print('test_relock_target_gives_up_when_nothing_locked OK')
+
+
+def test_relock_target_retries_once_on_corpse():
+    """第一下锁到刚死的地尸（判不过），第二下切到活怪就继续打"""
+    task, locks, acquires = _relock_task()
+    checks = iter([False, True])
+    task.ui_target_attackable = lambda image=None: next(checks, False)
+    task._relock_count = 1
+    assert task.relock_target(['小鬼']) is True
+    assert len(locks) == 2, locks
+    assert acquires == []
+    print('test_relock_target_retries_once_on_corpse OK')
 
 
 def test_fast_loop_prefers_fast_relock():
