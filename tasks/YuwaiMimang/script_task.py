@@ -423,21 +423,25 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     # 迷窟里怪多，切几次就能命中；等太久会把打怪节奏拖没
     TARGET_SWITCH_MAX = 8
     TARGET_SWITCH_TIMEOUT = 8
-    # 连续这么多次锁不到白名单目标，就先打「任意可攻击目标」
-    # （目标名 OCR 读不出来时不能干等到时段结束，那样一只怪都不打）
-    TARGET_FALLBACK_AFTER = 3
+    # 连续这么多次锁不到白名单目标：告警一次（不要退回「打任意目标」——
+    # 迷窟里有玩家，名字对不上时宁可继续切，也不能打错人）
+    TARGET_WARN_AFTER = 10
     _target_fail_count = 0
 
     def acquire_target(self, names: list = None) -> bool:
         """
-        锁一个「可攻击 + 名字在白名单里」的目标
+        锁一个「可攻击 + 名字在白名单里」的目标（完整流程）
 
         靠 GameUi 的 `ui_ensure_target_locked`：收起菜单 -> 判断是否已锁定且动作按钮为「攻击」
         -> 不满足就点「目标」切换 -> 命中白名单名字才返回。
 
-        兜底：白名单模式下连续 `TARGET_FALLBACK_AFTER` 次没锁到（多半是目标名 OCR
-        读不出来），就退回「不校验名字、锁到能打的就上」，并打一条警告 ——
-        宁可偶尔打到列表外的怪，也不能整场一只不打。
+        它一次约 1.1s，开销几乎都不在 OCR 上（名字 OCR 只有 ~20ms）：
+        `ui_close_menu`、通用换目标间隔 0.5s、以及每次判定各截一次图。
+        所以每杀一只走这条路太贵，常规补锁走下面的 `relock_target`，
+        这里只在开打、补锁失败、或需要从菜单/死亡状态里恢复时用。
+
+        连续 `TARGET_WARN_AFTER` 次都锁不到只告警、继续尝试：
+        **绝不退回「打任意可攻击目标」**，避免锁到路过的敌对玩家。
 
         :param names: 白名单（None = 读配置）；传空列表 / 配置为空 = 不校验名字
         :return: 锁到目标返回 True；超时或切满了还没命中返回 False
@@ -451,56 +455,49 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             self._target_fail_count = 0
             return True
 
-        if not names:
-            return False
         self._target_fail_count += 1
-        if self._target_fail_count < self.TARGET_FALLBACK_AFTER:
-            return False
+        if self._target_fail_count % self.TARGET_WARN_AFTER == 1:
+            logger.warning(f'连续 {self._target_fail_count} 次没锁到白名单目标 {names}，'
+                           f'继续等待（不会打白名单外的目标）')
+        return False
 
-        logger.warning(f'连续 {self._target_fail_count} 次没锁到白名单目标 {names}，'
-                       f'先打当前可攻击目标（目标名 OCR 可能读不出来）')
-        self._target_fail_count = 0
-        return self.ui_ensure_target_locked(
-            target_name=None,
-            action=ACTION_ATTACK,
-            max_switch=self.TARGET_SWITCH_MAX,
-            timeout=self.TARGET_SWITCH_TIMEOUT)
-
-    # 目标死后快速补锁：每这么多次抽查一次目标名，其余只做「已锁定 + 可攻击」判定
-    RELOCK_NAME_VERIFY_EVERY = 5
-    # 点完「目标」等界面刷新的时间（秒）；第二次会等 2 倍
-    RELOCK_SETTLE = 0.2
-    # 补锁最多点几次「目标」：怪物刚死时目标框还会残留一会儿（点下去锁到的是地尸），
-    # 再点一次就能切到下一只活怪，比退回完整流程（≈1.1s）便宜
-    RELOCK_CLICKS = 2
-    _relock_count = 0
+    # 补锁：点「目标」后等界面刷新的时间（秒）
+    # 通用流程里是 0.5s（TARGET_LOCK_SWITCH_INTERVAL），迷窟里换目标几乎即时，
+    # 实测 0.15s 就够，每只怪能省 0.35s
+    RELOCK_SETTLE = 0.15
+    # 补锁最多切几次目标（切到白名单里的活怪为止；第一下常锁到刚死的地尸）
+    RELOCK_MAX_SWITCH = 3
 
     def relock_target(self, names: list = None) -> bool:
         """
         目标死后快速补锁，交给 battle_skill_loop 的 on_target_lost 用
 
-        为什么要一条快路径：迷窟里一刀一只，每杀一只都要重新锁目标。
-        完整 acquire_target 实测约 1.1s/只（其中目标名 OCR 约 0.7s），
-        而同一片刷怪区刷出来的都是白名单里的怪，名字不必每只都读。
-        所以：
-        - 平时只做便宜的两步：点「目标」+ 判「已锁定且动作按钮是攻击」，
-          一次判不过就再点一次（第一次常锁到刚死的地尸）；
-        - 每 RELOCK_NAME_VERIFY_EVERY 只抽查一次名字（走完整 acquire_target）。
+        为什么要一条快路径：迷窟里一刀一只，每杀一只都要重新锁目标；
+        完整 acquire_target 实测约 1.1s/只，而其中名字 OCR 只有 ~20ms，
+        其余全是「收菜单 / 换目标等 0.5s / 多截几次图」的固定开销。
 
-        :return: True = 已锁到可攻击目标，循环接着打；False = 让外层走完整流程
+        这里直接点固定坐标的「目标」按钮（战斗中它一直在），换目标只等 0.15s，
+        每切一次都判「已锁定 + 动作按钮是攻击」**并读名字**：
+        迷窟里会锁到路过的玩家，不能只看「能攻击」就开打。
+
+        :return: True = 已锁到白名单里的活怪；False = 让外层走完整流程
         """
         names = self.battle_target_names() if names is None else names
-        self._relock_count += 1
-        if names and self._relock_count % self.RELOCK_NAME_VERIFY_EVERY == 0:
-            return self.acquire_target(names)
-
-        for attempt in range(1, self.RELOCK_CLICKS + 1):
-            self.ui_lock_target()
-            self.device.sleep(self.RELOCK_SETTLE * attempt)
+        for _ in range(self.RELOCK_MAX_SWITCH):
+            x, y = self.C_TARGET_BUTTON_CLICK.coord()
+            self.device.click(x=x, y=y, control_name='mimang_target')
+            self.device.click_record_clear()
+            self.device.sleep(self.RELOCK_SETTLE)
             image = self.screenshot()
-            if self.ui_target_attackable(image=image):
+            if not self.ui_target_attackable(image=image):
+                continue
+            if not names:
                 return True
-        logger.info('快速补锁没锁到可攻击目标，交回完整流程')
+            name = self.ui_target_name()
+            if name and any(self.ocr_name_match(name, expected) for expected in names):
+                return True
+            logger.info(f'补锁到 [{name or "?"}]，不在白名单 {names}，继续切')
+        logger.info('快速补锁没锁到白名单里的活怪，交回完整流程')
         return False
 
     def fast_click_once(self) -> None:

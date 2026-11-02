@@ -116,26 +116,22 @@ def test_acquire_target_passes_whitelist():
 
 
 # ------------------------------------------------------------------ 按预设模式
-def test_acquire_target_falls_back_after_failures():
+def test_acquire_target_never_falls_back_to_other_targets():
+    """锁不到白名单目标就继续找，绝不退回「打任意目标」（迷窟里会打到玩家）"""
     task, _ = make_task()
     calls = []
 
     def fake_lock(**kwargs):
         calls.append(kwargs)
-        return kwargs['target_name'] is None  # 只有「不校验名字」时才锁得到
+        return False
 
     task.ui_ensure_target_locked = fake_lock
     task._target_fail_count = 0
 
-    for _ in range(task.TARGET_FALLBACK_AFTER - 1):
+    for _ in range(task.TARGET_WARN_AFTER + 2):
         assert task.acquire_target(['小鬼']) is False
-        assert calls[-1]['target_name'] == ['小鬼'], calls[-1]
-
-    # 连续失败到上限：退回「不校验名字」，别让整场一只怪都不打
-    assert task.acquire_target(['小鬼']) is True
-    assert calls[-1]['target_name'] is None, calls[-1]
-    assert task._target_fail_count == 0, '兜底成功后要清零，下次重新按白名单找'
-    print('test_acquire_target_falls_back_after_failures OK')
+    assert all(c['target_name'] == ['小鬼'] for c in calls), '不允许退化成不校验名字'
+    print('test_acquire_target_never_falls_back_to_other_targets OK')
 
 
 def test_preset_loop_uses_skill_loop():
@@ -197,49 +193,63 @@ def test_preset_loop_falls_back_to_fast_click():
 
 
 # ------------------------------------------------------------------ 目标死后快速补锁
-def _relock_task(attackable=True):
+def _relock_task(attackable=True, name='小鬼'):
     task, battle = make_task()
     task.screenshot = lambda: object()
     task.ui_target_attackable = lambda image=None: attackable
-    locks = []
-    task.ui_lock_target = lambda interval=None: locks.append(1) or True
-    acquires = []
-    task.acquire_target = lambda names=None: acquires.append(names) or True
-    return task, locks, acquires
+    task.ui_target_name = lambda scales=None, min_score=None: name
+    task.C_TARGET_BUTTON_CLICK = SimpleNamespace(coord=lambda: (1242, 280))
+    clicks = []
+    task.device = SimpleNamespace(
+        sleep=lambda seconds: None,
+        click=lambda x, y, control_name=None: clicks.append((x, y)),
+        click_record_clear=lambda: None,
+        image=None)
+    return task, clicks
 
 
-def test_relock_target_uses_cheap_path():
-    """平时只点一次「目标」+ 判可攻击；每 N 只才读一次名字（OCR 是主要开销）"""
-    task, locks, acquires = _relock_task()
-    task._relock_count = 0
-    for _ in range(task.RELOCK_NAME_VERIFY_EVERY - 1):
-        assert task.relock_target(['小鬼']) is True
-    assert len(locks) == task.RELOCK_NAME_VERIFY_EVERY - 1, locks
-    assert acquires == [], '没到抽查点，不该走完整流程（省掉 OCR）'
+def test_relock_target_clicks_and_verifies_name():
+    """补锁：点一次固定坐标的「目标」+ 判可攻击 + 读名字，一次就命中"""
+    task, clicks = _relock_task()
+    assert task.relock_target(['小鬼', '鬼王']) is True
+    assert clicks == [(1242, 280)], clicks
+    print('test_relock_target_clicks_and_verifies_name OK')
 
+
+def test_relock_target_skips_player():
+    """锁到玩家（名字不在白名单）要继续切，不能开打"""
+    task, clicks = _relock_task(name='某某玩家')
+    assert task.relock_target(['小鬼']) is False
+    assert len(clicks) == task.RELOCK_MAX_SWITCH, '切满上限交给完整流程'
+    assert task.RELOCK_MAX_SWITCH >= 2
+    print('test_relock_target_skips_player OK')
+
+
+def test_relock_target_retries_on_corpse():
+    """第一下锁到刚死的地尸（判不过可攻击），第二下切到活怪"""
+    task, clicks = _relock_task()
+    checks = iter([False, True])
+    task.ui_target_attackable = lambda image=None: next(checks, False)
     assert task.relock_target(['小鬼']) is True
-    assert len(acquires) == 1, '每到抽查点走完整 acquire_target'
-    print('test_relock_target_uses_cheap_path OK')
+    assert len(clicks) == 2, clicks
+    print('test_relock_target_retries_on_corpse OK')
 
 
 def test_relock_target_gives_up_when_nothing_locked():
-    task, locks, _ = _relock_task(attackable=False)
-    task._relock_count = 1
-    assert task.relock_target(['小鬼']) is False, '锁不到就交回完整流程'
-    assert len(locks) == task.RELOCK_CLICKS == 2, '一次判不过要再点一次（地尸残留）'
+    task, clicks = _relock_task(attackable=False)
+    assert task.relock_target(['小鬼']) is False
+    assert len(clicks) == task.RELOCK_MAX_SWITCH, clicks
     print('test_relock_target_gives_up_when_nothing_locked OK')
 
 
-def test_relock_target_retries_once_on_corpse():
-    """第一下锁到刚死的地尸（判不过），第二下切到活怪就继续打"""
-    task, locks, acquires = _relock_task()
-    checks = iter([False, True])
-    task.ui_target_attackable = lambda image=None: next(checks, False)
-    task._relock_count = 1
-    assert task.relock_target(['小鬼']) is True
-    assert len(locks) == 2, locks
-    assert acquires == []
-    print('test_relock_target_retries_once_on_corpse OK')
+def test_relock_target_without_whitelist_skips_name():
+    """白名单留空：只要求可攻击，不读名字"""
+    task, clicks = _relock_task()
+    task.ui_target_name = lambda scales=None, min_score=None: (_ for _ in ()).throw(
+        AssertionError('白名单为空时不该读名字'))
+    assert task.relock_target([]) is True
+    assert clicks == [(1242, 280)]
+    print('test_relock_target_without_whitelist_skips_name OK')
 
 
 def test_fast_loop_prefers_fast_relock():
