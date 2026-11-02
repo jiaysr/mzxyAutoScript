@@ -298,7 +298,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             logger.warning(f'没有 {color} 的碎片模板（{rule_name}），视为没有碎片')
             return result
 
-        def on_hit(cell, image, score):
+        def on_hit(cell, image, score, hit):
             col_x, row_top = cell
             text_region, count_region = self.bag_cell_regions(col_x, row_top)
             text = self.bag_region_text(text_region)

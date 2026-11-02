@@ -51,6 +51,7 @@ def make_bag(hits=None, signatures=None):
     bag.appear = lambda rule: rule == 'empty'
     sigs = list(signatures or [])
     bag.bag_page_signature = lambda image: sigs.pop(0) if sigs else b'same'
+    bag.bag_region_text = lambda region: '趣味答题券'
     bag.rule = FakeRule(hits)
     return bag
 
@@ -73,7 +74,7 @@ def test_scan_stops_on_callback_true():
     bag = make_bag(hits=[(0.92, 279, 114, 214, 41)])
     hits = []
 
-    def on_hit(cell, image, score):
+    def on_hit(cell, image, score, hit):
         hits.append((cell, round(score, 2)))
         return True
 
@@ -86,7 +87,7 @@ def test_scan_stops_on_callback_true():
 def test_scan_keeps_going_until_signature_stops():
     bag = make_bag(hits=[], signatures=[b'a', b'b', b'b'])
     cells = []
-    assert bag.bag_scan_rule(bag.rule, on_hit=lambda cell, image, score: cells.append(cell)) is False
+    assert bag.bag_scan_rule(bag.rule, on_hit=lambda *a: cells.append(a[0])) is False
     assert bag.rule.calls == 3, f'内容不再变化就停：{bag.rule.calls}'
     assert cells == []
     print('test_scan_keeps_going_until_signature_stops OK')
@@ -110,7 +111,7 @@ def test_scan_dedups_same_cell():
     bag = make_bag()
     bag.rule = OnceRule([(0.95, 279, 114, 214, 41), (0.90, 280, 115, 214, 41)])
     cells = []
-    bag.bag_scan_rule(bag.rule, on_hit=lambda cell, image, score: cells.append(cell))
+    bag.bag_scan_rule(bag.rule, on_hit=lambda *a: cells.append(a[0]))
     assert cells == [(304, 110)], cells
     assert bag.rule.calls == 2, bag.rule.calls
     print('test_scan_dedups_same_cell OK')
@@ -122,9 +123,19 @@ def test_find_item_prefers_template():
     ocr_called = []
     bag.bag_find_by_ocr = lambda name: ocr_called.append(name) or (1, 2)
     coord = bag.bag_find_item('趣味答题券', rule=bag.rule)
-    assert coord == (304, 135), coord
+    assert coord == (304, 134), coord
     assert ocr_called == [], '模板命中就不该再走 OCR'
     print('test_find_item_prefers_template OK')
+
+
+def test_find_item_rejects_wrong_item():
+    """模板命中但格子文字对不上（别的物品长得像）：不能点，继续找/退回 OCR"""
+    bag = make_bag(hits=[(0.93, 279, 114, 214, 41)])
+    bag.bag_region_text = lambda region: '神秘仙府券'
+    bag.bag_scroll_to_top = lambda: None
+    bag.bag_find_by_ocr = lambda name: None
+    assert bag.bag_find_item('趣味答题券', rule=bag.rule) is None
+    print('test_find_item_rejects_wrong_item OK')
 
 
 def test_find_item_falls_back_to_ocr():

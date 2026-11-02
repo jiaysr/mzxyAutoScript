@@ -17,8 +17,9 @@
 - 图标中心相对行顶约 25px（模板命中框左边也约在图标中心 - 25px）
 - 网格可视区：x 255..1180，y 105..555（高 450px，约 3.7 行）
 
-滚动统一用 `ui_swipe_gentle`（慢速分段 + 滚动后等布局稳定），每屏约 2 行，
-保证相邻两屏有重叠，模板不会因为跳过一行而漏掉命中。
+滚动沿用仙府那套**整页 swipe**（`(490,570) -> (490,80)` + 等 1.2s）：整页滚动后
+每行在屏幕上的位置仍然固定（行 top=110/228/350/471），命中框反推格子才准；
+改成小步滚动会让固定区域整体偏移（仙府文档里实测过）。
 """
 import re
 
@@ -28,6 +29,7 @@ from module.base.timer import Timer
 from module.exception import GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets
+from tasks.GameUi.core.ocr import OcrHelpers
 from tasks.GameUi.pages.page import page_item_bag
 from tasks.base_task import BaseTask
 
@@ -50,9 +52,12 @@ class BagNavigation(BaseTask, GameUiAssets):
     BAG_COUNT_DY = 55
     BAG_COUNT_SIZE = (35, 30)
 
-    # 滚动与扫描
-    BAG_SCROLL_DISTANCE = 240
-    BAG_SCROLL_CENTER = 345
+    # 翻页：整页 swipe（仙府实测写法，别改成小步滚动）
+    # 整页滚动后每一行的屏幕位置是固定的，行 top=110/228/350/471 才成立；
+    # 一次滚 3 行那种会让固定区域对不上（仙府文档里踩过）。
+    BAG_SCROLL_P1 = (490, 570)
+    BAG_SCROLL_P2 = (490, 80)
+    BAG_SCROLL_SETTLE = 1.2
     BAG_SCAN_SCREENS = 18
     BAG_SETTLE = 1.0
     # 整理背包后的等待（整理动画 + 重新排布）
@@ -88,8 +93,9 @@ class BagNavigation(BaseTask, GameUiAssets):
         逐屏模板匹配扫描背包（公共外壳）
 
         :param rule: RuleImage 模板（物品图标 + 第一行名字）
-        :param on_hit: 命中回调 `on_hit(cell, image, score)`；
-                      cell = (列图标中心 x, 行文字区顶 y)；返回 True 表示提前结束
+        :param on_hit: 命中回调 `on_hit(cell, image, score, hit)`：
+                      cell = (列图标中心 x, 行文字区顶 y)，hit = 模板命中框 (x, y, w, h)；
+                      返回 True 表示提前结束
         :param max_screens: 最多扫几屏，默认 BAG_SCAN_SCREENS
         :param empty_rule: 空格子特征（命中即到底），可不传
         :return: 是否至少命中一次
@@ -109,7 +115,7 @@ class BagNavigation(BaseTask, GameUiAssets):
                     continue
                 page_cells.add(cell)
                 page_hit = found = True
-                if on_hit is not None and on_hit(cell, image, score):
+                if on_hit is not None and on_hit(cell, image, score, (x, y, w, h)):
                     return found
             if not page_hit:
                 logger.info(f'背包第 {page} 屏未命中模板')
@@ -147,19 +153,33 @@ class BagNavigation(BaseTask, GameUiAssets):
         return self.bag_find_by_ocr(name)
 
     def bag_find_by_rule(self, rule, name: str = ''):
-        """模板匹配找物品，返回命中格的图标中心坐标；没命中返回 None"""
+        """
+        模板匹配找物品，返回命中框对应的图标中心坐标；没命中返回 None
+
+        点击坐标直接用**命中框**换算（`hit.x + 图标偏移, hit.y + hit.h / 2`）：
+        行 top 那个常量是给「命中格 OCR 区域」用的，跟实际图标中心差 ~35px，
+        拿来点会点在格子偏上的位置，边界上可能点错行。
+
+        :param name: 物品名；非空时会对命中格再做一次 OCR 名字校验（防模板误命中）
+        """
         hits = []
 
-        def on_hit(cell, image, score):
-            hits.append((cell, score))
-            return True  # 第一个命中就够了
+        def on_hit(cell, image, score, hit):
+            x, y, w, h = hit
+            if name:
+                text_region, _ = self.bag_cell_regions(*cell)
+                text = self.bag_region_text(text_region)
+                if not OcrHelpers.ocr_name_match(text, name):
+                    logger.warning(f'模板命中但格子文字对不上 [{name}]: {text!r} @ {cell}')
+                    return False
+            hits.append(((int(x + self.BAG_PICK_ICON_DX), int(y + h / 2)), score))
+            return True  # 第一个有效命中就够了
 
         self.bag_scan_rule(rule, on_hit=on_hit)
         if not hits:
             logger.warning(f'Bag template [{name or rule.name}] not matched')
             return None
-        (col_x, row_top), score = hits[0]
-        coord = self.bag_cell_center(col_x, row_top)
+        coord, score = hits[0]
         logger.info(f'Bag item [{name or rule.name}] matched by template '
                     f'(score {score:.3f}) at {coord}')
         return coord
@@ -393,18 +413,17 @@ class BagNavigation(BaseTask, GameUiAssets):
 
     def bag_scroll(self) -> None:
         """
-        慢速向下滚动一屏（约 2 行），滚动后等布局稳定
+        向下翻一整页（4 行）并等布局稳定
 
-        用 ui_swipe_gentle 而不是整段 swipe：整段快滑有惯性，会甩过头、
-        把相邻两屏之间的一行跳过（模板/OCR 都会漏）。
+        用仙府的整页 swipe：整页滚动后行位置仍然是 110/228/350/471，
+        命中框 -> 格子的换算才成立；改成小步滚动会让固定区域整体偏移。
         """
-        center = self.BAG_SCROLL_CENTER
-        distance = self.BAG_SCROLL_DISTANCE
-        self.ui_swipe_gentle(p1=(630, center + distance // 2), p2=(630, center - distance // 2))
-        self.device.sleep(self.BAG_SETTLE)
+        self.device.swipe(p1=self.BAG_SCROLL_P1, p2=self.BAG_SCROLL_P2)
+        self.device.click_record_clear()
+        self.device.sleep(self.BAG_SCROLL_SETTLE)
 
     def bag_scroll_to_top(self) -> None:
-        """滚回背包顶部（再滚一屏内容不变就说明到顶了）"""
+        """滚回背包顶部（整页反向滑动；再滚一屏内容不变就说明到顶了）"""
         last_signature = None
         for _ in range(self.BAG_SCAN_SCREENS):
             self.screenshot()
@@ -412,8 +431,7 @@ class BagNavigation(BaseTask, GameUiAssets):
             if signature == last_signature:
                 return
             last_signature = signature
-            center = self.BAG_SCROLL_CENTER
-            distance = self.BAG_SCROLL_DISTANCE
-            self.ui_swipe_gentle(p1=(630, center - distance // 2), p2=(630, center + distance // 2))
-            self.device.sleep(self.BAG_SETTLE)
+            self.device.swipe(p1=self.BAG_SCROLL_P2, p2=self.BAG_SCROLL_P1)
+            self.device.click_record_clear()
+            self.device.sleep(self.BAG_SCROLL_SETTLE)
         logger.warning('Bag does not scroll back to top')
