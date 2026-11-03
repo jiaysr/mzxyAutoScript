@@ -294,6 +294,11 @@ class BattleAttack:
         """
         生成这一场的释放计划：识别技能位 -> 按预设的顺序排
 
+        「未识别 + 冷却中」的技能位先不入队：冷却遮罩和倒计时数字会让图标识别分掉到
+        阈值以下，这时认不出来不代表它不该放（也可能正好是被禁用的技能）。这种位
+        记到 `_battle_pending_slots`，等冷却结束后由 `battle_recheck_pending()` 重认，
+        再按所属预设决定是否入队。
+
         :param image: 不传就用当前截图
         :param preset: 预设（默认按 battle_preset() 自己取）
         :return: PlanEntry 列表（按释放先后）
@@ -312,14 +317,96 @@ class BattleAttack:
                           include_unknown=include_unknown,
                           unknown_min_score=unknown_min_score)
         logger.info(f'技能位识别：{format_matches(matches, catalog)}')
+
+        # 未识别且正在冷却：图标被遮罩/数字盖住，识别不可信，先不入队
+        states = self.battle_states_raw(image)
+        pending = {slot: preset
+                   for slot, match in matches.items()
+                   if match.skill_id is None and states.get(slot) == SKILL_COOLING}
+        if pending:
+            plan = [entry for entry in plan if entry.slot not in pending]
+
         planned = {entry.slot for entry in plan}
         dropped = [f'技能{slot + 1}({match.score:.2f})'
                    for slot, match in sorted(matches.items())
-                   if not match.skill_id and slot not in planned]
+                   if not match.skill_id and slot not in planned and slot not in pending]
         if dropped:
             logger.info(f'跳过不像技能的技能位（带的可能是物品等）：{", ".join(dropped)}')
+        if pending:
+            logger.info(f'技能位{[slot + 1 for slot in sorted(pending)]}未识别且在冷却，'
+                        f'先不入队（冷却结束后重认）')
+        self._battle_pending_slots = pending
+        self._battle_plan_entries = plan
+
         logger.info(f'释放计划（预设 {preset.get("name")}，{len(plan)} 个技能）：{plan_summary(plan)}')
         return plan
+
+    def battle_has_pending_slots(self) -> bool:
+        """是否有等待冷却后重认的技能位（未识别 + 识别时在冷却）"""
+        return bool(getattr(self, '_battle_pending_slots', None))
+
+    def battle_current_slots(self) -> List[int]:
+        """最近一次计划（含冷却后重认补进来的技能位）的释放顺序"""
+        return [entry.slot for entry in
+                (getattr(self, '_battle_plan_entries', None) or [])]
+
+    def battle_recheck_pending(self, image=None) -> List[PlanEntry] | None:
+        """
+        重认等待中的技能位：冷却结束后再识别一次，决定是否入队
+
+        只重认状态不再是 `cooling` 的位（冷却遮罩下的识别结果不可信）。
+        重认出来就按它所属预设的顺序/禁用处理；仍然认不出来则按
+        `click_unknown_slot` / `unknown_slot_min_score` 决定。
+
+        :param image: 传入当前帧则不重新截图
+        :return: 更新后的完整计划；没有技能位结束等待时返回 None
+        """
+        pending = getattr(self, '_battle_pending_slots', None)
+        if not pending:
+            return None
+
+        image = self._battle_image(image)
+        states = self.battle_states_raw(image)
+        catalog = self.battle_catalog()
+        common = getattr(self.config.battle, 'common', None)
+        include_unknown = bool(getattr(common, 'click_unknown_slot', True))
+        unknown_min_score = float(getattr(common, 'unknown_slot_min_score', 0.6))
+
+        entries = list(getattr(self, '_battle_plan_entries', None) or [])
+        remaining = {}
+        resolved = []
+        for slot in sorted(pending):
+            preset = pending[slot]
+            if states.get(slot) == SKILL_COOLING:
+                remaining[slot] = preset
+                continue
+            matches = self.battle_recognizer().identify(
+                image, {slot: self.BATTLE_SKILL_CHECK_REGIONS[slot]})
+            order = catalog.normalize_order(list(preset.get('order') or []),
+                                            list(preset.get('disabled') or []))
+            added = build_plan(matches, order, catalog,
+                               disabled=list(preset.get('disabled') or []),
+                               include_unknown=include_unknown,
+                               unknown_min_score=unknown_min_score)
+            resolved.append(slot)
+            entries = [entry for entry in entries if entry.slot != slot] + added
+            if added:
+                logger.info(f'技能位{slot + 1}冷却结束重认：{plan_summary(added)}')
+            else:
+                logger.info(f'技能位{slot + 1}冷却结束重认后仍不入队（未识别或预设禁用）')
+
+        self._battle_pending_slots = remaining
+        if not resolved:
+            return None
+
+        recognized = sorted([entry for entry in entries if entry.recognized],
+                            key=lambda entry: (entry.priority, entry.slot))
+        unknown = sorted([entry for entry in entries if not entry.recognized],
+                         key=lambda entry: entry.slot)
+        entries = recognized + unknown
+        self._battle_plan_entries = entries
+        logger.info(f'重认后释放计划（{len(entries)} 个技能）：{plan_summary(entries)}')
+        return entries
 
     def battle_plan_slots(self, image=None, preset: dict = None,
                           fallback_all: bool = False) -> List[int]:
@@ -327,6 +414,8 @@ class BattleAttack:
         这一场要点哪些技能位
 
         - 识别成功：按计划顺序（预设优先级 + 禁用过滤；像技能但没认出来的排最后）
+        - **未识别且识别时在冷却的技能位先不入队**：冷却遮罩会让图标识别失真，
+          冷却结束后由 `battle_recheck_pending()` 重认，再决定是否入队
         - **一个都没认出来：返回空列表，不盲点全部技能位**
           技能位上带的不一定是技能 —— 可能是物品/药品/脱离卡，盲点会白耗道具，
           在战场里甚至会直接跳出战场（战车战场第 7 位实测就是物品，识别分只有 0.50）。
@@ -448,7 +537,8 @@ class BattleAttack:
                           max_cycles: int = None,
                           max_skills: int = None,
                           on_cast: Callable[[int], None] = None,
-                          on_target_lost: Callable[[], bool] = None) -> str:
+                          on_target_lost: Callable[[], bool] = None,
+                          recheck_pending: bool = True) -> str:
         """
         队列式连续释放技能（不按轮）：
 
@@ -476,12 +566,18 @@ class BattleAttack:
         :param on_target_lost: 目标丢失时的回调（无参）。返回 True 表示「已经补锁到新目标」，
                                循环接着打（刷小怪一刀一只的场景，省掉退回外层重锁的开销）；
                                返回 False / 不传 -> 按原逻辑结束循环
+        :param recheck_pending: 是否在循环里重认「未识别 + 冷却中」的技能位
+                                （冷却结束后识别一次，再决定是否入队）
         :return: check_stop 的返回值 / 'target_lost' / 'skill_limit' / 'timeout'
         """
         order = list(slots)
+        recheck = getattr(self, 'battle_recheck_pending', None) if recheck_pending else None
+        has_pending = getattr(self, 'battle_has_pending_slots', None)
         if not order:
-            logger.warning('没有可释放的技能位')
-            return 'timeout'
+            if recheck is None or not (has_pending is not None and has_pending()):
+                logger.warning('没有可释放的技能位')
+                return 'timeout'
+            logger.info('当前没有可释放的技能位，等待冷却结束后重认')
 
         base_order = list(order)
         # 本轮已经失败过、暂时不再尝试的技能（新一轮开始时清空）
@@ -509,6 +605,22 @@ class BattleAttack:
             if timer is not None and timer.reached():
                 logger.warning(f'战斗超时（{timeout}s）')
                 return 'timeout'
+
+            # 冷却结束后重认等待中的技能位，认出来就插回预设优先级里
+            if recheck is not None:
+                updated = recheck(image=image)
+                if updated is not None:
+                    order = [entry.slot for entry in updated]
+                    base_order = list(order)
+                    blocked.clear()
+                    deferred = None
+                    logger.info(f'技能位重认后更新队列：{[slot + 1 for slot in order]}')
+                    if not order:
+                        if has_pending is None or not has_pending():
+                            logger.warning('重认后仍没有可释放的技能位')
+                            return 'timeout'
+                        self.device.sleep(idle_interval)
+                        continue
 
             states = self.battle_skills_state(image=image)
             if all(states.get(slot) == SKILL_COOLING for slot in order):
@@ -678,7 +790,8 @@ class BattleAttack:
                            poll_interval: float = 0.1, unknown_wait: float = 1.0,
                            include_attack: bool = True, attack_interval: float = 1.0,
                            stop_check: Callable[[], bool] = None,
-                           reidentify_casts: int = 0) -> None:
+                           reidentify_casts: int = 0,
+                           recheck_pending: bool = True) -> None:
         """
         按预设优先级**一直**攻击（优先级调度，不是一轮把所有技能点一遍）
 
@@ -703,6 +816,7 @@ class BattleAttack:
         :param attack_interval: 普通攻击的最小间隔（秒）
         :param stop_check: 无参函数，返回 True 就结束；None = 一直打
         :param reidentify_casts: 每放 N 次技能重新识别一次技能栏（换装备后能跟上）；0 = 不重识别
+        :param recheck_pending: 冷却结束后重认「未识别 + 冷却中」的技能位，再决定是否入队
         """
         battle = self.config.battle
         clicks_per_skill = max(1, int(clicks_per_skill or self.BATTLE_CLICK_TIMES))
@@ -732,12 +846,28 @@ class BattleAttack:
                 return
 
             if not plan:
+                if recheck_pending:
+                    self.screenshot()
+                    updated = self.battle_recheck_pending()
+                    if updated:
+                        plan = updated
+                        logger.info(f'重认后恢复释放：{plan_summary(plan)}')
+                        continue
+                    if self.battle_has_pending_slots():
+                        # 还在冷却：等它好了再重认，别每秒重扫整个技能栏
+                        self.device.sleep(1.0)
+                        continue
                 self.device.sleep(1.0)
                 plan = _make_plan()
                 continue
 
             # 每轮现截一张：优先级高的技能可能已经冷却好了，要能插队
             self.screenshot()
+            if recheck_pending:
+                updated = self.battle_recheck_pending()
+                if updated is not None:
+                    plan = updated
+                    logger.info(f'技能位重认后更新队列：{plan_summary(plan)}')
             states = self.battle_skills_state()
             now = time.time()
 

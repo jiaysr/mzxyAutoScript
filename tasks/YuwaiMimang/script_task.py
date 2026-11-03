@@ -745,10 +745,15 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                 if not slots:
                     slots = self.recognize_skill_slots()
                     if not slots:
-                        logger.warning('技能位一直认不出来（技能栏被挡 / 素材不匹配），'
-                                       '本时段不再盲点技能位，收工')
-                        break
+                        if self.battle_has_pending_slots():
+                            logger.info('技能位都在冷却中未识别，等冷却结束后重认')
+                        else:
+                            logger.warning('技能位一直认不出来（技能栏被挡 / 素材不匹配），'
+                                           '本时段不再盲点技能位，收工')
+                            break
 
+                # 未识别且在冷却的技能位会在循环里冷却结束后重认并补进计划
+                slots = self.battle_current_slots() or slots
                 reason = self.battle_skill_loop(
                     slots,
                     check_stop=self.battle_stop_reason,
