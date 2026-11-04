@@ -12,7 +12,7 @@
 | POST | `/battle/preset?config=oas1` | 新建预设 `{name?, base?}`（基于某个预设复制） |
 | PUT | `/battle/preset?config=oas1` | 改预设 `{id, name?, order?, disabled?}`（默认预设拒绝） |
 | DELETE | `/battle/preset/{preset_id}?config=oas1` | 删除预设（默认预设拒绝） |
-| PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?, clicks?, click_interval?, attempts?, cooldown_timeout?}` |
+| PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?}` |
 | PUT | `/battle/reset?config=oas1&preset=preset_1` | 预设顺序恢复默认 |
 | GET | `/battle/identify?config=oas1&preset=preset_1` | 连设备识别 7 个技能位并给出该预设的释放计划（预览） |
 
@@ -150,7 +150,11 @@ async def battle_update_preset(payload: dict = Body(...),
             battle, preset_id, catalog,
             name=payload.get('name'),
             order=payload.get('order'),
-            disabled=payload.get('disabled')))
+            disabled=payload.get('disabled'),
+            clicks=payload.get('clicks'),
+            click_interval=payload.get('click_interval'),
+            attempts=payload.get('attempts'),
+            cooldown_timeout=payload.get('cooldown_timeout')))
 
 
 @battle_app.delete('/preset/{preset_id}')
@@ -175,21 +179,12 @@ async def battle_reset(config: str = 'template', preset: str = ''):
 # --------------------------------------------------------------------- 通用设置
 @battle_app.put('/common')
 async def battle_set_common(payload: dict = Body(...), config: str = 'template'):
-    """改通用设置（识别阈值 / 释放节奏），所有任务共享"""
+    """改通用设置（目前只有识别阈值；释放节奏在预设里）"""
 
     def _apply(battle, catalog):
         common = battle.common
         if 'identify_threshold' in payload:
             common.identify_threshold = float(payload['identify_threshold'])
-        # 释放节奏：越界夹到边界（字段是普通赋值，不会触发 pydantic 校验）
-        if 'clicks' in payload:
-            common.clicks = max(1, min(4, int(payload['clicks'])))
-        if 'click_interval' in payload:
-            common.click_interval = max(0.05, min(1.0, float(payload['click_interval'])))
-        if 'attempts' in payload:
-            common.attempts = max(1, min(5, int(payload['attempts'])))
-        if 'cooldown_timeout' in payload:
-            common.cooldown_timeout = max(0.2, min(2.0, float(payload['cooldown_timeout'])))
 
     return await run_in_threadpool(_mutate, config, _apply)
 

@@ -322,8 +322,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     - `battle_click_once(region, name)` 在任意区域随机取点点一次
   - **按预设攻击**（先识别技能栏 -> 按预设优先级点）：
     - `battle_skill_loop(slots=..., check_stop=..., target_check=...)` 队列式一直打（**唯一战斗模式**）：
-      每轮挑「优先级最高且冷却好」的技能 -> 连点（次数/间隔取战斗设置的 `clicks` / `click_interval`）->
-      **轮询确认真的进入冷却**；没进入的会按战斗设置的 `attempts` / `cooldown_timeout` 重试（默认 3 次 / 1.2s）
+      每轮挑「优先级最高且冷却好」的技能 -> 连点（次数/间隔取预设的 `clicks` / `click_interval`）->
+      **轮询确认真的进入冷却**；没进入的会按预设的 `attempts` / `cooldown_timeout` 重试（默认 3 次 / 1.2s）
       并延后重排；每次点击后校验目标，配 `on_target_lost` 可原地补锁；技能全冷却时只补普通攻击
     - `battle_queue_until(stop_check)` 同上的简写入口（一直打到 stop_check 为真）
     - 直接跑：`toolkit\python.exe tasks\Battle\script_task.py`（顶部 `PRESET` / `TARGET_NAME` 可按需改）
@@ -411,7 +411,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   - 实际释放顺序 = `order` 去掉 `disabled`，由 `SkillCatalog.normalize_order()` 算；
   - `disabled` 里的未知 id、`order` 里重复的 id 都会在保存时被后台清掉；
   - 系统预设不在 `presets` 里（`id=default` 是保留字）；新增技能会自动补进系统预设。
-  - **释放节奏在 `common` 里，不进预设**（`BattleAttack.battle_release_config()`）：
+  - **释放节奏在预设里，每个预设各一份**（`BattleAttack.battle_release_config()` 读任务选的预设）：
     | 字段 | 范围 | 默认 | 含义 |
     |---|---|---|---|
     | `clicks` | 1~4 | 2 | 一个技能连点几次（双击才稳定触发） |
@@ -420,8 +420,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     | `cooldown_timeout` | 0.2~2.0s | 1.2 | 每次点完等它进入冷却的上限（秒） |
     「卡住一个技能的耗时 ≈ attempts × (连点耗时 + cooldown_timeout)」，
     调小这两项能让技能判定失败时更快让位，代价是偶尔漏放一次。
-    为什么不放预设：默认预设是只读的（由技能目录生成），放预设里它就没法调了；
-    另外这几个是「怎么点」而不是「点什么」，全局一套就够。
+    系统预设只读（由技能目录生成），它的节奏固定为上面的默认值；
+    要改就「基于它新建」一个用户预设。
 
 ### 10.3 开战流程（为什么先识别技能栏）
 
@@ -450,7 +450,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 | GET | `/battle/presets?config=oas1` | 只取预设 id/名称（任务配置的「战斗配置」下拉框用） |
 | GET | `/battle/icon/{skill_id}` | 技能图标 PNG |
 | POST | `/battle/preset?config=oas1` | 新建预设 `{name?, base?}`（基于某个预设复制） |
-| PUT | `/battle/preset?config=oas1` | 改预设 `{id, name?, order?, disabled?}`（默认预设 400） |
+| PUT | `/battle/preset?config=oas1` | 改预设 `{id, name?, order?, disabled?, clicks?, click_interval?, attempts?, cooldown_timeout?}`（默认预设 400） |
 | DELETE | `/battle/preset/{id}?config=oas1` | 删除预设（默认预设 400） |
 | PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?, clicks?, click_interval?, attempts?, cooldown_timeout?}` |
 | PUT | `/battle/reset?config=oas1&preset=preset_1` | 预设顺序恢复默认 |

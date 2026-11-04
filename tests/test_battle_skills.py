@@ -282,9 +282,13 @@ def test_battle_config_defaults():
     config = Battle()
     assert config.presets == []
     assert config.common.identify_threshold > 0
-    assert config.common.clicks == 2
-    assert config.common.attempts == 3
     assert config.find('default') is None, '系统预设不落盘，不该出现在用户预设里'
+
+    # 释放节奏挂在预设上：每个预设各一份
+    from tasks.Battle.config import BattlePreset
+    preset = BattlePreset(id='preset_x', name='节奏')
+    assert preset.clicks == 2 and preset.click_interval == 0.2
+    assert preset.attempts == 3 and preset.cooldown_timeout == 1.2
 
 
 def test_battle_config_ignores_legacy_group_fields():

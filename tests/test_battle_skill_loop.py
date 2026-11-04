@@ -42,8 +42,13 @@ class FakeDevice:
 class FakeHost(BattleAttack):
     """只实现 battle_skill_loop 需要的东西（点击与冷切都用假的）"""
 
-    def __init__(self, plan, never_cool=False):
+    def __init__(self, plan, never_cool=False, preset=None):
         self.config = SimpleNamespace(battle=Battle())
+        # 释放节奏挂在预设上（每个预设各一份），这里直接喂给真实实现
+        self.preset = preset or {
+            'clicks': 2, 'click_interval': 0.2,
+            'attempts': 3, 'cooldown_timeout': 1.2,
+        }
         self.device = FakeDevice()
         self.plan = list(plan)
         self.slots = [entry.slot for entry in self.plan]
@@ -62,6 +67,9 @@ class FakeHost(BattleAttack):
 
     def battle_plan(self, preset=None):
         return self.plan
+
+    def battle_preset(self) -> dict:
+        return self.preset
 
     def battle_skills_state(self, image=None):
         return {slot: self.state_of(slot) for slot in self.slots}
@@ -143,26 +151,24 @@ def test_insert_higher_priority():
     assert order == [0, 1, 0], f'应该插队放技能1，实际 {order}'
 
 
-def set_common(host, **kwargs):
-    """改这个假宿主读到的「战斗设置」（battle.common，全局共享）"""
-    common = host.config.battle.common
-    for key, value in kwargs.items():
-        setattr(common, key, value)
+def set_preset(host, **kwargs):
+    """改这个假宿主读到的「战斗预设」里的释放节奏"""
+    host.preset.update(kwargs)
 
 
-def test_release_params_from_settings():
-    """连点次数 / 点击间隔 / 冷却超时都取「战斗设置」里的值"""
+def test_release_params_from_preset():
+    """连点次数 / 点击间隔 / 冷却超时都取「战斗预设」里的值"""
     host = FakeHost(make_plan(1))
-    set_common(host, clicks=3, click_interval=0.3, attempts=2, cooldown_timeout=0.6)
+    set_preset(host, clicks=3, click_interval=0.3, attempts=2, cooldown_timeout=0.6)
     run_loop(host, casts=1)
     assert host.clicks[0] == (0, 3, 0.3), host.clicks[0]
     assert host.wait_timeouts[0] == 0.6, host.wait_timeouts
 
 
-def test_attempts_from_settings():
+def test_attempts_from_preset():
     """点了也不进冷却 -> 单次释放内按 attempts 重试，不能死磕"""
     host = FakeHost(make_plan(2), never_cool=True)
-    set_common(host, clicks=2, click_interval=0.1, attempts=2, cooldown_timeout=0.2)
+    set_preset(host, clicks=2, click_interval=0.1, attempts=2, cooldown_timeout=0.2)
     run_loop(host, max_calls=3)
     first_round = host.clicks[:2]       # 第一次 release：attempts=2 -> 点两组
     assert [c[0] for c in first_round] == [0, 0], first_round
@@ -171,23 +177,23 @@ def test_attempts_from_settings():
 
     # 对照：attempts=1 时同一次释放只点一组，随后让位给下一个技能
     host2 = FakeHost(make_plan(2), never_cool=True)
-    set_common(host2, clicks=2, click_interval=0.1, attempts=1, cooldown_timeout=0.2)
+    set_preset(host2, clicks=2, click_interval=0.1, attempts=1, cooldown_timeout=0.2)
     run_loop(host2, max_calls=3)
     assert [c[0] for c in host2.clicks[:2]] == [0, 1], host2.clicks[:2]
 
 
-def test_explicit_params_override_settings():
+def test_explicit_params_override_preset():
     """显式传参优先于战斗设置（调试单点用）"""
     host = FakeHost(make_plan(2), never_cool=True)
-    set_common(host, clicks=4, click_interval=0.5, attempts=3, cooldown_timeout=2.0)
+    set_preset(host, clicks=4, click_interval=0.5, attempts=3, cooldown_timeout=2.0)
     run_loop(host, clicks=1, click_interval=0.05,
              max_attempts=1, cooldown_timeout=0.2, max_calls=4)
     assert host.clicks[0] == (0, 1, 0.05), host.clicks[0]
     assert host.wait_timeouts[0] == 0.2, host.wait_timeouts
 
 
-def test_default_settings_params():
-    """默认战斗设置：连点 2 次 / 间隔 0.2 / 重试 3 次 / 冷却超时 1.2"""
+def test_default_preset_params():
+    """默认预设：连点 2 次 / 间隔 0.2 / 重试 3 次 / 冷却超时 1.2"""
     host = FakeHost(make_plan(1))
     release = host.battle_release_config()
     assert release == {'clicks': 2, 'click_interval': 0.2,

@@ -14,7 +14,7 @@
     self.battle_skill_loop(slots, check_stop=..., target_check=...)   # 唯一战斗模式（队列式）
     self.battle_queue_until(stop_check)                               # 同上的简写入口
 
-队列模式：每轮挑「优先级最高且冷却好」的技能，连点（次数/间隔取「战斗设置」的 common），
+队列模式：每轮挑「优先级最高且冷却好」的技能，连点（次数/间隔取预设里的释放节奏），
 没进冷却会按 common 的 attempts / cooldown_timeout 重试 + 延后重排；每次点击后校验目标。
 其余方法（battle_click_*、battle_plan、battle_skill_state ...）是配套底层能力。
 
@@ -254,32 +254,30 @@ class BattleAttack:
         logger.attr('战斗预设', f'{preset["name"]}（{preset["id"]}）')
         return preset
 
-    def battle_release_config(self) -> dict:
+    def battle_release_config(self, preset: dict = None) -> dict:
         """
         技能释放节奏：连点次数 / 点击间隔 / 重试次数 / 冷却等待上限
 
-        全部取「战斗设置」（`battle.common`）里的值 —— 这是**全局**设置，所有任务、
-        所有预设共用一套（不属于某个预设：默认预设只读，按预设存会导致它改不了）。
-        取不到才用类里的兜底常量。
+        取「战斗预设」里的值 —— **每个预设各一份**（`clicks` / `click_interval` /
+        `attempts` / `cooldown_timeout`），所以不同战术可以有不同的点法。
+        不传 preset 时按任务配置里选的预设取；系统预设只读，用的是固定默认值。
 
+        :param preset: 已解析好的预设 dict，不传则按任务配置现取
         :return: {'clicks', 'click_interval', 'attempts', 'cooldown_timeout'}
         """
-        common = None
-        try:
-            battle = self.config.battle
-            common = battle.common if battle is not None else None
-        except Exception as e:  # noqa: BLE001 - 老配置/缺字段时不能因为取设置就崩
-            logger.warning(f'读取战斗设置失败，释放节奏用默认值：{e}')
-
-        def pick(name, fallback):
-            value = getattr(common, name, None) if common is not None else None
-            return fallback if value is None else value
-
+        if preset is None:
+            try:
+                preset = self.battle_preset()
+            except Exception as e:  # noqa: BLE001 - 老配置/缺字段时不能因为取预设就崩
+                logger.warning(f'读取战斗预设失败，释放节奏用默认值：{e}')
+                preset = {}
         return {
-            'clicks': max(1, int(pick('clicks', self.BATTLE_SKILL_CLICKS))),
-            'click_interval': float(pick('click_interval', self.BATTLE_SKILL_CLICK_INTERVAL)),
-            'attempts': max(1, int(pick('attempts', self.BATTLE_SKILL_ATTEMPTS))),
-            'cooldown_timeout': float(pick('cooldown_timeout', self.BATTLE_COOLDOWN_TIMEOUT)),
+            'clicks': max(1, int(preset.get('clicks') or self.BATTLE_SKILL_CLICKS)),
+            'click_interval': float(preset.get('click_interval')
+                                    or self.BATTLE_SKILL_CLICK_INTERVAL),
+            'attempts': max(1, int(preset.get('attempts') or self.BATTLE_SKILL_ATTEMPTS)),
+            'cooldown_timeout': float(preset.get('cooldown_timeout')
+                                      or self.BATTLE_COOLDOWN_TIMEOUT),
         }
 
     def battle_plan(self, image=None, preset: dict = None) -> List[PlanEntry]:
@@ -535,9 +533,9 @@ class BattleAttack:
         :param idle_interval: 全部技能冷却时的轮询间隔（秒）
         :param include_attack: 全部技能冷却时是否点普通攻击；None = 读任务战斗配置（默认关闭）
         :param max_attempts: 每个技能每次释放最多尝试几次（含第一次）；
-                             None = 读战斗设置的 attempts（默认 3）
+                             None = 读预设的 attempts（默认 3）
         :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）；
-                                 None = 读战斗设置的 cooldown_timeout（默认 1.2）
+                                 None = 读预设的 cooldown_timeout（默认 1.2）
         :param poll_interval: 冷却轮询间隔（秒）
         :param max_cycles: 最多重排几轮（一轮 = 所有可释放技能都尝试过一遍），None = 不限
         :param max_skills: 最多成功释放几个技能（进入冷却算 1 个），None = 不限
@@ -548,11 +546,11 @@ class BattleAttack:
                                返回 False / 不传 -> 按原逻辑结束循环
         :param recheck_pending: 是否在循环里重认「未识别 + 冷却中」的技能位
                                 （冷却结束后识别一次，再决定是否入队）
-        :param clicks: 每个技能连点几次；None = 读战斗设置的 clicks（默认 2）
+        :param clicks: 每个技能连点几次；None = 读预设的 clicks（默认 2）
         :param click_interval: 同一技能两次点击的间隔；None = 读战斗设置（默认 0.2）
         :return: check_stop 的返回值 / 'target_lost' / 'skill_limit' / 'timeout'
         """
-        # 释放节奏统一从「战斗设置」取（参数显式传就覆盖，方便调试）
+        # 释放节奏取「战斗预设」（每个预设各一份），参数显式传就覆盖，方便调试
         release = self.battle_release_config()
         clicks = release['clicks'] if clicks is None else max(1, int(clicks))
         click_interval = (release['click_interval'] if click_interval is None
