@@ -510,10 +510,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         return 'failed'
 
     # ---------------------------------------------------------------- 战斗循环
-    # 每个技能最多尝试几次（含第一次）：每次 = 一次双击，没进冷却就重试，超过跳过换下一个技能
-    SKILL_MAX_ATTEMPTS = 3
-    # 点完技能等它进入冷却的最长时间 / 轮询间隔（秒）
-    SKILL_COOLDOWN_TIMEOUT = 1.2
+    # 每个技能的释放节奏（重试次数 / 冷却超时）统一走「战斗预设」，这里只留轮询间隔
     SKILL_COOLDOWN_POLL = 0.1
 
     def battle_loop(self) -> str:
@@ -534,8 +531,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             check_stop=self.battle_stop_reason,
             target_check=lambda image: self.ui_target_attackable(image),
             timeout=BATTLE_TIMEOUT,
-            max_attempts=self.SKILL_MAX_ATTEMPTS,
-            cooldown_timeout=self.SKILL_COOLDOWN_TIMEOUT,
             poll_interval=self.SKILL_COOLDOWN_POLL,
             max_cycles=BATTLE_GROUPS_MAX,
         )

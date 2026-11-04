@@ -619,9 +619,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     RECOVER_EVERY_CASTS = 6
     # 预设模式：所有技能都在冷却时，普攻的最小间隔（秒）
     NORMAL_ATTACK_INTERVAL = 1.0
-    # 预设模式：每个技能单次释放最多点几次（双击算一次）/ 点完等它进冷却的最长时间
-    SKILL_MAX_ATTEMPTS = 3
-    SKILL_COOLDOWN_TIMEOUT = 1.2
+    # 预设模式：每个技能的释放节奏（重试次数 / 冷却超时）统一走「战斗预设」，这里只留轮询间隔
     SKILL_COOLDOWN_POLL = 0.1
     # 清怪检查已移除：怪物在整个时段内会一直刷新，「剩余怪物数量」读到 0 只是
     # 当下的瞬间（马上又刷），所以一律打满时段（11:30 / 16:30 到点才收工）。
@@ -760,8 +758,6 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                     target_check=lambda image: self.ui_target_attackable(image),
                     include_attack=include_attack,
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
-                    max_attempts=self.SKILL_MAX_ATTEMPTS,
-                    cooldown_timeout=self.SKILL_COOLDOWN_TIMEOUT,
                     poll_interval=self.SKILL_COOLDOWN_POLL,
                     on_cast=on_cast,
                     on_target_lost=self.battle_on_target_lost(names))

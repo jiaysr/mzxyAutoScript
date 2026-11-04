@@ -46,10 +46,7 @@ class ScriptTask(GameUi):
     PRESET = 'preset_1'
     # 目标名：'' = 不校验（单目标场景）；多个目标时填名字，支持逗号分隔
     TARGET_NAME = ''
-    # 每个技能最多尝试几次（含第一次）：每次 = 一次双击，没进冷切就重试，超过跳过换下一个技能
-    SKILL_MAX_ATTEMPTS = 3
-    # 点完等它进入冷却的最长时间 / 轮询间隔（秒）
-    COOLDOWN_TIMEOUT = 1.2
+    # 每个技能的释放节奏（连点/间隔/重试/冷却超时）统一走「战斗预设」，这里只留轮询间隔
     COOLDOWN_POLL = 0.1
     # 全部技能冷却时是否点普通攻击（试打脚本没有任务配置，默认关闭）
     USE_NORMAL_ATTACK = False
@@ -81,8 +78,6 @@ class ScriptTask(GameUi):
                 timeout=None,
                 attack_interval=1.0,
                 include_attack=self.USE_NORMAL_ATTACK,
-                max_attempts=self.SKILL_MAX_ATTEMPTS,
-                cooldown_timeout=self.COOLDOWN_TIMEOUT,
                 poll_interval=self.COOLDOWN_POLL,
             )
             logger.info(f'试打结束：{status}')

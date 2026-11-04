@@ -498,7 +498,7 @@ class ScriptTask(GameUi, WarChariotAssets):
 
             if self.ui_target_attackable(image=self.device.image):
                 logger.info('锁定到可攻击目标，开始攻击')
-                self.battle_attack_loop(stop_check=self.chariot_battle_stop_check(deadline))
+                self.battle_queue_until(self.chariot_battle_stop_check(deadline))
                 # 先确认是不是本局已结算（弹窗在场时点「目标」无效）
                 result = self.chariot_result()
                 if result:

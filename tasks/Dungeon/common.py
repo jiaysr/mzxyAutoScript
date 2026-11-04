@@ -761,7 +761,7 @@ class DungeonBase(GameUi, DungeonAssets):
                 logger.info(f'[{target_name}] not locked '
                             f'{self.DUNGEON_FIGHT_LOCK_SWITCH} times, assume killed')
                 return 'killed'
-            self.battle_attack_loop(stop_check=self._dungeon_battle_stop,
+            self.battle_queue_until(self._dungeon_battle_stop,
                                     include_attack=include_attack)
 
     def dungeon_read_rows(self) -> list:

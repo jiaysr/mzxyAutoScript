@@ -221,11 +221,11 @@ def _main(argv: list) -> int:
     """
     手工验证：给一张真机截图和一个区域，打印分数
 
-        toolkit\\python.exe -m tasks.GameUi.navigation.battle_skill <图片> [x,y,w,h]
+        toolkit\\python.exe -m tasks.Battle.cooldown <图片> [x,y,w,h]
     """
     if not argv:
         print(__doc__)
-        print('用法: python -m tasks.GameUi.navigation.battle_skill <图片> [x,y,w,h]')
+        print('用法: python -m tasks.Battle.cooldown <图片> [x,y,w,h]')
         return 1
     path = argv[0]
     region = tuple(int(v) for v in argv[1].split(',')) if len(argv) > 1 else None

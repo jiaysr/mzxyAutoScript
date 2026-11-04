@@ -282,7 +282,8 @@ def test_battle_config_defaults():
     config = Battle()
     assert config.presets == []
     assert config.common.identify_threshold > 0
-    assert config.common.respect_cooldown is True
+    assert config.common.clicks == 2
+    assert config.common.attempts == 3
     assert config.find('default') is None, '系统预设不落盘，不该出现在用户预设里'
 
 

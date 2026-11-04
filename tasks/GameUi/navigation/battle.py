@@ -4,7 +4,7 @@
 
 **战斗执行（点技能/冷却/识别/按预设攻击）已经搬到 `tasks/Battle/attack.py`**，
 这里只保留「目标锁定」这类纯 UI 操作（依赖 GameUi 的 OCR/点击素材），
-然后把 `BattleAttack` 混进来，任务照旧 `self.battle_attack()` 就能用。
+然后把 `BattleAttack` 混进来，任务直接调用 `battle_skill_loop()` 等队列模式入口。
 
 - 目标锁定：`ui_lock_target()` 点右侧竖排「目标」按钮、`ui_target_name()` 读锁定目标名
 - 锁定目标把关（通用）：
@@ -13,18 +13,16 @@
   - `ui_target_attackable()` 动作按钮是否为「攻击」
   - `ui_ensure_target_locked(target_name=...)` 收起菜单 -> 锁目标 -> 校验按钮/名称，
     不符合就点「目标」切换，直到满足或超时（场景 1 单目标 / 场景 2 多目标指定名称）
-  - `battle_attack_until_target_lost()` 按预设一直打，目标丢失或按钮不再是「攻击」时停止
-  - `ui_lock_and_attack(target_name=...)` 上面两步的合并入口
 - 战斗执行（见 tasks/Battle/attack.py）：
   - 单次点击：`battle_click_once / battle_click_attack / battle_click_skill`（7 个技能位）
-  - 技能冷却：`battle_skill_state()`（ready / cooling / unknown）、`battle_skill_ready()`、
-    `battle_skills_ready()`、`battle_click_skill_if_ready()`
+  - 技能冷却：`battle_skill_state()`（ready / cooling / unknown）、
+    `battle_log_skill_states()`（校准用，一行打印 7 个位的状态与分数）
   - 技能位识别：`battle_slot_skills()` / `battle_log_slot_skills()`
   - 释放计划：`battle_plan()`（识别 + 预设优先级 + 禁用 -> 点击顺序）、
-    `battle_play_plan()`（按计划放一轮，可选只点冷却好的）
-  - **按预设攻击（对外只暴露这一个入口）**：`battle_attack(times=1, preset='')`
-  - 队列式释放（双击 + 目标/冷切校验）：`battle_skill_loop(slots, check_stop=..., target_check=...)`（仙府/战斗试打共用）
-  - 循环放技能：`battle_simple_loop()`
+    `battle_plan_slots()`（只要技能位下标，队列模式用）
+  - **唯一战斗模式（队列式）**：`battle_skill_loop(slots, check_stop=..., target_check=...)`
+    优先级最高且冷却好的先放，没进冷却会按「战斗设置」的 attempts / cooldown_timeout 重试 + 延后重排；
+    简写入口 `battle_queue_until(stop_check)`
 
 目标锁定是主页面通用能力：「目标」按钮在右侧竖排
 （要收起右上角菜单 `ui_close_menu` 后才露出），
@@ -260,7 +258,7 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
 
     def ui_target_lost_check(self, action: str = ACTION_ATTACK):
         """
-        生成 battle_attack_loop 的 stop_check：目标丢失或动作按钮不再是期望动作 -> True
+        生成「目标丢失/动作变化」检查回调（战车等停止条件里用）
 
         用最近一张截图（self.device.image）判断，不额外截图：
         攻击循环每轮本来就会截图，最多晚一个循环（约 0.2~1s）发现目标消失。
@@ -284,35 +282,3 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
             return False
 
         return _check
-
-    def battle_attack_until_target_lost(self, action: str = ACTION_ATTACK, **kwargs) -> None:
-        """
-        锁定目标后按预设一直攻击，目标丢失 / 动作按钮不再是「攻击」时自动停止
-
-        用法（两个场景通用）：
-            if not self.ui_ensure_target_locked():
-                return False
-            self.battle_attack_until_target_lost()
-            return True
-
-        :param action: 期望持续的动作（默认 attack）
-        :param kwargs: 透传给 battle_attack_loop（preset / clicks_per_skill / include_attack ...）
-        """
-        kwargs.pop('stop_check', None)
-        self.battle_attack_loop(stop_check=self.ui_target_lost_check(action=action), **kwargs)
-
-    def ui_lock_and_attack(self, target_name=None, action: str = ACTION_ATTACK,
-                           attack_kwargs: dict = None, **lock_kwargs) -> bool:
-        """
-        锁定目标并攻击到目标丢失（场景 1/2 的统一入口）
-
-        :param target_name: 指定目标名，None = 不校验（单目标场景）
-        :param action: 期望动作，默认 attack
-        :param attack_kwargs: 透传给 battle_attack_loop 的参数
-        :param lock_kwargs: 透传给 ui_ensure_target_locked 的参数（max_switch / timeout ...）
-        :return: 锁定成功并完成攻击返回 True；没锁到目标返回 False
-        """
-        if not self.ui_ensure_target_locked(target_name=target_name, action=action, **lock_kwargs):
-            return False
-        self.battle_attack_until_target_lost(action=action, **(attack_kwargs or {}))
-        return True

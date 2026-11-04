@@ -321,25 +321,19 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
     - `battle_click_skill(index=0)` 点一次技能，0 = 技能1
     - `battle_click_once(region, name)` 在任意区域随机取点点一次
   - **按预设攻击**（先识别技能栏 -> 按预设优先级点）：
-    - `battle_attack(times=1, preset='')` 打 N 轮：每轮只点冷却好的技能 + 补一次普通攻击；
-      试打脚本 `toolkit\python.exe tests\battle_attack_once.py`（`--preset`/`--times`/`--save`）
-    - `battle_attack_loop(...)` 优先级调度一直打（默认每个技能连点 3 次）：
-      每次从队首挑「冷却好」的技能 -> 连点 -> **轮询确认真的进入冷却** -> 回到队首，
-      所以高优先级技能一冷却好就插队；点了不进入冷却的会先跳过一会儿；
-      技能全在冷却时只补普通攻击；没识别到技能先不点、1 秒后重试；
-      `stop_check` 留空 = 无限循环（Ctrl+C 结束）
-    - 直接跑：`toolkit\python.exe tasks\Battle\script_task.py`（`PRESET` / `INTERVAL` 等常量在文件顶部）
-  - `battle_simple_loop()` 循环放技能：一组 = 现有技能 + 普通攻击，
-    **每个按钮都用一次、顺序每组随机**；每个按钮在区域内随机取点、连点 3 次
-    （间隔 200ms），按钮之间停 300ms；循环打组直到 stop_check 命中
-    （如出现「过关奖励」面板）/ 超时 / 到组数上限
+    - `battle_skill_loop(slots=..., check_stop=..., target_check=...)` 队列式一直打（**唯一战斗模式**）：
+      每轮挑「优先级最高且冷却好」的技能 -> 连点（次数/间隔取战斗设置的 `clicks` / `click_interval`）->
+      **轮询确认真的进入冷却**；没进入的会按战斗设置的 `attempts` / `cooldown_timeout` 重试（默认 3 次 / 1.2s）
+      并延后重排；每次点击后校验目标，配 `on_target_lost` 可原地补锁；技能全冷却时只补普通攻击
+    - `battle_queue_until(stop_check)` 同上的简写入口（一直打到 stop_check 为真）
+    - 直接跑：`toolkit\python.exe tasks\Battle\script_task.py`（顶部 `PRESET` / `TARGET_NAME` 可按需改）
   - 按钮区域常量（真机实测，1280x720）：`BATTLE_SKILL_REGIONS`（7 个技能位，
     2026-10-23 起 7 个位都有实际技能）、`BATTLE_ATTACK_REGION`（普通攻击）；
     `BATTLE_SKILL_REGIONS_ALL` 与它相同，保留只为兼容旧调用。
     **迷窟里实测这套坐标逐个吻合，直接复用**
-  - 技能冷却识别（`tasks/Battle/cooldown.py`，2026-10-23 真机标定；旧路径 `GameUi/navigation/battle_skill.py` 保留为兼容层）：
+  - 技能冷却识别（`tasks/Battle/cooldown.py`，2026-10-23 真机标定；纯逻辑，不依赖设备）：
     - `battle_skill_state(index)` -> `ready` / `cooling` / `unknown`（7 个技能位都支持）；
-      `battle_skill_ready(index)`、`battle_skills_ready()`、`battle_click_skill_if_ready(index)`；
+      `battle_skill_ready(index)` 查单个位；`battle_skills_state()` 一把查 7 个位；
       校准用 `battle_log_skill_states()`（一行日志打印每个技能位的状态与「当前分/基准分」）
     - 原理：按钮中心圆盘（半径 = 短边 x 0.30）的「中位灰度 x 中位彩度 / 255」打分，
       和「冷却好」基准素材比比例（< 0.6 判冷却中）。
@@ -369,10 +363,8 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
         `--list` 只打印技能位和素材匹配结果，不连设备；
         `--image 截图.png` 可以离线拿一张图跑一遍（默认 1 帧，配 `--save` 存标注图）
   - 普通攻击与技能1 冷却都在 1 秒以上，连点没有意义 —— 要按冷却打就用
-    `battle_click_attack / battle_click_skill` 配 `sleep(interval)`，或者用
-    `battle_click_skill_if_ready()` 等冷却好再点；
-    `battle_simple_loop()` 默认走「战斗菜单」里的优先级（见下一节），
-    只有关掉「开战前识别技能栏」或一个技能都没认出来时才退回随机连点
+    `battle_click_attack / battle_click_skill` 配 `sleep(interval)`；
+    成体系地打用 `battle_skill_loop()`（见下一节），它会自己按冷却节奏挑技能
 - 彩色描边字（锁定的目标名等）：`ocr_color_name(rule, scales=(2,3), min_score=0.5)`
   （ROI 转灰度 -> 放大 -> 整行识别取置信度最高的一份；规则默认的「检测框 + 拼串」对彩色描边字经常读不出）
 
@@ -412,12 +404,24 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
   battle:
     common: {identify_threshold, respect_cooldown, cast_interval}
     presets:
-      - {id: preset_1, name: 打BOSS, order: [全部技能 id], disabled: [本预设禁用的 id]}
+      - {id: preset_1, name: 打BOSS, order: [全部技能 id], disabled: [本预设禁用的 id],
+         clicks: 2, click_interval: 0.2, attempts: 3, cooldown_timeout: 1.2}
   ```
   - `order` **始终是完整的一份**（含被禁用的）：临时禁用再启用，位置不会丢；
   - 实际释放顺序 = `order` 去掉 `disabled`，由 `SkillCatalog.normalize_order()` 算；
   - `disabled` 里的未知 id、`order` 里重复的 id 都会在保存时被后台清掉；
   - 系统预设不在 `presets` 里（`id=default` 是保留字）；新增技能会自动补进系统预设。
+  - **释放节奏在 `common` 里，不进预设**（`BattleAttack.battle_release_config()`）：
+    | 字段 | 范围 | 默认 | 含义 |
+    |---|---|---|---|
+    | `clicks` | 1~4 | 2 | 一个技能连点几次（双击才稳定触发） |
+    | `click_interval` | 0.05~1.0s | 0.2 | 同一技能两次点击的间隔 |
+    | `attempts` | 1~5 | 3 | 点了没进冷却时最多重试几次 |
+    | `cooldown_timeout` | 0.2~2.0s | 1.2 | 每次点完等它进入冷却的上限（秒） |
+    「卡住一个技能的耗时 ≈ attempts × (连点耗时 + cooldown_timeout)」，
+    调小这两项能让技能判定失败时更快让位，代价是偶尔漏放一次。
+    为什么不放预设：默认预设是只读的（由技能目录生成），放预设里它就没法调了；
+    另外这几个是「怎么点」而不是「点什么」，全局一套就够。
 
 ### 10.3 开战流程（为什么先识别技能栏）
 
@@ -431,11 +435,12 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
    宁可漏也不认错 —— 认错会按错的优先级放技能）；
 2. `build_plan()`（`tasks/Battle/planner.py`）-> 识别结果 + 预设顺序 + 禁用 -> 点击顺序，
    未识别的技能位排最后（默认照点）；
-3. `battle_play_plan()` 每轮截图一次，按计划逐个点，`respect_cooldown` 开着就跳过冷却中的，
-   技能放完补一次普通攻击（普攻没有冷却位判定，稳定补伤害，和旧行为一致）；
+3. `battle_plan_slots()` 把计划压成技能位下标，交给 `battle_skill_loop()`：
+   每轮从同一张截图判定 7 个位的冷却状态，挑「优先级最高且冷却好」的那个点；
+   技能全在冷却时才补普通攻击（普攻没有冷却位判定，稳定补伤害）；
 
-技能栏在一场战斗里不会变，所以计划只在 `battle_simple_loop()` 开战时算一次；
-识别一个都没成功时自动退回老的「随机顺序连点」，不会卡死。
+技能栏在一场战斗里不会变，所以计划在开战前只算一次；
+一个技能位都没认出来时返回空表，任务会先补一次普攻再重新锁目标，不会空转。
 
 ### 10.4 接口（`module/server/battle_router.py`）
 
@@ -447,7 +452,7 @@ page_x.link(button=XxxAssets.I_GOTO_Y, destination=page_y)
 | POST | `/battle/preset?config=oas1` | 新建预设 `{name?, base?}`（基于某个预设复制） |
 | PUT | `/battle/preset?config=oas1` | 改预设 `{id, name?, order?, disabled?}`（默认预设 400） |
 | DELETE | `/battle/preset/{id}?config=oas1` | 删除预设（默认预设 400） |
-| PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?, respect_cooldown?, cast_interval?}` |
+| PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?, clicks?, click_interval?, attempts?, cooldown_timeout?}` |
 | PUT | `/battle/reset?config=oas1&preset=preset_1` | 预设顺序恢复默认 |
 | GET | `/battle/identify?config=oas1&preset=preset_1` | 连设备识别一次并返回指定预设的计划（**脚本运行中会拒绝**，避免抢设备） |
 
@@ -490,7 +495,7 @@ ecord_skill_icon.py ^
    前端按 `battle_preset` 这个 schema type 渲染成下拉框（选项来自 `/battle/presets`）。
    已接入：仙府九重天 / 世界首领 / 上古狩猎 / 域外迷窟。
 2. 任务里调用 `self.battle_preset()` 取到的就是「该任务选的预设，没选就是系统预设」；
-   `battle_simple_loop()` 内部已经这么做了，用它的任务不用改。
+   `battle_plan_slots()` 内部已经这么做了，用它的任务不用改。
 3. **坑**：`BattleAttack.battle_task_preset()` 读的是任务**根节点**的 `battle_preset`，
    而字段实际在嵌套的 `battle_config` 组里 —— 不覆盖就会静默回落系统预设。
    世界首领 / 仙府九重天 / 战车战场 / 域外迷窟都各自覆盖了一层，

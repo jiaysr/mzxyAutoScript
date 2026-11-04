@@ -6,18 +6,17 @@
 纯计算（技能目录、识别算法、排序计划、预设增删）在 tasks/Battle 的其他文件里，
 那边不碰设备、可以离线单测。
 
-用法：任务类混入（GameUi 的 SimpleBattle 已经混入了，任务直接调 `self.battle_attack()`）：
+用法：任务类混入（GameUi 的 SimpleBattle 已经混入了）：
 
     class MyTask(BattleAttack, BaseTask, GameUiAssets):
         ...
 
-    self.battle_attack()                     # 按任务配置的预设打 1 轮
-    self.battle_attack(times=3)              # 连打 3 轮
-    self.battle_attack(preset='preset_1')    # 临时指定预设
-    self.battle_skill_loop(slots, check_stop=..., target_check=...)  # 队列式双击+校验（目标/冷切）
+    self.battle_skill_loop(slots, check_stop=..., target_check=...)   # 唯一战斗模式（队列式）
+    self.battle_queue_until(stop_check)                               # 同上的简写入口
 
-对外只暴露 `battle_attack()` 这一个「攻击」入口；其余方法（battle_click_*、battle_plan、
-battle_skill_state ...）是配套的底层能力，调试/监控脚本会用。
+队列模式：每轮挑「优先级最高且冷却好」的技能，连点（次数/间隔取「战斗设置」的 common），
+没进冷却会按 common 的 attempts / cooldown_timeout 重试 + 延后重排；每次点击后校验目标。
+其余方法（battle_click_*、battle_plan、battle_skill_state ...）是配套底层能力。
 
 混入方需要提供（BaseTask + GameUiAssets 已经都有）：
 - `self.config` / `self.device`
@@ -78,16 +77,14 @@ class BattleAttack:
     # （冷却结束前游戏会闪一下遮罩，单帧分数 0.6~0.7，不防抖会误判成「冷却好」）
     BATTLE_SKILL_STABLE = 2
 
-    # 每个按钮连点次数与间隔（秒）
-    BATTLE_CLICK_TIMES = 3
-    BATTLE_CLICK_INTERVAL = 0.2
-    # 不同按钮之间的间隔（秒）
-    BATTLE_SKILL_INTERVAL = 0.3
-
     # 队列式释放（battle_skill_loop）里每次点击的连击次数与间隔：
     # 同一点快速点两次 = 双击（技能要双击才稳定触发）
     BATTLE_SKILL_CLICKS = 2
     BATTLE_SKILL_CLICK_INTERVAL = 0.1
+    # 点了没进冷却时的重试次数 / 每次等它进冷却的上限（秒）
+    # 正常走「战斗预设」里的 attempts / cooldown_timeout，这里只是没拿到预设时的兜底
+    BATTLE_SKILL_ATTEMPTS = 3
+    BATTLE_COOLDOWN_TIMEOUT = 1.2
 
     # 战斗区域的点击是否写 INFO 日志。一轮技能十几行「Click (x, y) @ BATTLE_SKILLn」，
     # 会把真正的战斗日志（识别/冷却/目标）冲掉；默认只写 DEBUG，排查点击坐标时改 True。
@@ -98,9 +95,8 @@ class BattleAttack:
         """
         在按钮区域里随机取一点，点一次
 
-        与 battle_click_button 的区别：这里只点一次，
-        用于「按冷却节奏逐次攻击」的场景（普通攻击与技能1 冷却都在 1 秒以上，
-        连点没有意义）。每次点完清掉连点记录，避免被判定为「连点过多」。
+        只点一次：普通攻击与技能1 冷却都在 1 秒以上，连点没有意义。
+        每次点完清掉连点记录，避免被判定为「连点过多」。
         """
         x, y, w, h = region
         px = random.randint(x, x + w - 1)
@@ -153,38 +149,6 @@ class BattleAttack:
             if i + 1 < clicks:
                 self.device.sleep(interval)
 
-    def battle_buttons(self) -> list:
-        """本次要按的全部按钮区域（技能 + 普通攻击）；是否带空技能位由 BATTLE_CLICK_EMPTY_SKILLS 决定"""
-        skills = self.BATTLE_SKILL_REGIONS_ALL if self.BATTLE_CLICK_EMPTY_SKILLS else self.BATTLE_SKILL_REGIONS
-        return list(skills) + [self.BATTLE_ATTACK_REGION]
-
-    def battle_click_button(self, region) -> None:
-        """
-        点一个按钮：区域内随机取点，连点 BATTLE_CLICK_TIMES 次，每次间隔 BATTLE_CLICK_INTERVAL
-        """
-        x, y, w, h = region
-        for _ in range(self.BATTLE_CLICK_TIMES):
-            px = random.randint(x, x + w - 1)
-            py = random.randint(y, y + h - 1)
-            self.device.click(x=px, y=py, control_name='BATTLE_SKILL', log=self.BATTLE_CLICK_LOG)
-            self.device.click_record_clear()
-            self.device.sleep(self.BATTLE_CLICK_INTERVAL)
-
-    def battle_one_group(self) -> None:
-        """
-        打一组：现有技能 + 普通攻击各用一次，顺序随机；
-        每个按钮连点 3 次，按钮之间停 300ms
-
-        「按优先级释放」请用 `battle_play_plan()`；这里保留给没开识别 / 旧的连点场景。
-        """
-        buttons = self.battle_buttons()
-        random.shuffle(buttons)
-        logger.info(f'释放一组技能（随机顺序）：{[b for b in buttons]}')
-        for region in buttons:
-            self.battle_click_button(region)
-            self.device.sleep(self.BATTLE_SKILL_INTERVAL)
-
-    # ---------------------------------------------------------------- 技能识别 / 释放计划
     def battle_catalog(self) -> SkillCatalog:
         """技能目录（按实例缓存）"""
         catalog = getattr(self, '_battle_catalog', None)
@@ -289,6 +253,34 @@ class BattleAttack:
         preset = resolve_preset(battle, preset_id, catalog)
         logger.attr('战斗预设', f'{preset["name"]}（{preset["id"]}）')
         return preset
+
+    def battle_release_config(self) -> dict:
+        """
+        技能释放节奏：连点次数 / 点击间隔 / 重试次数 / 冷却等待上限
+
+        全部取「战斗设置」（`battle.common`）里的值 —— 这是**全局**设置，所有任务、
+        所有预设共用一套（不属于某个预设：默认预设只读，按预设存会导致它改不了）。
+        取不到才用类里的兜底常量。
+
+        :return: {'clicks', 'click_interval', 'attempts', 'cooldown_timeout'}
+        """
+        common = None
+        try:
+            battle = self.config.battle
+            common = battle.common if battle is not None else None
+        except Exception as e:  # noqa: BLE001 - 老配置/缺字段时不能因为取设置就崩
+            logger.warning(f'读取战斗设置失败，释放节奏用默认值：{e}')
+
+        def pick(name, fallback):
+            value = getattr(common, name, None) if common is not None else None
+            return fallback if value is None else value
+
+        return {
+            'clicks': max(1, int(pick('clicks', self.BATTLE_SKILL_CLICKS))),
+            'click_interval': float(pick('click_interval', self.BATTLE_SKILL_CLICK_INTERVAL)),
+            'attempts': max(1, int(pick('attempts', self.BATTLE_SKILL_ATTEMPTS))),
+            'cooldown_timeout': float(pick('cooldown_timeout', self.BATTLE_COOLDOWN_TIMEOUT)),
+        }
 
     def battle_plan(self, image=None, preset: dict = None) -> List[PlanEntry]:
         """
@@ -435,61 +427,11 @@ class BattleAttack:
         logger.warning('技能位一个都没识别出来，本轮不放技能'
                        '（技能位上可能带的是物品，盲点会白耗道具）')
         return []
-
-    def battle_play_plan(self, plan: List[PlanEntry],
-                         respect_cooldown: bool = None,
-                         interval: float = None,
-                         include_attack: bool = True,
-                         log: bool = True) -> int:
-        """
-        按计划放一轮技能
-
-        每个技能点一次（不是连点）：技能冷却都在 1 秒以上，连点只会重复点同一个位置。
-        开了 respect_cooldown 时先截图判断冷却，冷却中的跳过（unknown 照点，
-        避免某技能位没有基准素材就整场不放）。
-        技能放完补一次普通攻击（普攻没有冷却位判定，稳定补伤害；和旧的随机连点行为一致）。
-
-        :param plan: battle_plan() 的结果
-        :param respect_cooldown: 默认取配置 battle.common.respect_cooldown
-        :param interval: 技能之间间隔，默认取配置 battle.common.cast_interval
-        :param include_attack: 放完技能后是否补一次普通攻击
-        :param log: 是否输出每一轮的日志（循环调用时传 False，自己汇总日志）
-        :return: 实际点了几个技能（不含普通攻击）
-        """
-        battle = self.config.battle
-        if respect_cooldown is None:
-            respect_cooldown = bool(battle.common.respect_cooldown) if battle else True
-        if interval is None:
-            interval = float(battle.common.cast_interval) if battle else 0.2
-
-        states = {}
-        if respect_cooldown:
-            self.screenshot()
-            states = self.battle_states()  # 一轮只采样一次，别在循环里重复查同一个技能
-        clicked = 0
-        for entry in plan:
-            slot = entry.slot
-            if respect_cooldown:
-                state = states.get(slot, SKILL_UNKNOWN)
-                if state == SKILL_COOLING:
-                    if log:
-                        logger.info(f'{entry} 冷却中，跳过')
-                    continue
-            self.battle_click_skill(slot)
-            clicked += 1
-            self.device.sleep(interval)
-        if include_attack:
-            self.battle_click_attack()
-            self.device.sleep(interval)
-        if log:
-            logger.info(f'本轮释放 {clicked}/{len(plan)} 个技能'
-                        f'{" + 普通攻击" if include_attack else ""}')
-        return clicked
-
     def battle_skill_release(self, slot: int, image=None,
                              target_check: Callable[[np.ndarray], bool] = None,
                              max_attempts: int = 3, cooldown_timeout: float = 1.2,
-                             poll_interval: float = 0.1) -> str:
+                             poll_interval: float = 0.1, clicks: int = None,
+                             click_interval: float = None) -> str:
         """
         尝试释放一个技能：双击 -> 判断目标 -> 判断冷切；没进冷切就重试。
 
@@ -503,6 +445,8 @@ class BattleAttack:
         :param max_attempts: 最多点几次（含第一次）
         :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）
         :param poll_interval: 冷却轮询间隔（秒）
+        :param clicks: 每个技能连点几次，默认 BATTLE_SKILL_CLICKS（2）
+        :param click_interval: 同一技能两次点击的间隔，默认 BATTLE_SKILL_CLICK_INTERVAL（0.1）
         :return: 'cooled' 进入冷却；'failed' 多次尝试仍未进入；'target_lost' 目标丢失
         """
         for attempt in range(1, max_attempts + 1):
@@ -511,7 +455,7 @@ class BattleAttack:
             if target_check is not None and not target_check(image):
                 logger.warning('目标丢失，停止释放技能')
                 return 'target_lost'
-            self.battle_click_skill_multi(slot)
+            self.battle_click_skill_multi(slot, clicks=clicks, interval=click_interval)
             image = None
             result = self.battle_wait_cooldown_checked(
                 slot, target_check=target_check,
@@ -524,6 +468,35 @@ class BattleAttack:
         logger.warning(f'技能{slot + 1} 点了 {max_attempts} 次仍未进入冷却')
         return 'failed'
 
+    def battle_queue_until(self, stop_check: Callable[[], bool],
+                           target_check: Callable[[np.ndarray], bool] = None,
+                           include_attack: bool = True, **kwargs) -> str:
+        """
+        队列模式的兼容入口：一直打，直到 `stop_check()` 返回 True
+
+        等价于旧「一直打到 stop_check 为真」的用法，但走队列模式
+        （优先级最高、冷却好的先放；没进冷却会重试 + 延后重排）。
+
+        :param stop_check: 无参函数，返回 True 结束
+        :param target_check: 接收截图、返回 False 表示目标丢失；默认不按目标丢失停
+        :param include_attack: 全部技能冷却时是否点普通攻击（默认 True，和旧循环一致）
+        :param kwargs: 透传给 battle_skill_loop（timeout / clicks / click_interval ...）
+        :return: 'stop' / 'target_lost' / 'timeout' / 'no_slot'
+        """
+        slots = self.battle_plan_slots()
+        if not slots:
+            logger.warning('没有识别到可释放的技能位，先补普通攻击')
+            if include_attack:
+                self.battle_click_attack()
+            return 'no_slot'
+        return self.battle_skill_loop(
+            slots,
+            check_stop=lambda image: 'stop' if stop_check() else None,
+            target_check=target_check or (lambda image: True),
+            include_attack=include_attack,
+            **kwargs,
+        )
+
     def battle_skill_loop(self, slots: List[int],
                           check_stop: Callable[[], str] = None,
                           target_check: Callable[[], bool] = None,
@@ -531,16 +504,21 @@ class BattleAttack:
                           attack_interval: float = 1.0,
                           idle_interval: float = 0.4,
                           include_attack: bool = None,
-                          max_attempts: int = 3,
-                          cooldown_timeout: float = 1.2,
+                          max_attempts: int = None,
+                          cooldown_timeout: float = None,
                           poll_interval: float = 0.1,
                           max_cycles: int = None,
                           max_skills: int = None,
                           on_cast: Callable[[int], None] = None,
                           on_target_lost: Callable[[], bool] = None,
-                          recheck_pending: bool = True) -> str:
+                          recheck_pending: bool = True,
+                          clicks: int = None,
+                          click_interval: float = None) -> str:
         """
         队列式连续释放技能（不按轮）：
+
+        ⚠️ 兼容保留：这是队列式实现（优先级最高且冷却好的先放，没进冷却会重试 + 延后重排），
+        目前世界首领 / 仙府九重天 / 域外迷窟 / 战斗试打还在用，也是本项目的唯一战斗模式。
 
         - **每次都在当前顺序里挑「最高优先级、未冷却、本轮未失败过」的技能释放**，
           所以高优先级技能一冷却好就会被优先释放，不会排在别的技能后面；
@@ -556,8 +534,10 @@ class BattleAttack:
         :param attack_interval: 普通攻击的最小间隔（秒）
         :param idle_interval: 全部技能冷却时的轮询间隔（秒）
         :param include_attack: 全部技能冷却时是否点普通攻击；None = 读任务战斗配置（默认关闭）
-        :param max_attempts: 每个技能每次释放最多尝试几次（含第一次）
-        :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）
+        :param max_attempts: 每个技能每次释放最多尝试几次（含第一次）；
+                             None = 读战斗设置的 attempts（默认 3）
+        :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）；
+                                 None = 读战斗设置的 cooldown_timeout（默认 1.2）
         :param poll_interval: 冷却轮询间隔（秒）
         :param max_cycles: 最多重排几轮（一轮 = 所有可释放技能都尝试过一遍），None = 不限
         :param max_skills: 最多成功释放几个技能（进入冷却算 1 个），None = 不限
@@ -568,8 +548,22 @@ class BattleAttack:
                                返回 False / 不传 -> 按原逻辑结束循环
         :param recheck_pending: 是否在循环里重认「未识别 + 冷却中」的技能位
                                 （冷却结束后识别一次，再决定是否入队）
+        :param clicks: 每个技能连点几次；None = 读战斗设置的 clicks（默认 2）
+        :param click_interval: 同一技能两次点击的间隔；None = 读战斗设置（默认 0.2）
         :return: check_stop 的返回值 / 'target_lost' / 'skill_limit' / 'timeout'
         """
+        # 释放节奏统一从「战斗设置」取（参数显式传就覆盖，方便调试）
+        release = self.battle_release_config()
+        clicks = release['clicks'] if clicks is None else max(1, int(clicks))
+        click_interval = (release['click_interval'] if click_interval is None
+                          else float(click_interval))
+        max_attempts = (release['attempts'] if max_attempts is None
+                        else max(1, int(max_attempts)))
+        cooldown_timeout = (release['cooldown_timeout'] if cooldown_timeout is None
+                            else float(cooldown_timeout))
+        logger.attr('释放节奏', f'连点 {clicks} 次 / 间隔 {click_interval}s / '
+                                f'重试 {max_attempts} 次 / 冷却超时 {cooldown_timeout}s')
+
         order = list(slots)
         recheck = getattr(self, 'battle_recheck_pending', None) if recheck_pending else None
         has_pending = getattr(self, 'battle_has_pending_slots', None)
@@ -648,7 +642,8 @@ class BattleAttack:
 
             result = self.battle_skill_release(
                 slot, image=image, target_check=target_check, max_attempts=max_attempts,
-                cooldown_timeout=cooldown_timeout, poll_interval=poll_interval)
+                cooldown_timeout=cooldown_timeout, poll_interval=poll_interval,
+                clicks=clicks, click_interval=click_interval)
             if result == 'target_lost':
                 # 目标死了/被拉走：允许调用方立刻补锁下一个目标，接着在同一轮里打
                 # （刷小怪时一刀一只，每只都退回外层重锁会白花 1s 以上）
@@ -689,77 +684,6 @@ class BattleAttack:
                 # 已有延后技能：当前技能不重排，本轮不再尝试
                 blocked.add(slot)
                 logger.info(f'技能{slot + 1} 未进入冷却，已有延后技能，本轮不重排')
-
-    def battle_attack(self, times: int = 1, preset: str = '',
-                      plan: List[PlanEntry] = None, interval: float = None,
-                      respect_cooldown: bool = None,
-                      include_attack: bool = True) -> int:
-        """
-        按战斗预设的顺序攻击（对外暴露的简单入口）
-
-        一次调用 = 识别技能栏一次 + 按预设优先级打 [times] 轮。
-        每轮里每个技能点一次（可选只点冷却好的），最后补一次普通攻击。
-        技能栏在一场战斗里不会变，所以只识别一次，多轮复用这份计划。
-
-        用法（任务里）：
-            self.battle_attack()                     # 按任务配置的预设打 1 轮
-            self.battle_attack(times=3)              # 连打 3 轮
-            self.battle_attack(preset='preset_1')    # 临时指定预设（调试用）
-
-        :param times: 打几轮（至少 1 轮）
-        :param preset: 预设 id；空 = 按任务配置（没配就是系统预设）
-        :param plan: 直接传现成的计划（复用识别结果/调试），不传就现截现识别
-        :param interval: 技能之间间隔（默认取配置 battle.common.cast_interval）
-        :param respect_cooldown: 是否只点冷却好的（默认取配置）
-        :param include_attack: 每轮最后是否补普通攻击
-        :return: 总共点了多少个技能（不含普通攻击）
-        """
-        times = max(1, int(times or 1))
-        battle = self.config.battle
-        if interval is None:
-            interval = float(battle.common.cast_interval) if battle else 0.2
-
-        if plan is None:
-            self.screenshot()
-            if preset:
-                # 指定预设优先（调试/测试用），否则按任务配置 -> 系统预设
-                preset_data = resolve_preset(battle, preset, self.battle_catalog())
-                plan = self.battle_plan(preset=preset_data)
-            else:
-                plan = self.battle_plan()
-
-        if not plan:
-            logger.warning('技能位一个都没认出来，退回随机顺序连点')
-            for _ in range(times):
-                self.battle_one_group()
-            return 0
-
-        total = 0
-        for round_index in range(times):
-            total += self.battle_play_plan(plan, respect_cooldown=respect_cooldown,
-                                           interval=interval,
-                                           include_attack=include_attack)
-            if round_index + 1 < times:
-                self.device.sleep(interval)
-        logger.info(f'按预设攻击完成：{times} 轮，共释放 {total} 个技能')
-        return total
-
-    def battle_wait_cooldown(self, slot: int, timeout: float = 2.0,
-                             poll_interval: float = 0.1) -> bool:
-        """
-        点完技能后等它进入冷却（连点完马上判可能还没变灰，所以要轮询）
-
-        :return: 确认进入冷却 True；超时 False
-        """
-        timer = Timer(timeout).start()
-        while True:
-            self.screenshot()
-            if self.battle_skill_state(slot) == SKILL_COOLING:
-                return True
-            if timer.reached():
-                return False
-            self.device.sleep(poll_interval)
-
     def battle_wait_cooldown_checked(self, slot: int,
                                      target_check: Callable[[np.ndarray], bool] = None,
                                      timeout: float = 2.0,
@@ -784,151 +708,6 @@ class BattleAttack:
             if timer.reached():
                 return 'failed'
             self.device.sleep(poll_interval)
-
-    def battle_attack_loop(self, preset: str = '', clicks_per_skill: int = None,
-                           click_interval: float = None, cooldown_timeout: float = 2.0,
-                           poll_interval: float = 0.1, unknown_wait: float = 1.0,
-                           include_attack: bool = True, attack_interval: float = 1.0,
-                           stop_check: Callable[[], bool] = None,
-                           reidentify_casts: int = 0,
-                           recheck_pending: bool = True) -> None:
-        """
-        按预设优先级**一直**攻击（优先级调度，不是一轮把所有技能点一遍）
-
-        每一轮：
-        1. 现截一张，判断 7 个技能位的冷却状态；
-        2. 从优先级最高的技能往下找，挑「冷却好（或判不出来）」且没被临时跳过的那个；
-        3. 点它 [clicks_per_skill] 次（默认 3 次），然后轮询确认它**真的进了冷却**；
-        4. 回到第 1 步 —— 所以高优先级的技能一冷却好就会立刻「插队」先放。
-
-        没有技能可放时只补普通攻击（按 attack_interval 节流），绝不硬点冷却中的技能。
-        技能位一个都没识别出来时先不点，1 秒后重试识别。
-
-        停止条件还没定：不传 stop_check 就是无限循环（Ctrl+C 结束）。
-
-        :param preset: 预设 id；空 = 按任务配置（没配就是系统预设）
-        :param clicks_per_skill: 每个技能点几次（默认 BATTLE_CLICK_TIMES = 3）
-        :param click_interval: 技能内连点间隔（默认 BATTLE_CLICK_INTERVAL = 0.2）
-        :param cooldown_timeout: 点完等它进入冷却的最长等待（秒）
-        :param poll_interval: 等冷却 / 无技能可放时的轮询间隔（秒）
-        :param unknown_wait: 冷却状态判不出来（该技能没有基准素材）时，先晾这么久再允许点
-        :param include_attack: 没有技能可放时补普通攻击
-        :param attack_interval: 普通攻击的最小间隔（秒）
-        :param stop_check: 无参函数，返回 True 就结束；None = 一直打
-        :param reidentify_casts: 每放 N 次技能重新识别一次技能栏（换装备后能跟上）；0 = 不重识别
-        :param recheck_pending: 冷却结束后重认「未识别 + 冷却中」的技能位，再决定是否入队
-        """
-        battle = self.config.battle
-        clicks_per_skill = max(1, int(clicks_per_skill or self.BATTLE_CLICK_TIMES))
-        if click_interval is None:
-            click_interval = float(self.BATTLE_CLICK_INTERVAL)
-        preset_data = resolve_preset(battle, preset, self.battle_catalog()) if preset else None
-
-        def _make_plan() -> List[PlanEntry]:
-            self.screenshot()
-            return self.battle_plan(preset=preset_data)
-
-        plan = _make_plan()
-        logger.hr('按预设优先级循环攻击', level=2)
-        if plan:
-            logger.info(f'开始循环：{len(plan)} 个技能，优先级 {plan_summary(plan)}')
-        else:
-            logger.warning('技能位一个都没识别出来，先不点击，1 秒后重试识别')
-
-        casts = 0
-        # {slot: 时间戳}：暂时跳过的技能位（判不出冷却 / 点了没进冷却）
-        blocked_until: dict = {}
-        next_attack = 0.0
-
-        while True:
-            if stop_check is not None and stop_check():
-                logger.info(f'停止条件命中，结束循环（共释放 {casts} 次技能）')
-                return
-
-            if not plan:
-                if recheck_pending:
-                    self.screenshot()
-                    updated = self.battle_recheck_pending()
-                    if updated:
-                        plan = updated
-                        logger.info(f'重认后恢复释放：{plan_summary(plan)}')
-                        continue
-                    if self.battle_has_pending_slots():
-                        # 还在冷却：等它好了再重认，别每秒重扫整个技能栏
-                        self.device.sleep(1.0)
-                        continue
-                self.device.sleep(1.0)
-                plan = _make_plan()
-                continue
-
-            # 每轮现截一张：优先级高的技能可能已经冷却好了，要能插队
-            self.screenshot()
-            if recheck_pending:
-                updated = self.battle_recheck_pending()
-                if updated is not None:
-                    plan = updated
-                    logger.info(f'技能位重认后更新队列：{plan_summary(plan)}')
-            states = self.battle_skills_state()
-            now = time.time()
-
-            target = None
-            for entry in plan:
-                state = states.get(entry.slot, SKILL_UNKNOWN)
-                if state == SKILL_COOLING:
-                    continue
-                if blocked_until.get(entry.slot, 0.0) > now:
-                    continue
-                target = entry
-                break
-
-            if target is None:
-                # 没有技能可放：补一次普通攻击（节流），然后隔一会儿再看
-                if include_attack and now >= next_attack:
-                    self.battle_click_attack()
-                    next_attack = now + float(attack_interval)
-                self.device.sleep(poll_interval)
-                continue
-
-            state = states.get(target.slot, SKILL_UNKNOWN)
-            logger.info(f'释放 {target}（{clicks_per_skill} 连击）')
-            for index in range(clicks_per_skill):
-                self.battle_click_skill(target.slot)
-                if index + 1 < clicks_per_skill:
-                    self.device.sleep(click_interval)
-
-            casts += 1
-            if state == SKILL_UNKNOWN:
-                # 没有基准素材判不出冷却：先晾一会儿，避免反复点同一个
-                blocked_until[target.slot] = time.time() + float(unknown_wait)
-                logger.info(f'{target} 冷却状态未知（没基准素材），{unknown_wait:.1f}s 内不再点')
-            elif not self.battle_wait_cooldown(target.slot, timeout=cooldown_timeout,
-                                               poll_interval=poll_interval):
-                blocked_until[target.slot] = time.time() + float(unknown_wait)
-                logger.warning(f'{target} 连点 {clicks_per_skill} 次后还没进入冷却，'
-                               f'先跳过 {unknown_wait:.1f}s')
-
-            if reidentify_casts and casts % int(reidentify_casts) == 0:
-                plan = _make_plan()
-
-    def battle_identify(self) -> List[PlanEntry]:
-        """
-        开战前的准备动作：识别技能栏并按当前预设算好计划
-
-        识别失败时返回空列表，调用方退回 battle_one_group() 的随机连点。
-        「开战前识别技能栏」是固定行为，没有开关（20 个技能不可能都在身上，
-        不识别就不知道哪个按钮是哪个技能）。
-        """
-        battle = self.config.battle
-        if battle is None:
-            logger.warning('没有 battle 配置（老版本 config.json），改用随机顺序连点')
-            return []
-        self.screenshot()
-        plan = self.battle_plan()
-        if not plan:
-            logger.warning('技能位一个都没认出来，改用随机顺序连点')
-        return plan
-
-    # ---------------------------------------------------------------- 技能冷却识别
     def battle_skill_judge(self) -> SkillCooldownJudge:
         """
         冷却判定器（按任务实例缓存）：基准分从「冷却好」素材现算，
@@ -1001,20 +780,9 @@ class BattleAttack:
     def battle_skill_ready(self, index: int, image=None) -> bool:
         """技能是否冷却好"""
         return self.battle_skill_state(index, image) == SKILL_READY
-
-    def battle_skill_cooling(self, index: int, image=None) -> bool:
-        """技能是否冷却中（防抖后）"""
-        return self.battle_skill_state(index, image) == SKILL_COOLING
-
     def battle_skills_state(self, image=None) -> dict:
         """所有技能位的状态（防抖后）{下标: ready/cooling/unknown}"""
         return self.battle_states(image)
-
-    def battle_skills_ready(self, image=None) -> list:
-        """冷却好的技能下标列表（升序）"""
-        states = self.battle_skills_state(image)
-        return [index for index in sorted(states) if states[index] == SKILL_READY]
-
     def battle_log_skill_states(self, image=None) -> dict:
         """输出一行「每个技能位的状态 + 当前分/基准分」（原始 + 防抖后），真机校准用"""
         image = self._battle_image(image)
@@ -1028,68 +796,3 @@ class BattleAttack:
         logger.info(f'技能冷却状态 {text}'
                     + (f'  防抖中 {changed}' if changed else ''))
         return stable
-
-    def battle_click_skill_if_ready(self, index: int) -> bool:
-        """
-        技能冷却好就点一次（内部先截图再判断）；冷却中 / unknown 不点
-
-        :param index: BATTLE_SKILL_REGIONS 的下标，0 = 技能1
-        :return: 点了返回 True
-        """
-        self.screenshot()
-        state = self.battle_skill_state(index)
-        if state != SKILL_READY:
-            logger.info(f'技能{index + 1}状态 {state}，本次不点')
-            return False
-        self.battle_click_skill(index)
-        return True
-
-    def battle_simple_loop(self,
-                           stop_check: Callable[[], bool] = None,
-                           timeout: float = None,
-                           groups_max: int = None,
-                           use_plan: bool = True) -> bool:
-        """
-        循环放技能，直到：
-        - stop_check() 返回 True（比如出现「过关奖励」面板）-> 返回 True
-        - 超时 / 达到轮数上限 -> 返回 False
-
-        放技能的方式：
-        - `use_plan=True`（默认）：开战前识别 7 个技能位带了哪个技能，
-          按任务配置里选的预设（默认系统预设）优先级放，`respect_cooldown` 开着就只点冷却好的；
-        - `use_plan=False`：退回老行为（技能 + 普攻各用一次，顺序随机，每按钮连点 3 次）。
-
-        注意：技能栏内容在一场战斗内不会变，所以计划只在开战时算一次。
-
-        :param stop_check: 无参函数，通常内部自己截图判断
-        :param timeout: 秒
-        :param groups_max: 最多打多少轮
-        :param use_plan: 是否按优先级计划放技能（默认 True）
-        """
-        plan: List[PlanEntry] = []
-        if use_plan:
-            # 现截一张再识别：技能栏刚进战斗时可能还在动画，用旧图容易认错
-            self.screenshot()
-            plan = self.battle_plan()
-            if not plan:
-                logger.warning('技能位一个都没认出来，本场退回随机顺序连点')
-                use_plan = False
-
-        timer = Timer(timeout).start() if timeout else None
-        groups = 0
-        while 1:
-            if groups_max is not None and groups >= groups_max:
-                logger.warning(f'战斗达到轮数上限 {groups_max}，结束')
-                return False
-            if use_plan:
-                self.battle_play_plan(plan)
-            else:
-                self.battle_one_group()
-            groups += 1
-            logger.info(f'已释放 {groups} 轮')
-            if stop_check and stop_check():
-                logger.info(f'战斗结束（共 {groups} 轮）')
-                return True
-            if timer and timer.reached():
-                logger.warning(f'战斗超时（{timeout}s，共 {groups} 轮）')
-                return False

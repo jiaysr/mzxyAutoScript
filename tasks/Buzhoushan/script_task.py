@@ -23,7 +23,6 @@ import cn2an
 from module.base.timer import Timer
 from module.exception import TaskEnd, TaskFailed
 from module.logger import logger
-from tasks.Battle.target_action import ACTION_ATTACK
 from tasks.Buzhoushan.assets import BuzhoushanAssets
 from tasks.Buzhoushan.page import page_buzhoushan
 from tasks.GameUi.game_ui import GameUi
@@ -95,7 +94,6 @@ class ScriptTask(GameUi, BuzhoushanAssets):
         coord = self.locate_layer(start_floor)
         if coord is None:
             raise TaskFailed(f'找不到第{start_floor}层')
-        logger.attr('目标层', f'第{start_floor}层 @ {coord}')
         self.click_layer(start_floor, coord)
         if not self.confirm_layer(start_floor):
             logger.warning('未确认进入挑战（可能今日次数已用完）')
@@ -600,7 +598,7 @@ class ScriptTask(GameUi, BuzhoushanAssets):
         循环：
         1. 已锁定可攻击目标 -> 按战斗预设一直打到目标丢失；
         2. 小地图出现黄色菱形传送点 -> 本层清完，开面板看有没有「前往下一层」；
-        3. 没有目标 -> 点「目标」尝试锁定（每次最多点 1 次、2s 超时），锁不到累计一次失败；
+        3. 没有目标 -> 点「目标」尝试锁定（每次最多点 2 次、2s 超时），锁不到累计一次失败；
         4. 连续 2 次锁不到（传送点没认出来时的兜底）-> 查面板；没有下一层就
            以本层初始点为中心来回巡逻，边移动边索敌。
 
@@ -622,7 +620,8 @@ class ScriptTask(GameUi, BuzhoushanAssets):
                 return 'settle'
             if self.ui_target_attackable(image=self.device.image):
                 logger.info('锁定到可攻击目标，开始攻击')
-                self.battle_attack_until_target_lost()
+                if self.battle_queue_attack() == 'settle':
+                    return 'settle'
                 fail = 0
                 patrol_miss = 0
                 continue
@@ -657,8 +656,11 @@ class ScriptTask(GameUi, BuzhoushanAssets):
                 fail = 0
                 continue
 
-            if self.ui_ensure_target_locked(max_switch=1, timeout=2):
-                self.battle_attack_until_target_lost()
+            # 已锁定但动作不是「攻击」（采集/交互物）时，多点一次「目标」切走；
+            # 真空场时也就多花 0.5s，比误判成「清完」去巡逻划算
+            if self.ui_ensure_target_locked(max_switch=2, timeout=2):
+                if self.battle_queue_attack() == 'settle':
+                    return 'settle'
                 fail = 0
                 patrol_miss = 0
                 continue
@@ -744,22 +746,39 @@ class ScriptTask(GameUi, BuzhoushanAssets):
         self.device.sleep(0.5)
         return result
 
-    def battle_attack_until_target_lost(self, action: str = ACTION_ATTACK, **kwargs) -> None:
+    def battle_queue_attack(self) -> str:
         """
-        攻击循环（在公共实现上多一个停止条件：出现结算弹窗立刻停）
+        队列模式打到目标丢失（本任务统一的战斗模式）
 
-        阵亡时目标可能还锁着，但结算弹窗已经盖住画面，继续点技能没有意义。
+        - 每次挑「优先级最高且冷却好」的技能释放，没进冷却会延后重排（队列模式自带）；
+        - 每次点击后校验目标，目标丢失返回 'target_lost'；
+        - 出现结算弹窗（通关/阵亡）返回 'settle'。
+        - 连点次数 / 点击间隔取战斗预设里的 clicks / click_interval
+
+        :return: 'target_lost' / 'settle' / 'timeout' / 'no_slot'
         """
-        kwargs.pop('stop_check', None)
-        lost = self.ui_target_lost_check(action=action)
+        preset = self.battle_preset()
+        slots = self.battle_plan_slots(preset=preset)
+        if not slots:
+            logger.warning('没有识别到可释放的技能位，先补一次普通攻击')
+            self.battle_click_attack()
+            self.device.sleep(0.5)
+            return 'no_slot'
+        return self.battle_skill_loop(
+            slots,
+            check_stop=self.battle_attack_stop_reason,
+            target_check=lambda image: self.ui_target_attackable(image=image),
+            include_attack=self.battle_use_normal_attack(),
+        )
 
-        def _stop() -> bool:
-            if self.exist_image() and self.I_BUZHOUSHAN_SETTLE.match(self.device.image):
-                logger.info('Attack stopped: settlement popup')
-                return True
-            return lost()
-
-        self.battle_attack_loop(stop_check=_stop, **kwargs)
+    def battle_attack_stop_reason(self, image=None) -> str | None:
+        """队列模式的停止条件：结算弹窗（通关/阵亡）出现就停"""
+        if image is None:
+            image = self.device.image
+        if image is not None and self.I_BUZHOUSHAN_SETTLE.match(image):
+            logger.info('Attack stopped: settlement popup')
+            return 'settle'
+        return None
 
 
 if __name__ == '__main__':
