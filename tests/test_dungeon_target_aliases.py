@@ -72,7 +72,7 @@ def test_walk_to_boss_returns_when_target_locked():
     task = make_boss_walk_task(('琉璃幻境[副本]', 274, 211))
     calls = []
     task.dungeon_click_minimap_target = lambda corner, rule: calls.append('click') or True
-    task.dungeon_try_lock_target = lambda targets, image=None: calls.append('lock') or True
+    task.dungeon_try_lock_target = lambda targets: calls.append('lock') or True
     assert task.dungeon_walk_to_boss('梦魇兽', object(), '琉璃幻境[副本]',
                                      (100, 100)) is True
     assert calls == ['click', 'lock']
@@ -93,6 +93,17 @@ def test_walk_to_boss_aborts_when_left_map():
         pass
     else:
         raise AssertionError('DungeonAborted not raised')
+
+
+def test_try_lock_closes_menu_before_detecting():
+    task = DungeonBase.__new__(DungeonBase)
+    calls = []
+    task.ui_close_menu = lambda: calls.append('close')
+    task.screenshot = lambda: np.zeros((720, 1280, 3), dtype=np.uint8)
+    task.ui_target_attackable = lambda image=None: False
+    task.ui_lock_target = lambda: calls.append('lock') or False
+    assert task.dungeon_try_lock_target(['梦魔兽']) is False
+    assert calls == ['close', 'lock']
 
 
 if __name__ == '__main__':

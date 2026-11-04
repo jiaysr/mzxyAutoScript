@@ -513,18 +513,16 @@ class DungeonBase(GameUi, DungeonAssets):
             result.extend(aliases.get(name, ()))
         return result
 
-    def dungeon_try_lock_target(self, targets: list, image=None) -> bool:
-        """寻路途中轻量尝试锁敌：已锁且名字匹配返回 True，否则点一次「目标」切换"""
-        if image is None:
-            image = self.screenshot()
+    def dungeon_try_lock_target(self, targets: list) -> bool:
+        """寻路途中轻量尝试锁敌：先收菜单再检测，已锁且名字匹配返回 True，否则点一次「目标」切换"""
+        self.ui_close_menu()
+        image = self.screenshot()
         if self.ui_target_attackable(image):
             name = self.ui_target_name()
             if name and any(self.ocr_name_match(name, expected) for expected in targets):
                 return True
         if not self.ui_lock_target():
-            self.ui_close_menu()
-            if not self.ui_lock_target():
-                return False
+            return False
         self.device.sleep(self.TARGET_LOCK_SWITCH_INTERVAL)
         image = self.screenshot()
         if not self.ui_target_attackable(image):
@@ -578,7 +576,7 @@ class DungeonBase(GameUi, DungeonAssets):
                     self.dungeon_close_boss_reward()
                     self.device.sleep(0.5)
                     continue
-                if self.dungeon_try_lock_target(targets, image=image):
+                if self.dungeon_try_lock_target(targets):
                     logger.info(f'Target [{boss_name}] locked while walking')
                     return True
                 if (position is not None and location
@@ -713,6 +711,9 @@ class DungeonBase(GameUi, DungeonAssets):
             logger.info('Target action changed, stop attacking')
             return True
         name = self.ui_target_name()
+        if not name:
+            # 右上角菜单可能挡住目标名，收起后重读一次
+            name = self.ui_target_name(close_menu=True)
         if name and not any(self.ocr_name_match(name, expected)
                             for expected in self._dungeon_fight_target):
             logger.info(f'Target changed to [{name}], stop attacking')

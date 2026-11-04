@@ -27,6 +27,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from tasks.Battle.target_action import (ACTION_ATTACK, ACTION_GATHER, ACTION_INTERACT,
                                         classify_action_button, is_attackable)
 from tasks.GameUi.assets import GameUiAssets
+from tasks.GameUi.navigation.battle import SimpleBattle
 
 ASSET_DIR = PROJECT_ROOT / 'tests' / 'assets' / 'target_lock'
 LOCKED_TEMPLATE = PROJECT_ROOT / 'tests' / 'assets' / 'target_locked.png'
@@ -88,6 +89,19 @@ def test_target_locked_template_matches():
         assert not rule.match(np.zeros((720, 1280, 3), dtype=np.uint8)), '空白图不应命中'
     finally:
         os.chdir(cwd)
+
+
+def test_target_name_close_menu():
+    task = SimpleBattle.__new__(SimpleBattle)
+    calls = []
+    task.ui_close_menu = lambda: calls.append('close')
+    task.ocr_color_name = (lambda rule, scales=None, min_score=None:
+                           calls.append('ocr') or '梦魔兽。')
+    assert task.ui_target_name(close_menu=True) == '梦魔兽。'
+    assert calls == ['close', 'ocr']
+    calls.clear()
+    assert task.ui_target_name() == '梦魔兽。'
+    assert calls == ['ocr']
 
 
 if __name__ == '__main__':

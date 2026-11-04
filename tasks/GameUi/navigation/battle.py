@@ -52,14 +52,20 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     # 锁定目标的整体超时（秒）
     TARGET_LOCK_TIMEOUT = 30
 
-    def ui_target_name(self, scales: tuple = None, min_score: float = None) -> str:
+    def ui_target_name(self, scales: tuple = None, min_score: float = None,
+                       close_menu: bool = False) -> str:
         """
         读取当前锁定目标的名称，读不到返回空串
 
         目标名是带描边的彩色字，规则默认的「检测框 + 拼串」在真机上经常一个框都检不出来
         （WorldBoss 实测「妖化蟹将」读成空串，或拆成两段各读错一个字），
         所以走 GameUi.ocr_color_name（ROI 转灰度 -> 放大 -> 整行识别，取置信度高的一份）。
+
+        :param close_menu: True 时先收起右上角菜单，避免菜单遮挡目标名；
+                           默认 False，由调用方保证菜单状态
         """
+        if close_menu:
+            self.ui_close_menu()
         return self.ocr_color_name(self.O_TARGET_NAME,
                                    scales=scales or self.TARGET_NAME_SCALES,
                                    min_score=min_score if min_score is not None
