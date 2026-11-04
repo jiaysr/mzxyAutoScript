@@ -1,0 +1,56 @@
+[
+  {
+    "itemName": "buzhoushan_count",
+    "roiFront": "296,626,272,46",
+    "roiBack": "296,626,272,46",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "不周山-左下角「今日剩余挑战次数：N」（数字在 ROI 最右侧，单独识别）"
+  },
+  {
+    "itemName": "buzhoushan_layers",
+    "roiFront": "298,129,942,467",
+    "roiBack": "298,129,942,467",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "不周山-地图区域的层数标签（第N层，可上下滑动，单屏 5~6 座塔）"
+  },
+  {
+    "itemName": "buzhoushan_confirm_text",
+    "roiFront": "400,288,500,50",
+    "roiBack": "400,288,500,50",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "不周山-确认弹窗文案「要挑战不周山的第N - M层吗？」（用于校验点的层对不对）"
+  },
+  {
+    "itemName": "buzhoushan_map_panel",
+    "roiFront": "850,100,210,250",
+    "roiBack": "850,100,210,250",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "不周山-小地图面板右侧按钮列（世界地图/前往下一层/第N层；只有本层清完才会出现「前往下一层」）"
+  },
+  {
+    "itemName": "buzhoushan_floor_popup",
+    "roiFront": "500,320,400,80",
+    "roiBack": "500,320,400,80",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "不周山-进层提示弹窗「不周山第N层」（约3秒自动消失，不点它）"
+  },
+  {
+    "itemName": "buzhoushan_settle_title",
+    "roiFront": "300,85,560,55",
+    "roiBack": "300,85,560,55",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "不周山-结算弹窗标题（恭喜您通关 / 很遗憾你尚未通关，用于区分成功与失败）"
+  }
+]

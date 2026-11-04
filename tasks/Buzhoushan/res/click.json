@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "buzhoushan_confirm_ok",
+    "roiFront": "790,362,76,56",
+    "roiBack": "790,362,76,56",
+    "description": "不周山-挑战确认弹窗「确定」按钮"
+  },
+  {
+    "itemName": "buzhoushan_confirm_cancel",
+    "roiFront": "410,362,76,56",
+    "roiBack": "410,362,76,56",
+    "description": "不周山-挑战确认弹窗「取消」按钮"
+  },
+  {
+    "itemName": "buzhoushan_settle_return",
+    "roiFront": "556,578,160,46",
+    "roiBack": "556,578,160,46",
+    "description": "不周山-结算弹窗「返回不周山」按钮（回挑战页）"
+  }
+]

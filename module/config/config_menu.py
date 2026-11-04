@@ -22,7 +22,7 @@ class ConfigMenu:
         self.menu["Daily Task"] = ['Quiz', 'WarChariot', 'SilverGiftBox', 'AutoTask']
         # 战斗的任务
         self.menu["Battle Task"] = ['WorldBoss', 'Arena', 'CrossArena', 'AncientHunt',
-                                    'XianfuJiuchongtian', 'YuwaiMimang', 'DouXianGe']
+                                    'XianfuJiuchongtian', 'Buzhoushan', 'YuwaiMimang', 'DouXianGe']
         # 副本玩法（单独分组）
         self.menu["Dungeon"] = ['Dungeon']
         # 开发工具

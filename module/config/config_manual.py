@@ -17,6 +17,7 @@ class ConfigManual:
         > CrossArena
         > AncientHunt
         > XianfuJiuchongtian
+        > Buzhoushan
         > DouXianGe
         > Dungeon
         > SilverGiftBox
