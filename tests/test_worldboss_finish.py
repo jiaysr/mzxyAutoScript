@@ -9,6 +9,7 @@
 """
 import sys
 import traceback
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from tasks.GlobalGame.assets import GlobalGameAssets as GG
 from tasks.WorldBoss.assets import WorldBossAssets as W
+from tasks.WorldBoss.script_task import ScriptTask
 
 FINISH_RULES = {
     'manchui': W.I_FINISH_MANCHUI,
@@ -71,6 +73,33 @@ def test_boss_reward_moved_out_of_global_popup():
     """首领归属奖已从全局弹窗迁到 WorldBoss，全局不应再自动配对处理"""
     assert not hasattr(GG, 'I_POPUP_BOSS_REWARD')
     assert not hasattr(GG, 'C_POPUP_BOSS_REWARD_CLOSE')
+
+
+# ---------------------------------------------------------------- 目标丢失后的处理
+def make_attack_task(loop_result='target_lost', finish_found=False):
+    """只实现 attack_boss 需要的成员，不连设备"""
+    task = ScriptTask.__new__(ScriptTask)
+    task.screenshot = lambda: None
+    task.battle_plan_slots = lambda: []
+    task.battle_skill_loop = lambda *args, **kwargs: loop_result
+    task.wait_finish_template = lambda *args, **kwargs: finish_found
+    return task
+
+
+def test_target_lost_without_finish_returns_target_lost():
+    """目标消失且 30s 内没结束消息：不按已结束收尾，返回 target_lost 让外层重锁"""
+    task = make_attack_task(loop_result='target_lost', finish_found=False)
+    deadline = datetime.now() + timedelta(minutes=5)
+    result = task.attack_boss({'name': '斧王'}, object(), deadline)
+    assert result == 'target_lost', result
+
+
+def test_target_lost_with_finish_returns_finished():
+    """目标消失但补到了结束消息：照常按 finished 收尾"""
+    task = make_attack_task(loop_result='target_lost', finish_found=True)
+    deadline = datetime.now() + timedelta(minutes=5)
+    result = task.attack_boss({'name': '斧王'}, object(), deadline)
+    assert result == 'finished', result
 
 
 if __name__ == '__main__':

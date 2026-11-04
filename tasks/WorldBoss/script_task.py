@@ -1188,8 +1188,16 @@ class ScriptTask(GameUi, WorldBossAssets):
                                                              timeout=wait_timeout):
                 result = 'finished'
             else:
-                logger.warning(f"{boss['name']} 目标消失且没等到结束消息，按已结束收尾")
-                result = 'finished'
+                # 30s 内没等到结束消息不当作已结束：返回 target_lost，让外层重新锁定/攻击，
+                # 把整点后 event_window（默认 10 分钟）的剩余时间用完。结束消息监听在
+                # 锁定/攻击阶段每帧检查，真死了也能兜住。
+                if wait_timeout <= 0:
+                    logger.warning(f"{boss['name']} 目标消失且已到截止时间 {deadline:%H:%M:%S}")
+                else:
+                    logger.warning(
+                        f"{boss['name']} 目标消失且 {wait_timeout:.0f}s 内没等到结束消息，"
+                        f"重新锁定继续（截止 {deadline:%H:%M:%S}）")
+                result = 'target_lost'
         if result == 'timeout':
             # 超时边界上结束消息可能刚出现，最后补一次模板+OCR 判断
             self.screenshot()
