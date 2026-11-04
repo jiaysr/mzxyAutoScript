@@ -1,0 +1,119 @@
+[
+  {
+    "itemName": "new",
+    "imageName": "res_new.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "沙狱多人选中特征"
+  },
+  {
+    "itemName": "item_2",
+    "imageName": "res_item_2.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "沙狱单人特征"
+  },
+  {
+    "itemName": "item_3",
+    "imageName": "res_item_3.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "帝玉岭[多人]特征"
+  },
+  {
+    "itemName": "item_4",
+    "imageName": "res_item_4.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "帝玉岭[单人]特征"
+  },
+  {
+    "itemName": "item_5",
+    "imageName": "res_item_5.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "琉璃幻境特征"
+  },
+  {
+    "itemName": "item_6",
+    "imageName": "res_item_6.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙居福地特征"
+  },
+  {
+    "itemName": "item_7",
+    "imageName": "res_item_7.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "天渊灵岛特征"
+  },
+  {
+    "itemName": "item_8",
+    "imageName": "res_item_8.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "至尊巅峰特征"
+  },
+  {
+    "itemName": "item_9",
+    "imageName": "res_item_9.png",
+    "roiFront": "897,355,80,40",
+    "roiBack": "864,331,134,88",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "重置按钮位置"
+  },
+  {
+    "itemName": "item_10",
+    "imageName": "res_item_10.png",
+    "roiFront": "601,111,145,79",
+    "roiBack": "569,94,206,137",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "万事通npc特征"
+  },
+  {
+    "itemName": "item_11",
+    "imageName": "res_item_11.png",
+    "roiFront": "462,333,360,53",
+    "roiBack": "420,300,436,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "治疗成功"
+  },
+  {
+    "itemName": "item_12",
+    "imageName": "res_item_12.png",
+    "roiFront": "428,317,360,53",
+    "roiBack": "420,300,436,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "治疗失败"
+  },
+  {
+    "itemName": "dungeon_finish",
+    "imageName": "res_dungeon_finish.png",
+    "roiFront": "440,322,400,44",
+    "roiBack": "300,290,680,120",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "副本完成-你将在1分钟以后被传出副本"
+  }
+]

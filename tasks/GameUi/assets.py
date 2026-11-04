@@ -146,11 +146,19 @@ class GameUiAssets:
 	I_MAP_POPUP_CLOSE = RuleImage(roi_front=(1131,44,41,51), roi_back=(1007,0,245,223), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_popup_close.png")
 	# 传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px） 
 	I_MAP_DIALOG_CONFIRM_BUTTON = RuleImage(roi_front=(768,358,117,61), roi_back=(760,350,140,100), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/res_map_dialog_confirm_button.png")
+	# 上箭头 
+	I_ITEM_7 = RuleImage(roi_front=(520,81,37,21), roi_back=(248,50,620,185), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/map_item_7.png")
+	# 左箭头 
+	I_ITEM_8 = RuleImage(roi_front=(138,339,22,43), roi_back=(80,134,363,431), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/map_item_8.png")
+	# 下箭头 
+	I_ITEM_9 = RuleImage(roi_front=(513,615,49,22), roi_back=(246,348,531,350), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/map_item_9.png")
+	# 右箭头 
+	I_ITEM_10 = RuleImage(roi_front=(917,341,25,39), roi_back=(698,169,531,350), threshold=0.8, method="Template matching", file="./tasks/GameUi/res/map/map_item_10.png")
 
 
 	# Ocr Rule Assets
 	# 主页面右上角-当前地点与坐标（如 沼泽427,59） 
-	O_MAP_LOCATION = RuleOcr(roi=(1072,84,208,35), area=(1072,84,208,35), mode="Full", method="Default", keyword="", name="map_location")
+	O_MAP_LOCATION = RuleOcr(roi=(1011,85,269,34), area=(1011,84,269,35), mode="Full", method="Default", keyword="", name="map_location")
 	# 世界地图列表-地点条目识别区（供按名称点击传送使用；覆盖 10/11 行两种布局） 
 	O_MAP_WORLD_MAP_LIST = RuleOcr(roi=(280,100,740,590), area=(280,100,740,590), mode="Full", method="Default", keyword="", name="map_world_map_list")
 	# 传送确认弹窗-文案区（免费传送与花费铜贝两种弹窗都含「传送」） 

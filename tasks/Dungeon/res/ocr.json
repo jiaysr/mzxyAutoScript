@@ -1,0 +1,29 @@
+[
+  {
+    "itemName": "dungeon_list",
+    "roiFront": "112,175,400,430",
+    "roiBack": "112,175,400,430",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "副本页-左侧副本列表（[剩余次数] 副本名，可上下滚动）"
+  },
+  {
+    "itemName": "dungeon_privilege_count",
+    "roiFront": "460,585,420,35",
+    "roiBack": "460,585,420,35",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "副本页-底部「特权X级额外挑战剩余次数：N」"
+  },
+  {
+    "itemName": "dungeon_dialog_option",
+    "roiFront": "280,320,660,200",
+    "roiBack": "280,320,660,200",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "万事通对话框-选项列表（治疗伤势/杂货商店/修理装备）"
+  }
+]

@@ -52,5 +52,41 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "传送确认弹窗-确定按钮（两种弹窗通用，按钮位置偏 19px）"
+  },
+  {
+    "itemName": "item_7",
+    "imageName": "map_item_7.png",
+    "roiFront": "520,81,37,21",
+    "roiBack": "248,50,620,185",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "上箭头"
+  },
+  {
+    "itemName": "item_8",
+    "imageName": "map_item_8.png",
+    "roiFront": "138,339,22,43",
+    "roiBack": "80,134,363,431",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "左箭头"
+  },
+  {
+    "itemName": "item_9",
+    "imageName": "map_item_9.png",
+    "roiFront": "513,615,49,22",
+    "roiBack": "246,348,531,350",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "下箭头"
+  },
+  {
+    "itemName": "item_10",
+    "imageName": "map_item_10.png",
+    "roiFront": "917,341,25,39",
+    "roiBack": "698,169,531,350",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "右箭头"
   }
 ]

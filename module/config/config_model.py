@@ -236,9 +236,27 @@ class ConfigModel(ConfigBase):
                 item["default"] = value["default"]
                 item["value"] = jsons[key] if key in jsons else value["default"]
                 item["type"] = value["type"] if "type" in value else "enum"
+                # 数值范围（pydantic 的 ge/le），前端用它限制输入并提示范围
+                if "minimum" in value:
+                    item["minimum"] = value["minimum"]
+                if "maximum" in value:
+                    item["maximum"] = value["maximum"]
                 if '$ref' in value:  # list
                     enum_key = re.search(r"/([^/]+)$", value['$ref']).group(1)
                     item["enumEnum"] = definitions[enum_key]["enum"]
+                # 动态枚举：只保留「已勾选 + 次数=2」的副本（特权副本下拉框）
+                if value.get('enum_filter') == 'dungeon_privilege':
+                    allowed = {'none'}
+                    for enum_value in item.get("enumEnum", []):
+                        if enum_value == 'none':
+                            continue
+                        if (jsons.get(f'{enum_value}_enable') is True
+                                and jsons.get(f'{enum_value}_count') == 2):
+                            allowed.add(enum_value)
+                    item["enumEnum"] = [e for e in item.get("enumEnum", [])
+                                        if e in allowed]
+                    if item["value"] not in allowed:
+                        item["value"] = 'none'
                 # if 'allOf' in value:
                 #     enum_key = re.search(r"/([^/]+)$", value['allOf'][0]['$ref']).group(1)
                 #     item["enumEnum"] = definitions[enum_key]["enum"]

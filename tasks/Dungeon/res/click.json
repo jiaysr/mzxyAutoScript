@@ -1,0 +1,164 @@
+[
+  {
+    "itemName": "shayu_outer_entry",
+    "roiFront": "846,515,27,26",
+    "roiBack": "846,515,27,26",
+    "description": "牧野小地图（视口移到右上角）-沙狱外入口"
+  },
+  {
+    "itemName": "diyuling_outer_entry",
+    "roiFront": "800,500,27,26",
+    "roiBack": "800,500,27,26",
+    "description": "万剑冢小地图（视口移到右下角）-帝玉岭外入口"
+  },
+  {
+    "itemName": "shayu_healer_npc",
+    "roiFront": "501,319,24,23",
+    "roiBack": "501,319,24,23",
+    "description": "沙狱外小地图（视口移到左下角）-万事通位置"
+  },
+  {
+    "itemName": "diyuling_healer_npc",
+    "roiFront": "590,297,28,27",
+    "roiBack": "590,297,28,27",
+    "description": "帝玉岭外小地图（视口移到左下角）-万事通位置"
+  },
+  {
+    "itemName": "diyuling_solo_entry",
+    "roiFront": "538,358,32,21",
+    "roiBack": "538,358,32,21",
+    "description": "帝玉岭外小地图（视口移到左下角）-帝玉岭[单人]入口"
+  },
+  {
+    "itemName": "diyuling_multi_entry",
+    "roiFront": "645,353,32,21",
+    "roiBack": "645,353,32,21",
+    "description": "帝玉岭外小地图（视口移到左下角）-帝玉岭[多人]入口"
+  },
+  {
+    "itemName": "diyuling_solo_boss1",
+    "roiFront": "460,333,2,2",
+    "roiBack": "460,333,2,2",
+    "description": "帝玉岭[单人]小地图（视口移到左下角）-沙王位置 461,334"
+  },
+  {
+    "itemName": "diyuling_solo_boss2",
+    "roiFront": "598,270,2,2",
+    "roiBack": "598,270,2,2",
+    "description": "帝玉岭[单人]小地图（视口移到左下角）-幽灵位置 599,271"
+  },
+  {
+    "itemName": "diyuling_solo_exit",
+    "roiFront": "619,227,32,21",
+    "roiBack": "619,227,32,21",
+    "description": "帝玉岭[单人]小地图（视口移到左下角）-离开副本入口（多人共用）"
+  },
+  {
+    "itemName": "liuli_healer_npc",
+    "roiFront": "719,526,31,20",
+    "roiBack": "719,526,31,20",
+    "description": "忘川小地图（视口移到左下角）-万事通位置"
+  },
+  {
+    "itemName": "liuli_entry",
+    "roiFront": "661,572,31,20",
+    "roiBack": "661,572,31,20",
+    "description": "忘川小地图（视口移到左下角）-琉璃幻境副本入口"
+  },
+  {
+    "itemName": "liuli_boss1",
+    "roiFront": "464,234,2,2",
+    "roiBack": "464,234,2,2",
+    "description": "琉璃幻境[副本]小地图（视口移到左下角）-阴阳脸位置 465,235"
+  },
+  {
+    "itemName": "liuli_boss2",
+    "roiFront": "483,537,2,2",
+    "roiBack": "483,537,2,2",
+    "description": "琉璃幻境[副本]小地图（视口移到左下角）-逍遥愁位置 484,538"
+  },
+  {
+    "itemName": "liuli_boss3",
+    "roiFront": "729,420,2,2",
+    "roiBack": "729,420,2,2",
+    "description": "琉璃幻境[副本]小地图（视口移到左下角）-梦魇兽位置 730,421"
+  },
+  {
+    "itemName": "liuli_boss4",
+    "roiFront": "660,175,2,2",
+    "roiBack": "660,175,2,2",
+    "description": "琉璃幻境[副本]小地图（视口移到左下角）-守墓人位置 661,176"
+  },
+  {
+    "itemName": "liuli_exit",
+    "roiFront": "726,115,30,28",
+    "roiBack": "726,115,30,28",
+    "description": "琉璃幻境[副本]小地图（视口移到左下角）-离开副本入口"
+  },
+  {
+    "itemName": "shayu_solo_entry",
+    "roiFront": "440,372,27,28",
+    "roiBack": "440,372,27,28",
+    "description": "沙狱外小地图（视口移到左下角）-沙狱[单人]副本入口"
+  },
+  {
+    "itemName": "shayu_solo_boss1",
+    "roiFront": "446,322,2,2",
+    "roiBack": "446,322,2,2",
+    "description": "沙狱[单人]小地图（视口移到左上角）-沙灵神位置 447,323"
+  },
+  {
+    "itemName": "shayu_solo_boss2",
+    "roiFront": "668,453,2,2",
+    "roiBack": "668,453,2,2",
+    "description": "沙狱[单人]小地图（视口移到左上角）-舞娘位置 669,454"
+  },
+  {
+    "itemName": "shayu_solo_exit",
+    "roiFront": "649,232,27,28",
+    "roiBack": "649,232,27,28",
+    "description": "沙狱[单人]小地图（视口移到左上角）-离开副本入口"
+  },
+  {
+    "itemName": "shayu_multi_entry",
+    "roiFront": "479,400,28,30",
+    "roiBack": "479,400,28,30",
+    "description": "沙狱外小地图（视口移到左下角）-沙狱[多人]副本入口"
+  },
+  {
+    "itemName": "shayu_multi_boss1",
+    "roiFront": "444,335,2,2",
+    "roiBack": "444,335,2,2",
+    "description": "沙狱[多人]小地图（视口移到左上角）-沙灵神位置 445,336"
+  },
+  {
+    "itemName": "shayu_multi_boss2",
+    "roiFront": "668,453,2,2",
+    "roiBack": "668,453,2,2",
+    "description": "沙狱[多人]小地图（视口移到左上角）-舞娘位置 669,454"
+  },
+  {
+    "itemName": "shayu_multi_exit",
+    "roiFront": "649,232,27,28",
+    "roiBack": "649,232,27,28",
+    "description": "沙狱[多人]小地图（视口移到左上角）-离开副本入口"
+  },
+  {
+    "itemName": "dungeon_finish_close",
+    "roiFront": "944,293,38,41",
+    "roiBack": "944,293,38,41",
+    "description": "副本完成弹窗-关闭X"
+  },
+  {
+    "itemName": "item_3",
+    "roiFront": "944,293,38,41",
+    "roiBack": "944,293,38,41",
+    "description": "治疗成功关闭位置"
+  },
+  {
+    "itemName": "item_4",
+    "roiFront": "944,268,38,41",
+    "roiBack": "944,268,38,41",
+    "description": "治疗失败关闭位置"
+  }
+]
