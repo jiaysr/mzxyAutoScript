@@ -115,5 +115,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "副本完成-你将在1分钟以后被传出副本"
+  },
+  {
+    "itemName": "dungeon_finish_suffix",
+    "imageName": "res_dungeon_finish_suffix.png",
+    "roiFront": "670,322,138,44",
+    "roiBack": "430,300,440,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "副本完成弹窗-固定后缀（覆盖1分钟/30秒/15秒）"
   }
 ]

@@ -408,6 +408,8 @@ class DungeonBase(GameUi, DungeonAssets):
     DUNGEON_WALK_TIMEOUT = 90
     # 忘川/琉璃等大地图，小地图视口需要拖更多次才能到角落（默认 4 次不够）
     DUNGEON_PAN_MAX_DRAGS = 10
+    # 完成弹窗倒计时：1分钟/30秒/15秒，之后游戏自动把角色传出副本
+    DUNGEON_AUTO_LEAVE_TIMEOUT = 70
     # 指定目标连续几次没锁到就判定被击杀（用户规则）
     DUNGEON_FIGHT_LOCK_SWITCH = 5
     DUNGEON_FIGHT_TIMEOUT = 180
@@ -487,12 +489,25 @@ class DungeonBase(GameUi, DungeonAssets):
                 self.device.sleep(0.5)
         return False
 
-    def dungeon_finish_detected(self, image=None) -> bool:
-        """是否出现「你将在1分钟以后被传出副本」完成弹窗"""
+    def dungeon_finish_visible(self, image=None) -> bool:
+        """
+        副本完成弹窗是否可见。
+
+        弹窗文案会随倒计时变化（你将在1分钟/30秒/15秒以后被传出副本），
+        整句模板只认 1 分钟版，所以再匹配固定后缀「被传出副本」。
+        """
         if image is None:
             self.screenshot()
             image = self.device.image
-        return self.I_DUNGEON_FINISH_POPUP.match(image)
+        return (self.I_DUNGEON_FINISH_POPUP.match(image)
+                or self.I_DUNGEON_FINISH_SUFFIX.match(image))
+
+    def dungeon_finish_detected(self, image=None) -> bool:
+        """是否出现副本完成弹窗（1分钟/30秒/15秒任一倒计时）"""
+        if image is None:
+            self.screenshot()
+            image = self.device.image
+        return self.dungeon_finish_visible(image)
 
     # Boss 击杀奖励弹窗（沙狱[多人]沙灵神等）；子类覆盖这两个规则
     def dungeon_boss_reward_rule(self):
@@ -526,16 +541,47 @@ class DungeonBase(GameUi, DungeonAssets):
         return not self.dungeon_boss_reward_visible()
 
     def dungeon_close_finish(self) -> bool:
-        """关闭完成弹窗（固定位置绿 X）"""
+        """关闭完成弹窗（倒计时文案任意版本，固定位置绿 X）"""
         for _ in range(5):
-            self.screenshot()
-            if not self.appear(self.I_DUNGEON_FINISH_POPUP):
+            image = self.screenshot()
+            if not self.dungeon_finish_visible(image):
                 return True
             x, y = self.C_DUNGEON_FINISH_CLOSE.coord()
             self.device.click(x=x, y=y, control_name=self.C_DUNGEON_FINISH_CLOSE.name)
             self.device.click_record_clear()
             self.device.sleep(0.4)
-        return not self.appear(self.I_DUNGEON_FINISH_POPUP)
+        return not self.dungeon_finish_visible(self.screenshot())
+
+    def dungeon_close_result_popups(self) -> bool:
+        """
+        关闭副本结算弹窗：完成弹窗在上，Boss 奖励弹窗可能同时叠在下面。
+
+        只关完成弹窗会让奖励弹窗留在最上层挡住小地图，所以两个都要关；
+        没有对应规则/弹窗时是 no-op。
+        """
+        finished = self.dungeon_close_finish()
+        rewarded = self.dungeon_close_boss_reward()
+        return finished and rewarded
+
+    def dungeon_wait_auto_leave(self, dungeon_map: str, timeout: int = None) -> bool:
+        """
+        完成弹窗倒计时结束后游戏会自动传出副本，等地图名变化。
+
+        只作为手动出口失败后的兜底，避免已完成的一局被当成失败。
+        """
+        timeout = timeout if timeout is not None else self.DUNGEON_AUTO_LEAVE_TIMEOUT
+        timer = Timer(timeout).start()
+        location = None
+        while not timer.reached():
+            self.device.stuck_record_clear()
+            location = self.map_current_location()
+            if location and not self.map_name_match(location[0], dungeon_map):
+                logger.info(f'Auto left dungeon [{dungeon_map}], now {location}')
+                self.ui_reset_current_page()
+                return True
+            self.device.sleep(1)
+        logger.warning(f'Wait auto leave [{dungeon_map}] timeout, last {location}')
+        return False
 
     def _dungeon_battle_stop(self) -> bool:
         """战斗停止条件：完成弹窗 / 目标丢失 / 目标换了 / 超时"""
@@ -545,7 +591,7 @@ class DungeonBase(GameUi, DungeonAssets):
         image = self.device.image if self.exist_image() else None
         if image is None:
             return False
-        if self.I_DUNGEON_FINISH_POPUP.match(image):
+        if self.dungeon_finish_visible(image):
             logger.info('Dungeon finish popup appeared while fighting')
             return True
         if self.dungeon_boss_reward_visible(image=image):

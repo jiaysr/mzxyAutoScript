@@ -94,6 +94,8 @@ class DungeonAssets:
 	I_DUNGEON_HEAL_FAILURE = RuleImage(roi_front=(428,317,360,53), roi_back=(420,300,436,104), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_heal_failure.png")
 	# 副本完成-你将在1分钟以后被传出副本 
 	I_DUNGEON_FINISH_POPUP = RuleImage(roi_front=(440,322,400,44), roi_back=(300,290,680,120), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_finish_popup.png")
+	# 副本完成弹窗-固定后缀（覆盖1分钟/30秒/15秒） 
+	I_DUNGEON_FINISH_SUFFIX = RuleImage(roi_front=(670,322,138,44), roi_back=(430,300,440,90), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_finish_suffix.png")
 
 
 	# Ocr Rule Assets

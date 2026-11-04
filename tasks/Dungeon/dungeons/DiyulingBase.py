@@ -55,6 +55,8 @@ class DiyulingBase(DungeonBase):
                 logger.info('Dungeon finished before next boss')
                 finished = True
                 break
+            # 上一个 Boss 的奖励弹窗可能延迟出现，先清掉再移动
+            self.dungeon_close_boss_reward()
             click_rule = getattr(self, f'C_{click_name.upper()}')
             if not self.dungeon_minimap_walk('bottom_left', click_rule,
                                              self.MAP_NAME, position,
@@ -75,17 +77,19 @@ class DiyulingBase(DungeonBase):
         if not finished and self.dungeon_finish_detected():
             finished = True
         if finished:
-            self.dungeon_close_finish()
+            self.dungeon_close_result_popups()
 
         exit_rule = getattr(self, f'C_{self.EXIT_CLICK_NAME.upper()}')
         if not self.dungeon_minimap_walk('bottom_left', exit_rule,
                                          self.EXIT_MAP, self.EXIT_POSITION):
-            if self.dungeon_finish_detected():
-                self.dungeon_close_finish()
-                if not self.dungeon_minimap_walk('bottom_left', exit_rule,
-                                                 self.EXIT_MAP, self.EXIT_POSITION):
-                    return False
-            else:
+            # 完成/奖励弹窗挡住小地图时，先关弹窗再重试一次
+            self.dungeon_close_result_popups()
+            if not self.dungeon_minimap_walk('bottom_left', exit_rule,
+                                             self.EXIT_MAP, self.EXIT_POSITION):
+                # 完成局的倒计时结束后游戏会自动传出副本
+                if finished and self.dungeon_wait_auto_leave(self.MAP_NAME):
+                    logger.info(f'[{self.name}] completed one run (auto leave)')
+                    return True
                 return False
 
         logger.info(f'[{self.name}] completed one run')
