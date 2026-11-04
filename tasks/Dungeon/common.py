@@ -31,10 +31,12 @@ from tasks.GameUi.pages.page import page_activity_dungeon, page_main
 
 
 class DungeonBase(GameUi, DungeonAssets):
-    """副本通用基类：具体副本继承它并实现 run()"""
+    """副本通用基类：具体副本继承它并实现 run_once()"""
 
     # 副本名（子类覆盖，仅用于日志/提示）
     name: str = '副本'
+    # 目标名 OCR 形近字别名（子类按副本覆盖）：{游戏名: (常见误读, ...)}
+    BOSS_NAME_ALIASES: dict = {}
 
     # 左侧列表扫描：3 屏拿全（首屏 + 两次滚动），每屏滚约 3~4 行
     DUNGEON_SCROLL_START = (300, 520)
@@ -405,6 +407,8 @@ class DungeonBase(GameUi, DungeonAssets):
 
     # ---------------------------------------------------------------- 副本内通用
     DUNGEON_WALK_TOLERANCE = 5
+    # Boss 点常贴地图边缘，自动寻路会被碰撞挡在附近，允许离目标稍远一点
+    DUNGEON_BOSS_WALK_TOLERANCE = 20
     DUNGEON_WALK_TIMEOUT = 90
     # 忘川/琉璃等大地图，小地图视口需要拖更多次才能到角落（默认 4 次不够）
     DUNGEON_PAN_MAX_DRAGS = 10
@@ -413,6 +417,8 @@ class DungeonBase(GameUi, DungeonAssets):
     # 指定目标连续几次没锁到就判定被击杀（用户规则）
     DUNGEON_FIGHT_LOCK_SWITCH = 5
     DUNGEON_FIGHT_TIMEOUT = 180
+    # 战斗期间轮询地图名，离开副本地图即死亡
+    DUNGEON_MAP_CHECK_INTERVAL = 3
 
     def dungeon_wait_location(self, name: str, position: tuple = None,
                               tolerance: int = None, timeout: int = None,
@@ -441,6 +447,23 @@ class DungeonBase(GameUi, DungeonAssets):
         logger.warning(f'Wait location [{name}] {position} timeout, last {location}')
         return False
 
+    def dungeon_click_minimap_target(self, corner: str, click_rule) -> bool:
+        """打开小地图、平移到指定角落、点击目标点，然后关掉小地图"""
+        if not self.map_open_minimap():
+            return False
+        try:
+            if not self.map_pan_to_corner(corner,
+                                           max_drags=self.DUNGEON_PAN_MAX_DRAGS):
+                # 大地图的四边箭头不一定可靠，视口已正确时继续点击
+                logger.warning(f'Minimap pan to {corner} failed, click target anyway')
+            logger.info(f'Click minimap target {click_rule.roi_front}')
+            self.click(click_rule)
+            self.device.click_record_clear()
+            self.device.sleep(0.5)
+        finally:
+            self.map_close_minimap()
+        return True
+
     def dungeon_minimap_walk(self, corner: str, click_rule, target_map: str,
                              position: tuple = None, tolerance: int = None,
                              timeout: int = None, abort_on_leave: bool = False,
@@ -458,35 +481,116 @@ class DungeonBase(GameUi, DungeonAssets):
         logger.hr(f'[{self.name}] 前往 {target_map} {position or ""}')
         tolerance = tolerance if tolerance is not None else self.DUNGEON_WALK_TOLERANCE
         location = self.map_current_location()
-        if (location and self.map_name_match(location[0], target_map)
-                and position is not None
-                and abs(location[1] - position[0]) <= tolerance
-                and abs(location[2] - position[1]) <= tolerance):
-            logger.info('Already at target position')
-            return True
+        if location and self.map_name_match(location[0], target_map):
+            if position is None:
+                logger.info(f'Already in [{target_map}]')
+                return True
+            if (abs(location[1] - position[0]) <= tolerance
+                    and abs(location[2] - position[1]) <= tolerance):
+                logger.info('Already at target position')
+                return True
         if abort_on_leave:
             self.dungeon_check_in_map(target_map)
 
         for attempt in range(retries + 1):
-            if not self.map_open_minimap():
+            if not self.dungeon_click_minimap_target(corner, click_rule):
                 return False
-            try:
-                if not self.map_pan_to_corner(corner,
-                                               max_drags=self.DUNGEON_PAN_MAX_DRAGS):
-                    # 大地图的四边箭头不一定可靠，视口已正确时继续点击
-                    logger.warning(f'Minimap pan to {corner} failed, click target anyway')
-                logger.info(f'Click minimap target {click_rule.roi_front}')
-                self.click(click_rule)
-                self.device.click_record_clear()
-                self.device.sleep(0.5)
-            finally:
-                self.map_close_minimap()
             if self.dungeon_wait_location(target_map, position, tolerance, timeout,
                                           abort_on_leave=abort_on_leave):
                 return True
             if attempt < retries:
                 logger.warning(f'Walk to [{target_map}] failed, retry {attempt + 1}/{retries}')
                 self.device.sleep(0.5)
+        return False
+
+    def _dungeon_target_names(self, target_name) -> list:
+        """展开任务级目标别名：梦魇兽 -> [梦魇兽, 梦魔兽]"""
+        names = self._target_name_list(target_name)
+        aliases = getattr(self, 'BOSS_NAME_ALIASES', {}) or {}
+        result = []
+        for name in names:
+            result.append(name)
+            result.extend(aliases.get(name, ()))
+        return result
+
+    def dungeon_try_lock_target(self, targets: list, image=None) -> bool:
+        """寻路途中轻量尝试锁敌：已锁且名字匹配返回 True，否则点一次「目标」切换"""
+        if image is None:
+            image = self.screenshot()
+        if self.ui_target_attackable(image):
+            name = self.ui_target_name()
+            if name and any(self.ocr_name_match(name, expected) for expected in targets):
+                return True
+        if not self.ui_lock_target():
+            self.ui_close_menu()
+            if not self.ui_lock_target():
+                return False
+        self.device.sleep(self.TARGET_LOCK_SWITCH_INTERVAL)
+        image = self.screenshot()
+        if not self.ui_target_attackable(image):
+            return False
+        name = self.ui_target_name()
+        return bool(name) and any(self.ocr_name_match(name, expected)
+                                  for expected in targets)
+
+    def dungeon_walk_to_boss(self, boss_name: str, click_rule, dungeon_map: str,
+                             position: tuple = None, corner: str = 'bottom_left',
+                             tolerance: int = None, timeout: int = None,
+                             retries: int = 1) -> bool:
+        """
+        点击小地图 Boss 点后一边寻路一边检测目标。
+
+        识别到目标（含任务级别名）就立即返回，不再等坐标完全到达；走到目标
+        附近也返回，交给 dungeon_fight_boss 锁敌开打。全程轮询地图名，离开
+        副本地图按死亡未通关处理。
+        """
+        logger.hr(f'[{self.name}] 前往 {boss_name} {position or ""}')
+        tolerance = tolerance if tolerance is not None else self.DUNGEON_BOSS_WALK_TOLERANCE
+        timeout = timeout if timeout is not None else self.DUNGEON_WALK_TIMEOUT
+        targets = self._dungeon_target_names(boss_name)
+        self.dungeon_check_in_map(dungeon_map)
+        self.ui_close_menu()
+
+        location = self.map_current_location()
+        if (location and self.map_name_match(location[0], dungeon_map)
+                and position is not None
+                and abs(location[1] - position[0]) <= tolerance
+                and abs(location[2] - position[1]) <= tolerance):
+            logger.info(f'Already near [{boss_name}]')
+            return True
+
+        for attempt in range(retries + 1):
+            if not self.dungeon_click_minimap_target(corner, click_rule):
+                return False
+            timer = Timer(timeout).start()
+            while not timer.reached():
+                self.device.stuck_record_clear()
+                location = self.map_current_location()
+                if location and not self.map_name_match(location[0], dungeon_map):
+                    logger.warning(f'Left dungeon map [{dungeon_map}], now {location}')
+                    self.dungeon_notify_uncleared()
+                image = self.screenshot()
+                if self.dungeon_finish_visible(image):
+                    logger.info('Dungeon finish popup appeared while walking')
+                    return True
+                if self.dungeon_boss_reward_visible(image=image):
+                    logger.info('Boss reward popup appeared while walking, close it')
+                    self.dungeon_close_boss_reward()
+                    self.device.sleep(0.5)
+                    continue
+                if self.dungeon_try_lock_target(targets, image=image):
+                    logger.info(f'Target [{boss_name}] locked while walking')
+                    return True
+                if (position is not None and location
+                        and self.map_name_match(location[0], dungeon_map)
+                        and abs(location[1] - position[0]) <= tolerance
+                        and abs(location[2] - position[1]) <= tolerance):
+                    logger.info(f'Arrived near [{boss_name}] {location[1]},{location[2]}')
+                    return True
+                self.device.sleep(0.5)
+            if attempt < retries:
+                logger.warning(f'Walk to [{boss_name}] failed, retry {attempt + 1}/{retries}')
+        logger.warning(f'Walk to [{boss_name}] timeout, last {location}')
         return False
 
     def dungeon_finish_visible(self, image=None) -> bool:
@@ -597,6 +701,11 @@ class DungeonBase(GameUi, DungeonAssets):
         if self.dungeon_boss_reward_visible(image=image):
             logger.info('Boss reward popup appeared while fighting')
             return True
+        # 完成/奖励弹窗优先，避免完成后的自动传出被误判成死亡
+        if (self._dungeon_fight_map
+                and time.time() >= self._dungeon_next_map_check):
+            self._dungeon_next_map_check = time.time() + self.DUNGEON_MAP_CHECK_INTERVAL
+            self.dungeon_check_in_map(self._dungeon_fight_map)
         if not self.ui_target_locked(image=image):
             logger.info('Target lost, stop attacking')
             return True
@@ -604,24 +713,32 @@ class DungeonBase(GameUi, DungeonAssets):
             logger.info('Target action changed, stop attacking')
             return True
         name = self.ui_target_name()
-        if name and not self.ocr_name_match(name, self._dungeon_fight_target):
+        if name and not any(self.ocr_name_match(name, expected)
+                            for expected in self._dungeon_fight_target):
             logger.info(f'Target changed to [{name}], stop attacking')
             return True
         return False
 
-    def dungeon_fight_boss(self, target_name: str, timeout: int = None) -> str:
+    def dungeon_fight_boss(self, target_name, timeout: int = None,
+                           map_name: str = None) -> str:
         """
         攻击指定 Boss 直到它被击杀或完成弹窗出现。
 
         规则：指定目标连续 5 次没锁到，判定目标已被击杀。
+        目标名支持任务级别名，避免稀有字 OCR 误读导致误判。
 
         :return: 'killed' / 'finished' / 'timeout'
         """
         logger.hr(f'[{self.name}] 战斗目标 {target_name}')
+        targets = self._dungeon_target_names(target_name)
+        if len(targets) > 1:
+            logger.attr('Target aliases', ', '.join(targets))
         timeout = timeout if timeout is not None else self.DUNGEON_FIGHT_TIMEOUT
         deadline = time.time() + timeout
-        self._dungeon_fight_target = target_name
+        self._dungeon_fight_target = targets
         self._dungeon_fight_deadline = deadline
+        self._dungeon_fight_map = map_name
+        self._dungeon_next_map_check = time.time() + self.DUNGEON_MAP_CHECK_INTERVAL
         include_attack = self.battle_use_normal_attack()
         while True:
             if self.dungeon_finish_detected():
@@ -635,8 +752,11 @@ class DungeonBase(GameUi, DungeonAssets):
                 logger.warning(f'Fight timeout for [{target_name}]')
                 return 'timeout'
             if not self.ui_ensure_target_locked(
-                    target_name=target_name, action=ACTION_ATTACK,
+                    target_name=targets, action=ACTION_ATTACK,
                     max_switch=self.DUNGEON_FIGHT_LOCK_SWITCH, timeout=15):
+                # 锁不到可能是死亡离场，先确认地图，再按击杀处理
+                if self._dungeon_fight_map:
+                    self.dungeon_check_in_map(self._dungeon_fight_map)
                 logger.info(f'[{target_name}] not locked '
                             f'{self.DUNGEON_FIGHT_LOCK_SWITCH} times, assume killed')
                 return 'killed'

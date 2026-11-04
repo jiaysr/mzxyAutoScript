@@ -3,7 +3,7 @@
 琉璃幻境
 
 入口在忘川（无独立外地图）：忘川万事通 / 副本入口 / 副本内全部小地图操作都在视口左下角。
-副本名：琉璃幻境[副本]，初始 27,264，四个 Boss，出口回忘川 311,453。
+副本名：琉璃幻境[副本]，初始 27,264，四个 Boss，出口回忘川（只判地图）。
 """
 from tasks.Dungeon.dungeons.DiyulingBase import DiyulingBase
 
@@ -12,11 +12,12 @@ class LiuliHuanjing(DiyulingBase):
     name = '琉璃幻境'
     FIELD = 'liuli_huanjing'
     MAP_NAME = '琉璃幻境[副本]'
+    # 「魇」是生僻字，OCR 经常读成「魔」
+    BOSS_NAME_ALIASES = {'梦魇兽': ('梦魔兽',)}
     ENTRY_CLICK_NAME = 'liuli_entry'
     ENTRY_POSITION = (27, 264)
     EXIT_MAP = '忘川'
     EXIT_CLICK_NAME = 'liuli_exit'
-    EXIT_POSITION = (311, 453)
     BOSSES = (
         ('阴阳脸', 'liuli_yinyanglian', (118, 101)),
         ('逍遥愁', 'liuli_xiaoyaochou', (131, 280)),

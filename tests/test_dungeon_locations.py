@@ -33,9 +33,7 @@ def test_unrecorded_outer_entries():
 def test_diyuling_locations():
     assert DiyulingSolo.MAP_NAME == '帝玉岭[单人]'
     assert DiyulingSolo.ENTRY_POSITION == (112, 223)
-    assert DiyulingSolo.EXIT_POSITION == (176, 166)
     assert DiyulingMulti.MAP_NAME == '帝玉岭[多人]'
-    assert DiyulingMulti.EXIT_POSITION == (223, 166)
     assert [boss[0] for boss in DiyulingSolo.BOSSES] == ['沙王', '幽灵']
 
 
@@ -43,7 +41,6 @@ def test_liuli_locations():
     assert LiuliHuanjing.MAP_NAME == '琉璃幻境[副本]'
     assert LiuliHuanjing.ENTRY_POSITION == (27, 264)
     assert LiuliHuanjing.EXIT_MAP == '忘川'
-    assert LiuliHuanjing.EXIT_POSITION == (311, 453)
     assert [boss[0] for boss in LiuliHuanjing.BOSSES] == [
         '阴阳脸', '逍遥愁', '梦魇兽', '守墓人']
 

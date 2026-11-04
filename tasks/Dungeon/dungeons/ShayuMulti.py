@@ -8,7 +8,7 @@ Boss：沙灵神 (107,137) -> 舞娘 (240,205)，两个都从小地图视口左�
 特殊：沙灵神击杀会弹「恭喜您成功击败沙灵神获得以下奖励」，复用 WorldBoss 的
       I_BOSS_REWARD + C_BOSS_REWARD_CLOSE 关闭
 完成：出现「你将在1分钟以后被传出副本」弹窗 -> 关闭 -> 左上角出口 (649,232,27,28)
-      回到沙狱外 149,197 视为完成 1 次
+      回到沙狱外（只判地图，不校验落点）视为完成 1 次
 """
 from module.logger import logger
 from tasks.Dungeon.common import DungeonBase
@@ -21,7 +21,6 @@ class ShayuMulti(DungeonBase):
     MAP_NAME = '沙狱[多人]'
     ENTRY_POSITION = (206, 107)
     EXIT_MAP = '沙狱外'
-    EXIT_POSITION = (149, 197)
     # (Boss 名, 小地图点击规则, Boss 坐标)
     BOSSES = (
         ('沙灵神', 'shayu_multi_shalingshen', (107, 137)),
@@ -63,12 +62,11 @@ class ShayuMulti(DungeonBase):
             # 上一个 Boss 的奖励弹窗可能延迟出现，先清掉再移动
             self.dungeon_close_boss_reward()
             click_rule = getattr(self, f'C_{click_name.upper()}')
-            if not self.dungeon_minimap_walk('top_left', click_rule,
-                                             self.MAP_NAME, position,
-                                             abort_on_leave=True):
+            if not self.dungeon_walk_to_boss(boss_name, click_rule, self.MAP_NAME,
+                                             position, 'top_left'):
                 logger.warning(f'Unable to walk to boss [{boss_name}]')
                 return False
-            result = self.dungeon_fight_boss(boss_name)
+            result = self.dungeon_fight_boss(boss_name, map_name=self.MAP_NAME)
             self.dungeon_check_in_map(self.MAP_NAME)
             logger.info(f'Boss [{boss_name}] result: {result}')
             if result == 'finished':
@@ -84,13 +82,13 @@ class ShayuMulti(DungeonBase):
         if finished:
             self.dungeon_close_result_popups()
 
-        # 离开副本：小地图左上角出口 -> 沙狱外 149,197
+        # 离开副本：小地图左上角出口 -> 沙狱外
         if not self.dungeon_minimap_walk('top_left', self.C_SHAYU_MULTI_EXIT,
-                                         self.EXIT_MAP, self.EXIT_POSITION):
+                                         self.EXIT_MAP):
             # 完成/奖励弹窗挡住小地图时，先关弹窗再重试一次
             self.dungeon_close_result_popups()
             if not self.dungeon_minimap_walk('top_left', self.C_SHAYU_MULTI_EXIT,
-                                             self.EXIT_MAP, self.EXIT_POSITION):
+                                             self.EXIT_MAP):
                 # 完成局的倒计时结束后游戏会自动传出副本
                 if finished and self.dungeon_wait_auto_leave(self.MAP_NAME):
                     logger.info(f'[{self.name}] completed one run (auto leave)')

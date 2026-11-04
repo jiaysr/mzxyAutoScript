@@ -9,7 +9,6 @@ class DiyulingSolo(DiyulingBase):
     MAP_NAME = '帝玉岭[单人]'
     ENTRY_CLICK_NAME = 'diyuling_solo_entry'
     ENTRY_POSITION = (112, 223)
-    EXIT_POSITION = (176, 166)
     BOSSES = (
         ('沙王', 'diyuling_shawang', (115, 160)),
         ('幽灵', 'diyuling_youling', (199, 123)),

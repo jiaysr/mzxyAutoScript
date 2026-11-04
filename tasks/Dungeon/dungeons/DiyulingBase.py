@@ -6,7 +6,7 @@
 - 帝玉岭外：万事通 / 副本入口
 - 副本内：两个 Boss / 出口
 
-单人/多人只有入口点击和出口到达坐标不同，内部点位当前按同一套坐标处理。
+单人/多人只有入口点击不同，内部点位当前按同一套坐标处理；出口只判外地图。
 """
 from module.logger import logger
 from tasks.Dungeon.common import DungeonBase
@@ -19,7 +19,6 @@ class DiyulingBase(DungeonBase):
     ENTRY_POSITION = None
     EXIT_MAP = '帝玉岭外'
     EXIT_CLICK_NAME = 'diyuling_exit'  # 单/多人共用
-    EXIT_POSITION = None
     # (Boss 名, 小地图点击规则, Boss 坐标)
     BOSSES = ()
 
@@ -58,12 +57,11 @@ class DiyulingBase(DungeonBase):
             # 上一个 Boss 的奖励弹窗可能延迟出现，先清掉再移动
             self.dungeon_close_boss_reward()
             click_rule = getattr(self, f'C_{click_name.upper()}')
-            if not self.dungeon_minimap_walk('bottom_left', click_rule,
-                                             self.MAP_NAME, position,
-                                             abort_on_leave=True):
+            if not self.dungeon_walk_to_boss(boss_name, click_rule, self.MAP_NAME,
+                                             position, 'bottom_left'):
                 logger.warning(f'Unable to walk to boss [{boss_name}]')
                 return False
-            result = self.dungeon_fight_boss(boss_name)
+            result = self.dungeon_fight_boss(boss_name, map_name=self.MAP_NAME)
             self.dungeon_check_in_map(self.MAP_NAME)
             logger.info(f'Boss [{boss_name}] result: {result}')
             if result == 'finished':
@@ -80,12 +78,10 @@ class DiyulingBase(DungeonBase):
             self.dungeon_close_result_popups()
 
         exit_rule = getattr(self, f'C_{self.EXIT_CLICK_NAME.upper()}')
-        if not self.dungeon_minimap_walk('bottom_left', exit_rule,
-                                         self.EXIT_MAP, self.EXIT_POSITION):
+        if not self.dungeon_minimap_walk('bottom_left', exit_rule, self.EXIT_MAP):
             # 完成/奖励弹窗挡住小地图时，先关弹窗再重试一次
             self.dungeon_close_result_popups()
-            if not self.dungeon_minimap_walk('bottom_left', exit_rule,
-                                             self.EXIT_MAP, self.EXIT_POSITION):
+            if not self.dungeon_minimap_walk('bottom_left', exit_rule, self.EXIT_MAP):
                 # 完成局的倒计时结束后游戏会自动传出副本
                 if finished and self.dungeon_wait_auto_leave(self.MAP_NAME):
                     logger.info(f'[{self.name}] completed one run (auto leave)')
