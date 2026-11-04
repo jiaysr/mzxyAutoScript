@@ -80,6 +80,10 @@ class ScriptTask(GameUi, WarChariotAssets):
     CHARIOT_BATTLE_MAP_SUFFIX = '盟战车'
     # 连续点「目标」按钮的次数，全都没锁到就移动找目标
     CHARIOT_LOCK_ATTEMPTS = 10
+    # 攻击停止（目标丢失 / 变成交互）后，先点几次「目标」找附近的其它敌人
+    CHARIOT_RELOCK_ATTEMPTS = 3
+    # 移动途中主动点「目标」的最小间隔（秒）
+    CHARIOT_MOVE_LOCK_INTERVAL = 2.0
     # 移动到达容差（坐标单位）
     CHARIOT_MOVE_TOLERANCE = 5
     # 单段移动超时（秒）
@@ -433,8 +437,9 @@ class ScriptTask(GameUi, WarChariotAssets):
 
         1. 等「准备阶段完成，开始战斗」提示后开始行动
         2. 开局两队都停在各自出生点，这时没有目标可锁 —— 先移动到敌方刷新点
-           （移动途中锁到目标立刻停下开打）
-        3. 已锁定可攻击目标：按战斗预设打，直到目标丢失
+           （移动途中每 2s 主动点「目标」找敌人，锁到立刻停下开打）
+        3. 已锁定可攻击目标：按战斗预设打，直到目标丢失；停止后先点「目标」
+           检查附近有没有其它敌人，没有才继续移动/换点
         4. 没锁到：连续点「目标」最多 CHARIOT_LOCK_ATTEMPTS 次（会清点击记录，避免连点保护）
         5. 还是没锁到：在两个刷新点之间来回移动找目标
         6. 离开战车地图或到截止时间立即结束
@@ -494,6 +499,15 @@ class ScriptTask(GameUi, WarChariotAssets):
             if self.ui_target_attackable(image=self.device.image):
                 logger.info('锁定到可攻击目标，开始攻击')
                 self.battle_attack_loop(stop_check=self.chariot_battle_stop_check(deadline))
+                # 先确认是不是本局已结算（弹窗在场时点「目标」无效）
+                result = self.chariot_result()
+                if result:
+                    return result
+                if datetime.now() < deadline and self.in_chariot_map(self.device.image):
+                    # 攻击停止（目标丢失 / 变成交互）后，先点「目标」看看附近还有没有其它敌人
+                    logger.info(f'攻击停止，点「目标」检查附近敌人'
+                                f'（最多 {self.CHARIOT_RELOCK_ATTEMPTS} 次）')
+                    self.chariot_try_lock(attempts=self.CHARIOT_RELOCK_ATTEMPTS)
                 continue
 
             if not reached:
@@ -572,9 +586,31 @@ class ScriptTask(GameUi, WarChariotAssets):
         self.screenshot()
         return self.ui_target_attackable(image=self.device.image)
 
+    def chariot_lock_during_move(self) -> bool:
+        """
+        移动途中点一次「目标」，看看附近有没有可攻击目标
+
+        只点「目标」并校验动作按钮，锁到返回 True，由调用方停止移动开打。
+        点击间隔由 I_TARGET_BUTTON 的 interval 控制，不会一路狂点。
+        """
+        if self.ui_target_attackable(image=self.device.image):
+            return True
+        if not self.appear_then_click(self.I_TARGET_BUTTON,
+                                      action=self.C_TARGET_BUTTON_CLICK,
+                                      interval=self.CHARIOT_MOVE_LOCK_INTERVAL):
+            return False
+        self.device.click_record_clear()
+        # 点完等目标/右下角动作按钮刷新
+        self.device.sleep(0.4)
+        self.screenshot()
+        return self.ui_target_attackable(image=self.device.image)
+
     def chariot_move_until_target(self, x: int, y: int, deadline: datetime) -> str:
         """
         向指定坐标移动，途中锁到可攻击目标立即停下
+
+        移动途中每 CHARIOT_MOVE_LOCK_INTERVAL 秒主动点一次「目标」，避免没锁目标时
+        从敌人旁边走过去（甲板/障碍挡住直线路径时尤其重要）。
 
         :return: 'target' 锁到目标 / 'arrived' 到达 / 'blocked' 走不动或超时
                  / 'left' 离开战车地图 / 'deadline' 到任务截止时间
@@ -586,6 +622,9 @@ class ScriptTask(GameUi, WarChariotAssets):
                 raise ChariotLeftMap
             # map_move_read_pos 刚截过图，直接复用当前帧
             if self.ui_target_attackable(image=self.device.image):
+                raise ChariotTargetFound
+            if self.chariot_lock_during_move():
+                logger.info('移动中点「目标」锁定到可攻击目标')
                 raise ChariotTargetFound
 
         remaining = (deadline - datetime.now()).total_seconds()
