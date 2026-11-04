@@ -23,77 +23,77 @@ class DungeonAssets:
 	C_DIYULING_SOLO_ENTRY = RuleClick(roi_front=(538,358,32,21), roi_back=(538,358,32,21), name="diyuling_solo_entry")
 	# 帝玉岭外小地图（视口移到左下角）-帝玉岭[多人]入口 
 	C_DIYULING_MULTI_ENTRY = RuleClick(roi_front=(645,353,32,21), roi_back=(645,353,32,21), name="diyuling_multi_entry")
-	# 帝玉岭[单人]小地图（视口移到左下角）-沙王位置 461,334 
-	C_DIYULING_SOLO_BOSS1 = RuleClick(roi_front=(460,333,2,2), roi_back=(460,333,2,2), name="diyuling_solo_boss1")
-	# 帝玉岭[单人]小地图（视口移到左下角）-幽灵位置 599,271 
-	C_DIYULING_SOLO_BOSS2 = RuleClick(roi_front=(598,270,2,2), roi_back=(598,270,2,2), name="diyuling_solo_boss2")
-	# 帝玉岭[单人]小地图（视口移到左下角）-离开副本入口（多人共用） 
-	C_DIYULING_SOLO_EXIT = RuleClick(roi_front=(619,227,32,21), roi_back=(619,227,32,21), name="diyuling_solo_exit")
+	# 帝玉岭[单/多人]小地图（视口移到左下角）-沙王位置 461,334 
+	C_DIYULING_SHAWANG = RuleClick(roi_front=(460,333,2,2), roi_back=(460,333,2,2), name="diyuling_shawang")
+	# 帝玉岭[单/多人]小地图（视口移到左下角）-幽灵位置 599,271 
+	C_DIYULING_YOULING = RuleClick(roi_front=(598,270,2,2), roi_back=(598,270,2,2), name="diyuling_youling")
+	# 帝玉岭[单/多人]小地图（视口移到左下角）-离开副本入口 
+	C_DIYULING_EXIT = RuleClick(roi_front=(619,227,32,21), roi_back=(619,227,32,21), name="diyuling_exit")
 	# 忘川小地图（视口移到左下角）-万事通位置 
 	C_LIULI_HEALER_NPC = RuleClick(roi_front=(719,526,31,20), roi_back=(719,526,31,20), name="liuli_healer_npc")
 	# 忘川小地图（视口移到左下角）-琉璃幻境副本入口 
 	C_LIULI_ENTRY = RuleClick(roi_front=(661,572,31,20), roi_back=(661,572,31,20), name="liuli_entry")
 	# 琉璃幻境[副本]小地图（视口移到左下角）-阴阳脸位置 465,235 
-	C_LIULI_BOSS1 = RuleClick(roi_front=(464,234,2,2), roi_back=(464,234,2,2), name="liuli_boss1")
+	C_LIULI_YINYANGLIAN = RuleClick(roi_front=(464,234,2,2), roi_back=(464,234,2,2), name="liuli_yinyanglian")
 	# 琉璃幻境[副本]小地图（视口移到左下角）-逍遥愁位置 484,538 
-	C_LIULI_BOSS2 = RuleClick(roi_front=(483,537,2,2), roi_back=(483,537,2,2), name="liuli_boss2")
+	C_LIULI_XIAOYAOCHOU = RuleClick(roi_front=(483,537,2,2), roi_back=(483,537,2,2), name="liuli_xiaoyaochou")
 	# 琉璃幻境[副本]小地图（视口移到左下角）-梦魇兽位置 730,421 
-	C_LIULI_BOSS3 = RuleClick(roi_front=(729,420,2,2), roi_back=(729,420,2,2), name="liuli_boss3")
+	C_LIULI_MENGYANSHOU = RuleClick(roi_front=(729,420,2,2), roi_back=(729,420,2,2), name="liuli_mengyanshou")
 	# 琉璃幻境[副本]小地图（视口移到左下角）-守墓人位置 661,176 
-	C_LIULI_BOSS4 = RuleClick(roi_front=(660,175,2,2), roi_back=(660,175,2,2), name="liuli_boss4")
+	C_LIULI_SHOUMUREN = RuleClick(roi_front=(660,175,2,2), roi_back=(660,175,2,2), name="liuli_shoumuren")
 	# 琉璃幻境[副本]小地图（视口移到左下角）-离开副本入口 
 	C_LIULI_EXIT = RuleClick(roi_front=(726,115,30,28), roi_back=(726,115,30,28), name="liuli_exit")
 	# 沙狱外小地图（视口移到左下角）-沙狱[单人]副本入口 
 	C_SHAYU_SOLO_ENTRY = RuleClick(roi_front=(440,372,27,28), roi_back=(440,372,27,28), name="shayu_solo_entry")
 	# 沙狱[单人]小地图（视口移到左上角）-沙灵神位置 447,323 
-	C_SHAYU_SOLO_BOSS1 = RuleClick(roi_front=(446,322,2,2), roi_back=(446,322,2,2), name="shayu_solo_boss1")
+	C_SHAYU_SOLO_SHALINGSHEN = RuleClick(roi_front=(446,322,2,2), roi_back=(446,322,2,2), name="shayu_solo_shalingshen")
 	# 沙狱[单人]小地图（视口移到左上角）-舞娘位置 669,454 
-	C_SHAYU_SOLO_BOSS2 = RuleClick(roi_front=(668,453,2,2), roi_back=(668,453,2,2), name="shayu_solo_boss2")
+	C_SHAYU_SOLO_WUNIANG = RuleClick(roi_front=(668,453,2,2), roi_back=(668,453,2,2), name="shayu_solo_wuniang")
 	# 沙狱[单人]小地图（视口移到左上角）-离开副本入口 
 	C_SHAYU_SOLO_EXIT = RuleClick(roi_front=(649,232,27,28), roi_back=(649,232,27,28), name="shayu_solo_exit")
 	# 沙狱外小地图（视口移到左下角）-沙狱[多人]副本入口 
 	C_SHAYU_MULTI_ENTRY = RuleClick(roi_front=(479,400,28,30), roi_back=(479,400,28,30), name="shayu_multi_entry")
 	# 沙狱[多人]小地图（视口移到左上角）-沙灵神位置 445,336 
-	C_SHAYU_MULTI_BOSS1 = RuleClick(roi_front=(444,335,2,2), roi_back=(444,335,2,2), name="shayu_multi_boss1")
+	C_SHAYU_MULTI_SHALINGSHEN = RuleClick(roi_front=(444,335,2,2), roi_back=(444,335,2,2), name="shayu_multi_shalingshen")
 	# 沙狱[多人]小地图（视口移到左上角）-舞娘位置 669,454 
-	C_SHAYU_MULTI_BOSS2 = RuleClick(roi_front=(668,453,2,2), roi_back=(668,453,2,2), name="shayu_multi_boss2")
+	C_SHAYU_MULTI_WUNIANG = RuleClick(roi_front=(668,453,2,2), roi_back=(668,453,2,2), name="shayu_multi_wuniang")
 	# 沙狱[多人]小地图（视口移到左上角）-离开副本入口 
 	C_SHAYU_MULTI_EXIT = RuleClick(roi_front=(649,232,27,28), roi_back=(649,232,27,28), name="shayu_multi_exit")
 	# 副本完成弹窗-关闭X 
 	C_DUNGEON_FINISH_CLOSE = RuleClick(roi_front=(944,293,38,41), roi_back=(944,293,38,41), name="dungeon_finish_close")
-	# 治疗成功关闭位置 
-	C_ITEM_3 = RuleClick(roi_front=(944,293,38,41), roi_back=(944,293,38,41), name="item_3")
-	# 治疗失败关闭位置 
-	C_ITEM_4 = RuleClick(roi_front=(944,268,38,41), roi_back=(944,268,38,41), name="item_4")
+	# 治疗成功提示-关闭X 
+	C_DUNGEON_HEAL_SUCCESS_CLOSE = RuleClick(roi_front=(944,293,38,41), roi_back=(944,293,38,41), name="dungeon_heal_success_close")
+	# 治疗失败提示-关闭X 
+	C_DUNGEON_HEAL_FAILURE_CLOSE = RuleClick(roi_front=(944,268,38,41), roi_back=(944,268,38,41), name="dungeon_heal_failure_close")
 
 
 	# Image Rule Assets
-	# 沙狱多人选中特征 
-	I_NEW = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_new.png")
-	# 沙狱单人特征 
-	I_ITEM_2 = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_2.png")
-	# 帝玉岭[多人]特征 
-	I_ITEM_3 = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_3.png")
-	# 帝玉岭[单人]特征 
-	I_ITEM_4 = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_4.png")
-	# 琉璃幻境特征 
-	I_ITEM_5 = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_5.png")
-	# 仙居福地特征 
-	I_ITEM_6 = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_6.png")
-	# 天渊灵岛特征 
-	I_ITEM_7 = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_7.png")
-	# 至尊巅峰特征 
-	I_ITEM_8 = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_8.png")
-	# 重置按钮位置 
-	I_ITEM_9 = RuleImage(roi_front=(897,355,80,40), roi_back=(864,331,134,88), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_9.png")
-	# 万事通npc特征 
-	I_ITEM_10 = RuleImage(roi_front=(601,111,145,79), roi_back=(569,94,206,137), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_10.png")
-	# 治疗成功 
-	I_ITEM_11 = RuleImage(roi_front=(462,333,360,53), roi_back=(420,300,436,104), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_11.png")
-	# 治疗失败 
-	I_ITEM_12 = RuleImage(roi_front=(428,317,360,53), roi_back=(420,300,436,104), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_item_12.png")
+	# 沙狱[多人]-右侧选中特征 
+	I_SHAYU_MULTI_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_shayu_multi_feature.png")
+	# 沙狱[单人]-右侧选中特征 
+	I_SHAYU_SOLO_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_shayu_solo_feature.png")
+	# 帝玉岭[多人]-右侧选中特征 
+	I_DIYULING_MULTI_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_diyuling_multi_feature.png")
+	# 帝玉岭[单人]-右侧选中特征 
+	I_DIYULING_SOLO_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_diyuling_solo_feature.png")
+	# 琉璃幻境-右侧选中特征 
+	I_LIULI_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_liuli_feature.png")
+	# 仙居福地-右侧选中特征 
+	I_XIANJU_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_xianju_feature.png")
+	# 天渊灵岛-右侧选中特征 
+	I_TIANYUAN_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_tianyuan_feature.png")
+	# 至尊巅峰-右侧选中特征 
+	I_ZHIZUN_FEATURE = RuleImage(roi_front=(584,191,199,118), roi_back=(570,179,228,153), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_zhizun_feature.png")
+	# 副本页-重置按钮 
+	I_DUNGEON_RESET_BUTTON = RuleImage(roi_front=(897,355,80,40), roi_back=(864,331,134,88), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_reset_button.png")
+	# 万事通-npc对话框特征 
+	I_DUNGEON_HEALER_DIALOG = RuleImage(roi_front=(601,111,145,79), roi_back=(569,94,206,137), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_healer_dialog.png")
+	# 治疗成功提示 
+	I_DUNGEON_HEAL_SUCCESS = RuleImage(roi_front=(462,333,360,53), roi_back=(420,300,436,104), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_heal_success.png")
+	# 治疗失败提示 
+	I_DUNGEON_HEAL_FAILURE = RuleImage(roi_front=(428,317,360,53), roi_back=(420,300,436,104), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_heal_failure.png")
 	# 副本完成-你将在1分钟以后被传出副本 
-	I_DUNGEON_FINISH = RuleImage(roi_front=(440,322,400,44), roi_back=(300,290,680,120), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_finish.png")
+	I_DUNGEON_FINISH_POPUP = RuleImage(roi_front=(440,322,400,44), roi_back=(300,290,680,120), threshold=0.8, method="Template matching", file="./tasks/Dungeon/res/res_dungeon_finish_popup.png")
 
 
 	# Ocr Rule Assets
@@ -102,11 +102,11 @@ class DungeonAssets:
 	# 副本页-底部「特权X级额外挑战剩余次数：N」 
 	O_DUNGEON_PRIVILEGE_COUNT = RuleOcr(roi=(460,585,420,35), area=(460,585,420,35), mode="Full", method="Default", keyword="", name="dungeon_privilege_count")
 	# 万事通对话框-选项列表（治疗伤势/杂货商店/修理装备） 
-	O_DUNGEON_DIALOG_OPTION = RuleOcr(roi=(280,320,660,200), area=(280,320,660,200), mode="Full", method="Default", keyword="", name="dungeon_dialog_option")
+	O_DUNGEON_HEAL_DIALOG = RuleOcr(roi=(280,320,660,200), area=(280,320,660,200), mode="Full", method="Default", keyword="", name="dungeon_heal_dialog")
 
 
 	# Swipe Rule Assets
-	#  
-	S_NEW = RuleSwipe(roi_front=(182,477,227,46), roi_back=(189,191,221,58), mode="default", name="new")
+	# 副本页-列表向下整段快滑（会跳过中间行，仅留档，不要用于逐行识别） 
+	S_DUNGEON_LIST_SWIPE = RuleSwipe(roi_front=(182,477,227,46), roi_back=(189,191,221,58), mode="default", name="dungeon_list_swipe")
 
 

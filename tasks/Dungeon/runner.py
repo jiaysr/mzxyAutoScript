@@ -5,9 +5,9 @@
 负责「正常次数 -> 重置提交 -> 特权额外次数」的调度，具体动作通过回调注入：
 
 - status()    读取 {"counts": {字段: 剩余次数}, "privilege": 特权剩余次数}
-- select(name) 点击左侧列表选中副本
+- select(name) 点击左侧列表选中副本（只在重置提交前调用）
 - reset()      点击右侧固定位置的「重置」按钮（前提：目标已选中）
-- run_once(field) 完成一次副本挑战（由具体副本实现）
+- run_once(field) 完成一次副本挑战（由具体副本实现，从地图入口进入）
 
 规则（真机行为）：
 1. 打 2 次及以上的副本，跑完一次后列表次数可能不会自动 -1；
@@ -15,6 +15,7 @@
 2. 正常次数用完后才有特权次数：先在目标副本上把剩余正常次数重置到 0，
    再打特权；打完特权次数没 -1 也要重置提交，直到特权次数为 0。
 3. 特权副本处理完后继续按配置顺序打其它副本。
+4. 开局/跑完的次数都只 OCR 列表行，不点击；点击列表只在重置前选行。
 """
 from module.logger import logger
 
@@ -95,7 +96,7 @@ class DungeonRunner:
             if counts.get(field, 0) <= 0:
                 break
             before = counts.get(field, 0)
-            self._select(target)
+            # 跑副本从地图入口进，不依赖副本页选中；选中只在重置时进行
             try:
                 ok = self.run_once(field)
             except DungeonAborted as e:
@@ -162,7 +163,7 @@ class DungeonRunner:
                 continue
 
             before = privilege
-            self._select(target)
+            # 跑副本不需要先在副本页选中，只有重置提交才需要
             try:
                 ok = self.run_once(field)
             except DungeonAborted as e:

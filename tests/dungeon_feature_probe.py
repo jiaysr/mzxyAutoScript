@@ -47,14 +47,14 @@ def main() -> int:
         return 1
 
     features = [
-        (task.I_NEW, '沙狱[多人]'),
-        (task.I_ITEM_2, '沙狱[单人]'),
-        (task.I_ITEM_3, '帝玉岭[多人]'),
-        (task.I_ITEM_4, '帝玉岭[单人]'),
-        (task.I_ITEM_5, '琉璃幻境'),
-        (task.I_ITEM_6, '仙居福地'),
-        (task.I_ITEM_7, '天渊灵岛'),
-        (task.I_ITEM_8, '至尊巅峰'),
+        (task.I_SHAYU_MULTI_FEATURE, '沙狱[多人]'),
+        (task.I_SHAYU_SOLO_FEATURE, '沙狱[单人]'),
+        (task.I_DIYULING_MULTI_FEATURE, '帝玉岭[多人]'),
+        (task.I_DIYULING_SOLO_FEATURE, '帝玉岭[单人]'),
+        (task.I_LIULI_FEATURE, '琉璃幻境'),
+        (task.I_XIANJU_FEATURE, '仙居福地'),
+        (task.I_TIANYUAN_FEATURE, '天渊灵岛'),
+        (task.I_ZHIZUN_FEATURE, '至尊巅峰'),
     ]
 
     if not task.dungeon_open_page():
@@ -91,7 +91,7 @@ def main() -> int:
                 items.append((item.ocr_text, (min(ys) + max(ys)) / 2 + roi[1]))
             row = parse_dungeon_rows(items)
 
-            reset_ready = task.I_ITEM_9.match(image)
+            reset_ready = task.I_DUNGEON_RESET_BUTTON.match(image)
             result.append({
                 'screen': screen,
                 'y': y,

@@ -6,11 +6,13 @@
 DungeonBase，只实现自己的差异，避免每个副本各写一套。
 
 新增副本：
-- 继承 DungeonBase，覆盖 name，实现 run()
-- 「准备主页面 / 回主页面」等直接调用本类方法即可
+- 继承 DungeonBase，覆盖 name/FIELD/MAP_NAME 等，实现 run_once()
+- 「准备主页面 / 外地图 / 治疗修理」等直接调用本类方法即可
 """
-import cv2
 import time
+
+import cv2
+import numpy as np
 
 from module.atom.click import RuleClick
 from module.base.timer import Timer
@@ -43,31 +45,27 @@ class DungeonBase(GameUi, DungeonAssets):
 
     # 左侧列表每行的点击位置（1280x720，真机实测 5 行）
     DUNGEON_ROW_X = 300
-    DUNGEON_ROW_YS = (220, 301, 382, 462, 542)
+    # 选中行黄色描边：点击后用它的中心确认选中的就是目标行
+    DUNGEON_SELECTED_ROW_TOLERANCE = 35
+    DUNGEON_SELECTED_MIN_ROW_PIXELS = 100
+    DUNGEON_CLICK_SETTLE = 0.6
+    # 列表滑动有回弹，等它静止后再 OCR / 点击
+    DUNGEON_SCROLL_SETTLE = 1.5
     # 右侧选中特征：真实选中都是 1.0；未录制副本最高只有 ~0.82，
     # 所以阈值提到 0.9 并把「第一名与第二名」拉开，避免把试炼误认成灵岛
     DUNGEON_FEATURE_MIN_SCORE = 0.9
     DUNGEON_FEATURE_MIN_MARGIN = 0.05
-    DUNGEON_CLICK_SETTLE = 0.6
 
     def run(self) -> None:
-        """
-        具体副本流程入口，由子类实现。
-
-        推荐骨架（按需取用，很多能力来自 GameUi）：
-            self.prepare()            # 确保在线且在主页面
-            self.enter_dungeon()      # 进入副本（页面导航 / 点入口）
-            self.battle()             # 副本内战斗
-            self.settle()             # 结算/领奖
-            self.back_to_main()       # 回主页面
-        """
+        """任务入口由 ScriptTask 实现；具体副本只实现 run_once()。"""
         raise NotImplementedError(f'{type(self).__name__}.run is not implemented')
 
     def run_once(self) -> bool:
         """
-        完成一次本副本（进图 -> 战斗/扫荡 -> 结算），成功返回 True。
+        完成一次本副本（进图 -> 战斗/结算），成功返回 True。
 
-        由具体副本类实现；调用前调度器已经选中了对应副本。
+        由具体副本类实现；调用前调度器只确认了剩余次数，具体副本从主地图
+        自行进入，不依赖副本页的选中状态（选中只在重置时使用）。
         """
         raise NotImplementedError(f'{type(self).__name__}.run_once is not implemented')
 
@@ -265,18 +263,6 @@ class DungeonBase(GameUi, DungeonAssets):
         logger.warning('Heal failed after retries')
         return False
 
-    def dungeon_prepare_entry(self, field: str) -> bool:
-        """进入副本前的准备：进外地图 -> 找万事通治疗 -> 修理装备"""
-        if not self.dungeon_enter_outer(field):
-            return False
-        healed = self.dungeon_heal()
-        repaired = self.dungeon_repair_equipment()
-        if not healed:
-            logger.warning('Heal failed during dungeon preparation')
-        if not repaired:
-            logger.warning('Repair failed during dungeon preparation')
-        return healed and repaired
-
     def dungeon_repair_equipment(self) -> bool:
         """副本准备：复用背包「随身功能 -> 修理装备」的现有流程"""
         logger.hr(f'[{self.name}] 修理装备')
@@ -339,7 +325,7 @@ class DungeonBase(GameUi, DungeonAssets):
         interactions = 0
         while not timer.reached():
             self.screenshot()
-            if self.appear(self.I_ITEM_10):
+            if self.appear(self.I_DUNGEON_HEALER_DIALOG):
                 logger.info('Healer dialog appeared')
                 return True
             if interactions < self.DUNGEON_HEALER_MAX_INTERACT and interact_timer.reached():
@@ -367,8 +353,8 @@ class DungeonBase(GameUi, DungeonAssets):
         timer = Timer(timeout).start()
         while not timer.reached():
             self.screenshot()
-            roi = self.O_DUNGEON_DIALOG_OPTION.roi
-            results = self.O_DUNGEON_DIALOG_OPTION.detect_and_ocr(
+            roi = self.O_DUNGEON_HEAL_DIALOG.roi
+            results = self.O_DUNGEON_HEAL_DIALOG.detect_and_ocr(
                 self.device.image, logDisplay=False)
             for item in results:
                 text = item.ocr_text.strip()
@@ -392,13 +378,15 @@ class DungeonBase(GameUi, DungeonAssets):
         timer = Timer(timeout).start()
         while not timer.reached():
             self.screenshot()
-            if self.appear(self.I_ITEM_11):
+            if self.appear(self.I_DUNGEON_HEAL_SUCCESS):
                 logger.info('Heal success')
-                self.dungeon_close_heal_prompt(self.I_ITEM_11, self.C_ITEM_3)
+                self.dungeon_close_heal_prompt(self.I_DUNGEON_HEAL_SUCCESS,
+                                               self.C_DUNGEON_HEAL_SUCCESS_CLOSE)
                 return True
-            if self.appear(self.I_ITEM_12):
+            if self.appear(self.I_DUNGEON_HEAL_FAILURE):
                 logger.warning('Heal failed: healed too frequently')
-                self.dungeon_close_heal_prompt(self.I_ITEM_12, self.C_ITEM_4)
+                self.dungeon_close_heal_prompt(self.I_DUNGEON_HEAL_FAILURE,
+                                               self.C_DUNGEON_HEAL_FAILURE_CLOSE)
                 return False
             self.device.sleep(0.5)
         logger.warning('Heal result prompt does not appear')
@@ -504,7 +492,7 @@ class DungeonBase(GameUi, DungeonAssets):
         if image is None:
             self.screenshot()
             image = self.device.image
-        return self.I_DUNGEON_FINISH.match(image)
+        return self.I_DUNGEON_FINISH_POPUP.match(image)
 
     # Boss 击杀奖励弹窗（沙狱[多人]沙灵神等）；子类覆盖这两个规则
     def dungeon_boss_reward_rule(self):
@@ -541,13 +529,13 @@ class DungeonBase(GameUi, DungeonAssets):
         """关闭完成弹窗（固定位置绿 X）"""
         for _ in range(5):
             self.screenshot()
-            if not self.appear(self.I_DUNGEON_FINISH):
+            if not self.appear(self.I_DUNGEON_FINISH_POPUP):
                 return True
             x, y = self.C_DUNGEON_FINISH_CLOSE.coord()
             self.device.click(x=x, y=y, control_name=self.C_DUNGEON_FINISH_CLOSE.name)
             self.device.click_record_clear()
             self.device.sleep(0.4)
-        return not self.appear(self.I_DUNGEON_FINISH)
+        return not self.appear(self.I_DUNGEON_FINISH_POPUP)
 
     def _dungeon_battle_stop(self) -> bool:
         """战斗停止条件：完成弹窗 / 目标丢失 / 目标换了 / 超时"""
@@ -557,7 +545,7 @@ class DungeonBase(GameUi, DungeonAssets):
         image = self.device.image if self.exist_image() else None
         if image is None:
             return False
-        if self.I_DUNGEON_FINISH.match(image):
+        if self.I_DUNGEON_FINISH_POPUP.match(image):
             logger.info('Dungeon finish popup appeared while fighting')
             return True
         if self.dungeon_boss_reward_visible(image=image):
@@ -625,13 +613,15 @@ class DungeonBase(GameUi, DungeonAssets):
         """OCR 当前屏幕的左侧列表，返回 [(副本名, 剩余次数), ...]"""
         return [(name, count) for name, count, _ in self.dungeon_read_rows()]
 
-    def dungeon_scan_counts(self, max_screens: int = None) -> dict:
+    def dungeon_scan_counts(self, max_screens: int = None,
+                           stop_name: str = None) -> dict:
         """
-        识别副本页所有副本的剩余次数（列表可滚动）
+        识别副本页所有副本的剩余次数（列表可滚动，只 OCR 不点击）
 
-        用“分段慢滑 + 相邻屏重叠”而不是一次快速滑到底：真机实测 S_NEW 一滑
-        就跨了约 5 行，会跳过中间的副本（例如帝玉岭[多人]）。
+        用“分段慢滑 + 相邻屏重叠”而不是一次快速滑到底：真机实测整段快滑
+        （S_DUNGEON_LIST_SWIPE）一滑就跨了约 5 行，会跳过中间的副本（例如帝玉岭[多人]）。
 
+        :param stop_name: 找到这个副本就提前结束（只读当前副本时用）
         :return: {副本名: 剩余次数}，包含列表里的全部副本
         """
         logger.hr(f'[{self.name}] 识别副本次数')
@@ -651,6 +641,11 @@ class DungeonBase(GameUi, DungeonAssets):
                     continue
                 counts.setdefault(name, count)
 
+            if stop_name and any(dungeon_name_matches(row_name, stop_name)
+                                 for row_name, _ in rows):
+                logger.info(f'Dungeon [{stop_name}] found, stop scanning')
+                break
+
             names = tuple(name for name, _ in rows)
             if rows and names == last_names:
                 logger.info('Dungeon list does not scroll any more')
@@ -661,7 +656,7 @@ class DungeonBase(GameUi, DungeonAssets):
 
             self.ui_swipe_gentle(self.DUNGEON_SCROLL_START, self.DUNGEON_SCROLL_END,
                                  steps=3, step_delay=0.25)
-            self.device.sleep(1.0)
+            self.device.sleep(self.DUNGEON_SCROLL_SETTLE)
 
         logger.attr('Dungeon counts', counts)
         return counts
@@ -672,25 +667,18 @@ class DungeonBase(GameUi, DungeonAssets):
 
     def dungeon_field_status(self, field: str) -> tuple:
         """
-        只识别当前副本：选中它 -> 读当前屏列表里这一行的剩余次数 + 特权次数。
+        只识别当前副本：打开副本页后逐屏 OCR，找到该行就提前结束。
 
-        复用已有的 O_DUNGEON_LIST，不额外录规则；跑完一次后只需要知道
-        当前副本有没有减次数，不需要把整张列表的所有副本都扫一遍。
+        全程不点击左侧列表——列表行本身带剩余次数，不需要选中副本；
+        选中只在重置时使用。条目所在屏不确定，所以找不到才往下滑。
         :return: (剩余次数 | None, 特权剩余次数 | None)
         """
         name = FIELD_NAMES.get(field, field)
-        if not self.dungeon_select(name):
-            raise GameStuckError(f'Unable to select dungeon [{name}]')
-        rows = self.dungeon_read_rows()
-        count = None
-        for row_name, row_count, _ in rows:
-            if dungeon_name_matches(row_name, name):
-                count = row_count
-                break
+        counts = self.dungeon_scan_counts(stop_name=name)
+        count = counts.get(name)
         privilege = self.dungeon_privilege_count()
         if count is None:
-            logger.warning(f'Unable to read remaining count for [{name}] '
-                           f'from current screen, rows={rows}')
+            logger.warning(f'Unable to read remaining count for [{name}], counts={counts}')
         return count, privilege
 
     def dungeon_privilege_count(self) -> int | None:
@@ -744,46 +732,23 @@ class DungeonBase(GameUi, DungeonAssets):
             logger.warning('Dungeon detail is not ready, cannot click reset')
             return False
         logger.hr(f'[{self.name}] 重置当前副本')
-        self.appear_then_click(self.I_ITEM_9)
+        self.appear_then_click(self.I_DUNGEON_RESET_BUTTON)
         self.device.click_record_clear()
         self.device.sleep(0.5)
         return True
-
-    def dungeon_next_target(self, enabled: list, counts: dict = None) -> dict | None:
-        """
-        按配置顺序挑下一个要攻击的副本
-
-        :param enabled: ScriptTask.enabled_dungeons() 返回的 [(配置字段, 副本类), ...]
-        :param counts: 已识别的 {字段: 剩余次数}；不传则现场识别
-        :return: {'field', 'class', 'remaining', 'attempts'}；全部打完返回 None
-        """
-        cfg = self.config.dungeon.dungeon_config
-        counts = counts if counts is not None else self.dungeon_config_counts()
-        for field, dungeon_cls in enabled:
-            remaining = counts.get(field)
-            if remaining is None or remaining <= 0:
-                continue
-            configured = int(getattr(cfg, f'{field}_count', 1))
-            return {
-                'field': field,
-                'class': dungeon_cls,
-                'remaining': remaining,
-                'attempts': min(configured, remaining),
-            }
-        return None
 
     # ---------------------------------------------------------------- 选中与切换
     def dungeon_feature_rules(self) -> list:
         """右侧选中特征：[(RuleImage, 副本名), ...]"""
         return [
-            (self.I_NEW, '沙狱[多人]'),
-            (self.I_ITEM_2, '沙狱[单人]'),
-            (self.I_ITEM_3, '帝玉岭[多人]'),
-            (self.I_ITEM_4, '帝玉岭[单人]'),
-            (self.I_ITEM_5, '琉璃幻境'),
-            (self.I_ITEM_6, '仙居福地'),
-            (self.I_ITEM_7, '天渊灵岛'),
-            (self.I_ITEM_8, '至尊巅峰'),
+            (self.I_SHAYU_MULTI_FEATURE, '沙狱[多人]'),
+            (self.I_SHAYU_SOLO_FEATURE, '沙狱[单人]'),
+            (self.I_DIYULING_MULTI_FEATURE, '帝玉岭[多人]'),
+            (self.I_DIYULING_SOLO_FEATURE, '帝玉岭[单人]'),
+            (self.I_LIULI_FEATURE, '琉璃幻境'),
+            (self.I_XIANJU_FEATURE, '仙居福地'),
+            (self.I_TIANYUAN_FEATURE, '天渊灵岛'),
+            (self.I_ZHIZUN_FEATURE, '至尊巅峰'),
         ]
 
     def dungeon_feature_scores(self, image=None) -> list:
@@ -829,37 +794,54 @@ class DungeonBase(GameUi, DungeonAssets):
         if image is None:
             self.screenshot()
             image = self.device.image
-        return self.I_ITEM_9.match(image)
+        return self.I_DUNGEON_RESET_BUTTON.match(image)
 
-    def dungeon_identify_row(self, y: int, timeout: float = 1.5) -> str | None:
-        """
-        点击左侧第 y 行，等右侧详情刷新后返回选中的副本名。
-
-        未录制特征的副本（白原/青丘/赢土试炼）会返回 None。
-        """
-        logger.info(f'Click dungeon row at ({self.DUNGEON_ROW_X}, {y})')
-        self.device.click(x=self.DUNGEON_ROW_X, y=y, control_name='dungeon_row')
-        self.device.click_record_clear()
-        self.device.sleep(self.DUNGEON_CLICK_SETTLE)
-        timer = Timer(timeout).start()
-        while 1:
+    def dungeon_selected_row_center(self, image=None) -> int | None:
+        """左侧列表当前选中行的中心 y（黄色描边）；识别不到返回 None"""
+        if image is None:
             self.screenshot()
             image = self.device.image
-            if self.dungeon_detail_ready(image):
-                selected = self.dungeon_selected_name(image)
-                if selected:
-                    return selected
-            if timer.reached():
-                return None
-            self.device.sleep(0.2)
+        x, y, w, h = self.O_DUNGEON_LIST.roi
+        roi = image[y:y + h, x:x + w].astype(int)
+        red, green, blue = roi[:, :, 0], roi[:, :, 1], roi[:, :, 2]
+        mask = ((red > 120) & (green > 90) & (blue < 90)
+                & ((red - blue) > 60))
+        ys = np.nonzero(mask)[0]
+        # 选中框是两条长横线；按行统计，排除小图标里的零散黄色
+        per_row = np.bincount(ys, minlength=h)
+        border_rows = np.nonzero(per_row >= self.DUNGEON_SELECTED_MIN_ROW_PIXELS)[0]
+        if len(border_rows) < 2:
+            return None
+        return int((border_rows.min() + border_rows.max()) / 2 + y)
+
+    def dungeon_row_selected(self, name: str, fallback_y: int) -> bool:
+        """点击行后确认选中：黄色选中框对齐目标行；识别不到再回退到右侧特征"""
+        image = self.screenshot()
+        selected_y = self.dungeon_selected_row_center(image)
+        if selected_y is not None:
+            rows = self.dungeon_read_rows()
+            target_y = next((row_y for row_name, _, row_y in rows
+                             if dungeon_name_matches(row_name, name)), None)
+            if target_y is not None:
+                logger.attr('Dungeon selected row', f'{selected_y} vs {target_y}')
+                return abs(selected_y - target_y) <= self.DUNGEON_SELECTED_ROW_TOLERANCE
+            if abs(selected_y - fallback_y) <= self.DUNGEON_SELECTED_ROW_TOLERANCE:
+                return True
+        selected = self.dungeon_selected_name(image)
+        if selected and dungeon_name_matches(selected, name):
+            logger.info(f'Dungeon [{name}] selected (feature verified)')
+            return True
+        return False
 
     def dungeon_select(self, name: str, max_scrolls: int = None) -> bool:
         """
-        点击左侧列表切换到指定副本，并用右侧特征确认真的选中了它。
+        点击左侧列表选中指定副本（只在重置前调用）。
 
-        先按 OCR 找到目标行（快）；OCR 没找到就逐行点击、用特征识别兜底。
+        按 OCR 找到目标行的实际 y 再点击（列表滚动/回弹后行位置会变，不能用
+        固定坐标）；点击后优先用左侧黄色选中框确认，其次才用右侧特征兜底。
+        找不到目标行或确认不了就返回 False，不再逐行乱点。
         """
-        logger.hr(f'[{self.name}] 切换副本 -> {name}')
+        logger.hr(f'[{self.name}] 选中副本 -> {name}')
         if not self.dungeon_open_page():
             raise GameStuckError('Dungeon page does not appear')
 
@@ -867,28 +849,33 @@ class DungeonBase(GameUi, DungeonAssets):
         for index in range(max_scrolls):
             rows = self.dungeon_read_rows()
             logger.info(f'Dungeon rows: {rows}')
-            for row_name, _, y in rows:
-                if not dungeon_name_matches(row_name, name):
-                    continue
-                selected = self.dungeon_identify_row(y)
-                if selected and dungeon_name_matches(selected, name):
-                    logger.info(f'Dungeon [{name}] selected (feature verified)')
-                    return True
-                logger.warning(f'Row OCR [{row_name}] clicked but feature says [{selected}], '
-                               f'try click-scan')
-
-            # OCR 没定位到 / 点错行：逐行点击，用特征识别兜底
-            for y in self.DUNGEON_ROW_YS:
-                selected = self.dungeon_identify_row(y)
-                if selected and dungeon_name_matches(selected, name):
-                    logger.info(f'Dungeon [{name}] selected by click-scan')
-                    return True
+            target = next(((row_name, row_y) for row_name, _, row_y in rows
+                           if dungeon_name_matches(row_name, name)), None)
+            if target is not None:
+                for attempt in range(2):
+                    logger.info(f'Click dungeon row [{target[0]}] at '
+                                f'({self.DUNGEON_ROW_X}, {target[1]})')
+                    self.device.click(x=self.DUNGEON_ROW_X, y=target[1],
+                                      control_name='dungeon_row')
+                    self.device.click_record_clear()
+                    self.device.sleep(self.DUNGEON_CLICK_SETTLE)
+                    if self.dungeon_row_selected(name, target[1]):
+                        logger.info(f'Dungeon [{name}] selected')
+                        return True
+                    logger.warning(f'Dungeon [{name}] row click not verified, '
+                                   f'retry {attempt + 1}/2')
+                    rows = self.dungeon_read_rows()
+                    target = next(((row_name, row_y) for row_name, _, row_y in rows
+                                   if dungeon_name_matches(row_name, name)), None)
+                    if target is None:
+                        break
+                return False
 
             if index >= max_scrolls - 1:
                 break
             self.ui_swipe_gentle(self.DUNGEON_SCROLL_START, self.DUNGEON_SCROLL_END,
                                  steps=3, step_delay=0.25)
-            self.device.sleep(1.0)
+            self.device.sleep(self.DUNGEON_SCROLL_SETTLE)
 
         logger.warning(f'Dungeon [{name}] not found in list')
         return False
@@ -911,10 +898,3 @@ class DungeonBase(GameUi, DungeonAssets):
         except (GameNotRunningError, GamePageUnknownError) as e:
             logger.warning(f'当前页面异常（{e}），重启游戏')
         self.ui_restart_game()
-
-    def back_to_main(self, timeout: int = 30) -> None:
-        """回到主页面（副本结束后用）"""
-        logger.hr(f'[{self.name}] 回主页面')
-        self.ui_reset_current_page()
-        if not self.ui_goto(page_main, timeout=timeout):
-            raise GameStuckError('Main page does not appear')

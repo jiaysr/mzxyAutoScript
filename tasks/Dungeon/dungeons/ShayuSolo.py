@@ -21,8 +21,8 @@ class ShayuSolo(DungeonBase):
     EXIT_POSITION = (128, 182)
     # (Boss 名, 小地图点击规则, Boss 坐标)
     BOSSES = (
-        ('沙灵神', 'shayu_solo_boss1', (109, 128)),
-        ('舞娘', 'shayu_solo_boss2', (238, 206)),
+        ('沙灵神', 'shayu_solo_shalingshen', (109, 128)),
+        ('舞娘', 'shayu_solo_wuniang', (238, 206)),
     )
 
     def run_once(self) -> bool:

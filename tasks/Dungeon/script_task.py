@@ -8,7 +8,7 @@
 - 入口：本文件 ScriptTask 按配置挑出启用的副本，逐个执行
 
 新增一个副本：
-1. 在 tasks/Dungeon/dungeons/ 下新建 <Name>.py（继承 DungeonBase，实现 run()）
+1. 在 tasks/Dungeon/dungeons/ 下新建 <Name>.py（继承 DungeonBase，实现 run_once()）
 2. 在 tasks/Dungeon/config.py 的 DungeonConfig 里加该副本的开关/参数
 3. 在下面 DUNGEONS 登记：DungeonConfig 里的开关字段名 -> 副本实现类
 """

@@ -18,7 +18,7 @@ class DiyulingBase(DungeonBase):
     MAP_NAME = ''
     ENTRY_POSITION = None
     EXIT_MAP = '帝玉岭外'
-    EXIT_CLICK_NAME = 'diyuling_solo_exit'  # 单/多人共用
+    EXIT_CLICK_NAME = 'diyuling_exit'  # 单/多人共用
     EXIT_POSITION = None
     # (Boss 名, 小地图点击规则, Boss 坐标)
     BOSSES = ()

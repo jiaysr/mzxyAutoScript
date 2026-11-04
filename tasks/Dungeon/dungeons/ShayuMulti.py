@@ -24,8 +24,8 @@ class ShayuMulti(DungeonBase):
     EXIT_POSITION = (149, 197)
     # (Boss 名, 小地图点击规则, Boss 坐标)
     BOSSES = (
-        ('沙灵神', 'shayu_multi_boss1', (107, 137)),
-        ('舞娘', 'shayu_multi_boss2', (240, 205)),
+        ('沙灵神', 'shayu_multi_shalingshen', (107, 137)),
+        ('舞娘', 'shayu_multi_wuniang', (240, 205)),
     )
 
     def dungeon_boss_reward_rule(self):

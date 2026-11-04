@@ -83,14 +83,15 @@ def test_normal_two_runs_then_privilege_then_other():
 
     assert game.counts == {A_FIELD: 0, B_FIELD: 1}
     assert game.privilege == 0
+    # 跑副本前不选中；只有重置提交时才点左侧列表
     assert game.actions == [
-        ('select', A_NAME), ('run', A_FIELD),
+        ('run', A_FIELD),
         ('select', A_NAME), ('reset', A_FIELD),
-        ('select', A_NAME), ('run', A_FIELD),
+        ('run', A_FIELD),
         ('select', A_NAME), ('reset', A_FIELD),
-        ('select', A_NAME), ('run', A_FIELD),
+        ('run', A_FIELD),
         ('select', A_NAME), ('reset', A_FIELD),
-        ('select', B_NAME), ('run', B_FIELD),
+        ('run', B_FIELD),
     ]
 
 
@@ -102,9 +103,9 @@ def test_leftover_normal_count_reset_before_privilege():
     assert game.privilege == 0
     # 正常只打 1 次（剩余 1），不需要重置；特权开始前先把剩余 1 次重置掉
     assert game.actions == [
-        ('select', A_NAME), ('run', A_FIELD),
+        ('run', A_FIELD),
         ('select', A_NAME), ('reset', A_FIELD),
-        ('select', A_NAME), ('run', A_FIELD),
+        ('run', A_FIELD),
         ('select', A_NAME), ('reset', A_FIELD),
     ]
 
@@ -116,9 +117,9 @@ def test_auto_decrement_needs_no_reset():
     assert game.counts == {A_FIELD: 0, B_FIELD: 0}
     assert all(action[0] != 'reset' for action in game.actions)
     assert game.actions == [
-        ('select', A_NAME), ('run', A_FIELD),
-        ('select', A_NAME), ('run', A_FIELD),
-        ('select', B_NAME), ('run', B_FIELD),
+        ('run', A_FIELD),
+        ('run', A_FIELD),
+        ('run', B_FIELD),
     ]
 
 

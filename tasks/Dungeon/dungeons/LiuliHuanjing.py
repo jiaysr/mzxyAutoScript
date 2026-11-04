@@ -18,8 +18,8 @@ class LiuliHuanjing(DiyulingBase):
     EXIT_CLICK_NAME = 'liuli_exit'
     EXIT_POSITION = (311, 453)
     BOSSES = (
-        ('阴阳脸', 'liuli_boss1', (118, 101)),
-        ('逍遥愁', 'liuli_boss2', (131, 280)),
-        ('梦魇兽', 'liuli_boss3', (276, 211)),
-        ('守墓人', 'liuli_boss4', (236, 67)),
+        ('阴阳脸', 'liuli_yinyanglian', (118, 101)),
+        ('逍遥愁', 'liuli_xiaoyaochou', (131, 280)),
+        ('梦魇兽', 'liuli_mengyanshou', (276, 211)),
+        ('守墓人', 'liuli_shoumuren', (236, 67)),
     )

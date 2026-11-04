@@ -11,6 +11,6 @@ class DiyulingMulti(DiyulingBase):
     ENTRY_POSITION = (112, 223)
     EXIT_POSITION = (223, 166)
     BOSSES = (
-        ('沙王', 'diyuling_solo_boss1', (115, 160)),
-        ('幽灵', 'diyuling_solo_boss2', (199, 123)),
+        ('沙王', 'diyuling_shawang', (115, 160)),
+        ('幽灵', 'diyuling_youling', (199, 123)),
     )
