@@ -141,6 +141,10 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务
     DROP_RETRY = 3                   # 还没掉到时最多重打几次「为了荣耀」
 
+    # 交付（重启后在世界之巅任务榜 NPC 那里交）：列表第一行就是下一个要交的任务
+    DELIVER_MAX = 7                  # 最多交几个（=要接的任务数）
+    DELIVER_BUTTON_TEXTS = ('确认', '完成')   # 只有这两个文案才是交任务按钮
+
     # 世界之巅两个阵营：每天首次进图随机分配，出生点不同（真机实测）
     CAMP_HUANGDI = 'huangdi'
     CAMP_YANDI = 'yandi'
@@ -164,6 +168,10 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     # 接过的任务会被游戏移到列表末尾，所以「每次接第一行」就能按这个顺序接完
     ACCEPT_TASKS = ('世界之巅', '黄金比例', '木料之争', '兽毛之争',
                     '世界印记', '为了荣耀', '世界之心')
+    # OCR 异体字修正（真机把「黄」读成繁体「黃」，任务名就没对上）
+    TASK_TEXT_FIXES = {'黃': '黄', '爭': '争', '記': '记', '巔': '巅', '為': '为'}
+    # 任务名相似度门槛：繁体/错一个字要能认（0.667），但不能把 世界之巅/世界之心 认错（0.75 由「只取最像的」挡住）
+    TASK_NAME_SIMILARITY = 0.65
 
     def __init__(self, config, device):
         super().__init__(config, device)
@@ -234,13 +242,26 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 bonus_enabled = self.enable_bonus()
             success = self.world_task_flow()
         finally:
-            if bonus_enabled:
-                self.disable_bonus()
+            self.finish_bonus(bonus_enabled)
             # 监测是临时的：本次运行结束就收掉（后面做任务的流程会自己再 start）
             self.task_monitor.stop()
             # 正常/异常都要重排，避免 next_run 停在过去霸占调度
             self.schedule_next_run(success=success)
         raise TaskEnd(self.TASK_NAME)
+
+    def finish_bonus(self, bonus_enabled: bool) -> None:
+        """
+        收尾时把加量卡关掉
+
+        例外：**阵亡重跑**（`_rerun_requested`）时先留着 —— 框架复活后会立刻把本任务重跑一遍，
+        接着还要用这张卡；等真正跑完那一轮再关。
+        """
+        if not bonus_enabled:
+            return
+        if getattr(self, '_rerun_requested', False):
+            logger.info('阵亡重跑，加量卡先留着（重跑还要用）')
+            return
+        self.disable_bonus()
 
     # ---------------------------------------------------------------- 加量卡
     def bonus_multiplier(self) -> BonusMultiplier:
@@ -315,11 +336,20 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
         :return: 接取阶段正常走完、并且在世界之巅里做完能做的任务返回 True
         """
+        # 先看任务页：全部已完成（多半是阵亡重跑/交付前重跑）就不用再进图，直接重启交付
+        order_names = [name for name, _kind in self.WORLD_PEAK_ORDER]
+        statuses = dict(self.read_task_page_statuses(order_names))
+        if statuses and all(status == 'done' for status in statuses.values()):
+            logger.info('任务页显示 7 个任务全做完了，直接重启游戏去交付')
+            if not self.restart_and_wait():
+                return False
+            return self.deliver_tasks()
+
         if self.map_in_location(self.WORLD_PEAK_LOCATION):
             logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
             # 人可能就在出生点旁边（重跑/复位），试一下判断阵营
             self.camp = self.detect_camp() or getattr(self, 'camp', None)
-            return self.run_world_peak_tasks()
+            return self.do_world_peak_and_deliver()
 
         if not self.find_npc(self.NPC_NEW):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
@@ -371,11 +401,184 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.warning('没进到世界之巅地图，把弹窗关掉收尾')
             self.close_activity_panel()
             return False
+        return self.do_world_peak_and_deliver()
 
-        # 进图后做任务（当前是三个采集类任务 + 兽毛之争打野兽，其余待补）
+    def do_world_peak_and_deliver(self) -> bool:
+        """
+        世界之巅里的收尾：做任务 -> 重启游戏 -> 任务榜交付
+
+        重启用框架 Restart 任务的实现（`app_restart`：停游戏、启动、登录），
+        因为**交付必须在重启之后做**：上线后人物会自动离开世界之巅回到域外灵岛，
+        任务榜 NPC 在域外灵岛。
+        """
         if not self.run_world_peak_tasks():
-            logger.warning('世界之巅里的任务没做完')
+            logger.warning('世界之巅里的任务没做完，先不重启交付')
             return False
+        if not self.restart_and_wait():
+            logger.warning('重启后没回到主页面，交付跳过')
+            return False
+        return self.deliver_tasks()
+
+    # ---------------------------------------------------------------- 重启 + 交付
+    def restart_and_wait(self, timeout: float = 120) -> bool:
+        """
+        用框架 Restart 任务的实现重启游戏（停游戏 -> 启动 -> 登录）
+
+        交付前必须重启：上线后人物会自动离开世界之巅回到域外灵岛，任务榜 NPC 在那里。
+        """
+        logger.hr('重启游戏（交付前）')
+        from tasks.Restart.script_task import ScriptTask as RestartScriptTask
+        RestartScriptTask(config=self.config, device=self.device).app_restart()
+        logger.info('重启完成，等回到主页面')
+        self.device.stuck_record_clear()
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_main, timeout=timeout):
+            logger.warning('重启后没回到主页面')
+            return False
+        logger.attr('重启后地点', f'{self.read_location()}')
+        return True
+
+    def task_board_first_row(self):
+        """
+        任务榜对话框里第一行的任务名 + 可点中心
+
+        完成的任务会排在列表最上面，所以只需要看第一行。
+        注意 OCR 会把「【跨服】世界印记」拆成两段，同一行的文字要拼起来。
+        """
+        self.screenshot()
+        image = self.device.image
+        roi = self.O_DELIVER_LIST.roi
+        items = []
+        for item in self.O_DELIVER_LIST.detect_and_ocr(image, logDisplay=False):
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            box = item.box
+            x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+            y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+            items.append((text, x, y))
+        if not items:
+            return None
+
+        items.sort(key=lambda item: (item[2], item[1]))
+        top_y = items[0][2]
+        row = [item for item in items if abs(item[2] - top_y) <= 25]
+        name = ''.join(text for text, _x, _y in sorted(row, key=lambda item: item[1]))
+        x = int(sum(item[1] for item in row) / len(row))
+        return name, x, top_y
+
+    def is_our_task(self, name: str) -> bool:
+        return any(self.task_name_match(name, task) for task in self.ACCEPT_TASKS)
+
+    def deliver_confirm_text(self) -> str:
+        """详情页右下角按钮的文案（交任务的按钮是「确认/完成」）"""
+        self.screenshot()
+        image = self.device.image
+        texts = [item.ocr_text.strip() for item in
+                 self.O_DELIVER_CONFIRM.detect_and_ocr(image, logDisplay=False)]
+        return ' '.join(text for text in texts if text)
+
+    def deliver_detail_open(self) -> bool:
+        """交付详情页开着没有（「任务奖励」只在详情页出现；列表页会读到乱码）"""
+        self.screenshot()
+        text = ' '.join(item.ocr_text.strip() for item in
+                        self.O_DELIVER_DETAIL.detect_and_ocr(self.device.image, logDisplay=False))
+        return '任务奖励' in text
+
+    def deliver_one_task(self, name: str, coord: tuple, timeout: float = 10) -> bool:
+        """
+        交付一个任务：点列表里的这一行 -> 详情页二次确认任务名 -> 点右下角提交 -> 等回列表
+
+        :param name: 期望交付的任务名（详情页会再 OCR 一次确认）
+        :param coord: 列表里该行的点击坐标
+        """
+        logger.info(f'交付 [{name}] at {coord}')
+        self.device.click(x=coord[0], y=coord[1], control_name='deliver_task')
+        self.device.click_record_clear()
+
+        # 二次确认：详情页打开 + 标题就是这个任务
+        timer = Timer(timeout).start()
+        title = ''
+        while not timer.reached():
+            self.screenshot()
+            if not self.deliver_detail_open():
+                self.device.sleep(0.3)
+                continue
+            title = self.O_ITEM_5.ocr_single_line(self.device.image)
+            if title and self.task_name_match(title, name):
+                break
+            self.device.sleep(0.3)
+        if not (title and self.task_name_match(title, name)):
+            logger.warning(f'详情页没确认到 [{name}]（读到 "{title}"），不点提交')
+            return False
+        logger.info(f'详情页确认：[{title}]')
+
+        # 只有「确认/完成」才是交任务按钮，别的文案（返回/领取等）不点
+        clicked = False
+        timer = Timer(timeout).start()
+        while not timer.reached() and not clicked:
+            self.screenshot()
+            image = self.device.image
+            roi = self.O_DELIVER_CONFIRM.roi
+            for item in self.O_DELIVER_CONFIRM.detect_and_ocr(image, logDisplay=False):
+                text = item.ocr_text.strip()
+                if not any(word in text for word in self.DELIVER_BUTTON_TEXTS):
+                    logger.info(f'右下角是 [{text}]，不是交任务按钮，不点')
+                    continue
+                box = item.box
+                x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+                y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+                logger.info(f'点提交 [{text}] at ({x},{y})')
+                self.device.click(x=x, y=y, control_name='deliver_confirm')
+                self.device.click_record_clear()
+                clicked = True
+                break
+            if not clicked:
+                self.device.sleep(0.3)
+        if not clicked:
+            logger.warning('详情页没找到交任务按钮')
+            return False
+
+        # 等详情页关掉（回到列表页）
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            if not self.deliver_detail_open():
+                logger.info('已回到任务榜列表')
+                return True
+            self.device.sleep(0.3)
+        logger.warning('交付后没回到列表页')
+        return False
+
+    def deliver_tasks(self) -> bool:
+        """
+        任务榜交付：每次只看列表第一行，点它 -> 二次确认 -> 提交 -> 回列表 -> 再来
+
+        完成的任务排在列表最上面，所以不需要滚列表；一直交到第一行不是我们的任务为止。
+        """
+        logger.hr('交付世界任务')
+        if not self.find_npc(self.NPC_ITEM_2):
+            logger.warning('找不到交付 NPC（世界之巅任务榜）')
+            return False
+
+        delivered = []
+        for _attempt in range(self.DELIVER_MAX):
+            row = self.task_board_first_row()
+            if row is None:
+                logger.info('任务榜列表是空的，没有可交付的任务')
+                break
+            name, x, y = row
+            if not self.is_our_task(name):
+                logger.info(f'第一行是 [{name}]，不是世界任务，停止交付')
+                break
+            if not self.deliver_one_task(name, (x, y)):
+                logger.warning(f'交付 [{name}] 失败，停止')
+                break
+            delivered.append(name)
+            self.device.sleep(0.8)
+
+        logger.attr('已交付', ', '.join(delivered) or 'none')
+        self.close_npc_dialog()
+        # 没有可交付的也算完成：重跑时不会因为「已经交完」而反复失败
         return True
 
     def run_world_peak_tasks(self) -> bool:
@@ -388,11 +591,16 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         logger.hr('世界之巅：做任务')
         names = [name for name, _kind in self.WORLD_PEAK_ORDER]
         statuses = dict(self.read_task_page_statuses(names))
+        # 只做「进行中」的：done = 做完等交付；missing = 今天没接（或已经交付掉了），都不该再打
         pending = [(name, kind) for name, kind in self.WORLD_PEAK_ORDER
-                   if statuses.get(name) != 'done']
+                   if statuses.get(name) == 'pending']
+        missing = [name for name, _kind in self.WORLD_PEAK_ORDER
+                   if statuses.get(name) == 'missing']
         logger.attr('要做', ', '.join(name for name, _ in pending) or 'none')
+        if missing:
+            logger.attr('任务页里没有', ', '.join(missing))
         if not pending:
-            logger.info('任务页显示全做完了，跳过')
+            logger.info('任务页里没有要做的任务了')
             return True
 
         for name, kind in pending:
@@ -402,7 +610,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 logger.warning(f'任务 [{name}] 没做完，先停')
                 return False
 
-        return self.ensure_drop_task()
+        return self.ensure_drop_task(drop_done=(statuses.get(self.DROP_TASK) == 'done'))
 
     def run_world_peak_task(self, name: str, kind: str) -> bool:
         """按玩法分派做单个任务"""
@@ -417,15 +625,17 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return self.run_glory_task()
         raise ValueError(f'Unknown task kind [{kind}] for [{name}]')
 
-    def ensure_drop_task(self) -> bool:
+    def ensure_drop_task(self, drop_done: bool = False) -> bool:
         """
         世界之心是打怪掉落：还没完成就重打「为了荣耀」等掉落
+
+        :param drop_done: 任务页里显示已经完成了（重跑时省掉无谓的重打）
 
         掉落看脸，所以重试 `DROP_RETRY` 次还没掉到就今天收工（不算任务失败，
         否则会因为一个概率掉落让整个任务反复重跑）。
         """
-        if self.task_completed(self.DROP_TASK):
-            logger.info(f'{self.DROP_TASK} 已经掉了，完成')
+        if drop_done or self.task_completed(self.DROP_TASK):
+            logger.info(f'{self.DROP_TASK} 已经完成了')
             return True
 
         for attempt in range(1, self.DROP_RETRY + 1):
@@ -1118,28 +1328,44 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         text = re.sub(r'[\[【]?\s*跨服[^\]】]*[\]】]?', '', text or '')
         return text.strip()
 
+    def _clean_task_text(self, text: str) -> str:
+        """
+        任务名归一化，供匹配用
+
+        真机踩过的坑：
+        - OCR 会读成繁体「黃」，和「黄」不相等（`?【跨服】黃金比例` 因此没认出来）；
+        - 行首/行尾常带「?」「·」之类的杂字符。
+        所以先去掉非汉字，再修常见异体字。
+        """
+        text = self._strip_task_prefix(text)
+        for wrong, right in self.TASK_TEXT_FIXES.items():
+            text = text.replace(wrong, right)
+        return re.sub(r'[^\u4e00-\u9fa5]', '', text).strip()
+
     def task_name_match(self, ocr_text: str, name: str) -> bool:
         """
         列表里的任务名匹配
 
-        两处都不能省：
-        1. 先剥掉「【跨服】」前缀 —— 不去掉的话 `ocr_name_match` 的「前两字一致」规则
-           永远对不上（"【跨" vs "世界"）；
+        三处都不能省：
+        1. 先剥掉「【跨服】」前缀、去掉杂字符、修异体字（见 `_clean_task_text`）；
         2. 只在 ACCEPT_TASKS 这 7 个已知任务名里挑最接近的来比 —— 「世界之巅/世界之心/
-           世界印记」前三个字一样，直接算相似度 世界之巅 vs 世界之心 = 0.75，会互相认错。
+           世界印记」前三个字一样，直接算相似度 世界之巅 vs 世界之心 = 0.75，会互相认错；
+        3. 相似度门槛 0.65：繁体「黃」只差一个字，相似度 0.667，再高就认不出来了。
         """
-        text = self._strip_task_prefix(ocr_text)
-        if not text or not name:
+        text = self._clean_task_text(ocr_text)
+        expected = self._clean_task_text(name)
+        if not text or not expected:
             return False
-        if name in text or text in name:
+        if expected in text or text in expected:
             return True
 
         best, best_score = None, 0.0
         for candidate in self.ACCEPT_TASKS:
+            candidate = self._clean_task_text(candidate)
             score = difflib.SequenceMatcher(None, text, candidate).ratio()
             if score > best_score:
                 best, best_score = candidate, score
-        if best != name or best_score < 0.7:
+        if best != expected or best_score < self.TASK_NAME_SIMILARITY:
             return False
         return True
 
@@ -1726,6 +1952,7 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     try:
-        ScriptTask(config, device).run()
+       t= ScriptTask(config, device)
+       t.swipe(t.S_ITEM_2)
     except TaskEnd:
         pass

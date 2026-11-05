@@ -62,7 +62,7 @@ def test_run_world_peak_tasks_order():
     task.task_completed = lambda name: False
     calls = []
     task.run_world_peak_task = lambda name, kind: calls.append(name) or True
-    task.ensure_drop_task = lambda: calls.append('drop') or True
+    task.ensure_drop_task = lambda **kwargs: calls.append('drop') or True
 
     assert task.run_world_peak_tasks() is True
     assert calls == ['兽毛之争', '木料之争', '为了荣耀', '世界之巅', '黄金比例', '世界印记', 'drop']
@@ -76,7 +76,7 @@ def test_run_world_peak_tasks_skips_done():
     task.task_completed = lambda name: False
     calls = []
     task.run_world_peak_task = lambda name, kind: calls.append(name) or True
-    task.ensure_drop_task = lambda: calls.append('drop') or True
+    task.ensure_drop_task = lambda **kwargs: calls.append('drop') or True
 
     assert task.run_world_peak_tasks() is True
     assert calls == ['木料之争', '世界之巅', '黄金比例', 'drop']
@@ -88,7 +88,7 @@ def test_run_world_peak_tasks_all_done():
     task.read_task_page_statuses = lambda names: [(n, 'done') for n in names]
     calls = []
     task.run_world_peak_task = lambda name, kind: calls.append(name) or True
-    task.ensure_drop_task = lambda: calls.append('drop') or True
+    task.ensure_drop_task = lambda **kwargs: calls.append('drop') or True
 
     assert task.run_world_peak_tasks() is True
     assert calls == []
@@ -99,7 +99,7 @@ def test_run_world_peak_tasks_stops_on_failure():
     task.read_task_page_statuses = lambda names: [(n, 'pending') for n in names]
     calls = []
     task.run_world_peak_task = lambda name, kind: calls.append(name) or (name != '木料之争')
-    task.ensure_drop_task = lambda: calls.append('drop') or True
+    task.ensure_drop_task = lambda **kwargs: calls.append('drop') or True
 
     assert task.run_world_peak_tasks() is False
     assert calls == ['兽毛之争', '木料之争'], calls
@@ -138,6 +138,17 @@ def test_ensure_drop_task_dropped_early():
     task.run_glory_task = lambda: calls.append(1) or True
 
     assert task.ensure_drop_task() is True
+    assert calls == []
+
+
+def test_ensure_drop_task_skips_when_page_done():
+    """任务页显示世界之心已经完成（重跑时）：不重打为了荣耀"""
+    task = make_task()
+    task.task_completed = lambda name: False
+    calls = []
+    task.run_glory_task = lambda: calls.append(1) or True
+
+    assert task.ensure_drop_task(drop_done=True) is True
     assert calls == []
 
 
@@ -183,6 +194,7 @@ def main():
         test_run_world_peak_tasks_stops_on_failure,
         test_run_world_peak_task_dispatch,
         test_ensure_drop_task_dropped_early,
+        test_ensure_drop_task_skips_when_page_done,
         test_ensure_drop_task_retries_glory,
         test_ensure_drop_task_stops_when_dropped,
         test_ensure_drop_task_gives_up_when_glory_fails,

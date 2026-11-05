@@ -53,6 +53,14 @@ class WorldTaskAssets:
 	O_TASK_PAGE_LIST = RuleOcr(roi=(280,125,890,560), area=(280,125,890,560), mode="Full", method="Default", keyword="", name="task_page_list")
 	# 左下角聊天栏系统消息行（[系]任务：xxx已完成） 
 	O_TASK_COMPLETE = RuleOcr(roi=(0,679,638,37), area=(0,679,638,37), mode="Full", method="Default", keyword="", name="task_complete")
+	# 确认交付的任务名称 
+	O_ITEM_5 = RuleOcr(roi=(622,118,368,42), area=(617,119,376,42), mode="Single", method="Default", keyword="", name="item_5")
+	# 交付榜对话框里第一行任务（完成的任务排最上面，只看第一行） 
+	O_DELIVER_LIST = RuleOcr(roi=(280,322,660,56), area=(280,322,660,56), mode="Full", method="Default", keyword="", name="deliver_list")
+	# 交付详情页右下角按钮（只有「确认/完成」才是交任务，返回/领取不点） 
+	O_DELIVER_CONFIRM = RuleOcr(roi=(930,528,200,66), area=(930,528,200,66), mode="Full", method="Default", keyword="", name="deliver_confirm")
+	# 交付详情页标记（「任务奖励」只在详情页出现，用来判断详情页开没开） 
+	O_DELIVER_DETAIL = RuleOcr(roi=(160,305,260,44), area=(160,305,260,44), mode="Full", method="Default", keyword="", name="deliver_detail")
 
 
 	# Swipe Rule Assets

@@ -34,5 +34,41 @@
     "method": "Default",
     "keyword": "",
     "description": "左下角聊天栏系统消息行（[系]任务：xxx已完成）"
+  },
+  {
+    "itemName": "item_5",
+    "roiFront": "622,118,368,42",
+    "roiBack": "617,119,376,42",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "确认交付的任务名称"
+  },
+  {
+    "itemName": "deliver_list",
+    "roiFront": "280,322,660,56",
+    "roiBack": "280,322,660,56",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "交付榜对话框里第一行任务（完成的任务排最上面，只看第一行）"
+  },
+  {
+    "itemName": "deliver_confirm",
+    "roiFront": "930,528,200,66",
+    "roiBack": "930,528,200,66",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "交付详情页右下角按钮（只有「确认/完成」才是交任务，返回/领取不点）"
+  },
+  {
+    "itemName": "deliver_detail",
+    "roiFront": "160,305,260,44",
+    "roiBack": "160,305,260,44",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "交付详情页标记（「任务奖励」只在详情页出现，用来判断详情页开没开）"
   }
 ]
