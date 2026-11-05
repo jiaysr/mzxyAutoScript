@@ -51,7 +51,6 @@ def make_task(names, bonus=BonusMultiplier.NONE):
     task = ScriptTask.__new__(ScriptTask)
     task.device = FakeDevice()
     task.screenshot = lambda: None
-    task.watch = lambda seconds=2.0, interval=0.2: None
     task.config = SimpleNamespace(
         world_task=SimpleNamespace(world_task_config=SimpleNamespace(bonus_multiplier=bonus)))
     state = {'rows': [(f'【跨服】{name}', 1091, ROW_TOP + i * ROW_PITCH)

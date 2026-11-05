@@ -45,11 +45,17 @@ def test_teleport_when_on_other_map():
     assert calls == ['牧野']
 
 
-def test_teleport_when_location_unreadable():
+def test_skip_teleport_when_location_unreadable():
+    """
+    地点读不出来：**不传送**、返回 False 交给调用方回退
+
+    传送/列表页是覆盖式界面，会把左下角聊天栏挡掉，boss 结束消息就再也认不到了，
+    所以读不到地点时宁可退回原寻路流程，也不平白触发一次传送。
+    """
     task = make_task()
     calls = stub(task, None)
-    assert task.prepare_boss_map({'target_map': '牧野'}) is True
-    assert calls == ['牧野']
+    assert task.prepare_boss_map({'target_map': '牧野'}) is False
+    assert calls == []
 
 
 def test_fallback_when_teleport_fails():

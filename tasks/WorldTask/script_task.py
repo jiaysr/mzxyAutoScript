@@ -61,7 +61,7 @@ from tasks.AutoTask.script_task import ScriptTask as AutoTaskScriptTask
 from tasks.Battle.slots import ACTION_BUTTON_DISC_CENTER
 from tasks.Battle.target_action import ACTION_GATHER
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_task
+from tasks.GameUi.pages.page import page_main, page_task
 from tasks.WorldTask.assets import WorldTaskAssets
 from tasks.WorldTask.monitor import TaskCompleteMonitor
 from tasks.WorldTask.schedule import clamp_to_open_world, in_open_world, next_run_after
@@ -217,15 +217,6 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 return False
         return True
 
-    def watch(self, seconds: float = 2.0, interval: float = 0.2) -> None:
-        """
-        盯着屏幕连拍（完成提示只显示 1.5 秒，固定 sleep 很容易整段错过）
-        """
-        timer = Timer(seconds).start()
-        while not timer.reached():
-            self.screenshot()
-            self.device.sleep(interval)
-
     def run(self) -> None:
         logger.hr('世界任务')
         if not in_open_world(datetime.now()):
@@ -237,6 +228,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         bonus_enabled = False
         try:
             self.prepare_game()
+            # 完成提示监测从这一刻起就开着：中途重跑（人已在地图里）不会再走到接取阶段，
+            # 不加这一句那边就永远收不到「已完成」提示，掉落任务也会白重打
+            self.task_monitor.start()
             # 加量卡：先启用，接完任务再关掉（关闭放在 finally，失败/阵亡也不会让卡一直烧）
             if self.bonus_multiplier() != BonusMultiplier.NONE:
                 bonus_enabled = self.enable_bonus()
@@ -298,6 +292,11 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
         self.set_bonus_state(want)
         logger.info(f'加量卡已启用：{want.value}（{have} 张）')
+        # 启用完人在「任务加量」页，后面要找 NPC、读地点，先回主页面
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_main, timeout=30):
+            logger.warning('启用加量卡后没回到主页面')
+            return False
         return True
 
     def disable_bonus(self, timeout: float = 40) -> bool:
