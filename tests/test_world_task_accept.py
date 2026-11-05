@@ -50,6 +50,7 @@ def make_task(names, use_bonus=False):
     task = ScriptTask.__new__(ScriptTask)
     task.device = FakeDevice()
     task.screenshot = lambda: None
+    task.watch = lambda seconds=2.0, interval=0.2: None
     task.config = SimpleNamespace(
         world_task=SimpleNamespace(world_task_config=SimpleNamespace(use_bonus=use_bonus)))
     state = {'rows': [(f'【跨服】{name}', 1091, ROW_TOP + i * ROW_PITCH)
@@ -176,6 +177,24 @@ def test_close_bonus_promo_noop_when_absent():
     assert task.device.clicks == []
 
 
+def test_all_tasks_completed():
+    """监测的结束条件：接取到的任务全部识别到「已完成」"""
+    task = ScriptTask.__new__(ScriptTask)
+    task.accepted_tasks = ['世界之巅', '黄金比例']
+    task.completed_tasks = []
+    assert task.all_tasks_completed() is False
+
+    task.completed_tasks = ['【跨服】世界之巅']
+    assert task.all_tasks_completed() is False, '还有一个没完成'
+
+    task.completed_tasks = ['【跨服】世界之巅', '【跨服】黄金比例']
+    assert task.all_tasks_completed() is True
+
+    # 没接过任务时不算「全部完成」（否则刚开监测就停）
+    task.accepted_tasks = []
+    assert task.all_tasks_completed() is False
+
+
 def main():
     cases = [
         test_task_name_match_strips_prefix,
@@ -186,6 +205,7 @@ def main():
         test_accept_handles_unreadable_list,
         test_close_bonus_promo_closes_without_ticking,
         test_close_bonus_promo_noop_when_absent,
+        test_all_tasks_completed,
     ]
     failed = 0
     for case in cases:

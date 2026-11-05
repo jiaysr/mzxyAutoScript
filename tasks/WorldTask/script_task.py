@@ -89,24 +89,47 @@ class ScriptTask(GameUi, WorldTaskAssets):
 
     def __init__(self, config, device):
         super().__init__(config, device)
-        # 任务完成提示监测：接任务之前就要开着（接取时有的任务会当场判定完成）
+        # 任务完成提示监测：接任务时 start()、接取的任务全部完成时 stop()
         self.task_monitor = TaskCompleteMonitor(self.I_TASK_COMPLETE_TRIGGER,
                                                 self.O_TASK_COMPLETE)
-        self.completed_tasks: list = []   # 本次运行识别到的「已完成」任务名
+        self.completed_tasks: list = []   # 监测到的「已完成」任务名
+        self.accepted_tasks: list = []    # 本次接取到的任务名
 
     def screenshot(self):
         """
-        截图 + 跑一遍任务完成提示监测
+        截图 + （监测开着时）跑一遍任务完成提示监测
 
-        聊天栏的「[系]任务：xxx已完成」只出现几秒，而接任务/走图期间一直在截图，
-        所以挂在每次截图上最省事、也不会漏（一级模板匹配不命中时几乎不耗时）。
+        提示是**最顶层弹窗**（任何界面都盖在上面），但只在左下角聊天行停留 1.5 秒，
+        所以挂在每次截图上、并在点完「接取」后连拍 2 秒，才不会漏。
         """
         image = super().screenshot()
-        for name in self.task_monitor.detect(image):
-            if name not in self.completed_tasks:
-                self.completed_tasks.append(name)
-            logger.info(f'任务完成提示：{name}')
+        if self.task_monitor.enabled:
+            for name in self.task_monitor.detect(image):
+                if name not in self.completed_tasks:
+                    self.completed_tasks.append(name)
+                logger.info(f'任务完成提示：{name}')
+            if self.all_tasks_completed():
+                logger.info('接取的任务已全部完成')
+                self.task_monitor.stop()
         return image
+
+    def all_tasks_completed(self) -> bool:
+        """接取到的任务是不是全部识别到「已完成」"""
+        if not self.accepted_tasks:
+            return False
+        for name in self.accepted_tasks:
+            if not any(self.task_name_match(text, name) for text in self.completed_tasks):
+                return False
+        return True
+
+    def watch(self, seconds: float = 2.0, interval: float = 0.2) -> None:
+        """
+        盯着屏幕连拍（完成提示只显示 1.5 秒，固定 sleep 很容易整段错过）
+        """
+        timer = Timer(seconds).start()
+        while not timer.reached():
+            self.screenshot()
+            self.device.sleep(interval)
 
     def run(self) -> None:
         logger.hr('世界任务')
@@ -120,6 +143,8 @@ class ScriptTask(GameUi, WorldTaskAssets):
             self.prepare_game()
             success = self.world_task_flow()
         finally:
+            # 监测是临时的：本次运行结束就收掉（后面做任务的流程会自己再 start）
+            self.task_monitor.stop()
             # 正常/异常都要重排，避免 next_run 停在过去霸占调度
             self.schedule_next_run(success=success)
         raise TaskEnd(self.TASK_NAME)
@@ -151,13 +176,17 @@ class ScriptTask(GameUi, WorldTaskAssets):
         if not self.switch_tab(self.ACTIVITY_TASK_TAB):
             logger.warning(f'没切到 tab [{self.ACTIVITY_TASK_TAB}]')
             return False
+        # 切完拿新一帧再判断（appear 用的是 device.image，不刷新会读到切换前的画面）
+        self.screenshot()
         if not self.appear(self.I_ITEM_5):
             logger.warning('跨服任务列表里没看到「接取」按钮')
             return False
         logger.info('跨服任务列表已打开')
 
-        # 接任务（完成提示监测从 __init__ 起就一直在跑，接取时当场完成的也能记到）
+        # 接任务：监测从这一刻开始（接取时有的任务会当场判定完成）
+        self.task_monitor.start()
         accepted = self.accept_tasks()
+        self.accepted_tasks = accepted
         if accepted:
             logger.attr('本次接取', ', '.join(accepted))
         elif self.task_list_readable:
@@ -165,10 +194,19 @@ class ScriptTask(GameUi, WorldTaskAssets):
             logger.info('跨服任务列表里没有可接的任务（今天应该已经接过了）')
         else:
             logger.warning('一个跨服任务都没接上')
+
         if self.completed_tasks:
-            logger.attr('接完就是已完成', ', '.join(self.completed_tasks))
+            logger.attr('已完成', ', '.join(self.completed_tasks))
         else:
             logger.info('接完没有当场判定完成的任务')
+
+        # 监测到全部完成就停；否则交给后面的流程继续监测（做任务的流程还没实现）
+        if self.all_tasks_completed():
+            self.task_monitor.stop()
+        else:
+            missing = [name for name in self.accepted_tasks
+                       if not any(self.task_name_match(text, name) for text in self.completed_tasks)]
+            logger.attr('还没完成', ', '.join(missing) or 'none')
 
         # 目前到此为止：把界面收干净，别把游戏留在弹窗里
         self.close_activity_panel()
@@ -232,7 +270,8 @@ class ScriptTask(GameUi, WorldTaskAssets):
                 return True
             if self.appear_then_click(self.I_PROMO_CLOSE, interval=1):
                 self.device.click_record_clear()
-            self.device.sleep(0.5)
+            # 0.5s 一帧会在 1.5s 的完成提示窗口里只采到 3 帧，这里用 0.3s
+            self.device.sleep(0.3)
         logger.warning('Bonus promo does not close')
         return False
 
@@ -309,7 +348,7 @@ class ScriptTask(GameUi, WorldTaskAssets):
             rows = self.task_rows()
             if rows and not any(self.task_name_match(text, name) for text, _, _ in rows):
                 return True
-            self.device.sleep(0.5)
+            self.device.sleep(0.3)
         return False
 
     def accept_tasks(self, timeout: float = 30) -> list:
@@ -346,7 +385,8 @@ class ScriptTask(GameUi, WorldTaskAssets):
             logger.info(f'接取 [{name}] at ({bx},{by})')
             self.device.click(x=bx, y=by, control_name=f'accept_{expected}')
             self.device.click_record_clear()
-            self.device.sleep(1.0)
+            # 接完连拍 2 秒：完成提示只在聊天栏停 1.5 秒
+            self.watch(seconds=2.0)
             self.close_bonus_promo()
 
             if self.wait_task_accepted(name):
@@ -403,6 +443,8 @@ class ScriptTask(GameUi, WorldTaskAssets):
         self.device.click(x=coord[0], y=coord[1], control_name=f'tab_{name}')
         self.device.click_record_clear()
         self.device.sleep(1.0)
+        # 切完立刻刷新一帧，否则调用方拿到的还是切换前那帧（appear 不会自己截图）
+        self.screenshot()
         return True
 
     def tab_index(self, name: str) -> int:

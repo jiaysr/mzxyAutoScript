@@ -42,7 +42,9 @@ class FakeRule:
 def make_monitor(hit=True, text='', dedup=5.0):
     trigger = FakeRule(hit=hit)
     ocr = FakeRule(text=text)
-    return TaskCompleteMonitor(trigger, ocr, dedup=dedup), trigger, ocr
+    monitor = TaskCompleteMonitor(trigger, ocr, dedup=dedup)
+    monitor.start()
+    return monitor, trigger, ocr
 
 
 # ---------------------------------------------------------------- 文本抽取
@@ -102,6 +104,30 @@ def test_detect_handles_none_image():
     assert trigger.match_calls == 0
 
 
+def test_not_enabled_until_start():
+    """没 start() 之前不检测（提示只在 1.5s 内有效，其它阶段不白跑 OCR）"""
+    trigger = FakeRule(hit=True)
+    ocr = FakeRule(text='[系]任务：世界印记已完成')
+    monitor = TaskCompleteMonitor(trigger, ocr)
+    assert monitor.detect(object()) == []
+    assert trigger.match_calls == 0
+
+    monitor.start()
+    assert monitor.detect(object()) == ['世界印记']
+
+    monitor.stop()
+    assert monitor.detect(object()) == []
+
+
+def test_start_resets_state():
+    """每次 start 都是全新一轮（重跑任务时不会带着上一轮的记录）"""
+    monitor, _trigger, _ocr = make_monitor(text='[系]任务：【跨服】世界之巅已完成')
+    assert monitor.detect(object()) == ['【跨服】世界之巅']
+    monitor.start()
+    assert monitor.names == []
+    assert monitor.detect(object()) == ['【跨服】世界之巅']
+
+
 def main():
     cases = [
         test_extract_task_name,
@@ -111,6 +137,8 @@ def main():
         test_detect_ignores_normal_chat,
         test_detect_different_task_after_dedup,
         test_detect_handles_none_image,
+        test_not_enabled_until_start,
+        test_start_resets_state,
     ]
     failed = 0
     for case in cases:
