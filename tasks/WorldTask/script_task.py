@@ -139,10 +139,10 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         ('世界印记', 'gather'),
         ('世界之心', 'drop'),
     )
-    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务（任意怪都会掉）
-    DROP_RETRY = 3                   # 还没掉到时最多刷几轮怪
-    DROP_FARM_POINT = '兽毛之争'     # 刷掉落去哪个点（野兽 4~5 秒刷新，最快）
-    DROP_FARM_SECONDS = 90           # 每轮刷多久
+    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务（任意怪都会掉，包括为了荣耀的守门人）
+    DROP_FARM_TASK = '为了荣耀'      # 刷掉落就用为为了荣耀的点（守门人一直有，任务做完也照样掉）
+    DROP_FARM_SECONDS = 90           # 每轮刷多久（一轮结束才查提示，不用频繁中断）
+    DROP_FARM_TIMEOUT = 3600         # 保险：连续刷这么久还没掉就今天收工（1 小时）
 
     # 交付（重启后在世界之巅任务榜 NPC 那里交）：列表第一行就是下一个要交的任务
     DELIVER_MAX = 7                  # 最多交几个（=要接的任务数）
@@ -701,7 +701,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         按 WORLD_PEAK_ORDER 顺序做世界之巅里的任务，已完成（任务页状态「完成」）的跳过
 
         世界之心没有自己的玩法（打怪掉落），所以排在最后统一判断：
-        还没完成就重打「为了荣耀」等掉落，重试 `DROP_RETRY` 次还不掉就今天收工。
+        还没掉到就一直刷「为了荣耀」的点，直到出现完成提示（1 小时保险）。
 
         :param statuses: 已经读过的任务页状态（不传就自己去读一次）
         """
@@ -745,49 +745,64 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
     def ensure_drop_task(self, drop_done: bool = False) -> bool:
         """
-        世界之心是**打怪掉落**：所有任务做完还没掉到，就去刷新快的点打怪继续刷
+        世界之心是**打怪掉落**：所有任务做完还没掉到，就一直刷「为了荣耀」的点直到掉出来
 
-        真机确认（2026-11-05）：世界之巅里**击败任何怪物都有概率掉**，不限于为了荣耀的守门人，
-        所以这里不绑任何任务：去「兽毛之争」的刷新点（3 只野兽、4~5 秒刷新）打
-        `DROP_FARM_SECONDS` 秒算一轮，最多 `DROP_RETRY` 轮。
+        真机确认（2026-11-05）：
+        - 世界之巅里击败**任何**怪物都有概率掉世界之心；
+        - 「为了荣耀」的守门人任务做完之后照样能打、照样掉，所以拿它当刷怪点最稳。
+
+        所以这里**不看任务状态、也不设轮数**：一轮一轮打（每轮 `DROP_FARM_SECONDS` 秒），
+        直到监测到「世界之心已完成」的提示为止；1 小时还没掉才收工（保险，避免无限刷）。
 
         :param drop_done: 任务页里显示已经完成了（重跑时省掉无谓的刷怪）
-
-        掉落看脸，刷完还没掉就今天收工（不判任务失败，否则会为一个概率掉落反复重跑整个任务）。
         """
         if drop_done or self.task_completed(self.DROP_TASK):
             logger.info(f'{self.DROP_TASK} 已经完成了')
             return True
 
-        for attempt in range(1, self.DROP_RETRY + 1):
-            logger.info(f'{self.DROP_TASK} 还没掉到，去 [{self.DROP_FARM_POINT}] 的点刷怪 '
-                        f'（第 {attempt}/{self.DROP_RETRY} 轮，每轮 {self.DROP_FARM_SECONDS:.0f}s）')
+        timer = Timer(self.DROP_FARM_TIMEOUT).start()
+        rounds = 0
+        while not timer.reached():
+            rounds += 1
+            logger.info(f'{self.DROP_TASK} 还没掉到，去 [{self.DROP_FARM_TASK}] 的点刷怪'
+                        f'（第 {rounds} 轮，每轮 {self.DROP_FARM_SECONDS:.0f}s）')
             self.farm_for_drop()
             if self.task_completed(self.DROP_TASK):
-                logger.info(f'{self.DROP_TASK} 掉到了，完成')
+                logger.info(f'{self.DROP_TASK} 掉到了（第 {rounds} 轮），完成')
                 return True
-            logger.info(f'第 {attempt} 轮刷完还没掉')
 
-        logger.warning(f'{self.DROP_TASK} 刷了 {self.DROP_RETRY} 轮还没掉（掉落看脸），今天先收工')
+        logger.warning(f'{self.DROP_TASK} 刷了 {rounds} 轮（{self.DROP_FARM_TIMEOUT:.0f}s）还没掉，今天先收工')
         return True
 
-    def farm_for_drop(self, seconds: float = None) -> bool:
+    def farm_for_drop(self, seconds: float = None) -> None:
         """
-        去刷新最快的点打一段怪，只为刷「世界之心」掉落
+        去「为了荣耀」的点打守门人，只为刷「世界之心」掉落
+
+        为了荣耀本身完成与否都不影响掉落，所以这里不走 run_fight_task（那个看到完成就跳过），
+        直接按阵营点位走过去打一段时间。
 
         :param seconds: 这一轮打多久（默认 DROP_FARM_SECONDS）
-        :return: 这一轮结束时任务有没有完成
         """
         seconds = self.DROP_FARM_SECONDS if seconds is None else seconds
-        rows = {row[0]: row for row in self.FIGHT_TASKS}
-        row = rows[self.DROP_FARM_POINT]
-        target, position, corner = row[1], row[2], row[3]
-        logger.hr(f'刷 {self.DROP_TASK} 掉落：打 {seconds:.0f}s 的 [{target}]', level=2)
-        if not self.fight_goto_point(self.DROP_FARM_POINT, position, corner):
-            logger.warning('去刷怪点失败')
-            return False
-        self.fight_until_complete(self.DROP_TASK, target, position, corner, timeout=seconds)
-        return self.task_completed(self.DROP_TASK)
+        camp = getattr(self, 'camp', None) or self.detect_camp()
+        candidates = [camp] if camp else list(self.GLORY_VARIANTS)
+        if not camp:
+            logger.info('阵营未知，两个阵营的点位都试一下')
+
+        for candidate in candidates:
+            target, position, corner, rule_key = self.GLORY_VARIANTS[candidate]
+            logger.hr(f'刷 {self.DROP_TASK}：{candidate} 阵营，打 {seconds:.0f}s 的 [{target}]',
+                      level=2)
+            if not self.fight_goto_point(self.DROP_FARM_TASK, position, corner,
+                                         rule_key=rule_key):
+                logger.warning(f'去 {candidate} 阵营的刷怪点失败')
+                continue
+            self.fight_until_complete(
+                self.DROP_TASK, target, position, corner, rule_key=rule_key,
+                timeout=seconds,
+                lock_timeout=None if camp else self.GLORY_PROBE_LOCK_TIMEOUT)
+            if camp or self.task_completed(self.DROP_TASK):
+                break           # 阵营已知就只打自己那个点
 
     def ensure_world_peak_map(self, timeout: float = 40) -> bool:
         """
