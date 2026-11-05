@@ -97,9 +97,13 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     # 进图后右上角的地点名
     WORLD_PEAK_LOCATION = '世界之巅'
 
-    # 木料之争：任务页点「寻路」后人物自动走到采集点附近，然后循环采集
-    WOOD_TASK = '木料之争'
-    WOOD_TARGET_POS = (145, 470)
+    # 世界之巅里的「采集类」任务：任务名 -> 点「寻路」后人物走到的完成点坐标
+    # 三个任务玩法一样（锁定采集物 -> 点动作按钮 -> 采完继续），只是完成点不同
+    GATHER_TASKS = (
+        ('木料之争', (145, 470)),
+        ('世界之巅', (302, 250)),
+        ('世界印记', (428, 107)),
+    )
     # 判定「走到采集点了」的坐标容差
     WOOD_POS_TOLERANCE = 15
 
@@ -304,9 +308,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             self.close_activity_panel()
             return False
 
-        # 进图后做任务（当前只做了「木料之争」，其余待补）
-        if not self.run_wood_task():
-            logger.warning(f'{self.WOOD_TASK} 没做完')
+        # 进图后做任务（当前是三个采集类任务，其余待补）
+        if not self.run_gather_tasks():
+            logger.warning('采集类任务没做完')
             return False
         return True
 
@@ -396,9 +400,55 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 return row
         return None
 
-    def task_page_walk_to(self, name: str) -> bool:
-        """在任务页点某任务的「寻路」按钮"""
-        row = self.find_task_page_row(name)
+    def swipe_task_page_list(self, forward: bool = True) -> bool:
+        """
+        滑任务页的列表（任务多的时候列表可以滚动）
+
+        :param forward: True=往下翻（找更靠后的任务）
+        :return: 这次滑动后列表内容变了没有（没变就是到底了）
+        """
+        before = tuple(row[0] for row in self.task_page_rows())
+        x = 700                      # 避开左侧栏和右侧「寻路」按钮列
+        if forward:
+            start, end = (x, 600), (x, 250)
+        else:
+            start, end = (x, 250), (x, 600)
+        logger.info(f'滑任务页列表 {"下" if forward else "上"} {start} -> {end}')
+        self.device.hold_drag(start, end, hold=0.2, control_name='task_page_scroll')
+        self.device.click_record_clear()
+        self.device.sleep(0.6)
+        after = tuple(row[0] for row in self.task_page_rows())
+        if before == after:
+            logger.info('任务页列表没滑动（到底了）')
+            return False
+        return True
+
+    def find_task_page_row(self, name: str, max_scroll: int = 3):
+        """
+        在任务页里找某任务行，返回 (任务名, 状态, 寻路x, 寻路y)；没有返回 None
+
+        任务多时列表可以滚动：当前屏没有就往下翻着找，翻不动（到底）就收手。
+        """
+        seen = set()
+        for attempt in range(max_scroll + 1):
+            rows = self.task_page_rows()
+            for row in rows:
+                if name and name in row[0]:
+                    return row
+            signature = tuple(row[0] for row in rows)
+            if signature in seen:
+                break                # 已经到底，再滑也没用
+            seen.add(signature)
+            if attempt >= max_scroll:
+                break
+            if not self.swipe_task_page_list(forward=True):
+                break
+        logger.warning(f'任务页里没找到 [{name}]（翻了 {len(seen) - 1} 次）')
+        return None
+
+    def task_page_walk_to(self, name: str, row=None) -> bool:
+        """在任务页点某任务的「寻路」按钮（row 可以传现成的行，省一次 OCR）"""
+        row = row or self.find_task_page_row(name)
         if row is None:
             logger.warning(f'任务页里没找到 [{name}]')
             return False
@@ -407,6 +457,19 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         self.device.click(x=walk_x, y=walk_y, control_name=f'walk_{name}')
         self.device.click_record_clear()
         return True
+
+    def wait_task_page_closed(self, timeout: float = 6) -> bool:
+        """
+        等任务页自动关闭（点了「寻路」之后游戏会自己关掉），关不掉再兜底点右上角返回
+        """
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.appear(self.I_CLOSE_RETURN):
+                return True
+            self.device.sleep(0.3)
+        logger.warning('任务页没有自动关闭，兜底点右上角返回')
+        return self.close_task_page()
 
     def map_wait_arrive_at(self, position: tuple, tolerance: int = None,
                            stable_time: float = 2.0, timeout: float = 120) -> bool:
@@ -488,22 +551,54 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         logger.warning(f'采集 [{name}] 超时')
         return False
 
-    def run_wood_task(self) -> bool:
-        """木料之争：任务页寻路 -> 走到采集点 -> 循环采集到完成"""
-        logger.hr(f'世界任务：{self.WOOD_TASK}')
-        if self.task_completed(self.WOOD_TASK):
-            logger.info(f'[{self.WOOD_TASK}] 已经完成，跳过')
+    def run_gather_task(self, name: str, position: tuple) -> bool:
+        """
+        做一个采集类任务：任务页寻路 -> 走到完成点 -> 循环采集到完成
+
+        已完成的两道关都跳过：
+        - 本次运行里已经看到过「xxx已完成」的提示（`task_completed`）；
+        - 任务页里这一行状态已经是「完成」（重跑时靠这个跳过，不白走一趟）。
+        """
+        logger.hr(f'世界任务：{name}')
+        if self.task_completed(name):
+            logger.info(f'[{name}] 本次已收到完成提示，跳过')
             return True
         if not self.open_task_page():
             return False
-        if not self.task_page_walk_to(self.WOOD_TASK):
+
+        row = self.find_task_page_row(name)
+        if row is None:
+            logger.warning(f'任务页里没找到 [{name}]')
             self.close_task_page()
             return False
-        self.close_task_page()
-        if not self.map_wait_arrive_at(self.WOOD_TARGET_POS):
-            logger.warning(f'没走到采集点 {self.WOOD_TARGET_POS}')
+        if '完成' in row[1]:
+            logger.info(f'任务页显示 [{name}] 已完成，跳过')
+            self.close_task_page()
+            return True
+
+        # 点「寻路」后游戏会自己关掉任务页，不用再点关闭；没关才兜底
+        if not self.task_page_walk_to(name, row=row):
+            self.close_task_page()
             return False
-        return self.gather_until_complete(self.WOOD_TASK)
+        if not self.wait_task_page_closed():
+            return False
+
+        if not self.map_wait_arrive_at(position):
+            logger.warning(f'没走到 [{name}] 的完成点 {position}')
+            return False
+        return self.gather_until_complete(name)
+
+    def run_gather_tasks(self) -> bool:
+        """按顺序做完 GATHER_TASKS 里的采集类任务"""
+        logger.hr('世界之巅：采集类任务')
+        done = []
+        for name, position in self.GATHER_TASKS:
+            if not self.run_gather_task(name, position):
+                logger.warning(f'采集任务 [{name}] 没做完（已完成：{", ".join(done) or "无"}）')
+                return False
+            done.append(name)
+        logger.attr('采集类任务完成', ', '.join(done))
+        return True
 
     # ---------------------------------------------------------------- 进入世界之巅
     def enter_world_peak(self, timeout: float = 40) -> bool:

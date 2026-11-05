@@ -40,9 +40,13 @@ class FakeDevice:
 
     def __init__(self):
         self.clicks = []
+        self.drags = []
 
     def click(self, x=None, y=None, control_name=None, **kwargs):
         self.clicks.append((x, y, control_name))
+
+    def hold_drag(self, start=None, end=None, hold=0.2, control_name=None):
+        self.drags.append((start, end))
 
     def click_record_clear(self):
         pass
@@ -134,6 +138,120 @@ def test_gather_retries_when_no_collectible():
     assert task.device.clicks == [], '没锁到目标就不该乱点动作按钮'
 
 
+# ---------------------------------------------------------------- 任务编排
+def test_gather_task_skips_when_task_page_says_done():
+    """任务页状态已是「完成」：不寻路、不走位"""
+    task = make_task()
+    task.task_completed = lambda name: False
+    task.open_task_page = lambda timeout=30: True
+    task.find_task_page_row = lambda name: ('【跨服】世界之巅', '完成', 1094, 169)
+    task.close_task_page = lambda timeout=10: True
+    walked = []
+    task.task_page_walk_to = lambda name: walked.append(name) or True
+    task.map_wait_arrive_at = lambda position, **kwargs: True
+    task.gather_until_complete = lambda name, timeout=600: True
+
+    assert task.run_gather_task('世界之巅', (302, 250)) is True
+    assert walked == [], '已完成的任务不该再点寻路'
+
+
+def test_gather_task_skips_when_completed_this_run():
+    """本次运行已收到完成提示：连任务页都不用开"""
+    task = make_task()
+    task.task_completed = lambda name: True
+    opened = []
+    task.open_task_page = lambda timeout=30: opened.append(1) or True
+
+    assert task.run_gather_task('木料之争', (145, 470)) is True
+    assert opened == []
+
+
+def test_gather_task_full_flow():
+    task = make_task()
+    task.task_completed = lambda name: False
+    task.open_task_page = lambda timeout=30: True
+    task.find_task_page_row = lambda name, max_scroll=3: (f'【跨服】{name}', '进行中', 1093, 324)
+    task.task_page_walk_to = lambda name, row=None: True
+    task.wait_task_page_closed = lambda timeout=6: True
+    closer = []
+    task.close_task_page = lambda timeout=10: closer.append(1) or True
+    task.map_wait_arrive_at = lambda position, **kwargs: True
+    order = []
+    task.gather_until_complete = lambda name, timeout=600: order.append(name) or True
+
+    assert task.run_gather_task('木料之争', (145, 470)) is True
+    assert order == ['木料之争']
+    assert closer == [], '点完寻路任务页会自己关，不该再手动点关闭'
+
+
+def test_gather_task_falls_back_to_close_when_page_stays():
+    """点了寻路任务页却没关：兜底关掉，不继续往下走"""
+    task = make_task()
+    task.task_completed = lambda name: False
+    task.open_task_page = lambda timeout=30: True
+    task.find_task_page_row = lambda name, max_scroll=3: (f'【跨服】{name}', '进行中', 1093, 324)
+    task.task_page_walk_to = lambda name, row=None: True
+    task.wait_task_page_closed = lambda timeout=6: False
+    arrived = []
+    task.map_wait_arrive_at = lambda position, **kwargs: arrived.append(1) or True
+    task.gather_until_complete = lambda name, timeout=600: True
+
+    assert task.run_gather_task('木料之争', (145, 470)) is False
+    assert arrived == []
+
+
+def test_find_task_page_row_scrolls_when_list_is_long():
+    """任务多时列表可滚动：当前屏没有就往下翻着找"""
+    task = make_task()
+    pages = [
+        [('【跨服】木料之争', '进行中', 1093, 324)],
+        [('【跨服】世界印记', '进行中', 1093, 324)],   # 翻一页后看到目标
+    ]
+    state = {'page': 0}
+    task.task_page_rows = lambda: list(pages[state['page']])
+    swipes = []
+
+    def swipe(forward=True):
+        swipes.append(forward)
+        if state['page'] + 1 >= len(pages):
+            return False
+        state['page'] += 1
+        return True
+
+    task.swipe_task_page_list = swipe
+
+    assert task.find_task_page_row('世界印记') == ('【跨服】世界印记', '进行中', 1093, 324)
+    assert swipes == [True]
+
+
+def test_find_task_page_row_stops_at_list_bottom():
+    """翻到底还是没有：返回 None，不无限滑"""
+    task = make_task()
+    task.task_page_rows = lambda: [('【跨服】木料之争', '进行中', 1093, 324)]
+    task.swipe_task_page_list = lambda forward=True: False
+
+    assert task.find_task_page_row('世界印记') is None
+
+
+def test_run_gather_tasks_uses_table_order():
+    task = make_task()
+    calls = []
+    task.run_gather_task = lambda name, position: calls.append((name, position)) or True
+
+    assert task.run_gather_tasks() is True
+    assert calls == list(task.GATHER_TASKS), calls
+    assert [c[0] for c in calls] == ['木料之争', '世界之巅', '世界印记']
+
+
+def test_run_gather_tasks_stops_on_failure():
+    task = make_task()
+    calls = []
+    task.run_gather_task = lambda name, position: calls.append(name) or (name != '世界之巅')
+
+    assert task.run_gather_tasks() is False
+    assert calls == ['木料之争', '世界之巅'], calls
+
+
 def main():
     cases = [
         test_task_page_rows_pairs_split_names,
@@ -142,6 +260,14 @@ def main():
         test_map_wait_arrive_at_timeout_when_never_arrives,
         test_gather_until_complete,
         test_gather_retries_when_no_collectible,
+        test_gather_task_skips_when_task_page_says_done,
+        test_gather_task_skips_when_completed_this_run,
+        test_gather_task_full_flow,
+        test_gather_task_falls_back_to_close_when_page_stays,
+        test_find_task_page_row_scrolls_when_list_is_long,
+        test_find_task_page_row_stops_at_list_bottom,
+        test_run_gather_tasks_uses_table_order,
+        test_run_gather_tasks_stops_on_failure,
     ]
     failed = 0
     for case in cases:
