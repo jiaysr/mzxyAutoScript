@@ -26,6 +26,25 @@ def test_default_has_no_alias():
     assert task._dungeon_target_names('沙王') == ['沙王']
 
 
+def test_diyuling_shawang_alias():
+    """
+    「沙王」两个字：OCR 会把「王」认成「主」「玉」（2026-11-05 真机实测 0.73~0.78，
+    都高于置信度门槛），而 ocr_name_match 对 2 字名称没有形近字容错，
+    所以帝玉岭登记了别名，白名单里要能接住这两种误读。
+    """
+    from tasks.Dungeon.dungeons.DiyulingMulti import DiyulingMulti
+    from tasks.Dungeon.dungeons.DiyulingSolo import DiyulingSolo
+
+    for cls in (DiyulingMulti, DiyulingSolo):
+        task = cls.__new__(cls)
+        targets = task._dungeon_target_names('沙王')
+        assert targets == ['沙王', '沙主', '沙玉'], targets
+        for reading in ('沙王', '沙主', '沙玉'):
+            assert any(OcrHelpers.ocr_name_match(reading, t) for t in targets), reading
+        # 没登记别名的 boss 保持原样
+        assert task._dungeon_target_names('幽灵') == ['幽灵']
+
+
 def test_alias_matches_ocr_variants():
     assert OcrHelpers.ocr_name_match('梦魔兽。', '梦魔兽')
     assert OcrHelpers.ocr_name_match('梦魔兽人。', '梦魔兽')

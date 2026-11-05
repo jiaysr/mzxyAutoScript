@@ -21,6 +21,11 @@ class DiyulingBase(DungeonBase):
     EXIT_CLICK_NAME = 'diyuling_exit'  # 单/多人共用
     # (Boss 名, 小地图点击规则, Boss 坐标)
     BOSSES = ()
+    # 「沙王」只有两个字：OCR 会把「王」认成「主」「玉」（2026-11-05 真机实测 0.73~0.78，
+    # 都高于置信度门槛所以不会被丢弃），而 ocr_name_match 对 2 字名称没有形近字容错
+    # （len(name) < 3 直接判不匹配），读错一次就永远锁不上 -> 反复换目标 -> 最后 assume killed。
+    # 这里把实测到的两种误读登记成别名，_dungeon_target_names() 会把它们展开进白名单。
+    BOSS_NAME_ALIASES = {'沙王': ('沙主', '沙玉')}
 
     def dungeon_boss_reward_rule(self):
         # 幽灵有领奖弹窗：复用世界首领的归属奖检测/关闭

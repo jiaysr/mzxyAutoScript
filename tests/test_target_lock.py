@@ -16,6 +16,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -96,13 +97,47 @@ def test_target_name_close_menu():
     task = SimpleBattle.__new__(SimpleBattle)
     calls = []
     task.ui_close_menu = lambda: calls.append('close')
+    task.ui_target_name_direct = lambda: calls.append('direct') or ''   # 直接识别读不到
     task.ocr_color_name = (lambda rule, scales=None, min_score=None:
                            calls.append('ocr') or '梦魔兽。')
+    # 直接识别读不到 -> 退回彩色名路径
     assert task.ui_target_name(close_menu=True) == '梦魔兽。'
-    assert calls == ['close', 'ocr']
+    assert calls == ['close', 'direct', 'ocr']
     calls.clear()
     assert task.ui_target_name() == '梦魔兽。'
-    assert calls == ['ocr']
+    assert calls == ['direct', 'ocr']
+
+
+def test_target_name_prefers_direct():
+    """直接识别读到了就不走灰度兜底（2026-11-05 真机 11 帧对照：直接识别更准）"""
+    task = SimpleBattle.__new__(SimpleBattle)
+    calls = []
+    task.ui_target_name_direct = lambda: calls.append('direct') or '沙王'
+    task.ocr_color_name = lambda *args, **kwargs: calls.append('ocr') or '沙主'
+    assert task.ui_target_name() == '沙王'
+    assert calls == ['direct'], '两条路都读会让灰度路径的错字被选中'
+
+
+def test_target_name_direct_joins_boxes():
+    """ui_target_name_direct 把检测到的文字框拼成一串（不缩放、不转灰度）"""
+    task = SimpleBattle.__new__(SimpleBattle)
+    task.device = SimpleNamespace(image=object())
+    task.exist_image = lambda: True
+
+    class FakeRule:
+        def detect_and_ocr(self, image, logDisplay=False):
+            return [SimpleNamespace(ocr_text='幽灵'), SimpleNamespace(ocr_text='7')]
+
+    task.O_TARGET_NAME = FakeRule()
+    assert task.ui_target_name_direct() == '幽灵7'
+
+
+def test_target_name_direct_without_image():
+    """一次都还没截过图时不能炸"""
+    task = SimpleBattle.__new__(SimpleBattle)
+    task.device = SimpleNamespace(image=None)
+    task.exist_image = lambda: False
+    assert task.ui_target_name_direct() == ''
 
 
 class FakeDevice:

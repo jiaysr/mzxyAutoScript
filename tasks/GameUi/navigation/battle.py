@@ -44,6 +44,9 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     # 目标名识别：灰度放大倍数与置信度下限（彩色描边字要整行放大才读得出来）
     TARGET_NAME_SCALES = (2, 3)
     TARGET_NAME_SCORE = 0.5
+    # 目标名读取先走「原图直接检测框识别」，读不到再退回彩色描边字路径。
+    # 真机实测直接识别更准（见 ui_target_name 的说明）；要退回老路径把它设 False。
+    TARGET_NAME_DIRECT = True
 
     # 锁定目标的切换节奏：每次点完「目标」停一下，等界面刷新
     TARGET_LOCK_SWITCH_INTERVAL = 0.5
@@ -57,19 +60,50 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         """
         读取当前锁定目标的名称，读不到返回空串
 
-        目标名是带描边的彩色字，规则默认的「检测框 + 拼串」在真机上经常一个框都检不出来
-        （WorldBoss 实测「妖化蟹将」读成空串，或拆成两段各读错一个字），
-        所以走 GameUi.ocr_color_name（ROI 转灰度 -> 放大 -> 整行识别，取置信度高的一份）。
+        两条路，先走 1、读不到再用 2：
 
+        1. `ui_target_name_direct()`：原图里直接检测文字框再拼串（**默认**）；
+        2. `ocr_color_name()`：ROI 转灰度 -> 放大 2x/3x -> 整行识别（彩色描边字的兜底）。
+
+        2026-11-05 真机 11 帧对照（帝玉岭/沙狱）：直接识别 11/11 全对，
+        彩色名路径错 2 帧（「沙王」->「沙主」/「沙玉」、「幽灵」->「幽灵7」）——
+        它把整块 ROI（右侧还带着怪物身体/血条）一起缩放后整行识别，插值会把细笔画糊掉。
+        彩色名路径保留作兜底：真正的彩色描边字（WorldBoss 的「妖化蟹将」）它更稳。
+
+        :param scales: 兜底路径的放大倍数
+        :param min_score: 兜底路径的置信度下限
         :param close_menu: True 时先收起右上角菜单，避免菜单遮挡目标名；
                            默认 False，由调用方保证菜单状态
         """
         if close_menu:
             self.ui_close_menu()
+        if self.TARGET_NAME_DIRECT:
+            text = self.ui_target_name_direct()
+            if text:
+                return text
         return self.ocr_color_name(self.O_TARGET_NAME,
                                    scales=scales or self.TARGET_NAME_SCALES,
                                    min_score=min_score if min_score is not None
                                    else self.TARGET_NAME_SCORE)
+
+    def ui_target_name_direct(self) -> str:
+        """
+        原图 ROI 里直接检测文字框并拼串（不缩放、不转灰度）
+
+        和 `ocr_color_name` 的区别：那个是「整块 ROI 缩放 -> 整行识别」，会把 ROI 里
+        的怪物身体、血条一起喂给模型；这里先检测出文字框、只认框里的字，且不插值，
+        小字号的细笔画（王/主/玉）不容易被糊掉。
+
+        :return: 识别到的文字，读不到返回空串
+        """
+        image = self.device.image if self.exist_image() else None
+        if image is None:
+            return ''
+        text = ''.join(item.ocr_text for item in
+                       self.O_TARGET_NAME.detect_and_ocr(image, logDisplay=False))
+        if text:
+            logger.attr('Target name', text)
+        return text
 
     def ui_lock_target(self, interval: float = None) -> bool:
         """
