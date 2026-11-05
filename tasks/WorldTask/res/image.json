@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "new",
+    "imageName": "res_new.png",
+    "roiFront": "618,178,198,89",
+    "roiBack": "603,175,267,125",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "入口npc对话框特征"
+  },
+  {
+    "itemName": "item_2",
+    "imageName": "res_item_2.png",
+    "roiFront": "616,113,198,89",
+    "roiBack": "599,105,267,125",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "交付任务npc对话框特征"
+  }
+]

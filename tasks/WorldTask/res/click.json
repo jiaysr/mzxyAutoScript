@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "new",
+    "roiFront": "674,153,14,19",
+    "roiBack": "631,118,100,100",
+    "description": "入口npc（接任务，进入世界之巅地图）"
+  },
+  {
+    "itemName": "item_2",
+    "roiFront": "703,129,26,25",
+    "roiBack": "637,115,100,100",
+    "description": "交付任务npc"
+  }
+]
