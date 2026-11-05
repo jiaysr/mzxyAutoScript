@@ -160,7 +160,7 @@ def test_close_bonus_promo_closes_without_ticking():
     task.appear_then_click = lambda rule, interval=None: clicks.append(rule) or True
 
     states = [True, True, False]      # 弹窗 -> 点X -> 关掉
-    task.bonus_promo_open = lambda: states.pop(0) if states else False
+    task.bonus_promo_open = lambda refresh=True: states.pop(0) if states else False
 
     assert task.close_bonus_promo(timeout=3) is True
     assert len(clicks) >= 1, '弹窗出现时应该点绿X'
@@ -172,7 +172,7 @@ def test_close_bonus_promo_noop_when_absent():
     task = ScriptTask.__new__(ScriptTask)
     task.device = FakeDevice()
     task.screenshot = lambda: None
-    task.bonus_promo_open = lambda: False
+    task.bonus_promo_open = lambda refresh=True: False
     assert task.close_bonus_promo(timeout=1) is True
     assert task.device.clicks == []
 
