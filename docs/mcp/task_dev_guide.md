@@ -581,6 +581,16 @@ ecord_skill_icon.py ^
     确认内容切过去了），再点「进入世界之巅」（`C_ENTER_WORLD_PEAK` = 540,552,200x48），
     最后**用右上角地点名判断进没进去**（`map_in_location('世界之巅')`）——读条期间地点读不出来，
     轮询里要 `device.stuck_record_clear()`，否则 60s 卡死检测会误报；点不进去重试一次。
+  - **世界之巅里做任务（木料之争）**（真机 20:37）：
+    - 任务页：`ui_goto(page_task)` → `O_TASK_PAGE_LIST`（280,125,890x560）OCR →
+      **按「寻路」按钮的 y 分行**，同一行 x<900 的文字按 x 拼成任务名（OCR 会把「兽毛之争」拆成两段），
+      「完成/进行中」是状态；点该行「寻路」的中心坐标；
+    - 走到采集点：不要用 `map_wait_walk_arrive`（它只等「位置稳定」），要**比对目标坐标**
+      （接近 + 稳定几秒才算到，走岔了要能提前放弃）；轮询里同样清卡死记录；
+    - 采集：`ui_ensure_target_locked(action=ACTION_GATHER)` 切目标锁「采集」物（不校验名字）→
+      点 `ACTION_BUTTON_DISC_CENTER` → `ui_target_lost_check(action=ACTION_GATHER)` 等按钮变回「攻击」
+      （= 采完一份）→ 循环；结束条件用完成提示（`task_completed(名字)`），别数次数；
+    - 阵营：进场随机分配 黄帝/炎帝（出生点 黄帝≈56,60、炎帝≈439,384），只有「为了荣耀」的完成点分阵营。
 - `tasks/Quiz`：答题
   - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
