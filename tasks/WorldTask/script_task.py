@@ -139,8 +139,10 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         ('世界印记', 'gather'),
         ('世界之心', 'drop'),
     )
-    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务
-    DROP_RETRY = 3                   # 还没掉到时最多重打几次「为了荣耀」
+    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务（任意怪都会掉）
+    DROP_RETRY = 3                   # 还没掉到时最多刷几轮怪
+    DROP_FARM_POINT = '兽毛之争'     # 刷掉落去哪个点（野兽 4~5 秒刷新，最快）
+    DROP_FARM_SECONDS = 90           # 每轮刷多久
 
     # 交付（重启后在世界之巅任务榜 NPC 那里交）：列表第一行就是下一个要交的任务
     DELIVER_MAX = 7                  # 最多交几个（=要接的任务数）
@@ -726,8 +728,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 logger.warning(f'任务 [{name}] 没做完，先停')
                 return False
 
-        return self.ensure_drop_task(drop_done=(statuses.get(self.DROP_TASK) == 'done'),
-                                     glory_done=(statuses.get(self.GLORY_TASK) == 'done'))
+        return self.ensure_drop_task(drop_done=(statuses.get(self.DROP_TASK) == 'done'))
 
     def run_world_peak_task(self, name: str, kind: str) -> bool:
         """按玩法分派做单个任务"""
@@ -742,36 +743,51 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return self.run_glory_task()
         raise ValueError(f'Unknown task kind [{kind}] for [{name}]')
 
-    def ensure_drop_task(self, drop_done: bool = False, glory_done: bool = False) -> bool:
+    def ensure_drop_task(self, drop_done: bool = False) -> bool:
         """
-        世界之心是打怪掉落：还没完成就重打「为了荣耀」等掉落
+        世界之心是**打怪掉落**：所有任务做完还没掉到，就去刷新快的点打怪继续刷
 
-        :param drop_done: 任务页里显示已经完成了（重跑时省掉无谓的重打）
-        :param glory_done: 「为了荣耀」已经完成了 —— 再重打也不会掉（任务都交过了），直接收工
+        真机确认（2026-11-05）：世界之巅里**击败任何怪物都有概率掉**，不限于为了荣耀的守门人，
+        所以这里不绑任何任务：去「兽毛之争」的刷新点（3 只野兽、4~5 秒刷新）打
+        `DROP_FARM_SECONDS` 秒算一轮，最多 `DROP_RETRY` 轮。
 
-        掉落看脸，所以重试 `DROP_RETRY` 次还没掉到就今天收工（不算任务失败，
-        否则会因为一个概率掉落让整个任务反复重跑）。
+        :param drop_done: 任务页里显示已经完成了（重跑时省掉无谓的刷怪）
+
+        掉落看脸，刷完还没掉就今天收工（不判任务失败，否则会为一个概率掉落反复重跑整个任务）。
         """
         if drop_done or self.task_completed(self.DROP_TASK):
             logger.info(f'{self.DROP_TASK} 已经完成了')
             return True
-        if glory_done:
-            logger.warning(f'{self.GLORY_TASK} 已完成，没法靠重打它等掉落；'
-                           f'{self.DROP_TASK} 今天没掉到')
-            return True
 
         for attempt in range(1, self.DROP_RETRY + 1):
-            logger.info(f'{self.DROP_TASK} 还没完成，重打 {self.GLORY_TASK} 等掉落 '
-                        f'（第 {attempt}/{self.DROP_RETRY} 次）')
-            if not self.run_glory_task():
-                logger.warning(f'重打 {self.GLORY_TASK} 失败')
-                break
+            logger.info(f'{self.DROP_TASK} 还没掉到，去 [{self.DROP_FARM_POINT}] 的点刷怪 '
+                        f'（第 {attempt}/{self.DROP_RETRY} 轮，每轮 {self.DROP_FARM_SECONDS:.0f}s）')
+            self.farm_for_drop()
             if self.task_completed(self.DROP_TASK):
                 logger.info(f'{self.DROP_TASK} 掉到了，完成')
                 return True
+            logger.info(f'第 {attempt} 轮刷完还没掉')
 
-        logger.warning(f'{self.DROP_TASK} 没掉到（掉落看脸），今天先收工')
+        logger.warning(f'{self.DROP_TASK} 刷了 {self.DROP_RETRY} 轮还没掉（掉落看脸），今天先收工')
         return True
+
+    def farm_for_drop(self, seconds: float = None) -> bool:
+        """
+        去刷新最快的点打一段怪，只为刷「世界之心」掉落
+
+        :param seconds: 这一轮打多久（默认 DROP_FARM_SECONDS）
+        :return: 这一轮结束时任务有没有完成
+        """
+        seconds = self.DROP_FARM_SECONDS if seconds is None else seconds
+        rows = {row[0]: row for row in self.FIGHT_TASKS}
+        row = rows[self.DROP_FARM_POINT]
+        target, position, corner = row[1], row[2], row[3]
+        logger.hr(f'刷 {self.DROP_TASK} 掉落：打 {seconds:.0f}s 的 [{target}]', level=2)
+        if not self.fight_goto_point(self.DROP_FARM_POINT, position, corner):
+            logger.warning('去刷怪点失败')
+            return False
+        self.fight_until_complete(self.DROP_TASK, target, position, corner, timeout=seconds)
+        return self.task_completed(self.DROP_TASK)
 
     def ensure_world_peak_map(self, timeout: float = 40) -> bool:
         """
@@ -1255,7 +1271,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
     def fight_until_complete(self, task_name: str, target: str,
                              position: tuple, corner: str,
-                             rule_key: str = None, lock_timeout: float = None) -> bool:
+                             rule_key: str = None, lock_timeout: float = None,
+                             timeout: float = None) -> bool:
         """
         打目标怪直到任务完成
 
@@ -1263,6 +1280,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         所以目标死了不用补锁、直接重新锁下一只；技能按任务「战斗配置」里的预设放。
 
         :param lock_timeout: 多久一直锁不到目标就放弃（None = 一定要打到达成/超时）
+        :param timeout: 这一段最多打多久（None = FIGHT_TIMEOUT）；刷掉落时传短时段
         :return: 任务完成返回 True
         """
         logger.hr(f'打 [{target}]', level=2)
@@ -1273,7 +1291,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.warning('没识别到可释放的技能位，只点普通攻击')
 
         self.fight_drift_timer = Timer(self.FIGHT_DRIFT_CHECK).start()
-        timer = Timer(self.FIGHT_TIMEOUT).start()
+        timer = Timer(self.FIGHT_TIMEOUT if timeout is None else timeout).start()
         lock_timer = None
         while not timer.reached():
             if self.task_completed(task_name):
