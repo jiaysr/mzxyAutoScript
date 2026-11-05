@@ -234,23 +234,10 @@ def test_find_task_page_row_stops_at_list_bottom():
     assert task.find_task_page_row('世界印记') is None
 
 
-def test_run_gather_tasks_uses_table_order():
-    task = make_task()
-    calls = []
-    task.run_gather_task = lambda name, position: calls.append((name, position)) or True
-
-    assert task.run_gather_tasks() is True
-    assert calls == list(task.GATHER_TASKS), calls
-    assert [c[0] for c in calls] == ['木料之争', '世界之巅', '世界印记']
-
-
-def test_run_gather_tasks_stops_on_failure():
-    task = make_task()
-    calls = []
-    task.run_gather_task = lambda name, position: calls.append(name) or (name != '世界之巅')
-
-    assert task.run_gather_tasks() is False
-    assert calls == ['木料之争', '世界之巅'], calls
+def test_gather_task_table():
+    """采集类任务表：三个任务的完成点（顺序无关，按表驱动执行）"""
+    table = dict(ScriptTask.GATHER_TASKS)
+    assert table == {'木料之争': (145, 470), '世界之巅': (302, 250), '世界印记': (428, 107)}, table
 
 
 def main():
@@ -267,8 +254,7 @@ def main():
         test_gather_task_falls_back_to_close_when_page_stays,
         test_find_task_page_row_scrolls_when_list_is_long,
         test_find_task_page_row_stops_at_list_bottom,
-        test_run_gather_tasks_uses_table_order,
-        test_run_gather_tasks_stops_on_failure,
+        test_gather_task_table,
     ]
     failed = 0
     for case in cases:

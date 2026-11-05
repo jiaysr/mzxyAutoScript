@@ -124,6 +124,23 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     # 判定「走到目标点」的坐标容差
     WOOD_POS_TOLERANCE = 15
 
+    # 世界之巅里的任务执行顺序（任务名, 玩法）
+    # - gather：任务页点「寻路」-> 走到完成点 -> 循环采集
+    # - fight ：小地图点刷新点 -> 走到打架位 -> 打指定怪
+    # - glory ：为了荣耀，按阵营换目标/点位
+    # - drop  ：世界之心，**没有自己的玩法** —— 前面打怪的掉落物，最后统一判断
+    WORLD_PEAK_ORDER = (
+        ('兽毛之争', 'fight'),
+        ('木料之争', 'gather'),
+        ('为了荣耀', 'glory'),
+        ('世界之巅', 'gather'),
+        ('黄金比例', 'fight'),
+        ('世界印记', 'gather'),
+        ('世界之心', 'drop'),
+    )
+    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务
+    DROP_RETRY = 3                   # 还没掉到时最多重打几次「为了荣耀」
+
     # 世界之巅两个阵营：每天首次进图随机分配，出生点不同（真机实测）
     CAMP_HUANGDI = 'huangdi'
     CAMP_YANDI = 'yandi'
@@ -362,15 +379,66 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return True
 
     def run_world_peak_tasks(self) -> bool:
-        """世界之巅地图里的任务：采集类 -> 打怪类 -> 为了荣耀（分阵营）"""
-        if not self.run_gather_tasks():
-            return False
-        if not self.run_fight_tasks():
-            logger.warning('打怪类任务没做完')
-            return False
-        if not self.run_glory_task():
-            logger.warning(f'{self.GLORY_TASK} 没做完')
-            return False
+        """
+        按 WORLD_PEAK_ORDER 顺序做世界之巅里的任务，已完成（任务页状态「完成」）的跳过
+
+        世界之心没有自己的玩法（打怪掉落），所以排在最后统一判断：
+        还没完成就重打「为了荣耀」等掉落，重试 `DROP_RETRY` 次还不掉就今天收工。
+        """
+        logger.hr('世界之巅：做任务')
+        names = [name for name, _kind in self.WORLD_PEAK_ORDER]
+        statuses = dict(self.read_task_page_statuses(names))
+        pending = [(name, kind) for name, kind in self.WORLD_PEAK_ORDER
+                   if statuses.get(name) != 'done']
+        logger.attr('要做', ', '.join(name for name, _ in pending) or 'none')
+        if not pending:
+            logger.info('任务页显示全做完了，跳过')
+            return True
+
+        for name, kind in pending:
+            if kind == 'drop':
+                continue              # 掉落任务最后统一判断
+            if not self.run_world_peak_task(name, kind):
+                logger.warning(f'任务 [{name}] 没做完，先停')
+                return False
+
+        return self.ensure_drop_task()
+
+    def run_world_peak_task(self, name: str, kind: str) -> bool:
+        """按玩法分派做单个任务"""
+        if kind == 'gather':
+            positions = dict(self.GATHER_TASKS)
+            return self.run_gather_task(name, positions[name])
+        if kind == 'fight':
+            rows = {row[0]: row for row in self.FIGHT_TASKS}
+            target, position, corner = rows[name][1:]
+            return self.run_fight_task(name, target, position, corner)
+        if kind == 'glory':
+            return self.run_glory_task()
+        raise ValueError(f'Unknown task kind [{kind}] for [{name}]')
+
+    def ensure_drop_task(self) -> bool:
+        """
+        世界之心是打怪掉落：还没完成就重打「为了荣耀」等掉落
+
+        掉落看脸，所以重试 `DROP_RETRY` 次还没掉到就今天收工（不算任务失败，
+        否则会因为一个概率掉落让整个任务反复重跑）。
+        """
+        if self.task_completed(self.DROP_TASK):
+            logger.info(f'{self.DROP_TASK} 已经掉了，完成')
+            return True
+
+        for attempt in range(1, self.DROP_RETRY + 1):
+            logger.info(f'{self.DROP_TASK} 还没完成，重打 {self.GLORY_TASK} 等掉落 '
+                        f'（第 {attempt}/{self.DROP_RETRY} 次）')
+            if not self.run_glory_task():
+                logger.warning(f'重打 {self.GLORY_TASK} 失败')
+                break
+            if self.task_completed(self.DROP_TASK):
+                logger.info(f'{self.DROP_TASK} 掉到了，完成')
+                return True
+
+        logger.warning(f'{self.DROP_TASK} 没掉到（掉落看脸），今天先收工')
         return True
 
     def ensure_world_peak_map(self, timeout: float = 40) -> bool:
@@ -682,18 +750,6 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return False
         return self.gather_until_complete(name)
 
-    def run_gather_tasks(self) -> bool:
-        """按顺序做完 GATHER_TASKS 里的采集类任务"""
-        logger.hr('世界之巅：采集类任务')
-        done = []
-        for name, position in self.GATHER_TASKS:
-            if not self.run_gather_task(name, position):
-                logger.warning(f'采集任务 [{name}] 没做完（已完成：{", ".join(done) or "无"}）')
-                return False
-            done.append(name)
-        logger.attr('采集类任务完成', ', '.join(done))
-        return True
-
     # ---------------------------------------------------------------- 打怪类任务
     def fight_click_rule(self, key: str):
         """小地图点位规则：兽毛之争 / 黄金比例 直接用任务名，为了荣耀用 glory_xxx"""
@@ -706,28 +762,6 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if key not in rules:
             raise ValueError(f'Unknown fight point [{key}], expect {list(rules)}')
         return rules[key]
-
-    def run_fight_tasks(self) -> bool:
-        """
-        按顺序做完 FIGHT_TASKS 里的打怪任务
-
-        先读一次任务页，状态已经是「完成」的直接跳过（重跑时省一趟走位）。
-        """
-        logger.hr('世界之巅：打怪类任务')
-        names = [name for name, *_rest in self.FIGHT_TASKS]
-        statuses = {name: status for name, status in self.read_task_page_statuses(names)}
-        done = []
-        for name, target, position, corner in self.FIGHT_TASKS:
-            if statuses.get(name) == 'done':
-                logger.info(f'任务页显示 [{name}] 已完成，跳过')
-                done.append(name)
-                continue
-            if not self.run_fight_task(name, target, position, corner):
-                logger.warning(f'打怪任务 [{name}] 没做完（已完成：{", ".join(done) or "无"}）')
-                return False
-            done.append(name)
-        logger.attr('打怪类任务完成', ', '.join(done))
-        return True
 
     def read_task_page_statuses(self, names: list) -> list:
         """

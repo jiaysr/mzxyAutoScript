@@ -223,32 +223,7 @@ def test_fight_gives_up_when_target_never_locks():
     assert task.fight_until_complete(*BEAST) is False
 
 
-# ---------------------------------------------------------------- 任务页状态跳过
-def test_run_fight_tasks_skips_done_by_task_page():
-    """任务页显示已完成的不再打（重跑时省一趟走位）"""
-    task = make_task()
-    task.read_task_page_statuses = lambda names: [('兽毛之争', 'done'), ('黄金比例', 'pending')]
-    calls = []
-    task.run_fight_task = lambda *args: calls.append(args[0]) or True
-
-    assert task.run_fight_tasks() is True
-    assert calls == ['黄金比例'], calls
-
-
-def test_run_fight_tasks_order_and_failure():
-    task = make_task()
-    task.read_task_page_statuses = lambda names: [(n, 'pending') for n in names]
-    calls = []
-    task.run_fight_task = lambda *args: calls.append(args[0]) or True
-    assert task.run_fight_tasks() is True
-    assert calls == ['兽毛之争', '黄金比例'], calls
-
-    task2 = make_task()
-    task2.read_task_page_statuses = lambda names: [(n, 'pending') for n in names]
-    task2.run_fight_task = lambda *args: False
-    assert task2.run_fight_tasks() is False
-
-
+# ---------------------------------------------------------------- 任务页状态
 def test_read_task_page_statuses_unreadable_means_pending():
     """任务页打不开：按没做处理，不误跳过"""
     task = make_task()
@@ -366,8 +341,6 @@ def main():
         test_fight_returns_when_completed,
         test_fight_regotos_on_drift,
         test_fight_gives_up_when_target_never_locks,
-        test_run_fight_tasks_skips_done_by_task_page,
-        test_run_fight_tasks_order_and_failure,
         test_read_task_page_statuses_unreadable_means_pending,
         test_read_task_page_statuses_marks_done,
         test_glory_variants_table,
