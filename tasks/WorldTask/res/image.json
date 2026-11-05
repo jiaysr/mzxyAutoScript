@@ -16,5 +16,32 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "交付任务npc对话框特征"
+  },
+  {
+    "itemName": "item_3",
+    "imageName": "res_item_3.png",
+    "roiFront": "512,399,247,44",
+    "roiBack": "498,356,267,125",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "入口npc点击位置打开面板"
+  },
+  {
+    "itemName": "item_4",
+    "imageName": "res_item_4.png",
+    "roiFront": "89,207,155,173",
+    "roiBack": "73,192,215,246",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界之巅弹窗特征"
+  },
+  {
+    "itemName": "item_5",
+    "imageName": "res_item_5.png",
+    "roiFront": "1039,190,104,49",
+    "roiBack": "985,169,203,440",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "人物接取页面特征"
   }
 ]

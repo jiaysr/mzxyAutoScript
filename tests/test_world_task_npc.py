@@ -256,6 +256,135 @@ def test_location_moved_tolerance():
     assert task._location_moved(None, ('域外灵岛', 120, 100)) is False
 
 
+# ---------------------------------------------------------------- 活动弹窗 tab
+# 真机 OCR 实测的 tab 布局（2026-11-05 四张截图）
+TABS_LEFT = [('世界之巅', 234, 128), ('周末限时', 473, 116),
+             ('跨服任务', 712, 116), ('灭世铸烬', 951, 116)]
+TABS_RIGHT = [('灭世铸烬', 293, 116), ('荣誉商店', 533, 117),
+              ('荣耀币商店', 771, 116), ('玩法说明', 1011, 116)]
+TABS_GARBAGE = [('主1无补天赋', 155, 138), ('<任务>矢量战神', 532, 133),
+                ('65之巅守门人', 595, 104), ('赤霄', 1108, 102)]
+
+
+def make_tab_task(pages):
+    """
+    造一个测 tab 切换的实例
+
+    :param pages: 每次读 tab 条返回的列表（按读取顺序消耗，最后一个会一直重复）
+    """
+    task = make_task()
+    task.device = RecordingDevice()
+    task.screenshot = lambda: None
+    state = {'index': 0, 'swipes': []}
+
+    def ocr_items():
+        index = min(state['index'], len(pages) - 1)
+        return list(pages[index])
+
+    def swipe_tabs(forward=True):
+        state['swipes'].append(forward)
+        before = task.tab_signature()
+        state['index'] = min(state['index'] + 1, len(pages) - 1)
+        return before != task.tab_signature()
+
+    task._ocr_items = ocr_items
+    task.swipe_tabs = swipe_tabs
+    task.state = state
+    return task
+
+
+def test_switch_tab_clicks_when_visible():
+    """tab 已经在视野里：直接点，不滑"""
+    task = make_tab_task([TABS_LEFT])
+    clicks = []
+    task.click_tab = lambda name, coord=None: clicks.append((name, coord)) or True
+
+    assert task.switch_tab('跨服任务') is True
+    assert clicks == [('跨服任务', (712, 116))]
+    assert task.state['swipes'] == []
+
+
+def test_switch_tab_swipes_until_found():
+    """目标在右边看不见：往右翻一页后点中"""
+    task = make_tab_task([TABS_LEFT, TABS_RIGHT])
+    clicks = []
+    task.click_tab = lambda name, coord=None: clicks.append((name, coord)) or True
+
+    assert task.switch_tab('荣誉商店') is True
+    assert task.state['swipes'] == [True]
+    assert clicks == [('荣誉商店', (533, 117))]
+
+
+def test_switch_tab_scrolls_back_when_at_right_end():
+    """世界之巅是第一个 tab：tab 条停在右边时只能往左翻回来"""
+    task = make_tab_task([TABS_RIGHT, TABS_LEFT])
+    clicks = []
+    task.click_tab = lambda name, coord=None: clicks.append((name, coord)) or True
+
+    assert task.switch_tab('世界之巅') is True
+    # 目标在最左边 -> 第一下就该往左翻，不能傻乎乎继续往右翻
+    assert task.state['swipes'] == [False], task.state['swipes']
+    assert clicks == [('世界之巅', (234, 128))]
+
+
+def test_tab_direction():
+    """方向判断：目标在可见范围左边往左翻、右边往右翻"""
+    task = make_tab_task([TABS_LEFT])
+    assert task.tab_direction('世界之巅') is True        # 已在视野，方向无意义
+    assert task.tab_direction('荣誉商店') is True        # 在右边
+    assert task.tab_direction('不存在') is None
+
+    task = make_tab_task([TABS_RIGHT])
+    assert task.tab_direction('世界之巅') is False       # 在左边
+    assert task.tab_direction('跨服任务') is False       # 也在左边
+    assert task.tab_direction('玩法说明') is True        # 已在视野
+
+
+def test_switch_tab_gives_up_when_never_found():
+    """翻遍了也没有这个 tab：返回 False，不无限循环"""
+    task = make_tab_task([TABS_RIGHT])
+    task.click_tab = lambda name, coord=None: True
+
+    assert task.switch_tab('不存在的tab') is False
+    assert len(task.state['swipes']) <= 2, f'空翻了太多次: {task.state["swipes"]}'
+
+
+def test_ensure_activity_tab_verifies_content():
+    """切到世界之巅之后要等黄帝立绘出现，不能点完就算数"""
+    task = make_task()
+    task.screenshot = lambda: None
+    task.device = SimpleNamespace(image=None, sleep=lambda seconds: None)
+    task.switch_tab = lambda name, max_swipe=3: True
+
+    task.appear = lambda target, interval=None, threshold=None: True
+    assert task.ensure_activity_tab() is True
+
+    task.appear = lambda target, interval=None, threshold=None: False
+    task.find_tab = lambda name: (234, 128)     # tab 还在视野里，但内容没出来
+    assert task.ensure_activity_tab() is False
+
+
+def test_activity_panel_open_detection():
+    """有黄帝立绘=开着；立绘没了但 tab 条认得 2 个以上已知 tab 也算开着"""
+    task = make_task()
+    task.screenshot = lambda: None
+    task.appear = lambda target, interval=None, threshold=None: False
+    task._ocr_items = lambda: list(TABS_LEFT)
+    assert task.activity_panel_open() is True
+
+    task._ocr_items = lambda: list(TABS_GARBAGE)
+    assert task.activity_panel_open() is False
+
+    # 只剩 1 个 tab 时不认（可能只是路过页面里的文字）
+    task._ocr_items = lambda: [('世界之巅', 234, 128), ('主1无补天赋', 155, 138)]
+    assert task.activity_panel_open() is False
+
+    # 黄帝立绘在就直接算开着（切过 tab 之后 tab 条也可能读不全）
+    task.appear = lambda target, interval=None, threshold=None: True
+    task._ocr_items = lambda: []
+    assert task.activity_panel_open() is True
+
+
 # ---------------------------------------------------------------- 地图与找 NPC
 def test_find_npc_teleports_only_when_outside_location():
     def build(location, teleport_result=True):
@@ -316,6 +445,13 @@ def main():
         test_wait_response_fails_when_character_stuck,
         test_wait_response_rejects_other_dialog,
         test_location_moved_tolerance,
+        test_switch_tab_clicks_when_visible,
+        test_switch_tab_swipes_until_found,
+        test_switch_tab_scrolls_back_when_at_right_end,
+        test_tab_direction,
+        test_switch_tab_gives_up_when_never_found,
+        test_ensure_activity_tab_verifies_content,
+        test_activity_panel_open_detection,
         test_find_npc_teleports_only_when_outside_location,
         test_find_npc_closes_other_dialog_first,
     ]

@@ -22,5 +22,21 @@ class WorldTaskAssets:
 	I_NEW = RuleImage(roi_front=(618,178,198,89), roi_back=(603,175,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_new.png")
 	# 交付任务npc对话框特征 
 	I_ITEM_2 = RuleImage(roi_front=(616,113,198,89), roi_back=(599,105,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_2.png")
+	# 入口npc点击位置打开面板 
+	I_ITEM_3 = RuleImage(roi_front=(512,399,247,44), roi_back=(498,356,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_3.png")
+	# 世界之巅弹窗特征 
+	I_ITEM_4 = RuleImage(roi_front=(89,207,155,173), roi_back=(73,192,215,246), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_4.png")
+	# 人物接取页面特征 
+	I_ITEM_5 = RuleImage(roi_front=(1039,190,104,49), roi_back=(985,169,203,440), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_5.png")
+
+
+	# Ocr Rule Assets
+	# 世家之巅弹窗顶部tab识别区域 
+	O_NEW = RuleOcr(roi=(78,82,1052,68), area=(78,82,1052,68), mode="Single", method="Default", keyword="", name="new")
+
+
+	# Swipe Rule Assets
+	# tab滑动 
+	S_NEW = RuleSwipe(roi_front=(890,90,93,55), roi_back=(419,89,115,59), mode="default", name="new")
 
 

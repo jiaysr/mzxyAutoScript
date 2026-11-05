@@ -2,10 +2,17 @@
 """
 世界任务（WorldTask）：每天一次，只在开放世界时段（09:00-24:00）里跑
 
-当前进度：**识别人** —— 判断是否在 NPC 所在地图（默认域外灵岛）→ 打开小地图把视口拖到
-右上角 → 点录好的 NPC 点位 → **主动关掉小地图** → 用「人物坐标有没有变化」判断这一下点没点中
-（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC。
-接任务 / 进世界之巅 / 交任务的流程后面接着补。
+当前进度：**认人 + 打开世界之巅活动弹窗** —— 判断是否在 NPC 所在地图（默认域外灵岛）→
+打开小地图把视口拖到右上角 → 点录好的 NPC 点位 → **主动关掉小地图** → 用「人物坐标有没有变化」
+判断这一下点没点中（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC
+→ 在守门人对话里点「查看世界之巅活动」→ 活动弹窗打开 → 切到「跨服任务」tab → 确认接取列表可见。
+接任务 / 进世界之巅 / 做任务 / 交任务后面接着补。
+
+游戏里的页面链路（2026-11-05 录制，见 tasks/WorldTask/res/）：
+    守门人对话（I_NEW）→「查看世界之巅活动」选项行（I_ITEM_3）→ 世界之巅活动弹窗
+    →「世界之巅」tab 有黄帝立绘（I_ITEM_4）→「跨服任务」tab（O_NEW 读 tab 名，S_NEW 滑 tab 条）
+    → 任务列表里每行一个「接取」按钮（I_ITEM_5）
+    活动时间：每周星期一到星期五 9:00-24:00（与 schedule.py 的窗口一致）
 
 为什么点完要主动关小地图：点位点击不一定生效（地图没拖到位、点在遮罩上都会吃掉），
 小地图开着又正好盖住对话框，只会白等到超时。所以关掉之后拿主页面右上角的坐标当判据：
@@ -52,6 +59,15 @@ class ScriptTask(GameUi, WorldTaskAssets):
     # 单次找 NPC 最多点几次
     NPC_RETRY = 3
 
+    # 世界之巅活动弹窗顶部 tab：按顺序登记，用来判断该往哪个方向翻
+    # 目前流程只用得到前两个（世界之巅 = 活动主页 / 跨服任务 = 接取列表）
+    ACTIVITY_TABS = ('世界之巅', '周末限时', '跨服任务', '灭世铸烬',
+                     '荣誉商店', '荣耀币商店', '玩法说明')
+    # 世界之巅是第一个 tab：弹窗停在上次的 tab 时，只能往左翻回来
+    ACTIVITY_HOME_TAB = '世界之巅'
+    # 世界任务所在 tab
+    ACTIVITY_TASK_TAB = '跨服任务'
+
     def run(self) -> None:
         logger.hr('世界任务')
         if not in_open_world(datetime.now()):
@@ -71,15 +87,241 @@ class ScriptTask(GameUi, WorldTaskAssets):
     # ---------------------------------------------------------------- 玩法
     def world_task_flow(self) -> bool:
         """
-        当前阶段：认人。确认能在地图上找到并点开入口 NPC 的对话框。
+        当前阶段：认人 + 打开世界之巅活动弹窗 + 切到「跨服任务」列表
 
-        :return: 找到入口 NPC 返回 True
+        真机页面链路（2026-11-05 录制）：
+        守门人对话 -> 点「查看世界之巅活动」-> 世界之巅活动弹窗（顶部 tab 条）
+        -> 世界之巅 tab（活动主页，带黄帝立绘和「进入世界之巅」按钮）-> 跨服任务 tab（接取列表）
+
+        :return: 走到「跨服任务列表可见」返回 True
         """
         if not self.find_npc(self.NPC_NEW):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
             return False
         logger.info('入口 NPC 已确认：世界之巅守门人')
+
+        if not self.open_activity_panel():
+            logger.warning('世界之巅活动弹窗没打开')
+            return False
+        # 弹窗会记住上次停在哪个 tab，先回到活动主页（世界之巅在最左，不在视野就左翻）
+        if not self.ensure_activity_tab(self.ACTIVITY_HOME_TAB):
+            logger.warning(f'没回到 [{self.ACTIVITY_HOME_TAB}] tab')
+            return False
+        if not self.switch_tab(self.ACTIVITY_TASK_TAB):
+            logger.warning(f'没切到 tab [{self.ACTIVITY_TASK_TAB}]')
+            return False
+        if not self.appear(self.I_ITEM_5):
+            logger.warning('跨服任务列表里没看到「接取」按钮')
+            return False
+        logger.info('跨服任务列表已打开（接取/做任务/交付待补）')
+        # 目前到此为止：把界面收干净，别把游戏留在弹窗里
+        self.close_activity_panel()
         return True
+
+    # ---------------------------------------------------------------- 世界之巅活动弹窗
+    def _ocr_items(self) -> list:
+        """顶部 tab 条 OCR 原始结果（单测里替换这一层）"""
+        self.maybe_screenshot()
+        roi = self.O_NEW.roi
+        items = []
+        for item in self.O_NEW.detect_and_ocr(self.device.image, logDisplay=False):
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            box = item.box
+            x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+            y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+            items.append((text, x, y))
+        items.sort(key=lambda i: i[1])
+        return items
+
+    def close_activity_panel(self, timeout: float = 8) -> bool:
+        """关掉世界之巅活动弹窗（右上角绿 X）"""
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.activity_panel_open() and self.npc_dialog() is None:
+                return True
+            if self.appear_then_click(self.I_CLOSE_X_GREEN, interval=1):
+                self.device.click_record_clear()
+            self.device.sleep(0.5)
+        logger.warning('Activity panel does not close')
+        return False
+
+    def tab_items(self) -> list:
+        """当前可见的 tab 文字与可点中心 [(文本, x, y)]，按 x 排序"""
+        return self._ocr_items()
+
+    def find_tab(self, name: str):
+        """在当前 tab 条里找 name，返回可点中心 (x, y)；不在视野里返回 None"""
+        for text, x, y in self.tab_items():
+            if self.ocr_name_match(text, name):
+                return x, y
+        return None
+
+    def swipe_tabs(self, forward: bool = True) -> bool:
+        """
+        滑 tab 条：forward=True 往右翻（露出右边的 tab），False 往左翻回来
+
+        :return: 这次滑动后已知 tab 的布局有没有变化；没变化说明已经到底
+        """
+        before = self.tab_signature()
+        x1, y1, x2, y2 = self.S_NEW.coord()
+        if not forward:
+            x1, y1, x2, y2 = x2, y2, x1, y1
+        logger.info(f'Swipe activity tabs {"right" if forward else "left"} '
+                    f'({x1},{y1}) -> ({x2},{y2})')
+        self.device.swipe(p1=(x1, y1), p2=(x2, y2), control_name=self.S_NEW.name)
+        self.device.click_record_clear()
+        self.device.sleep(0.8)
+        after = self.tab_signature()
+        if before == after:
+            logger.info('Tab bar did not scroll')
+            return False
+        return True
+
+    def tab_signature(self) -> tuple:
+        """已知 tab 的 (文本, x)，用来判断 tab 条到底了没（OCR 噪声项不算）"""
+        return tuple((text, x) for text, x, _ in self.tab_items()
+                     if any(self.ocr_name_match(text, tab) for tab in self.ACTIVITY_TABS))
+
+    def click_tab(self, name: str, coord=None) -> bool:
+        """点 tab：切过去之后等画面稳定"""
+        coord = coord or self.find_tab(name)
+        if not coord:
+            return False
+        logger.info(f'Click activity tab [{name}] at {coord}')
+        self.device.click(x=coord[0], y=coord[1], control_name=f'tab_{name}')
+        self.device.click_record_clear()
+        self.device.sleep(1.0)
+        return True
+
+    def tab_index(self, name: str) -> int:
+        """tab 在 ACTIVITY_TABS 里的序号；认不出来返回 -1"""
+        for index, tab in enumerate(self.ACTIVITY_TABS):
+            if self.ocr_name_match(name, tab):
+                return index
+        return -1
+
+    def visible_tabs(self) -> list:
+        """当前可见的已知 tab：[(文本, x, y, index)]，按 x 排序"""
+        items = []
+        for text, x, y in self.tab_items():
+            index = self.tab_index(text)
+            if index >= 0:
+                items.append((text, x, y, index))
+        return items
+
+    def tab_direction(self, name: str):
+        """
+        目标 tab 在该往哪边翻
+
+        tab 条顺序固定（世界之巅在最左），拿「目标序号」和「当前可见 tab 的序号范围」比：
+        目标在可见范围左边就往左翻，在右边就往右翻。
+
+        世界之巅最容易踩坑：弹窗停在后面的 tab（比如上次看的跨服任务又往右滑过）时，
+        它不在视野里，这时**必须往左翻**，继续往右翻永远翻不到。
+        :return: True=往右翻 / False=往左翻 / None=认不出现状（按往左翻回去处理）
+        """
+        target = self.tab_index(name)
+        visible = self.visible_tabs()
+        if target < 0 or not visible:
+            return None
+        first = min(index for _, _, _, index in visible)
+        last = max(index for _, _, _, index in visible)
+        if target < first:
+            return False
+        if target > last:
+            return True
+        return True
+
+    def switch_tab(self, name: str, max_swipe: int = 3) -> bool:
+        """
+        切到指定 tab：视野里直接点；不在就按 tab 顺序判断方向翻过去，翻不动了换方向
+
+        :return: 点到了返回 True（是否真的切过去由调用方用该 tab 的特征确认）
+        """
+        logger.hr(f'Switch activity tab [{name}]')
+        for _ in range(max_swipe + 1):
+            coord = self.find_tab(name)
+            if coord:
+                return self.click_tab(name, coord)
+            forward = self.tab_direction(name)
+            if forward is None:
+                # 认不出当前停在哪个 tab：先往左翻（世界之巅在最左，总能先回到第一页）
+                forward = False
+            if not self.swipe_tabs(forward=forward):
+                logger.info(f'Tab bar cannot scroll {"right" if forward else "left"}, '
+                            f'try the other way')
+                if not self.swipe_tabs(forward=not forward):
+                    logger.info('Tab bar does not scroll at all')
+                    break
+        logger.warning(f'Activity tab [{name}] not found')
+        return False
+
+    def ensure_activity_tab(self, name: str = None, max_swipe: int = 3) -> bool:
+        """
+        确保停在某个 tab 页面（默认世界之巅：活动主页）
+
+        弹窗会记住上次停在哪个 tab，打开时不一定是世界之巅，所以进弹窗后先归位。
+        :return: 已经在该 tab（或切过去了）返回 True
+        """
+        name = name or self.ACTIVITY_HOME_TAB
+        if not self.switch_tab(name, max_swipe=max_swipe):
+            return False
+        # 切过去之后用该 tab 的内容特征确认（世界之巅 = 黄帝立绘）
+        if self.tab_index(name) == 0:
+            timer = Timer(6).start()
+            while not timer.reached():
+                self.screenshot()
+                if self.appear(self.I_ITEM_4):
+                    logger.info(f'Activity tab [{name}] is showing')
+                    return True
+                if self.find_tab(name) is None and self.activity_panel_open():
+                    break
+                self.device.sleep(0.3)
+            logger.warning(f'Activity tab [{name}] content does not appear')
+            return False
+        return True
+
+    def activity_panel_open(self) -> bool:
+        """世界之巅活动弹窗开着没有"""
+        self.maybe_screenshot()
+        # 停在「世界之巅」tab 时有黄帝立绘
+        if self.appear(self.I_ITEM_4):
+            return True
+        # 切过 tab 之后立绘就没了，改看顶部 tab 条：认出 2 个以上已知 tab 就算开着
+        known = [text for text, _, _ in self.tab_items()
+                 if any(self.ocr_name_match(text, tab) for tab in self.ACTIVITY_TABS)]
+        return len(known) >= 2
+
+    def open_activity_panel(self, timeout: float = 12) -> bool:
+        """
+        在守门人对话里点「查看世界之巅活动」-> 等世界之巅活动弹窗
+
+        真机实测：点这个选项行弹窗就直接出来了（不需要再点「确定」）。
+        :return: 弹窗打开返回 True
+        """
+        logger.hr('打开世界之巅活动弹窗')
+        if self.activity_panel_open():
+            logger.info('Activity panel is already open')
+            return True
+
+        timer = Timer(timeout).start()
+        clicked = False
+        while not timer.reached():
+            self.screenshot()
+            if self.activity_panel_open():
+                logger.info('Activity panel opened')
+                return True
+            if not clicked and self.appear_then_click(self.I_ITEM_3, interval=1):
+                logger.info('Click 查看世界之巅活动')
+                clicked = True
+                self.device.click_record_clear()
+                continue
+            self.device.sleep(0.5)
+        logger.warning('Activity panel does not open')
+        return False
 
     # ---------------------------------------------------------------- NPC 识别
     def npc_click(self, npc: str):
