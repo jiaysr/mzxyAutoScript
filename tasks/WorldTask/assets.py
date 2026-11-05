@@ -19,6 +19,8 @@ class WorldTaskAssets:
 	C_ENTER_WORLD_PEAK = RuleClick(roi_front=(540,552,200,48), roi_back=(500,530,300,90), name="enter_world_peak")
 	# 兽毛之争：小地图视口在右下角时的野怪刷新点（精确到点，点完人物自动走过去） 
 	C_BEAST_POINT = RuleClick(roi_front=(455,407,1,1), roi_back=(455,407,1,1), name="beast_point")
+	# 黄金比例：小地图视口在左上角时的野怪刷新点（精确到点，点完人物自动走过去） 
+	C_GOLDEN_POINT = RuleClick(roi_front=(536,371,1,1), roi_back=(536,371,1,1), name="golden_point")
 
 
 	# Image Rule Assets

@@ -110,15 +110,18 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         ('世界印记', (428, 107)),
     )
 
-    # 兽毛之争：小地图（视口在右下角）点野怪刷新点 -> 人物走过去 -> 打「野兽」
-    BEAST_TASK = '兽毛之争'
-    BEAST_FIGHT_POS = (226, 375)     # 落地后要待的打架位
-    BEAST_TARGET = '野兽'            # 目标名（锁目标时校验）
-    BEAST_DRIFT_CHECK = 5.0          # 每隔几秒查一次坐标
-    BEAST_DRIFT_TOLERANCE = 12       # 偏离打架位超过这个格数就回点位
-    BEAST_TRAVEL_TIMEOUT = 90        # 走过去 / 回点位的超时
-    BEAST_FIGHT_TIMEOUT = 600        # 整个打怪阶段的超时
-    # 判定「走到采集点了」的坐标容差
+    # 世界之巅里的「打怪类」任务：小地图拖到某个角落 -> 点刷新点 -> 走到打架位 -> 打指定怪
+    # 玩法都一样，只有「锚点角 / 刷新点 / 打架位 / 目标名」不同
+    FIGHT_TASKS = (
+        # 任务名, 目标名, 打架位, 小地图锚点角, 小地图点位规则
+        ('兽毛之争', '野兽', (226, 375), 'bottom_right'),
+        ('黄金比例', '黄金鼠', (220, 156), 'top_left'),
+    )
+    FIGHT_DRIFT_CHECK = 5.0          # 打怪时每隔几秒查一次坐标
+    FIGHT_DRIFT_TOLERANCE = 12       # 偏离打架位超过这个格数就回点位
+    FIGHT_TRAVEL_TIMEOUT = 90        # 走过去 / 回点位的超时
+    FIGHT_TIMEOUT = 600              # 单个任务打怪阶段的超时
+    # 判定「走到目标点」的坐标容差
     WOOD_POS_TOLERANCE = 15
 
     # 要接的跨服任务（列表里的先后顺序）
@@ -337,11 +340,11 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return True
 
     def run_world_peak_tasks(self) -> bool:
-        """世界之巅地图里的任务：先做采集类，再打野兽"""
+        """世界之巅地图里的任务：先做采集类，再打怪类"""
         if not self.run_gather_tasks():
             return False
-        if not self.run_beast_task():
-            logger.warning(f'{self.BEAST_TASK} 没做完')
+        if not self.run_fight_tasks():
+            logger.warning('打怪类任务没做完')
             return False
         return True
 
@@ -662,112 +665,197 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         logger.attr('采集类任务完成', ', '.join(done))
         return True
 
-    # ---------------------------------------------------------------- 兽毛之争（打野兽）
-    def run_beast_task(self) -> bool:
-        """兽毛之争：小地图右下角点位 -> 走到打架位 -> 循环打「野兽」直到任务完成"""
-        logger.hr(f'世界任务：{self.BEAST_TASK}')
-        if self.task_completed(self.BEAST_TASK):
-            logger.info(f'[{self.BEAST_TASK}] 本次已收到完成提示，跳过')
-            return True
-        if not self.beast_goto_fight_point():
-            return False
-        return self.beast_fight_until_complete()
+    # ---------------------------------------------------------------- 打怪类任务
+    def fight_click_rule(self, task_name: str):
+        """打怪任务名 -> 小地图上的刷新点点击规则"""
+        rules = {
+            '兽毛之争': self.C_BEAST_POINT,
+            '黄金比例': self.C_GOLDEN_POINT,
+        }
+        if task_name not in rules:
+            raise ValueError(f'Unknown fight task [{task_name}], expect {list(rules)}')
+        return rules[task_name]
 
-    def beast_goto_fight_point(self) -> bool:
+    def run_fight_tasks(self) -> bool:
         """
-        回到打架位：小地图拖到右下角 -> 点野怪刷新点 -> 主动关小地图 -> 等走到 (226,375)
+        按顺序做完 FIGHT_TASKS 里的打怪任务
+
+        先读一次任务页，状态已经是「完成」的直接跳过（重跑时省一趟走位）。
+        """
+        logger.hr('世界之巅：打怪类任务')
+        names = [name for name, *_rest in self.FIGHT_TASKS]
+        statuses = {name: status for name, status in self.read_task_page_statuses(names)}
+        done = []
+        for name, target, position, corner in self.FIGHT_TASKS:
+            if statuses.get(name) == 'done':
+                logger.info(f'任务页显示 [{name}] 已完成，跳过')
+                done.append(name)
+                continue
+            if not self.run_fight_task(name, target, position, corner):
+                logger.warning(f'打怪任务 [{name}] 没做完（已完成：{", ".join(done) or "无"}）')
+                return False
+            done.append(name)
+        logger.attr('打怪类任务完成', ', '.join(done))
+        return True
+
+    def read_task_page_statuses(self, names: list) -> list:
+        """
+        读任务页，返回 [(任务名, 'done' / 'pending' / 'missing')]
+
+        任务多时列表会滚，所以先把整个列表读下来再比；读不到任务页就都按 pending 处理
+        （宁可按没做继续，也不要因为读不到就跳过）。
+        """
+        if not self.open_task_page():
+            return [(name, 'pending') for name in names]
+        try:
+            rows = self.read_all_task_rows()
+        finally:
+            self.close_task_page()
+
+        result = []
+        for name in names:
+            status = 'missing'
+            for row in rows:
+                if self.task_name_match(row[0], name):
+                    status = 'done' if '完成' in row[1] else 'pending'
+                    break
+            result.append((name, status))
+        return result
+
+    def read_all_task_rows(self, max_scroll: int = 4) -> list:
+        """把任务页整个列表读下来（自动往下翻页收集，同名只留第一次见到的）"""
+        collected, seen_names, seen_screens = [], set(), set()
+        for attempt in range(max_scroll + 1):
+            current = self.task_page_rows()
+            for row in current:
+                if row[0] in seen_names:
+                    continue
+                seen_names.add(row[0])
+                collected.append(row)
+            signature = tuple(row[0] for row in current)
+            if signature in seen_screens:
+                break
+            seen_screens.add(signature)
+            if attempt >= max_scroll:
+                break
+            if not self.swipe_task_page_list(forward=True, before=signature):
+                break
+        return collected
+
+    def run_fight_task(self, task_name: str, target: str, position: tuple, corner: str) -> bool:
+        """
+        做一个打怪任务：小地图拖到锚点角 -> 点刷新点 -> 走到打架位 -> 循环打目标
+
+        :param task_name: 任务名（用于判断完成提示）
+        :param target: 目标怪名字（锁目标时校验）
+        :param position: 打架位坐标
+        :param corner: 小地图锚点角（bottom_right / top_left ...）
+        """
+        logger.hr(f'世界任务：{task_name}')
+        if self.task_completed(task_name):
+            logger.info(f'[{task_name}] 本次已收到完成提示，跳过')
+            return True
+        if not self.fight_goto_point(task_name, position, corner):
+            return False
+        return self.fight_until_complete(task_name, target, position, corner)
+
+    def fight_goto_point(self, task_name: str, position: tuple, corner: str) -> bool:
+        """
+        去打架位：小地图拖到指定角落 -> 点刷新点 -> 主动关小地图 -> 轮询等走到
 
         只是被打退几步（人还在打架位附近）时不用重开地图，直接接着打。
         """
-        logger.hr('去野怪刷新点', level=2)
-        if not self.beast_drifted():
+        logger.hr(f'去 [{task_name}] 的刷新点', level=2)
+        if not self.fight_drifted(position):
             logger.info('已经在打架位附近，不用重开地图')
             return True
         if not self.map_open_minimap_tap():
             logger.warning('小地图打不开')
             return False
-        if not self.map_pan_to_corner('bottom_right'):
-            logger.warning('小地图没拖到右下角')
+        if not self.map_pan_to_corner(corner):
+            logger.warning(f'小地图没拖到 [{corner}]')
             return False
-        x, y = self.C_BEAST_POINT.coord()
-        logger.info(f'小地图点野怪刷新点 ({x},{y})')
-        self.device.click(x=x, y=y, control_name=self.C_BEAST_POINT.name)
+        rule = self.fight_click_rule(task_name)
+        x, y = rule.coord()
+        logger.info(f'小地图点刷新点 ({x},{y})')
+        self.device.click(x=x, y=y, control_name=rule.name)
         self.device.click_record_clear()
         # 主动关小地图，别指望它自己关（盖住画面就没法判断）
         self.close_minimap_if_open()
-        if not self.map_wait_arrive_at(self.BEAST_FIGHT_POS,
-                                       tolerance=self.BEAST_DRIFT_TOLERANCE,
-                                       timeout=self.BEAST_TRAVEL_TIMEOUT):
-            logger.warning(f'没走到打架位 {self.BEAST_FIGHT_POS}')
+        if not self.map_wait_arrive_at(position,
+                                       tolerance=self.FIGHT_DRIFT_TOLERANCE,
+                                       timeout=self.FIGHT_TRAVEL_TIMEOUT):
+            logger.warning(f'没走到打架位 {position}')
             return False
         return True
 
-    def beast_drifted(self) -> bool:
+    def fight_drifted(self, position: tuple) -> bool:
         """现在是不是已经离开打架位了（坐标读不出来按「没跑偏」处理）"""
         location = self.map_move_read_pos()
         if location is None:
             return False
-        return not self.map_pos_match(location[1], location[2], self.BEAST_FIGHT_POS,
-                                      self.BEAST_DRIFT_TOLERANCE)
+        return not self.map_pos_match(location[1], location[2], position,
+                                      self.FIGHT_DRIFT_TOLERANCE)
 
-    def beast_stop_reason(self, image=None):
+    def fight_stop_reason(self, task_name: str, position: tuple, image=None):
         """
         打怪循环的停止条件（每轮都被调用，所以查坐标要按 5 秒节流）
 
         - 任务完成提示出现 -> 'complete'
         - 每 5 秒查一次坐标，偏离打架位 -> 'drift'（外层回点位后接着打）
         """
-        if self.task_completed(self.BEAST_TASK):
-            logger.info(f'[{self.BEAST_TASK}] 已完成')
+        if self.task_completed(task_name):
+            logger.info(f'[{task_name}] 已完成')
             return 'complete'
-        if self.beast_drift_timer.reached():
-            self.beast_drift_timer.reset()
-            if self.beast_drifted():
-                logger.warning(f'人物偏离打架位 {self.BEAST_FIGHT_POS}，回点位')
+        if self.fight_drift_timer.reached():
+            self.fight_drift_timer.reset()
+            if self.fight_drifted(position):
+                logger.warning(f'人物偏离打架位 {position}，回点位')
                 return 'drift'
         return None
 
-    def beast_fight_until_complete(self) -> bool:
+    def fight_until_complete(self, task_name: str, target: str,
+                             position: tuple, corner: str) -> bool:
         """
-        打野兽直到任务完成
+        打目标怪直到任务完成
 
-        真机玩法：刷新点附近有 3 只「野兽」，打死 4~5 秒后重新刷新，
+        真机玩法（兽毛之争）：刷新点附近 3 只怪、打死 4~5 秒重新刷新，
         所以目标死了不用补锁、直接重新锁下一只；技能按任务「战斗配置」里的预设放。
 
         :return: 任务完成返回 True
         """
-        logger.hr('打野兽', level=2)
+        logger.hr(f'打 [{target}]', level=2)
         preset = self.battle_preset()
         slots = self.battle_plan_slots(preset=preset)
         if not slots:
             logger.warning('没识别到可释放的技能位，只点普通攻击')
 
-        self.beast_drift_timer = Timer(self.BEAST_DRIFT_CHECK).start()
-        timer = Timer(self.BEAST_FIGHT_TIMEOUT).start()
+        self.fight_drift_timer = Timer(self.FIGHT_DRIFT_CHECK).start()
+        timer = Timer(self.FIGHT_TIMEOUT).start()
         while not timer.reached():
-            if self.task_completed(self.BEAST_TASK):
-                logger.info(f'[{self.BEAST_TASK}] 已完成')
+            if self.task_completed(task_name):
+                logger.info(f'[{task_name}] 已完成')
                 return True
 
-            if not self.ui_ensure_target_locked(target_name=self.BEAST_TARGET):
-                logger.info(f'没锁到 [{self.BEAST_TARGET}]，等刷新')
+            if not self.ui_ensure_target_locked(target_name=target):
+                logger.info(f'没锁到 [{target}]，等刷新')
                 self.device.sleep(1.0)
                 continue
 
             reason = self.battle_skill_loop(
                 slots,
-                check_stop=self.beast_stop_reason,
+                check_stop=lambda image=None: self.fight_stop_reason(task_name, position),
                 target_check=lambda image: self.ui_target_attackable(image=image),
                 include_attack=self.battle_use_normal_attack(),
             )
-            if self.task_completed(self.BEAST_TASK):
-                logger.info(f'[{self.BEAST_TASK}] 已完成')
+            if self.task_completed(task_name):
+                logger.info(f'[{task_name}] 已完成')
                 return True
             if reason == 'drift':
-                if not self.beast_goto_fight_point():
+                if not self.fight_goto_point(task_name, position, corner):
                     return False
             # 其它情况（target_lost = 这只打死了、timeout = 这轮没打出去）都回到外层重新锁
-        logger.warning(f'打 [{self.BEAST_TASK}] 超时')
+        logger.warning(f'打 [{task_name}] 超时')
         return False
 
     # ---------------------------------------------------------------- 进入世界之巅
