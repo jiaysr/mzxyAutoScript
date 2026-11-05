@@ -609,7 +609,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 logger.warning(f'任务 [{name}] 没做完，先停')
                 return False
 
-        return self.ensure_drop_task(drop_done=(statuses.get(self.DROP_TASK) == 'done'))
+        return self.ensure_drop_task(drop_done=(statuses.get(self.DROP_TASK) == 'done'),
+                                     glory_done=(statuses.get(self.GLORY_TASK) == 'done'))
 
     def run_world_peak_task(self, name: str, kind: str) -> bool:
         """按玩法分派做单个任务"""
@@ -624,17 +625,22 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return self.run_glory_task()
         raise ValueError(f'Unknown task kind [{kind}] for [{name}]')
 
-    def ensure_drop_task(self, drop_done: bool = False) -> bool:
+    def ensure_drop_task(self, drop_done: bool = False, glory_done: bool = False) -> bool:
         """
         世界之心是打怪掉落：还没完成就重打「为了荣耀」等掉落
 
         :param drop_done: 任务页里显示已经完成了（重跑时省掉无谓的重打）
+        :param glory_done: 「为了荣耀」已经完成了 —— 再重打也不会掉（任务都交过了），直接收工
 
         掉落看脸，所以重试 `DROP_RETRY` 次还没掉到就今天收工（不算任务失败，
         否则会因为一个概率掉落让整个任务反复重跑）。
         """
         if drop_done or self.task_completed(self.DROP_TASK):
             logger.info(f'{self.DROP_TASK} 已经完成了')
+            return True
+        if glory_done:
+            logger.warning(f'{self.GLORY_TASK} 已完成，没法靠重打它等掉落；'
+                           f'{self.DROP_TASK} 今天没掉到')
             return True
 
         for attempt in range(1, self.DROP_RETRY + 1):
