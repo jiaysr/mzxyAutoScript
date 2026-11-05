@@ -344,8 +344,6 @@
   "battle_settings": "战斗设置",
   "battle_similarity": "识别相似度下限",
   "battle_similarity_help": "和图标素材的相似度低于该值就当作没认出来",
-  "battle_respect_cooldown": "只点冷却好的技能",
-  "battle_cast_interval": "技能点击间隔（秒）",
   "battle_saved": "战斗配置已保存",
   "battle_reset_done": "已恢复默认顺序",
   "battle_plan_preview": "开战时的释放顺序",

@@ -236,8 +236,6 @@
   "battle_settings": "Battle Settings",
   "battle_similarity": "Similarity threshold",
   "battle_similarity_help": "Below this score the slot is treated as unidentified",
-  "battle_respect_cooldown": "Only cast skills that are ready",
-  "battle_cast_interval": "Cast interval (s)",
   "battle_saved": "Battle config saved",
   "battle_reset_done": "Default order restored",
   "battle_plan_preview": "Cast order in battle",
