@@ -25,5 +25,23 @@
     "method": "Default",
     "keyword": "",
     "description": "万事通对话框-选项列表（治疗伤势/杂货商店/修理装备）"
+  },
+  {
+    "itemName": "dungeon_reset_dialog",
+    "roiFront": "330,250,618,126",
+    "roiBack": "330,250,615,126",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "副本页-「真的要重置么？」模态确认框文案区（keyword 留空，调用方取文本精确判：keyword 在整串匹配不到时会退化成逐字匹配，「重置成功」「无法重置」会互相认成对方）"
+  },
+  {
+    "itemName": "dungeon_reset_result",
+    "roiFront": "330,335,620,80",
+    "roiBack": "330,335,620,80",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "副本页-重置结果浮层「重置成功」/「无法重置」（带绿X的浮层，不是模态框；会盖住副本列表）"
   }
 ]

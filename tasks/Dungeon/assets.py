@@ -65,6 +65,10 @@ class DungeonAssets:
 	C_DUNGEON_HEAL_SUCCESS_CLOSE = RuleClick(roi_front=(944,293,38,41), roi_back=(944,293,38,41), name="dungeon_heal_success_close")
 	# 治疗失败提示-关闭X 
 	C_DUNGEON_HEAL_FAILURE_CLOSE = RuleClick(roi_front=(944,268,38,41), roi_back=(944,268,38,41), name="dungeon_heal_failure_close")
+	# 副本页-「真的要重置么？」弹窗「确定」按钮（真机 2026-11-05 两张截图实测按钮 727,395-925,462，比通用 C_DIALOG_CONFIRM 的 y=363 低 43px） 
+	C_DUNGEON_RESET_CONFIRM = RuleClick(roi_front=(740,400,172,56), roi_back=(740,400,172,56), name="dungeon_reset_confirm")
+	# 重置结果浮层（重置成功/无法重置）-关闭X 
+	C_DUNGEON_RESET_PROMPT_CLOSE = RuleClick(roi_front=(944,293,38,41), roi_back=(944,293,38,41), name="dungeon_reset_prompt_close")
 
 
 	# Image Rule Assets
@@ -105,6 +109,10 @@ class DungeonAssets:
 	O_DUNGEON_PRIVILEGE_COUNT = RuleOcr(roi=(460,585,420,35), area=(460,585,420,35), mode="Full", method="Default", keyword="", name="dungeon_privilege_count")
 	# 万事通对话框-选项列表（治疗伤势/杂货商店/修理装备） 
 	O_DUNGEON_HEAL_DIALOG = RuleOcr(roi=(280,320,660,200), area=(280,320,660,200), mode="Full", method="Default", keyword="", name="dungeon_heal_dialog")
+	# 副本页-「真的要重置么？」模态确认框文案区（keyword 留空，调用方取文本精确判：keyword 在整串匹配不到时会退化成逐字匹配，「重置成功」「无法重置」会互相认成对方） 
+	O_DUNGEON_RESET_DIALOG = RuleOcr(roi=(330,250,618,126), area=(330,250,615,126), mode="Full", method="Default", keyword="", name="dungeon_reset_dialog")
+	# 副本页-重置结果浮层「重置成功」/「无法重置」（带绿X的浮层，不是模态框；会盖住副本列表） 
+	O_DUNGEON_RESET_RESULT = RuleOcr(roi=(330,335,620,80), area=(330,335,620,80), mode="Full", method="Default", keyword="", name="dungeon_reset_result")
 
 
 	# Swipe Rule Assets

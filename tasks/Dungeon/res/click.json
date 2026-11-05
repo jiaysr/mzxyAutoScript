@@ -160,5 +160,17 @@
     "roiFront": "944,268,38,41",
     "roiBack": "944,268,38,41",
     "description": "治疗失败提示-关闭X"
+  },
+  {
+    "itemName": "dungeon_reset_confirm",
+    "roiFront": "740,400,172,56",
+    "roiBack": "740,400,172,56",
+    "description": "副本页-「真的要重置么？」弹窗「确定」按钮（真机 2026-11-05 两张截图实测按钮 727,395-925,462，比通用 C_DIALOG_CONFIRM 的 y=363 低 43px）"
+  },
+  {
+    "itemName": "dungeon_reset_prompt_close",
+    "roiFront": "944,293,38,41",
+    "roiBack": "944,293,38,41",
+    "description": "重置结果浮层（重置成功/无法重置）-关闭X"
   }
 ]

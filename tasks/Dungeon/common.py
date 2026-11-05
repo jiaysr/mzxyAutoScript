@@ -888,11 +888,15 @@ class DungeonBase(GameUi, DungeonAssets):
 
     def dungeon_click_reset(self) -> bool:
         """
-        点击右侧固定位置的「重置」按钮。
+        点击右侧固定位置的「重置」按钮，并处理它的二次确认弹窗。
 
         重置的作用：打 2 次及以上的副本跑完一次后，列表次数可能还没减 1，
         不重置怪物也不会刷新；点击后次数才会减 1 并刷新怪物。
         调用方负责重新识别次数确认是否生效。
+
+        **确认弹窗必须点掉**：它是模态框，不点确定/取消的话，之后关活动页、切子 tab、
+        点绿X 全被吞掉，最后只能干等 ui_goto 60s 超时 + GameStuck 重启游戏
+        （2026-11-05 02:59 就是这样挂的，白搭当天整个人副本轮次）。
         """
         self.screenshot()
         if not self.dungeon_detail_ready():
@@ -902,7 +906,83 @@ class DungeonBase(GameUi, DungeonAssets):
         self.appear_then_click(self.I_DUNGEON_RESET_BUTTON)
         self.device.click_record_clear()
         self.device.sleep(0.5)
-        return True
+        return self.dungeon_confirm_reset()
+
+    # 重置相关文案：用 detect_and_ocr 取文本再精确比对，**不要**用 RuleOcr 的 keyword ——
+    # keyword 在整串匹配不到时会退化成「逐字匹配」（base_ocr.filter），
+    # 「重置成功」「无法重置」「真的要重置」会互相被认成对方（实测「无弹窗」页面上
+    # kw=重置成功 也命中，命中的是「重置」按钮）。
+    RESET_DIALOG_TEXT = '真的要重置'
+    RESET_SUCCESS_TEXT = '重置成功'
+    RESET_FAILED_TEXT = '无法重置'
+    # 等确认框 / 结果浮层的上限（秒）；真机实测点完重置 ~0.3s 就弹出来
+    DUNGEON_RESET_CONFIRM_TIMEOUT = 6
+
+    def dungeon_ocr_text(self, rule) -> str:
+        """OCR 一块区域并把文本拼成一行（判弹窗/浮层文案用，不额外截图）"""
+        if getattr(self.device, 'image', None) is None:
+            return ''
+        return ''.join(item.ocr_text
+                       for item in rule.detect_and_ocr(self.device.image, logDisplay=False))
+
+    def dungeon_confirm_reset(self, timeout: float = None) -> bool:
+        """
+        处理点「重置」之后的两件事：
+
+        1. 模态确认框「真的要重置么？（…副本的进入次数将减1…）」-> 点「确定」；
+        2. 结果浮层「重置成功」/「无法重置」-> 判成败并关掉浮层。
+
+        确认框是**模态**的：不点掉，之后关活动页、切子 tab、点绿X 全被吞掉，
+        最后只能干等 ui_goto 60s 超时 + GameStuck 重启游戏
+        （2026-11-05 02:59 就是这样挂的，白搭当天整个人副本轮次）。
+
+        「无法重置」是浮层不是模态框，但同样是明确失败信号：不能当成功继续往下跑，
+        否则次数没变，后面只会重复重置、最后抛 RuntimeError。
+
+        :param timeout: 等确认框/结果浮层的上限（秒）
+        :return: True = 重置已提交（或本来就不需要确认）；
+                 False = 没法确认（弹窗点不掉 / 游戏提示「无法重置」），调用方按失败处理
+        """
+        timeout = self.DUNGEON_RESET_CONFIRM_TIMEOUT if timeout is None else float(timeout)
+        timer = Timer(timeout).start()
+        clean = 0
+        while not timer.reached():
+            self.screenshot()
+            # 先看结果浮层（识别块更小更快）：命中就是确定结论
+            result = self.dungeon_ocr_text(self.O_DUNGEON_RESET_RESULT)
+            if self.RESET_FAILED_TEXT in result:
+                logger.warning('重置失败：游戏提示「无法重置」（次数不足或已重置过）')
+                self.dungeon_close_reset_prompt()
+                return False
+            if self.RESET_SUCCESS_TEXT in result:
+                logger.info('重置成功')
+                self.dungeon_close_reset_prompt()
+                return True
+            if self.RESET_DIALOG_TEXT in self.dungeon_ocr_text(self.O_DUNGEON_RESET_DIALOG):
+                clean = 0
+                logger.info('点「确定」确认重置')
+                self.click(self.C_DUNGEON_RESET_CONFIRM)
+                self.device.click_record_clear()
+                self.device.sleep(0.5)
+                continue
+            # 既没有确认框也没有结果浮层：连续两帧都干净才认为「重置直接生效了」
+            clean += 1
+            if clean >= 2:
+                return True
+            self.device.sleep(0.3)
+        logger.warning('重置确认框没点掉（模态框会吃掉之后所有点击），本次重置按失败处理')
+        return False
+
+    def dungeon_close_reset_prompt(self) -> None:
+        """点浮层右上角绿X关掉「重置成功/无法重置」：它盖住副本列表，会干扰后面读次数"""
+        for _ in range(3):
+            self.screenshot()
+            text = self.dungeon_ocr_text(self.O_DUNGEON_RESET_RESULT)
+            if self.RESET_SUCCESS_TEXT not in text and self.RESET_FAILED_TEXT not in text:
+                return
+            self.click(self.C_DUNGEON_RESET_PROMPT_CLOSE)
+            self.device.click_record_clear()
+            self.device.sleep(0.4)
 
     # ---------------------------------------------------------------- 选中与切换
     def dungeon_feature_rules(self) -> list:
