@@ -94,6 +94,14 @@ class ScriptTask(GameUi, WorldTaskAssets):
                                                 self.O_TASK_COMPLETE)
         self.completed_tasks: list = []   # 监测到的「已完成」任务名
         self.accepted_tasks: list = []    # 本次接取到的任务名
+        # 逐行识别用的 OCR 引擎（rec-only 比整块 detect 快 4 倍以上）
+        from module.ocr.models import get_local_ocr_model
+        self._ocr = get_local_ocr_model()
+        # 按帧缓存：同一帧上重复读列表 / 读 tab 条不再重新 OCR
+        self._rows_cache: tuple = (None, [])
+        self._tabs_cache: tuple = (None, [])
+        # tab 名 -> 上次 OCR 到的坐标（切过 tab 没滑过 tab 条时，切别的 tab 直接点，省一次 900ms 的 OCR）
+        self._tab_positions: dict = {}
 
     def screenshot(self):
         """
@@ -215,7 +223,6 @@ class ScriptTask(GameUi, WorldTaskAssets):
     # ---------------------------------------------------------------- 世界之巅活动弹窗
     def _ocr_items(self) -> list:
         """顶部 tab 条 OCR 原始结果（单测里替换这一层）"""
-        self.maybe_screenshot()
         roi = self.O_NEW.roi
         items = []
         for item in self.O_NEW.detect_and_ocr(self.device.image, logDisplay=False):
@@ -227,15 +234,32 @@ class ScriptTask(GameUi, WorldTaskAssets):
             y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
             items.append((text, x, y))
         items.sort(key=lambda i: i[1])
+        # 记下位置：同一套 tab 布局下再切 tab 就不用重新 OCR 了
+        positions = getattr(self, '_tab_positions', None)
+        if positions is not None:
+            for text, x, y in items:
+                index = self.tab_index(text)
+                if index >= 0:
+                    positions[self.ACTIVITY_TABS[index]] = (x, y)
         return items
 
     def close_activity_panel(self, timeout: float = 8) -> bool:
-        """关掉世界之巅活动弹窗（右上角绿 X）"""
+        """
+        关掉世界之巅活动弹窗（右上角绿 X）
+
+        轮询只用便宜特征（黄帝立绘 / 接取按钮 / 守门人对话的选项行），都不在就当关掉了；
+        只有都不在但 tab OCR 仍认为弹窗开着（停在别的 tab）时才继续点 X。
+        """
         timer = Timer(timeout).start()
+        need_ocr = True
         while not timer.reached():
             self.screenshot()
-            if not self.activity_panel_open() and self.npc_dialog() is None:
-                return True
+            cheap = (self.appear(self.I_ITEM_4) or self.appear(self.I_ITEM_5)
+                     or self.appear(self.I_ITEM_3))
+            if not cheap:
+                if not need_ocr or not self.activity_panel_open(refresh=False):
+                    return True
+                need_ocr = False
             if self.appear_then_click(self.I_CLOSE_X_GREEN, interval=1):
                 self.device.click_record_clear()
             self.device.sleep(0.5)
@@ -243,12 +267,21 @@ class ScriptTask(GameUi, WorldTaskAssets):
         return False
 
     # ---------------------------------------------------------------- 接取任务
-    def bonus_promo_open(self) -> bool:
-        """「当前任务加量功能未激活」推广弹窗开着没有"""
-        self.maybe_screenshot()
-        if self.appear(self.I_PROMO_CLOSE):
+    def bonus_promo_open(self, refresh: bool = True) -> bool:
+        """
+        「当前任务加量功能未激活」推广弹窗开着没有
+
+        :param refresh: 是否先截一帧。循环里刚截过图就传 False，省掉 300ms 的截图节流等待。
+        """
+        if refresh:
+            self.maybe_screenshot()
+        image = getattr(self.device, 'image', None)
+        if image is None:
+            return False
+        # 便宜的特征（弹窗右上角绿X，ROI 只给了弹窗那一块）优先
+        if self.I_PROMO_CLOSE.match(image):
             return True
-        text = self.O_BONUS_PROMO.ocr_single_line(self.device.image)
+        text = self.O_BONUS_PROMO.ocr_single_line(image)
         return '加量' in (text or '')
 
     def close_bonus_promo(self, timeout: float = 10) -> bool:
@@ -265,7 +298,7 @@ class ScriptTask(GameUi, WorldTaskAssets):
         timer = Timer(timeout).start()
         while not timer.reached():
             self.screenshot()
-            if not self.bonus_promo_open():
+            if not self.bonus_promo_open(refresh=False):
                 logger.info('Bonus promo closed')
                 return True
             if self.appear_then_click(self.I_PROMO_CLOSE, interval=1):
@@ -310,30 +343,28 @@ class ScriptTask(GameUi, WorldTaskAssets):
         """
         读跨服任务列表：[(任务名, 接取按钮中心x, 接取按钮中心y)]
 
-        接取按钮用 I_ITEM_5 在按钮列里全匹配出来，任务名用 O_TASK_LIST 整块 OCR，
-        再按 y 坐标把两边配对（按钮和行名在同一水平线上）。
+        接取按钮用 I_ITEM_5 在按钮列里全匹配出来，任务名按每行的 y 单行识别（rec-only）。
+        实测：整块 detect_and_ocr 688ms，逐行 rec-only 34ms/行，5 行约 170ms。
+        同一帧只读一次（按帧缓存），重复调用不重复 OCR。
         """
         self.screenshot()
         image = self.device.image
+        key = id(image) if image is not None else None
+        if key is not None and self._rows_cache[0] == key:
+            return list(self._rows_cache[1])
+
         buttons = sorted(self.I_ITEM_5.match_all_any(image, threshold=self.I_ITEM_5.threshold),
                          key=lambda m: m[2])
-        if not buttons:
-            return []
-
-        roi_top = self.O_TASK_LIST.roi[1]
-        items = self.O_TASK_LIST.detect_and_ocr(image, logDisplay=False)
         rows = []
         for _score, x, y, w, h in buttons:
             center_y = y + h // 2
-            texts = []
-            for item in items:
-                box = item.box
-                top = min(point[1] for point in box) + roi_top
-                bottom = max(point[1] for point in box) + roi_top
-                if top - 8 <= center_y <= bottom + 8:
-                    texts.append(item.ocr_text.strip())
-            rows.append((''.join(texts), x + w // 2, center_y))
-        return rows
+            crop = image[max(0, center_y - 22): center_y + 22, 100:1000]
+            text, _confidence = self._ocr.ocr_single_line(crop)
+            rows.append((text.strip(), x + w // 2, center_y))
+
+        if key is not None:
+            self._rows_cache = (key, rows)
+        return list(rows)
 
     def wait_task_accepted(self, name: str, timeout: float = 8) -> bool:
         """
@@ -385,8 +416,7 @@ class ScriptTask(GameUi, WorldTaskAssets):
             logger.info(f'接取 [{name}] at ({bx},{by})')
             self.device.click(x=bx, y=by, control_name=f'accept_{expected}')
             self.device.click_record_clear()
-            # 接完连拍 2 秒：完成提示只在聊天栏停 1.5 秒
-            self.watch(seconds=2.0)
+            # 不再固定 sleep：wait_task_accepted 里每次轮询都会截图，1.5s 的完成提示照样采得到
             self.close_bonus_promo()
 
             if self.wait_task_accepted(name):
@@ -398,11 +428,22 @@ class ScriptTask(GameUi, WorldTaskAssets):
         return accepted
 
     def tab_items(self) -> list:
-        """当前可见的 tab 文字与可点中心 [(文本, x, y)]，按 x 排序"""
-        return self._ocr_items()
+        """当前可见的 tab 文字与可点中心 [(文本, x, y)]，按 x 排序（同一帧只 OCR 一次）"""
+        self.maybe_screenshot()
+        image = getattr(self.device, 'image', None)
+        key = id(image) if image is not None else None
+        if key is not None and self._tabs_cache[0] == key:
+            return list(self._tabs_cache[1])
+        items = self._ocr_items()
+        if key is not None:
+            self._tabs_cache = (key, items)
+        return list(items)
 
     def find_tab(self, name: str):
         """在当前 tab 条里找 name，返回可点中心 (x, y)；不在视野里返回 None"""
+        cached = getattr(self, '_tab_positions', {}).get(name)
+        if cached is not None:
+            return cached
         for text, x, y in self.tab_items():
             if self.ocr_name_match(text, name):
                 return x, y
@@ -422,7 +463,10 @@ class ScriptTask(GameUi, WorldTaskAssets):
                     f'({x1},{y1}) -> ({x2},{y2})')
         self.device.swipe(p1=(x1, y1), p2=(x2, y2), control_name=self.S_NEW.name)
         self.device.click_record_clear()
-        self.device.sleep(0.8)
+        self.device.sleep(0.6)
+        # 滑过之后 tab 位置全变了，缓存作废
+        if getattr(self, '_tab_positions', None) is not None:
+            self._tab_positions.clear()
         after = self.tab_signature()
         if before == after:
             logger.info('Tab bar did not scroll')
@@ -442,7 +486,8 @@ class ScriptTask(GameUi, WorldTaskAssets):
         logger.info(f'Click activity tab [{name}] at {coord}')
         self.device.click(x=coord[0], y=coord[1], control_name=f'tab_{name}')
         self.device.click_record_clear()
-        self.device.sleep(1.0)
+        # 实测切 tab 0.4s 内就刷新完了，原来等 1s 纯属浪费
+        self.device.sleep(0.5)
         # 切完立刻刷新一帧，否则调用方拿到的还是切换前那帧（appear 不会自己截图）
         self.screenshot()
         return True
@@ -535,11 +580,16 @@ class ScriptTask(GameUi, WorldTaskAssets):
             return False
         return True
 
-    def activity_panel_open(self) -> bool:
-        """世界之巅活动弹窗开着没有"""
-        self.maybe_screenshot()
-        # 停在「世界之巅」tab 时有黄帝立绘
-        if self.appear(self.I_ITEM_4):
+    def activity_panel_open(self, refresh: bool = True) -> bool:
+        """
+        世界之巅活动弹窗开着没有
+
+        先用便宜的特征（世界之巅 tab 的黄帝立绘 / 跨服任务 tab 的接取按钮，各 4ms），
+        都不到才去 OCR tab 条（那一步 700ms+），因为弹窗停在荣誉商店这类 tab 时没有上面两个特征。
+        """
+        if refresh:
+            self.maybe_screenshot()
+        if self.appear(self.I_ITEM_4) or self.appear(self.I_ITEM_5):
             return True
         # 切过 tab 之后立绘就没了，改看顶部 tab 条：认出 2 个以上已知 tab 就算开着
         known = [text for text, _, _ in self.tab_items()
@@ -556,21 +606,30 @@ class ScriptTask(GameUi, WorldTaskAssets):
         logger.hr('打开世界之巅活动弹窗')
         if self.activity_panel_open():
             logger.info('Activity panel is already open')
+            self._tab_positions.clear()
             return True
 
         timer = Timer(timeout).start()
         clicked = False
         while not timer.reached():
             self.screenshot()
-            if self.activity_panel_open():
+            # 轮询只查两个便宜特征（各 4ms）：黄帝立绘 / 接取按钮。
+            # tab 条 OCR 要 900ms，放在每轮里会把开弹窗拖成 4s+
+            if self.appear(self.I_ITEM_4) or self.appear(self.I_ITEM_5):
                 logger.info('Activity panel opened')
+                self._tab_positions.clear()
                 return True
             if not clicked and self.appear_then_click(self.I_ITEM_3, interval=1):
                 logger.info('Click 查看世界之巅活动')
                 clicked = True
                 self.device.click_record_clear()
                 continue
-            self.device.sleep(0.5)
+            self.device.sleep(0.3)
+        # 兜底：可能停在别的 tab（既没有立绘也没有接取按钮），最后用 tab OCR 确认一次
+        if self.activity_panel_open():
+            logger.info('Activity panel opened (no cheap feature, tab OCR confirmed)')
+            self._tab_positions.clear()
+            return True
         logger.warning('Activity panel does not open')
         return False
 

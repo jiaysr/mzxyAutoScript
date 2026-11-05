@@ -18,15 +18,6 @@
     "description": "加量推广弹窗正文区域（识别到「任务加量」即为弹窗开着）"
   },
   {
-    "itemName": "task_list",
-    "roiFront": "90,175,910,460",
-    "roiBack": "90,175,910,460",
-    "mode": "Full",
-    "method": "Default",
-    "keyword": "",
-    "description": "跨服任务列表（只框任务名，不含右侧接取按钮；配合按钮位置按 y 配对）"
-  },
-  {
     "itemName": "task_complete",
     "roiFront": "0,679,638,37",
     "roiBack": "0,679,638,37",
