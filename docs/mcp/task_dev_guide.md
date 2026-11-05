@@ -522,6 +522,13 @@ ecord_skill_icon.py ^
     新任务直接调用，不要各自实现；NPC 对话后的兑换操作待补充
 - `tasks/Arena` 同服竞技、`tasks/CrossArena` 跨服竞技：报名 -> 匹配 -> 参战 -> 重启计数；
   支持「根据活跃度判断」模式（查活动-活跃页对应任务是否已完成）和等待匹配时给高优先级任务让路
+- `tasks/WorldTask`：世界任务（🚧 只有框架，玩法待做）
+  - **固定时段窗口的排期配方**（本任务：开放世界 09:00-24:00）：`success_interval` 直接相加不认窗口，
+    凌晨跑过一次就会把下次排到凌晨（窗口外永远跑不了）。做法是把「现在 + 间隔」交给
+    `tasks/WorldTask/schedule.py` 的 `clamp_to_open_world()` 夹进窗口，再用
+    `set_next_run(..., target=算好的时间, success=None, server=False)` 写入
+  - 被手动运行/别的任务 `task_call` 提前叫醒时，`run()` 开头先判窗口，没开门就只重排到最近一次 09:00
+    并 `raise TaskEnd`，不碰游戏
 - `tasks/Quiz`：答题
   - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
