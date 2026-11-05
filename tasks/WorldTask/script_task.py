@@ -434,7 +434,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
             # 人可能就在出生点旁边（重跑/复位），试一下判断阵营
             self.camp = self.detect_camp() or getattr(self, 'camp', None)
-            return self.do_world_peak_and_deliver()
+            # 上面刚读过任务页，状态直接传下去，别再开一次任务页
+            return self.do_world_peak_and_deliver(statuses=statuses)
 
         if all_present_before:
             logger.info('任务页里 7 个任务都在（今天已经接过了），跳过接取，直接进图做任务')
