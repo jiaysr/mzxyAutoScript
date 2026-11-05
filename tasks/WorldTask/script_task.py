@@ -109,6 +109,15 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         ('世界之巅', (302, 250)),
         ('世界印记', (428, 107)),
     )
+
+    # 兽毛之争：小地图（视口在右下角）点野怪刷新点 -> 人物走过去 -> 打「野兽」
+    BEAST_TASK = '兽毛之争'
+    BEAST_FIGHT_POS = (226, 375)     # 落地后要待的打架位
+    BEAST_TARGET = '野兽'            # 目标名（锁目标时校验）
+    BEAST_DRIFT_CHECK = 5.0          # 每隔几秒查一次坐标
+    BEAST_DRIFT_TOLERANCE = 12       # 偏离打架位超过这个格数就回点位
+    BEAST_TRAVEL_TIMEOUT = 90        # 走过去 / 回点位的超时
+    BEAST_FIGHT_TIMEOUT = 600        # 整个打怪阶段的超时
     # 判定「走到采集点了」的坐标容差
     WOOD_POS_TOLERANCE = 15
 
@@ -268,7 +277,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         if self.map_in_location(self.WORLD_PEAK_LOCATION):
             logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
-            return self.run_gather_tasks()
+            return self.run_world_peak_tasks()
 
         if not self.find_npc(self.NPC_NEW):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
@@ -321,9 +330,18 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             self.close_activity_panel()
             return False
 
-        # 进图后做任务（当前是三个采集类任务，其余待补）
+        # 进图后做任务（当前是三个采集类任务 + 兽毛之争打野兽，其余待补）
+        if not self.run_world_peak_tasks():
+            logger.warning('世界之巅里的任务没做完')
+            return False
+        return True
+
+    def run_world_peak_tasks(self) -> bool:
+        """世界之巅地图里的任务：先做采集类，再打野兽"""
         if not self.run_gather_tasks():
-            logger.warning('采集类任务没做完')
+            return False
+        if not self.run_beast_task():
+            logger.warning(f'{self.BEAST_TASK} 没做完')
             return False
         return True
 
@@ -511,43 +529,48 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return self.close_task_page()
 
     def map_wait_arrive_at(self, position: tuple, tolerance: int = None,
-                           stable_time: float = 2.0, timeout: float = 120) -> bool:
+                           timeout: float = 120, interval: float = 0.4,
+                           still_timeout: float = 3.0) -> bool:
         """
-        等自动寻路走到指定坐标附近并停下
+        轮询坐标，等走到指定点附近
+
+        只在**第一次到位**时用：一读到「在目标点容差内」就返回，不要求「站定几秒」——
+        自动寻路本来就会停在点上，多等那几秒纯属浪费（真机实测回点位时白等 3 秒+）。
 
         :param position: 目标坐标 (x, y)
-        :return: 到了（且稳定 stable_time 秒）返回 True
+        :param interval: 轮询间隔（秒）
+        :param still_timeout: 走了一段又停住、仍离目标很远时，多久放弃（自动寻路失败的兜底）
+        :return: 到了返回 True
         """
         tolerance = self.WOOD_POS_TOLERANCE if tolerance is None else tolerance
         logger.hr(f'等走到 {position[0]},{position[1]}', level=2)
         timer = Timer(timeout).start()
-        still_since = None
         last = None
+        still_since = None
         while not timer.reached():
             # 长时间轮询，清卡死记录，避免被框架判成卡死
             self.device.stuck_record_clear()
             location = self.map_move_read_pos()
             if location is None:
-                self.device.sleep(0.8)
+                self.device.sleep(interval)
                 continue
-            x, y = location[1], location[2]
-            near = self.map_pos_match(x, y, position, tolerance)
-            moved = (last is None or abs(x - last[1]) > 2 or abs(y - last[2]) > 2)
-            if moved:
-                still_since = None
-            elif still_since is None:
-                still_since = datetime.now()
-            last = location
 
-            still = (datetime.now() - still_since).total_seconds() if still_since else 0
-            if near and still >= stable_time:
+            x, y = location[1], location[2]
+            if self.map_pos_match(x, y, position, tolerance):
                 logger.info(f'走到 {x},{y}（目标 {position[0]},{position[1]}）')
                 return True
-            if not near and still >= 6:
-                logger.warning(f'寻路停在 {x},{y}，离目标 {position} 太远')
-                return False
-            self.device.sleep(0.8)
-        logger.warning('走到采集点超时')
+
+            # 兜底：走了一段又停住、却离目标很远 -> 自动寻路失败，别干等超时
+            if last is not None and abs(x - last[1]) <= 2 and abs(y - last[2]) <= 2:
+                still_since = still_since or datetime.now()
+                if (datetime.now() - still_since).total_seconds() >= still_timeout:
+                    logger.warning(f'寻路停在 {x},{y}，离目标 {position} 太远')
+                    return False
+            else:
+                still_since = None
+            last = location
+            self.device.sleep(interval)
+        logger.warning(f'走到 {position} 超时')
         return False
 
     def gather_until_complete(self, name: str, timeout: float = 600) -> bool:
@@ -638,6 +661,114 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             done.append(name)
         logger.attr('采集类任务完成', ', '.join(done))
         return True
+
+    # ---------------------------------------------------------------- 兽毛之争（打野兽）
+    def run_beast_task(self) -> bool:
+        """兽毛之争：小地图右下角点位 -> 走到打架位 -> 循环打「野兽」直到任务完成"""
+        logger.hr(f'世界任务：{self.BEAST_TASK}')
+        if self.task_completed(self.BEAST_TASK):
+            logger.info(f'[{self.BEAST_TASK}] 本次已收到完成提示，跳过')
+            return True
+        if not self.beast_goto_fight_point():
+            return False
+        return self.beast_fight_until_complete()
+
+    def beast_goto_fight_point(self) -> bool:
+        """
+        回到打架位：小地图拖到右下角 -> 点野怪刷新点 -> 主动关小地图 -> 等走到 (226,375)
+
+        只是被打退几步（人还在打架位附近）时不用重开地图，直接接着打。
+        """
+        logger.hr('去野怪刷新点', level=2)
+        if not self.beast_drifted():
+            logger.info('已经在打架位附近，不用重开地图')
+            return True
+        if not self.map_open_minimap_tap():
+            logger.warning('小地图打不开')
+            return False
+        if not self.map_pan_to_corner('bottom_right'):
+            logger.warning('小地图没拖到右下角')
+            return False
+        x, y = self.C_BEAST_POINT.coord()
+        logger.info(f'小地图点野怪刷新点 ({x},{y})')
+        self.device.click(x=x, y=y, control_name=self.C_BEAST_POINT.name)
+        self.device.click_record_clear()
+        # 主动关小地图，别指望它自己关（盖住画面就没法判断）
+        self.close_minimap_if_open()
+        if not self.map_wait_arrive_at(self.BEAST_FIGHT_POS,
+                                       tolerance=self.BEAST_DRIFT_TOLERANCE,
+                                       timeout=self.BEAST_TRAVEL_TIMEOUT):
+            logger.warning(f'没走到打架位 {self.BEAST_FIGHT_POS}')
+            return False
+        return True
+
+    def beast_drifted(self) -> bool:
+        """现在是不是已经离开打架位了（坐标读不出来按「没跑偏」处理）"""
+        location = self.map_move_read_pos()
+        if location is None:
+            return False
+        return not self.map_pos_match(location[1], location[2], self.BEAST_FIGHT_POS,
+                                      self.BEAST_DRIFT_TOLERANCE)
+
+    def beast_stop_reason(self, image=None):
+        """
+        打怪循环的停止条件（每轮都被调用，所以查坐标要按 5 秒节流）
+
+        - 任务完成提示出现 -> 'complete'
+        - 每 5 秒查一次坐标，偏离打架位 -> 'drift'（外层回点位后接着打）
+        """
+        if self.task_completed(self.BEAST_TASK):
+            logger.info(f'[{self.BEAST_TASK}] 已完成')
+            return 'complete'
+        if self.beast_drift_timer.reached():
+            self.beast_drift_timer.reset()
+            if self.beast_drifted():
+                logger.warning(f'人物偏离打架位 {self.BEAST_FIGHT_POS}，回点位')
+                return 'drift'
+        return None
+
+    def beast_fight_until_complete(self) -> bool:
+        """
+        打野兽直到任务完成
+
+        真机玩法：刷新点附近有 3 只「野兽」，打死 4~5 秒后重新刷新，
+        所以目标死了不用补锁、直接重新锁下一只；技能按任务「战斗配置」里的预设放。
+
+        :return: 任务完成返回 True
+        """
+        logger.hr('打野兽', level=2)
+        preset = self.battle_preset()
+        slots = self.battle_plan_slots(preset=preset)
+        if not slots:
+            logger.warning('没识别到可释放的技能位，只点普通攻击')
+
+        self.beast_drift_timer = Timer(self.BEAST_DRIFT_CHECK).start()
+        timer = Timer(self.BEAST_FIGHT_TIMEOUT).start()
+        while not timer.reached():
+            if self.task_completed(self.BEAST_TASK):
+                logger.info(f'[{self.BEAST_TASK}] 已完成')
+                return True
+
+            if not self.ui_ensure_target_locked(target_name=self.BEAST_TARGET):
+                logger.info(f'没锁到 [{self.BEAST_TARGET}]，等刷新')
+                self.device.sleep(1.0)
+                continue
+
+            reason = self.battle_skill_loop(
+                slots,
+                check_stop=self.beast_stop_reason,
+                target_check=lambda image: self.ui_target_attackable(image=image),
+                include_attack=self.battle_use_normal_attack(),
+            )
+            if self.task_completed(self.BEAST_TASK):
+                logger.info(f'[{self.BEAST_TASK}] 已完成')
+                return True
+            if reason == 'drift':
+                if not self.beast_goto_fight_point():
+                    return False
+            # 其它情况（target_lost = 这只打死了、timeout = 这轮没打出去）都回到外层重新锁
+        logger.warning(f'打 [{self.BEAST_TASK}] 超时')
+        return False
 
     # ---------------------------------------------------------------- 进入世界之巅
     def enter_world_peak(self, timeout: float = 40) -> bool:

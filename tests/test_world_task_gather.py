@@ -99,16 +99,17 @@ def test_find_task_page_row_and_click():
 
 # ---------------------------------------------------------------- 走到采集点
 def test_map_wait_arrive_at_ok():
+    """轮询到位就返回，不要求「站定几秒」"""
     task = make_task()
-    positions = [('世界之巅', 100, 100), ('世界之巅', 145, 470), ('世界之巅', 145, 470)]
+    positions = [('世界之巅', 100, 100), ('世界之巅', 145, 470)]
     task.map_move_read_pos = lambda retry=None: positions.pop(0) if positions else ('世界之巅', 145, 470)
-    assert task.map_wait_arrive_at((145, 470), stable_time=0, timeout=3) is True
+    assert task.map_wait_arrive_at((145, 470), timeout=3) is True
 
 
 def test_map_wait_arrive_at_timeout_when_never_arrives():
     task = make_task()
     task.map_move_read_pos = lambda retry=None: ('世界之巅', 300, 300)
-    assert task.map_wait_arrive_at((145, 470), stable_time=0, timeout=0.3) is False
+    assert task.map_wait_arrive_at((145, 470), timeout=0.3) is False
 
 
 # ---------------------------------------------------------------- 采集循环

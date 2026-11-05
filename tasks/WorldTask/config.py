@@ -2,6 +2,7 @@
 from pydantic import BaseModel, Field
 
 from tasks.AutoTask.config import BonusMultiplier
+from tasks.Component.battle_config import BattleTaskConfig
 from tasks.Component.config_base import ConfigBase
 from tasks.Component.config_scheduler import Scheduler
 
@@ -29,3 +30,5 @@ class WorldTask(ConfigBase):
     """
     scheduler: Scheduler = Field(default_factory=Scheduler)
     world_task_config: WorldTaskConfig = Field(default_factory=WorldTaskConfig)
+    # 打怪类任务（兽毛之争）用的战斗预设
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)

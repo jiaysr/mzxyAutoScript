@@ -17,6 +17,8 @@ class WorldTaskAssets:
 	C_ITEM_2 = RuleClick(roi_front=(703,129,26,25), roi_back=(637,115,100,100), name="item_2")
 	# 世界之巅 tab 里的「进入世界之巅」按钮 
 	C_ENTER_WORLD_PEAK = RuleClick(roi_front=(540,552,200,48), roi_back=(500,530,300,90), name="enter_world_peak")
+	# 兽毛之争：小地图视口在右下角时的野怪刷新点（精确到点，点完人物自动走过去） 
+	C_BEAST_POINT = RuleClick(roi_front=(455,407,1,1), roi_back=(455,407,1,1), name="beast_point")
 
 
 	# Image Rule Assets
