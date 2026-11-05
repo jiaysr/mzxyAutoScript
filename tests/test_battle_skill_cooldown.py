@@ -197,11 +197,39 @@ def test_stabilizer_stable_one_means_no_debounce():
 def test_stabilizer_slots_independent():
     stabilizer = SkillStateStabilizer(2)
     stabilizer.update({0: SKILL_COOLING, 1: SKILL_READY})
-    states = stabilizer.update({0: SKILL_READY, 1: SKILL_COOLING})
+    states = stabilizer.update({0: SKILL_READY, 1: SKILL_READY})
     assert states[0] == SKILL_COOLING, '技能0只跳了一帧'
-    assert states[1] == SKILL_READY, '技能1也只跳了一帧'
-    states = stabilizer.update({0: SKILL_READY, 1: SKILL_COOLING})
-    assert states[0] == SKILL_READY and states[1] == SKILL_COOLING
+    assert states[1] == SKILL_READY, '技能1没变'
+    states = stabilizer.update({0: SKILL_READY, 1: SKILL_READY})
+    assert states[0] == SKILL_READY and states[1] == SKILL_READY
+
+
+def test_stabilizer_cooling_commits_on_first_frame():
+    """
+    「冷却好 -> 冷却中」单帧就生效
+
+    遮罩一出现就是确定事件，不会抖；也等 2 帧只会在每次施法确认上白花 0.3s
+    （截图节流），而 battle_wait_cooldown_checked 的窗口只有 1.2s。
+    """
+    stabilizer = SkillStateStabilizer(2)
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_READY
+    assert stabilizer.update({0: SKILL_COOLING})[0] == SKILL_COOLING, '冷却中要单帧生效'
+
+
+def test_stabilizer_ready_still_needs_two_frames():
+    """需要防抖的方向没动：冷却中 -> 冷却好 仍要连续 2 帧（挡冷却结束前的遮罩闪烁）"""
+    stabilizer = SkillStateStabilizer(2)
+    stabilizer.update({0: SKILL_COOLING})
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_COOLING, '单帧闪烁不该切'
+    assert stabilizer.update({0: SKILL_READY})[0] == SKILL_READY, '连续 2 帧才切'
+
+
+def test_stabilizer_symmetric_when_immediate_disabled():
+    """immediate_states=() 退回全对称防抖（线上出问题时的回退开关）"""
+    stabilizer = SkillStateStabilizer(2, immediate_states=())
+    stabilizer.update({0: SKILL_READY})
+    assert stabilizer.update({0: SKILL_COOLING})[0] == SKILL_READY, '关掉即刻采信后仍要 2 帧'
+    assert stabilizer.update({0: SKILL_COOLING})[0] == SKILL_COOLING
 
 
 def test_stabilizer_reset():
@@ -247,6 +275,45 @@ def test_attack_states_are_debounced():
     host._judge.plan = {0: SKILL_READY}
     assert host.battle_skills_state()[0] == SKILL_COOLING, '单帧不该切'
     assert host.battle_skills_state()[0] == SKILL_READY, '连续两帧才切'
+
+
+def test_attack_states_commit_cooling_immediately():
+    """任务侧（battle_skills_state）同样是「冷却中单帧采信」，不是只有 cooldown 模块里的默认值"""
+    from types import SimpleNamespace
+
+    from tasks.Battle.attack import BattleAttack
+    from tasks.Battle.config import Battle
+
+    class StubJudge:
+        def __init__(self):
+            self.plan = {}
+
+        def states(self, image):
+            return dict(self.plan)
+
+        def ratio_of(self, image, index):
+            return 1.0
+
+    class Host(BattleAttack):
+        def __init__(self):
+            self.config = SimpleNamespace(battle=Battle())
+            self.device = SimpleNamespace()
+            self._judge = StubJudge()
+
+        def battle_skill_judge(self):
+            return self._judge
+
+        def _battle_image(self, image=None):
+            return image if image is not None else object()
+
+    assert BattleAttack.BATTLE_SKILL_STABLE_IMMEDIATE == (SKILL_COOLING,), \
+        '这层常量是「冷却中单帧采信」的开关，改回 () 会让每次施法确认多等 1 帧'
+
+    host = Host()
+    host._judge.plan = {0: SKILL_READY}
+    assert host.battle_skills_state()[0] == SKILL_READY
+    host._judge.plan = {0: SKILL_COOLING}
+    assert host.battle_skills_state()[0] == SKILL_COOLING, '冷却中要单帧生效'
 
 
 if __name__ == '__main__':

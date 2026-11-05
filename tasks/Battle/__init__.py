@@ -12,6 +12,8 @@
 - `attack.py`：战斗执行（点技能/看冷却/按预设攻击，混入任务类用；冷却状态默认防抖 2 帧）
   - `battle_skill_loop()` 队列式一直打（优先级最高且冷却好的先放，卡住会按战斗设置重试/延后）
   - `battle_queue_until()` 同上的简写入口（一直打到 stop_check 为真）
+  - `battle_slot_matches()` / `battle_slot_cache_clear()`：技能位身份只认一次（缓存），
+    换职业/切技能后调 clear；`BATTLE_SLOT_CACHE = False` 可退回每次重认
 - `script_task.py`：可直跑的试打任务（`python tasks/Battle/script_task.py`）
 - `slots.py`：7 个技能位的坐标 + 图标本体区域（和冷却识别共用）
 - `tools/record_skill_icon.py`：从真机截图录一个技能图标

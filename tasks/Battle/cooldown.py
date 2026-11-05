@@ -164,16 +164,33 @@ class SkillStateStabilizer:
     单帧分数会跳到 0.6~0.7 再掉回 0.05（实测「铁骨」）。不防抖就会闪出「冷却好」，
     导致循环提前点还没好的技能。
 
+    **只在一个方向上需要防抖**
+    --------------------------
+    两个方向的可靠度是相反的：
+
+    - 冷却中 -> 冷却好：弱信号。游戏每轮冷却结束都会闪一下遮罩，必须先排除掉 ——
+      这是 `stable` 要防的方向；
+    - 冷却好 -> 冷却中：强信号。技能一旦放出去，遮罩立刻出现并持续整段冷却，
+      单帧就足够可信。也要求连续 N 帧只会白等：每帧约 0.3s（截图节流），
+      而 `battle_wait_cooldown_checked` 的窗口只有 1.2s（约 4 帧），
+      白等 1 帧就把余量吃掉一半。
+
+    所以「冷却中」这类状态由 `immediate_states` 指定，单帧直接采信；
+    其它状态（默认只有「冷却好」）照旧连续 `stable` 帧。要退回全对称，
+    构造时传 `immediate_states=()`。
+
     用法（采样 -> 更新 -> 拿稳定的状态）：
 
         stabilizer = SkillStateStabilizer(stable=2)
         stable_states = stabilizer.update({0: 'cooling', 1: 'ready', ...})
 
     :param stable: 连续多少次一致才切换（<=1 表示不防抖）
+    :param immediate_states: 单帧就采信的状态（默认只有「冷却中」）
     """
 
-    def __init__(self, stable: int = 2) -> None:
+    def __init__(self, stable: int = 2, immediate_states=(SKILL_COOLING,)) -> None:
         self.stable = max(1, int(stable))
+        self.immediate_states = frozenset(immediate_states or ())
         self._committed: dict = {}          # {slot: 已生效状态}
         self._pending: dict = {}            # {slot: (候选状态, 连续次数)}
 
@@ -205,6 +222,14 @@ class SkillStateStabilizer:
             if raw == current:
                 self._pending[slot] = (current, 0)
                 result[slot] = current
+                continue
+
+            # 强信号（默认「冷却中」）单帧就采信：遮罩一出现就是确定发生了，
+            # 也等 N 帧只会把「施法确认」白白拖慢 N-1 帧（见类说明）
+            if raw in self.immediate_states:
+                self._committed[slot] = raw
+                self._pending[slot] = (raw, 0)
+                result[slot] = raw
                 continue
 
             candidate, count = self._pending.get(slot, (None, 0))
