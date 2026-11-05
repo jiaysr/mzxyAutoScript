@@ -43,5 +43,23 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "人物接取页面特征"
+  },
+  {
+    "itemName": "promo_close",
+    "imageName": "res_close_x_green.png",
+    "roiFront": "943,218,34,37",
+    "roiBack": "900,200,140,110",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "加量推广弹窗右上角绿X（搜索范围只给弹窗那一块，避免误点面板的X）"
+  },
+  {
+    "itemName": "task_complete_trigger",
+    "imageName": "task_complete_trigger.png",
+    "roiFront": "0,679,97,27",
+    "roiBack": "0,679,638,37",
+    "method": "Template matching",
+    "threshold": 0.9,
+    "description": "左下角聊天栏「[系]任务」前缀（任务完成提示的第一级过滤）"
   }
 ]

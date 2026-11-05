@@ -28,11 +28,21 @@ class WorldTaskAssets:
 	I_ITEM_4 = RuleImage(roi_front=(89,207,155,173), roi_back=(73,192,215,246), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_4.png")
 	# 人物接取页面特征 
 	I_ITEM_5 = RuleImage(roi_front=(1039,190,104,49), roi_back=(985,169,203,440), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_5.png")
+	# 加量推广弹窗右上角绿X（搜索范围只给弹窗那一块，避免误点面板的X） 
+	I_PROMO_CLOSE = RuleImage(roi_front=(943,218,34,37), roi_back=(900,200,140,110), threshold=0.85, method="Template matching", file="./tasks/WorldTask/res/res_close_x_green.png")
+	# 左下角聊天栏「[系]任务」前缀（任务完成提示的第一级过滤） 
+	I_TASK_COMPLETE_TRIGGER = RuleImage(roi_front=(0,679,97,27), roi_back=(0,679,638,37), threshold=0.9, method="Template matching", file="./tasks/WorldTask/res/task_complete_trigger.png")
 
 
 	# Ocr Rule Assets
 	# 世家之巅弹窗顶部tab识别区域 
 	O_NEW = RuleOcr(roi=(78,82,1052,68), area=(78,82,1052,68), mode="Single", method="Default", keyword="", name="new")
+	# 加量推广弹窗正文区域（识别到「任务加量」即为弹窗开着） 
+	O_BONUS_PROMO = RuleOcr(roi=(330,250,650,90), area=(330,250,650,90), mode="Full", method="Default", keyword="", name="bonus_promo")
+	# 跨服任务列表（只框任务名，不含右侧接取按钮；配合按钮位置按 y 配对） 
+	O_TASK_LIST = RuleOcr(roi=(90,175,910,460), area=(90,175,910,460), mode="Full", method="Default", keyword="", name="task_list")
+	# 左下角聊天栏系统消息行（[系]任务：xxx已完成） 
+	O_TASK_COMPLETE = RuleOcr(roi=(0,679,638,37), area=(0,679,638,37), mode="Full", method="Default", keyword="", name="task_complete")
 
 
 	# Swipe Rule Assets

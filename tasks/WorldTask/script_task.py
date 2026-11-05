@@ -2,17 +2,28 @@
 """
 世界任务（WorldTask）：每天一次，只在开放世界时段（09:00-24:00）里跑
 
-当前进度：**认人 + 打开世界之巅活动弹窗** —— 判断是否在 NPC 所在地图（默认域外灵岛）→
+当前进度：**认人 + 打开活动弹窗 + 接 7 个跨服任务** —— 判断是否在 NPC 所在地图（默认域外灵岛）→
 打开小地图把视口拖到右上角 → 点录好的 NPC 点位 → **主动关掉小地图** → 用「人物坐标有没有变化」
 判断这一下点没点中（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC
-→ 在守门人对话里点「查看世界之巅活动」→ 活动弹窗打开 → 切到「跨服任务」tab → 确认接取列表可见。
-接任务 / 进世界之巅 / 做任务 / 交任务后面接着补。
+→ 在守门人对话里点「查看世界之巅活动」→ 活动弹窗打开 → 切到「跨服任务」tab
+→ 按顺序接 7 个任务（接过的会被游戏移到列表末尾，所以每次接第一行）。
+做任务 / 交任务后面接着补。
+
+任务完成检测（接任务之前就要开着）：
+    左下角聊天栏会打 `[系]任务：【跨服】世界之巅已完成`，`monitor.py` 用「[系]任务」前缀模板
+    做一级过滤、命中后再 OCR 抽任务名；挂在本任务的每次截图上，所以接任务、走图全程都不漏。
+    接取时有些任务会当场判定完成，这些名字先记下来，后面就不用再去世界之巅做。
 
 游戏里的页面链路（2026-11-05 录制，见 tasks/WorldTask/res/）：
     守门人对话（I_NEW）→「查看世界之巅活动」选项行（I_ITEM_3）→ 世界之巅活动弹窗
     →「世界之巅」tab 有黄帝立绘（I_ITEM_4）→「跨服任务」tab（O_NEW 读 tab 名，S_NEW 滑 tab 条）
-    → 任务列表里每行一个「接取」按钮（I_ITEM_5）
+    → 任务列表：左边任务名（O_TASK_LIST），右边每行一个「接取」按钮（I_ITEM_5）
     活动时间：每周星期一到星期五 9:00-24:00（与 schedule.py 的窗口一致）
+
+接取时的加量推广弹窗（I_PROMO_CLOSE / O_BONUS_PROMO）：
+    点「接取」会弹「当前任务加量功能未激活…」，它盖在列表上会吞掉后续点击。
+    处理方式与 AutoTask.click_auto_start 一致：出现就点绿X关掉，**不勾「今日不再提示」**
+    （勾了就改动了玩家的游戏设置）。
 
 为什么点完要主动关小地图：点位点击不一定生效（地图没拖到位、点在遮罩上都会吃掉），
 小地图开着又正好盖住对话框，只会白等到超时。所以关掉之后拿主页面右上角的坐标当判据：
@@ -27,6 +38,8 @@ NPC 素材（tasks/WorldTask/res/，标注工具录制）：
 - 点位 C_NEW / C_ITEM_2 是按「小地图视口在右上角」录的，所以点之前必须先 map_pan_to_corner('top_right')；
 - 对话框特征 I_NEW / I_ITEM_2 匹配的是标题 + 第一行台词，NPC 台词变了模板就会失效（届时重录即可）。
 """
+import difflib
+import re
 from datetime import datetime
 
 from module.base.timer import Timer
@@ -37,6 +50,7 @@ from module.exception import (GameNotRunningError,
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
 from tasks.WorldTask.assets import WorldTaskAssets
+from tasks.WorldTask.monitor import TaskCompleteMonitor
 from tasks.WorldTask.schedule import clamp_to_open_world, in_open_world, next_run_after
 
 
@@ -68,6 +82,32 @@ class ScriptTask(GameUi, WorldTaskAssets):
     # 世界任务所在 tab
     ACTIVITY_TASK_TAB = '跨服任务'
 
+    # 要接的跨服任务（列表里的先后顺序）
+    # 接过的任务会被游戏移到列表末尾，所以「每次接第一行」就能按这个顺序接完
+    ACCEPT_TASKS = ('世界之巅', '黄金比例', '木料之争', '兽毛之争',
+                    '世界印记', '为了荣耀', '世界之心')
+
+    def __init__(self, config, device):
+        super().__init__(config, device)
+        # 任务完成提示监测：接任务之前就要开着（接取时有的任务会当场判定完成）
+        self.task_monitor = TaskCompleteMonitor(self.I_TASK_COMPLETE_TRIGGER,
+                                                self.O_TASK_COMPLETE)
+        self.completed_tasks: list = []   # 本次运行识别到的「已完成」任务名
+
+    def screenshot(self):
+        """
+        截图 + 跑一遍任务完成提示监测
+
+        聊天栏的「[系]任务：xxx已完成」只出现几秒，而接任务/走图期间一直在截图，
+        所以挂在每次截图上最省事、也不会漏（一级模板匹配不命中时几乎不耗时）。
+        """
+        image = super().screenshot()
+        for name in self.task_monitor.detect(image):
+            if name not in self.completed_tasks:
+                self.completed_tasks.append(name)
+            logger.info(f'任务完成提示：{name}')
+        return image
+
     def run(self) -> None:
         logger.hr('世界任务')
         if not in_open_world(datetime.now()):
@@ -87,13 +127,14 @@ class ScriptTask(GameUi, WorldTaskAssets):
     # ---------------------------------------------------------------- 玩法
     def world_task_flow(self) -> bool:
         """
-        当前阶段：认人 + 打开世界之巅活动弹窗 + 切到「跨服任务」列表
+        当前阶段：认人 + 打开活动弹窗 + 接 7 个跨服任务
 
         真机页面链路（2026-11-05 录制）：
         守门人对话 -> 点「查看世界之巅活动」-> 世界之巅活动弹窗（顶部 tab 条）
         -> 世界之巅 tab（活动主页，带黄帝立绘和「进入世界之巅」按钮）-> 跨服任务 tab（接取列表）
+        -> 按顺序接 7 个任务
 
-        :return: 走到「跨服任务列表可见」返回 True
+        :return: 接取阶段正常走完（接过任务 / 列表里已经没有可接的）返回 True
         """
         if not self.find_npc(self.NPC_NEW):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
@@ -113,10 +154,25 @@ class ScriptTask(GameUi, WorldTaskAssets):
         if not self.appear(self.I_ITEM_5):
             logger.warning('跨服任务列表里没看到「接取」按钮')
             return False
-        logger.info('跨服任务列表已打开（接取/做任务/交付待补）')
+        logger.info('跨服任务列表已打开')
+
+        # 接任务（完成提示监测从 __init__ 起就一直在跑，接取时当场完成的也能记到）
+        accepted = self.accept_tasks()
+        if accepted:
+            logger.attr('本次接取', ', '.join(accepted))
+        elif self.task_list_readable:
+            # 列表能读、但没有一个能接 = 今天已经全接过了（重跑时会走到这里）
+            logger.info('跨服任务列表里没有可接的任务（今天应该已经接过了）')
+        else:
+            logger.warning('一个跨服任务都没接上')
+        if self.completed_tasks:
+            logger.attr('接完就是已完成', ', '.join(self.completed_tasks))
+        else:
+            logger.info('接完没有当场判定完成的任务')
+
         # 目前到此为止：把界面收干净，别把游戏留在弹窗里
         self.close_activity_panel()
-        return True
+        return bool(accepted) or (self.task_list_readable and not accepted) or bool(self.completed_tasks)
 
     # ---------------------------------------------------------------- 世界之巅活动弹窗
     def _ocr_items(self) -> list:
@@ -147,6 +203,159 @@ class ScriptTask(GameUi, WorldTaskAssets):
             self.device.sleep(0.5)
         logger.warning('Activity panel does not close')
         return False
+
+    # ---------------------------------------------------------------- 接取任务
+    def bonus_promo_open(self) -> bool:
+        """「当前任务加量功能未激活」推广弹窗开着没有"""
+        self.maybe_screenshot()
+        if self.appear(self.I_PROMO_CLOSE):
+            return True
+        text = self.O_BONUS_PROMO.ocr_single_line(self.device.image)
+        return '加量' in (text or '')
+
+    def close_bonus_promo(self, timeout: float = 10) -> bool:
+        """
+        关掉加量推广弹窗（点绿X，不勾「今日不再提示」）
+
+        与 AutoTask.click_auto_start 里处理加量提示的做法一致：出现就点它的绿X关掉。
+        注意不能勾「今日不再提示」—— 那是改玩家的游戏设置。
+        :return: 已经关掉（或本来就没弹）返回 True
+        """
+        if not self.bonus_promo_open():
+            return True
+        logger.info('加量推广弹窗出现，点绿X关掉')
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.bonus_promo_open():
+                logger.info('Bonus promo closed')
+                return True
+            if self.appear_then_click(self.I_PROMO_CLOSE, interval=1):
+                self.device.click_record_clear()
+            self.device.sleep(0.5)
+        logger.warning('Bonus promo does not close')
+        return False
+
+    @staticmethod
+    def _strip_task_prefix(text: str) -> str:
+        """去掉列表里的「【跨服】」「[跨服]」「跨服-周六限时」之类前缀"""
+        text = re.sub(r'[\[【]?\s*跨服[^\]】]*[\]】]?', '', text or '')
+        return text.strip()
+
+    def task_name_match(self, ocr_text: str, name: str) -> bool:
+        """
+        列表里的任务名匹配
+
+        两处都不能省：
+        1. 先剥掉「【跨服】」前缀 —— 不去掉的话 `ocr_name_match` 的「前两字一致」规则
+           永远对不上（"【跨" vs "世界"）；
+        2. 只在 ACCEPT_TASKS 这 7 个已知任务名里挑最接近的来比 —— 「世界之巅/世界之心/
+           世界印记」前三个字一样，直接算相似度 世界之巅 vs 世界之心 = 0.75，会互相认错。
+        """
+        text = self._strip_task_prefix(ocr_text)
+        if not text or not name:
+            return False
+        if name in text or text in name:
+            return True
+
+        best, best_score = None, 0.0
+        for candidate in self.ACCEPT_TASKS:
+            score = difflib.SequenceMatcher(None, text, candidate).ratio()
+            if score > best_score:
+                best, best_score = candidate, score
+        if best != name or best_score < 0.7:
+            return False
+        return True
+
+    def task_rows(self) -> list:
+        """
+        读跨服任务列表：[(任务名, 接取按钮中心x, 接取按钮中心y)]
+
+        接取按钮用 I_ITEM_5 在按钮列里全匹配出来，任务名用 O_TASK_LIST 整块 OCR，
+        再按 y 坐标把两边配对（按钮和行名在同一水平线上）。
+        """
+        self.screenshot()
+        image = self.device.image
+        buttons = sorted(self.I_ITEM_5.match_all_any(image, threshold=self.I_ITEM_5.threshold),
+                         key=lambda m: m[2])
+        if not buttons:
+            return []
+
+        roi_top = self.O_TASK_LIST.roi[1]
+        items = self.O_TASK_LIST.detect_and_ocr(image, logDisplay=False)
+        rows = []
+        for _score, x, y, w, h in buttons:
+            center_y = y + h // 2
+            texts = []
+            for item in items:
+                box = item.box
+                top = min(point[1] for point in box) + roi_top
+                bottom = max(point[1] for point in box) + roi_top
+                if top - 8 <= center_y <= bottom + 8:
+                    texts.append(item.ocr_text.strip())
+            rows.append((''.join(texts), x + w // 2, center_y))
+        return rows
+
+    def wait_task_accepted(self, name: str, timeout: float = 8) -> bool:
+        """
+        接取之后确认真的接上了
+
+        游戏会把接过/完成的任务移到列表末尾，所以「可见列表里没有它了」就算接上；
+        期间还要顺手关掉可能又弹出来的加量推广弹窗。
+        """
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.close_bonus_promo()
+            rows = self.task_rows()
+            if rows and not any(self.task_name_match(text, name) for text, _, _ in rows):
+                return True
+            self.device.sleep(0.5)
+        return False
+
+    def accept_tasks(self, timeout: float = 30) -> list:
+        """
+        按顺序接 ACCEPT_TASKS 里的 7 个跨服任务
+
+        接过的任务会被移到列表末尾，所以正常情况下每次都是接第一行；
+        第一行对不上时再在可见行里按名字找（加 OCR 兜底，避免列表滚动后点错）。
+        :return: 成功接取的任务名（按接取顺序）
+        """
+        logger.hr('接取跨服任务')
+        cfg = self.config.world_task.world_task_config
+        if cfg.use_bonus:
+            logger.warning('世界任务的加量还没接（下一步结合自动任务的加量页实现），本次按不加量处理')
+
+        accepted = []
+        self.task_list_readable = False
+        for expected in self.ACCEPT_TASKS:
+            rows = self.task_rows()
+            if not rows:
+                logger.warning('跨服任务列表读不出来，停止接取')
+                break
+            self.task_list_readable = True
+
+            name, bx, by = rows[0]
+            if not self.task_name_match(name, expected):
+                # 兜底：第一行不是预期的，就在可见行里按名字找
+                found = next((row for row in rows if self.task_name_match(row[0], expected)), None)
+                if found is None:
+                    logger.warning(f'列表里没有 [{expected}]（可能今天已接过），跳过')
+                    continue
+                name, bx, by = found
+
+            logger.info(f'接取 [{name}] at ({bx},{by})')
+            self.device.click(x=bx, y=by, control_name=f'accept_{expected}')
+            self.device.click_record_clear()
+            self.device.sleep(1.0)
+            self.close_bonus_promo()
+
+            if self.wait_task_accepted(name):
+                accepted.append(expected)
+                logger.info(f'已接取 [{expected}]')
+            else:
+                logger.warning(f'接取 [{expected}] 后列表没变化，可能没点上')
+        logger.attr('本次接取', ', '.join(accepted) or 'none')
+        return accepted
 
     def tab_items(self) -> list:
         """当前可见的 tab 文字与可点中心 [(文本, x, y)]，按 x 排序"""
@@ -491,6 +700,21 @@ class ScriptTask(GameUi, WorldTaskAssets):
         return False
 
     # ---------------------------------------------------------------- 地图与找 NPC
+    def read_location(self, retry: int = 3) -> tuple:
+        """
+        读当前地点（右上角名字 + 坐标）
+
+        OCR 偶尔会只认出坐标（真机 2026-11-05：读到 "J,29"），这种时候不能当成
+        「不在目标地图」—— 按乱码去传送既找不到目标点，还会白开一次世界地图列表。
+        """
+        for attempt in range(retry):
+            location = self.map_current_location()
+            if location is not None:
+                return location
+            if attempt + 1 < retry:
+                self.device.sleep(0.5)
+        return None
+
     def ensure_location(self, name: str = None) -> bool:
         """
         判断当前所在地图：不在 NPC 所在地图就传送过去
@@ -500,8 +724,13 @@ class ScriptTask(GameUi, WorldTaskAssets):
         """
         if name is None:
             name = self.config.world_task.world_task_config.location
-        location = self.map_current_location()
-        if location is not None and self.map_name_match(location[0], name):
+        location = self.read_location()
+        if location is None:
+            # 读不出来：按「大概率已经在」处理，继续往下走（找 NPC 失败会重试并暴露问题），
+            # 不按乱码去传送
+            logger.warning('读不出当前地点，跳过传送判断')
+            return True
+        if self.map_name_match(location[0], name):
             logger.attr('Current location', f'{location[0]} {location[1]},{location[2]}')
             return True
         logger.info(f'Not at [{name}] (now {location}), teleport')

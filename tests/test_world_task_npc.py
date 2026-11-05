@@ -391,6 +391,7 @@ def test_find_npc_teleports_only_when_outside_location():
         task = make_task()
         task.config = SimpleNamespace(
             world_task=SimpleNamespace(world_task_config=SimpleNamespace(location='域外灵岛')))
+        task.device = SimpleNamespace(image=None, sleep=lambda seconds: None)
         task.map_current_location = lambda: location
         teleports = []
         task.map_teleport = lambda name: teleports.append(name) or teleport_result
@@ -410,10 +411,10 @@ def test_find_npc_teleports_only_when_outside_location():
     task, teleports = build(('沼泽', 427, 59), teleport_result=False)
     assert task.ensure_location() is False
 
-    # 地点读不出来也按不在处理（宁可传送）
+    # 地点读不出来（OCR 只读到坐标）：不传送，先继续（按乱码传送会白开世界地图）
     task, teleports = build(None)
     assert task.ensure_location() is True
-    assert teleports == ['域外灵岛']
+    assert teleports == [], '读不出地点时不该盲传'
 
 
 def test_find_npc_closes_other_dialog_first():
