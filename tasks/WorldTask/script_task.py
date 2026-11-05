@@ -400,14 +400,19 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 return row
         return None
 
-    def swipe_task_page_list(self, forward: bool = True) -> bool:
+    def swipe_task_page_list(self, forward: bool = True, before=None) -> bool:
         """
         滑任务页的列表（任务多的时候列表可以滚动）
 
+        真机实测：**没有惯性** —— 拖多少像素列表就走多少（拖 350px ≈ 4.5 行），
+        所以拖拽距离就是滚动量，可以放心用它定位。
+
         :param forward: True=往下翻（找更靠后的任务）
+        :param before: 滑动前的行名序列；调用方已经读过就传进来，省一次 OCR
         :return: 这次滑动后列表内容变了没有（没变就是到底了）
         """
-        before = tuple(row[0] for row in self.task_page_rows())
+        if before is None:
+            before = tuple(row[0] for row in self.task_page_rows())
         x = 700                      # 避开左侧栏和右侧「寻路」按钮列
         if forward:
             start, end = (x, 600), (x, 250)
@@ -416,7 +421,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         logger.info(f'滑任务页列表 {"下" if forward else "上"} {start} -> {end}')
         self.device.hold_drag(start, end, hold=0.2, control_name='task_page_scroll')
         self.device.click_record_clear()
-        self.device.sleep(0.6)
+        self.device.sleep(0.5)
         after = tuple(row[0] for row in self.task_page_rows())
         if before == after:
             logger.info('任务页列表没滑动（到底了）')
@@ -428,6 +433,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         在任务页里找某任务行，返回 (任务名, 状态, 寻路x, 寻路y)；没有返回 None
 
         任务多时列表可以滚动：当前屏没有就往下翻着找，翻不动（到底）就收手。
+        判「到底」用「这一屏的行名和上一屏一样」——比数次数可靠。
         """
         seen = set()
         for attempt in range(max_scroll + 1):
@@ -441,7 +447,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             seen.add(signature)
             if attempt >= max_scroll:
                 break
-            if not self.swipe_task_page_list(forward=True):
+            if not self.swipe_task_page_list(forward=True, before=signature):
                 break
         logger.warning(f'任务页里没找到 [{name}]（翻了 {len(seen) - 1} 次）')
         return None

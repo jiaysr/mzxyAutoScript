@@ -211,7 +211,7 @@ def test_find_task_page_row_scrolls_when_list_is_long():
     task.task_page_rows = lambda: list(pages[state['page']])
     swipes = []
 
-    def swipe(forward=True):
+    def swipe(forward=True, before=None):
         swipes.append(forward)
         if state['page'] + 1 >= len(pages):
             return False
@@ -228,7 +228,7 @@ def test_find_task_page_row_stops_at_list_bottom():
     """翻到底还是没有：返回 None，不无限滑"""
     task = make_task()
     task.task_page_rows = lambda: [('【跨服】木料之争', '进行中', 1093, 324)]
-    task.swipe_task_page_list = lambda forward=True: False
+    task.swipe_task_page_list = lambda forward=True, before=None: False
 
     assert task.find_task_page_row('世界印记') is None
 
