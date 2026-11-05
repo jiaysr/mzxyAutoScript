@@ -53,7 +53,10 @@ from tasks.AutoTask.assets import AutoTaskAssets
 from tasks.AutoTask.config import BonusMultiplier
 from tasks.AutoTask.page import page_bonus
 from tasks.AutoTask.script_task import ScriptTask as AutoTaskScriptTask
+from tasks.Battle.slots import ACTION_BUTTON_DISC_CENTER
+from tasks.Battle.target_action import ACTION_GATHER
 from tasks.GameUi.game_ui import GameUi
+from tasks.GameUi.pages.page import page_task
 from tasks.WorldTask.assets import WorldTaskAssets
 from tasks.WorldTask.monitor import TaskCompleteMonitor
 from tasks.WorldTask.schedule import clamp_to_open_world, in_open_world, next_run_after
@@ -93,6 +96,12 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     ACTIVITY_TASK_TAB = '跨服任务'
     # 进图后右上角的地点名
     WORLD_PEAK_LOCATION = '世界之巅'
+
+    # 木料之争：任务页点「寻路」后人物自动走到采集点附近，然后循环采集
+    WOOD_TASK = '木料之争'
+    WOOD_TARGET_POS = (145, 470)
+    # 判定「走到采集点了」的坐标容差
+    WOOD_POS_TOLERANCE = 15
 
     # 要接的跨服任务（列表里的先后顺序）
     # 接过的任务会被游戏移到列表末尾，所以「每次接第一行」就能按这个顺序接完
@@ -294,7 +303,207 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.warning('没进到世界之巅地图，把弹窗关掉收尾')
             self.close_activity_panel()
             return False
+
+        # 进图后做任务（当前只做了「木料之争」，其余待补）
+        if not self.run_wood_task():
+            logger.warning(f'{self.WOOD_TASK} 没做完')
+            return False
         return True
+
+    # ---------------------------------------------------------------- 世界之巅：做任务
+    def task_completed(self, name: str) -> bool:
+        """监测到的完成提示里有没有这个任务"""
+        if not name:
+            return False
+        return any(self.task_name_match(text, name) for text in self.completed_tasks)
+
+    def open_task_page(self, timeout: float = 30) -> bool:
+        """打开任务页（左侧栏「任务」）"""
+        logger.hr('打开任务页', level=2)
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_task, timeout=timeout):
+            logger.warning('任务页没打开')
+            return False
+        return True
+
+    def close_task_page(self, timeout: float = 10) -> bool:
+        """关掉任务页（右上角返回）"""
+        timer = Timer(timeout).start()
+        clicked = False
+        while not timer.reached():
+            self.screenshot()
+            if not self.appear(self.I_CLOSE_RETURN):
+                return True
+            if self.appear_then_click(self.I_CLOSE_RETURN, interval=1):
+                clicked = True
+                self.device_record_clear()
+                self.device.sleep(0.5)
+            self.device.sleep(0.3)
+        logger.warning('任务页关不掉')
+        return not self.appear(self.I_CLOSE_RETURN)
+
+    def device_record_clear(self) -> None:
+        """点完立刻清记录（避免连点保护）"""
+        self.device.click_record_clear()
+
+    def task_page_items(self) -> list:
+        """任务页列表 OCR：[(文本, 中心x, 中心y)]"""
+        self.screenshot()
+        image = self.device.image
+        roi = self.O_TASK_PAGE_LIST.roi
+        items = []
+        for item in self.O_TASK_PAGE_LIST.detect_and_ocr(image, logDisplay=False):
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            box = item.box
+            x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+            y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+            items.append((text, x, y))
+        return items
+
+    def task_page_rows(self) -> list:
+        """
+        读任务页列表：[(任务名, 状态, 寻路按钮x, 寻路按钮y)]
+
+        按「寻路」按钮分行；同一行里 x<900 的文字拼起来才是任务名（OCR 会把
+        「兽毛之争」拆成两段），含「完成/进行中」的那段是状态。
+        """
+        items = self.task_page_items()
+        anchors = [(x, y) for text, x, y in items if '寻路' in text]
+        rows = []
+        for walk_x, walk_y in anchors:
+            names, status = [], ''
+            for text, x, y in items:
+                if abs(y - walk_y) > 25:
+                    continue
+                if '完成' in text or '进行中' in text:
+                    status = text
+                    continue
+                if x >= 900:
+                    continue          # 中间那列空着，名字列在 x<900
+                if re.fullmatch(r'\[\d+\]', text):
+                    continue          # 等级前缀 [66]
+                names.append((x, text))
+            name = ''.join(text for _x, text in sorted(names))
+            rows.append((name, status, walk_x, walk_y))
+        return rows
+
+    def find_task_page_row(self, name: str):
+        """在任务页里找某任务行，返回 (任务名, 状态, 寻路x, 寻路y)；没有返回 None"""
+        for row in self.task_page_rows():
+            if name and name in row[0]:
+                return row
+        return None
+
+    def task_page_walk_to(self, name: str) -> bool:
+        """在任务页点某任务的「寻路」按钮"""
+        row = self.find_task_page_row(name)
+        if row is None:
+            logger.warning(f'任务页里没找到 [{name}]')
+            return False
+        row_name, status, walk_x, walk_y = row
+        logger.info(f'任务 [{row_name}] 状态[{status}]，点寻路 ({walk_x},{walk_y})')
+        self.device.click(x=walk_x, y=walk_y, control_name=f'walk_{name}')
+        self.device.click_record_clear()
+        return True
+
+    def map_wait_arrive_at(self, position: tuple, tolerance: int = None,
+                           stable_time: float = 2.0, timeout: float = 120) -> bool:
+        """
+        等自动寻路走到指定坐标附近并停下
+
+        :param position: 目标坐标 (x, y)
+        :return: 到了（且稳定 stable_time 秒）返回 True
+        """
+        tolerance = self.WOOD_POS_TOLERANCE if tolerance is None else tolerance
+        logger.hr(f'等走到 {position[0]},{position[1]}', level=2)
+        timer = Timer(timeout).start()
+        still_since = None
+        last = None
+        while not timer.reached():
+            # 长时间轮询，清卡死记录，避免被框架判成卡死
+            self.device.stuck_record_clear()
+            location = self.map_move_read_pos()
+            if location is None:
+                self.device.sleep(0.8)
+                continue
+            x, y = location[1], location[2]
+            near = self.map_pos_match(x, y, position, tolerance)
+            moved = (last is None or abs(x - last[1]) > 2 or abs(y - last[2]) > 2)
+            if moved:
+                still_since = None
+            elif still_since is None:
+                still_since = datetime.now()
+            last = location
+
+            still = (datetime.now() - still_since).total_seconds() if still_since else 0
+            if near and still >= stable_time:
+                logger.info(f'走到 {x},{y}（目标 {position[0]},{position[1]}）')
+                return True
+            if not near and still >= 6:
+                logger.warning(f'寻路停在 {x},{y}，离目标 {position} 太远')
+                return False
+            self.device.sleep(0.8)
+        logger.warning('走到采集点超时')
+        return False
+
+    def gather_until_complete(self, name: str, timeout: float = 600) -> bool:
+        """
+        循环采集直到任务完成
+
+        玩法（真机确认）：切目标直到锁到一个「采集」动作的目标（**不校验名称**）
+        -> 点右下角动作按钮（采集）-> 按钮从「采集」变回「攻击」= 这份采完了
+        -> 继续锁下一个，直到聊天栏报「任务完成」。
+        """
+        logger.hr(f'采集直到 [{name}] 完成', level=2)
+        timer = Timer(timeout).start()
+        count = 0
+        while not timer.reached():
+            if self.task_completed(name):
+                logger.info(f'[{name}] 已完成，共采集 {count} 次')
+                return True
+
+            if not self.ui_ensure_target_locked(action=ACTION_GATHER, max_switch=6):
+                logger.warning('附近没有可采集的目标，等一会儿再找')
+                self.device.sleep(1.0)
+                continue
+
+            x, y = ACTION_BUTTON_DISC_CENTER
+            self.device.click(x=x, y=y, control_name='action_gather')
+            self.device.click_record_clear()
+            count += 1
+
+            # 等按钮从「采集」变回「攻击」（= 这一份采完/目标消失）
+            lost = self.ui_target_lost_check(action=ACTION_GATHER)
+            wait = Timer(8).start()
+            while not wait.reached():
+                self.screenshot()
+                if self.task_completed(name):
+                    logger.info(f'[{name}] 已完成，共采集 {count} 次')
+                    return True
+                if lost():
+                    break
+                self.device.sleep(0.3)
+        logger.warning(f'采集 [{name}] 超时')
+        return False
+
+    def run_wood_task(self) -> bool:
+        """木料之争：任务页寻路 -> 走到采集点 -> 循环采集到完成"""
+        logger.hr(f'世界任务：{self.WOOD_TASK}')
+        if self.task_completed(self.WOOD_TASK):
+            logger.info(f'[{self.WOOD_TASK}] 已经完成，跳过')
+            return True
+        if not self.open_task_page():
+            return False
+        if not self.task_page_walk_to(self.WOOD_TASK):
+            self.close_task_page()
+            return False
+        self.close_task_page()
+        if not self.map_wait_arrive_at(self.WOOD_TARGET_POS):
+            logger.warning(f'没走到采集点 {self.WOOD_TARGET_POS}')
+            return False
+        return self.gather_until_complete(self.WOOD_TASK)
 
     # ---------------------------------------------------------------- 进入世界之巅
     def enter_world_peak(self, timeout: float = 40) -> bool:

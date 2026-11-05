@@ -41,6 +41,8 @@ class WorldTaskAssets:
 	O_NEW = RuleOcr(roi=(78,82,1052,68), area=(78,82,1052,68), mode="Single", method="Default", keyword="", name="new")
 	# 加量推广弹窗正文区域（识别到「任务加量」即为弹窗开着） 
 	O_BONUS_PROMO = RuleOcr(roi=(330,250,650,90), area=(330,250,650,90), mode="Full", method="Default", keyword="", name="bonus_promo")
+	# 任务页的任务列表（任务名 / 状态 / 寻路按钮，按同一行 y 配对） 
+	O_TASK_PAGE_LIST = RuleOcr(roi=(280,125,890,560), area=(280,125,890,560), mode="Full", method="Default", keyword="", name="task_page_list")
 	# 左下角聊天栏系统消息行（[系]任务：xxx已完成） 
 	O_TASK_COMPLETE = RuleOcr(roi=(0,679,638,37), area=(0,679,638,37), mode="Full", method="Default", keyword="", name="task_complete")
 

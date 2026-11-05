@@ -18,6 +18,15 @@
     "description": "加量推广弹窗正文区域（识别到「任务加量」即为弹窗开着）"
   },
   {
+    "itemName": "task_page_list",
+    "roiFront": "280,125,890,560",
+    "roiBack": "280,125,890,560",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "任务页的任务列表（任务名 / 状态 / 寻路按钮，按同一行 y 配对）"
+  },
+  {
     "itemName": "task_complete",
     "roiFront": "0,679,638,37",
     "roiBack": "0,679,638,37",
