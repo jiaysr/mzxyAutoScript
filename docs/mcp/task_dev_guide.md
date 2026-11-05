@@ -569,6 +569,14 @@ ecord_skill_icon.py ^
       OCR 只做兜底 —— 否则一个 `xxx_open()` 就 1s；
     - 同一帧上重复读同一块内容要缓存（`detect_and_ocr` 自己按帧缓存，换帧就失效）；
     - 位置固定的东西（tab 坐标）OCR 一次记下来，后面直接点。
+  - **加量卡复用自动任务，别重写**：加量页（`tasks/AutoTask/page.py` 的 `page_bonus`）与按钮语义
+    （「停止加量」= 已激活 / 「激活加量卡」= 未激活，同一时间只允许一张卡生效）自动任务都实现了：
+    - 素材：直接继承 `AutoTaskAssets`（`I_BONUS_3X_STOP` / `I_BONUS_5X_STOP` / `O_BONUS_*_COUNT` …）；
+    - 方法：`read_bonus_counts` / `set_bonus_state` / `set_bonus_side` 直接用
+      `AutoTaskScriptTask.xxx` 赋值过来即可，不复制代码；
+    - 配置：`BonusMultiplier`（none / bonus_3x / bonus_5x）也复用，前端下拉框自动出来；
+    - **用完必须关**：加量卡是消耗品，`set_bonus_state(BonusMultiplier.NONE)` 把两张都停掉，
+      放在 `run()` 的 `finally` 里，失败/阵亡也不会一直生效；关闭失败只告警，不覆盖任务成败。
 - `tasks/Quiz`：答题
   - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
