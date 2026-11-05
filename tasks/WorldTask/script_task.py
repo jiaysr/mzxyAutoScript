@@ -177,10 +177,8 @@ class ScriptTask(GameUi, WorldTaskAssets):
         if not self.open_activity_panel():
             logger.warning('世界之巅活动弹窗没打开')
             return False
-        # 弹窗会记住上次停在哪个 tab，先回到活动主页（世界之巅在最左，不在视野就左翻）
-        if not self.ensure_activity_tab(self.ACTIVITY_HOME_TAB):
-            logger.warning(f'没回到 [{self.ACTIVITY_HOME_TAB}] tab')
-            return False
+        # 接取只需要「跨服任务」这一个 tab：直接切过去，不再先回世界之巅（省一次切 tab + OCR）。
+        # 进世界之巅的阶段再用 ensure_activity_tab(ACTIVITY_HOME_TAB) 归位。
         if not self.switch_tab(self.ACTIVITY_TASK_TAB):
             logger.warning(f'没切到 tab [{self.ACTIVITY_TASK_TAB}]')
             return False
