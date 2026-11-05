@@ -577,6 +577,10 @@ ecord_skill_icon.py ^
     - 配置：`BonusMultiplier`（none / bonus_3x / bonus_5x）也复用，前端下拉框自动出来；
     - **用完必须关**：加量卡是消耗品，`set_bonus_state(BonusMultiplier.NONE)` 把两张都停掉，
       放在 `run()` 的 `finally` 里，失败/阵亡也不会一直生效；关闭失败只告警，不覆盖任务成败。
+  - **进世界之巅地图**（真机 20:16）：先 `ensure_activity_tab('世界之巅')` 归位（黄帝立绘 `I_ITEM_4`
+    确认内容切过去了），再点「进入世界之巅」（`C_ENTER_WORLD_PEAK` = 540,552,200x48），
+    最后**用右上角地点名判断进没进去**（`map_in_location('世界之巅')`）——读条期间地点读不出来，
+    轮询里要 `device.stuck_record_clear()`，否则 60s 卡死检测会误报；点不进去重试一次。
 - `tasks/Quiz`：答题
   - Quiz：背包找「趣味答题券」-> `bag_use_item` 立即使用 -> 答题（题库命中优先，否则问 DeepSeek）
     -> 读贴纸校验并回写题库 -> 关弹窗回主页面（进背包/回主页都走 `ui_goto`）
