@@ -780,6 +780,31 @@ class DungeonBase(GameUi, DungeonAssets):
         """OCR 当前屏幕的左侧列表，返回 [(副本名, 剩余次数), ...]"""
         return [(name, count) for name, count, _ in self.dungeon_read_rows()]
 
+    def dungeon_page_opened(self) -> bool:
+        """
+        当前是否已经停在「活动-副本」页（快速路径用）
+
+        `dungeon_open_page()` 的整套流程（关活动弹窗 -> 回主页 -> 右上菜单 -> 活动 ->
+        活动 tab -> 滑到副本子 tab）实测约 8s。重置前后的「读次数 / 选中行」如果当前页
+        就能做完，就不用重开：2026-11-05 一次重置重开了 3 次副本页，白花约 26s。
+        """
+        self.screenshot()
+        return self.appear(self.I_PAGE_ACTIVITY_DUNGEON)
+
+    def dungeon_visible_count(self, name: str) -> int | None:
+        """
+        直接读当前副本页上某个副本的剩余次数
+
+        页面没开、或这一行不在当前屏幕上时返回 None（交给调用方走完整扫描）。
+        """
+        if not self.dungeon_page_opened():
+            return None
+        for row_name, count, _ in self.dungeon_read_rows():
+            if dungeon_name_matches(row_name, name):
+                logger.info(f'Dungeon [{name}] count read on current screen: {count}')
+                return count
+        return None
+
     def dungeon_scan_counts(self, max_screens: int = None,
                            stop_name: str = None) -> dict:
         """
@@ -841,8 +866,12 @@ class DungeonBase(GameUi, DungeonAssets):
         :return: (剩余次数 | None, 特权剩余次数 | None)
         """
         name = FIELD_NAMES.get(field, field)
-        counts = self.dungeon_scan_counts(stop_name=name)
-        count = counts.get(name)
+        # 快速路径：重置刚提交完时人还停在副本页，那一行就在当前屏上，直接读
+        # （省掉一次 ~8s 的「关掉活动弹窗再重开 + 逐屏下滑」）
+        count = self.dungeon_visible_count(name)
+        if count is None:
+            counts = self.dungeon_scan_counts(stop_name=name)
+            count = counts.get(name)
         privilege = self.dungeon_privilege_count()
         if count is None:
             logger.warning(f'Unable to read remaining count for [{name}], counts={counts}')
@@ -1080,6 +1109,40 @@ class DungeonBase(GameUi, DungeonAssets):
             return True
         return False
 
+    def dungeon_click_row(self, name: str, rows: list = None) -> bool:
+        """
+        在当前屏的副本列表里找到目标行并点选
+
+        只读不滚（滚动由调用方决定），行不在当前屏 / 点击确认不了都返回 False。
+
+        :param rows: 已经读好的列表（不传就现读一次）
+        :return: 是否已选中
+        """
+        rows = self.dungeon_read_rows() if rows is None else rows
+        logger.info(f'Dungeon rows: {rows}')
+        target = next(((row_name, row_y) for row_name, _, row_y in rows
+                       if dungeon_name_matches(row_name, name)), None)
+        if target is None:
+            return False
+        for attempt in range(2):
+            logger.info(f'Click dungeon row [{target[0]}] at '
+                        f'({self.DUNGEON_ROW_X}, {target[1]})')
+            self.device.click(x=self.DUNGEON_ROW_X, y=target[1],
+                              control_name='dungeon_row')
+            self.device.click_record_clear()
+            self.device.sleep(self.DUNGEON_CLICK_SETTLE)
+            if self.dungeon_row_selected(name, target[1]):
+                logger.info(f'Dungeon [{name}] selected')
+                return True
+            logger.warning(f'Dungeon [{name}] row click not verified, '
+                           f'retry {attempt + 1}/2')
+            rows = self.dungeon_read_rows()
+            target = next(((row_name, row_y) for row_name, _, row_y in rows
+                           if dungeon_name_matches(row_name, name)), None)
+            if target is None:
+                return False
+        return False
+
     def dungeon_select(self, name: str, max_scrolls: int = None) -> bool:
         """
         点击左侧列表选中指定副本（只在重置前调用）。
@@ -1087,37 +1150,24 @@ class DungeonBase(GameUi, DungeonAssets):
         按 OCR 找到目标行的实际 y 再点击（列表滚动/回弹后行位置会变，不能用
         固定坐标）；点击后优先用左侧黄色选中框确认，其次才用右侧特征兜底。
         找不到目标行或确认不了就返回 False，不再逐行乱点。
+
+        快速路径：重置流程里刚读完次数、人还停在副本页，目标行通常就在当前屏上，
+        直接点即可 —— 省掉一次「关掉活动弹窗再重开」（约 8s，重开只是为了把列表
+        滚回顶部，见 dungeon_open_page 的说明）。读不到才走完整流程。
         """
         logger.hr(f'[{self.name}] 选中副本 -> {name}')
+        if self.dungeon_page_opened():
+            if self.dungeon_click_row(name):
+                return True
+            logger.info(f'Dungeon [{name}] not on current screen, reopen the page')
+
         if not self.dungeon_open_page():
             raise GameStuckError('Dungeon page does not appear')
 
         max_scrolls = max_scrolls if max_scrolls is not None else self.DUNGEON_SCAN_MAX_SCREENS
         for index in range(max_scrolls):
-            rows = self.dungeon_read_rows()
-            logger.info(f'Dungeon rows: {rows}')
-            target = next(((row_name, row_y) for row_name, _, row_y in rows
-                           if dungeon_name_matches(row_name, name)), None)
-            if target is not None:
-                for attempt in range(2):
-                    logger.info(f'Click dungeon row [{target[0]}] at '
-                                f'({self.DUNGEON_ROW_X}, {target[1]})')
-                    self.device.click(x=self.DUNGEON_ROW_X, y=target[1],
-                                      control_name='dungeon_row')
-                    self.device.click_record_clear()
-                    self.device.sleep(self.DUNGEON_CLICK_SETTLE)
-                    if self.dungeon_row_selected(name, target[1]):
-                        logger.info(f'Dungeon [{name}] selected')
-                        return True
-                    logger.warning(f'Dungeon [{name}] row click not verified, '
-                                   f'retry {attempt + 1}/2')
-                    rows = self.dungeon_read_rows()
-                    target = next(((row_name, row_y) for row_name, _, row_y in rows
-                                   if dungeon_name_matches(row_name, name)), None)
-                    if target is None:
-                        break
-                return False
-
+            if self.dungeon_click_row(name):
+                return True
             if index >= max_scrolls - 1:
                 break
             self.ui_swipe_gentle(self.DUNGEON_SCROLL_START, self.DUNGEON_SCROLL_END,
