@@ -7,6 +7,7 @@
 由 GameUi 混入本类使用。
 """
 from time import sleep
+from typing import Callable
 
 from module.base.timer import Timer
 from module.logger import logger
@@ -31,10 +32,20 @@ class TopMenuNavigation(BaseTask, GameUiAssets):
         logger.warning('Top-right menu not expanded')
         return False
 
-    def ui_close_menu(self, timeout: float = 6) -> bool:
-        """确保右上角菜单收起（处于展开状态时点击开关收起）"""
+    def ui_close_menu(self, timeout: float = 6,
+                      abort_check: Callable[[], bool] = None) -> bool:
+        """
+        确保右上角菜单收起（处于展开状态时点击开关收起）
+
+        :param abort_check: 无参检查，返回 True 立刻放弃。
+                            弹窗（结算/提示）把背景压暗时，收起/展开两个特征都匹配不上，
+                            不放弃就必然一路空转到 timeout（实测白等 6s）
+        """
         timer = Timer(timeout).start()
         while not timer.reached():
+            if abort_check is not None and abort_check():
+                logger.info('Abort collapsing top-right menu')
+                return False
             self.screenshot()
             if self.appear(self.I_MENU_COLLAPSED):
                 return True

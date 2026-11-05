@@ -28,6 +28,7 @@ from tasks.Battle.target_action import (ACTION_ATTACK, ACTION_GATHER, ACTION_INT
                                         classify_action_button, is_attackable)
 from tasks.GameUi.assets import GameUiAssets
 from tasks.GameUi.navigation.battle import SimpleBattle
+from tasks.GameUi.navigation.top_menu import TopMenuNavigation
 
 ASSET_DIR = PROJECT_ROOT / 'tests' / 'assets' / 'target_lock'
 LOCKED_TEMPLATE = PROJECT_ROOT / 'tests' / 'assets' / 'target_locked.png'
@@ -102,6 +103,77 @@ def test_target_name_close_menu():
     calls.clear()
     assert task.ui_target_name() == '梦魔兽。'
     assert calls == ['ocr']
+
+
+class FakeDevice:
+    """只实现 ui_ensure_target_locked / battle_relock_target 用到的那几个入口"""
+
+    def __init__(self):
+        self.clicks = []
+
+    def stuck_record_clear(self):
+        pass
+
+    def click_record_clear(self):
+        pass
+
+    def sleep(self, seconds):
+        pass
+
+    def click(self, x, y, control_name=None, log=True):
+        self.clicks.append((x, y, control_name))
+
+
+def test_abort_check_stops_close_menu():
+    """弹窗压暗画面时，菜单特征认不出来 —— 有 abort_check 就必须立刻放弃，不能再截图空转"""
+    task = TopMenuNavigation.__new__(TopMenuNavigation)
+    shots = []
+    task.screenshot = lambda: shots.append(1)
+    task.appear = lambda *args, **kwargs: False
+    task.appear_then_click = lambda *args, **kwargs: None
+
+    assert task.ui_close_menu(timeout=6, abort_check=lambda: True) is False
+    assert shots == [], f'已中断还在截图空转: {len(shots)} 次'
+
+
+def test_abort_check_stops_target_lock():
+    """结算弹窗弹出来时，锁目标要立刻放弃并返回 False（不能一路空转到超时）"""
+    task = SimpleBattle.__new__(SimpleBattle)
+    task.device = FakeDevice()
+    closed = []
+    task.ui_close_menu = lambda **kwargs: closed.append(kwargs.get('abort_check'))
+    task.screenshot = lambda: None
+
+    abort = lambda: True
+    assert task.ui_ensure_target_locked(max_switch=2, timeout=2,
+                                        abort_check=abort) is False
+    assert closed == [abort], f'abort_check 没有透传给 ui_close_menu: {closed}'
+    assert task.device.clicks == [], f'已中断还去点「目标」按钮: {task.device.clicks}'
+
+
+def test_relock_max_switch_bounds_attempts():
+    """一层只有 4~5 只怪：补锁要能限定只试 1 次，没补到就交回外层（别空切 3 次）"""
+    task = SimpleBattle.__new__(SimpleBattle)
+    task.device = FakeDevice()
+    task.screenshot = lambda: None
+    task.ui_target_attackable = lambda image=None: False
+
+    assert task.battle_relock_target(max_switch=1) is False
+    assert len(task.device.clicks) == 1, task.device.clicks
+    task.device.clicks.clear()
+    assert task.battle_relock_target() is False
+    assert len(task.device.clicks) == task.RELOCK_MAX_SWITCH, task.device.clicks
+
+
+def test_relock_returns_true_when_attackable():
+    """补锁到可攻击目标就返回 True，交给战斗循环继续打（不再走完整重锁）"""
+    task = SimpleBattle.__new__(SimpleBattle)
+    task.device = FakeDevice()
+    task.screenshot = lambda: None
+    task.ui_target_attackable = lambda image=None: True
+
+    assert task.battle_relock_target(max_switch=1) is True
+    assert len(task.device.clicks) == 1, task.device.clicks
 
 
 if __name__ == '__main__':

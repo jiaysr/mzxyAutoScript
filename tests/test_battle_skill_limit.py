@@ -32,8 +32,14 @@ class FakeSkillHost:
     def battle_use_normal_attack(self):
         return False
 
+    def battle_release_config(self, preset=None):
+        """释放节奏：battle_skill_loop 每次调用都会先读它（攻击.py battle_release_config）"""
+        return {'clicks': 2, 'click_interval': 0.2,
+                'attempts': 3, 'cooldown_timeout': 1.2}
+
     def battle_skill_release(self, slot, image=None, target_check=None,
-                             max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1):
+                             max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1,
+                             clicks=None, click_interval=None):
         self.cooling.add(slot)
         self.casts.append(slot)
         return 'cooled'
@@ -74,7 +80,8 @@ def test_on_target_lost_relocks_and_continues():
             self.releases = 0
 
         def battle_skill_release(self, slot, image=None, target_check=None,
-                                 max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1):
+                                 max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1,
+                                 clicks=None, click_interval=None):
             self.releases += 1
             return 'target_lost'
 
@@ -99,7 +106,8 @@ def test_without_relock_callback_stops_immediately():
             self.releases = 0
 
         def battle_skill_release(self, slot, image=None, target_check=None,
-                                 max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1):
+                                 max_attempts=3, cooldown_timeout=1.2, poll_interval=0.1,
+                                 clicks=None, click_interval=None):
             self.releases += 1
             return 'target_lost'
 

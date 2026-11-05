@@ -28,6 +28,8 @@
 （要收起右上角菜单 `ui_close_menu` 后才露出），
 WorldBoss 与域外迷窟都用它，素材与规则统一放在 GameUi 里，任务只调方法。
 """
+from typing import Callable
+
 from module.base.timer import Timer
 from module.logger import logger
 from tasks.Battle.attack import BattleAttack
@@ -91,7 +93,7 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     # 补锁最多切几次目标（切到可攻击 / 白名单里的活怪为止；第一下常锁到刚死的地尸）
     RELOCK_MAX_SWITCH = 3
 
-    def battle_relock_target(self, names=None) -> bool:
+    def battle_relock_target(self, names=None, max_switch: int = None) -> bool:
         """
         目标死后快速补锁（连续刷怪场景专用）
 
@@ -104,9 +106,13 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         同一坐标周围可能路过玩家，只看「能攻击」会打错人。
 
         :param names: 目标名白名单（None / 空 = 不校验名字）
+        :param max_switch: 最多切几次（默认 RELOCK_MAX_SWITCH）。
+                           「刷完这一波就没了」的场景（不周山一层 4~5 只）传 1：
+                           有怪一次就补上，没怪就立刻交回外层，别空切
         :return: True = 已锁到可打的目标；False = 没锁到，交给调用方走完整流程
         """
-        for _ in range(self.RELOCK_MAX_SWITCH):
+        switches = self.RELOCK_MAX_SWITCH if max_switch is None else max(1, int(max_switch))
+        for _ in range(switches):
             x, y = self.C_TARGET_BUTTON_CLICK.coord()
             self.device.click(x=x, y=y, control_name='BATTLE_TARGET')
             self.device.click_record_clear()
@@ -182,7 +188,8 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     def ui_ensure_target_locked(self, target_name=None, action: str = ACTION_ATTACK,
                                 max_switch: int = None, timeout: float = None,
                                 name_scales: tuple = None, name_score: float = None,
-                                close_menu: bool = True) -> bool:
+                                close_menu: bool = True,
+                                abort_check: Callable[[], bool] = None) -> bool:
         """
         锁定目标并把关：确保「已锁定 + 动作按钮符合 +（可选）目标名匹配」
 
@@ -204,6 +211,10 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         :param name_scales: 目标名 OCR 放大倍数（默认 TARGET_NAME_SCALES）
         :param name_score: 目标名 OCR 置信度下限（默认 TARGET_NAME_SCORE）
         :param close_menu: 是否先收起右上角菜单（「目标」按钮会被菜单盖住）
+        :param abort_check: 中途放弃的检查（无参），返回 True 立刻收工返回 False。
+                            用于「等锁目标的时候外面弹了结算/提示」：弹窗把背景压暗后
+                            菜单特征也匹配不上，不收工会一路空转到超时（实测白等 6s）。
+                            **实现里每轮都会调一次，所以它不能截图**，只看最新一帧
         :return: 锁定成功 True
         """
         names = self._target_name_list(target_name)
@@ -213,11 +224,14 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
 
         logger.hr('Lock target', level=2)
         if close_menu:
-            self.ui_close_menu()
+            self.ui_close_menu(abort_check=abort_check)
 
         timer = Timer(timeout).start()
         switches = 0
         while True:
+            if abort_check is not None and abort_check():
+                logger.info('Abort target lock')
+                return False
             # 长时间轮询，清掉卡死/连点记录，避免被框架判成卡死
             self.device.stuck_record_clear()
             self.device.click_record_clear()

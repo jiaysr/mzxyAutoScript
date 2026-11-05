@@ -43,7 +43,25 @@ class BuzhoushanConfig(ConfigBase):
                                     description='挑战层数区间（1-10 ... 101-110）')
 
 
+class BuzhoushanBattleConfig(BattleTaskConfig):
+    """
+    不周山的战斗配置：共享的「战斗预设 + 普通攻击」+ 本任务专属的补锁开关
+
+    - fast_relock：目标死后原地补锁。不周山一层 4~5 只怪、一刀一只，
+      每只都走完整锁目标约 1.1s，补锁一次约 0.45s，所以默认**开**；
+    - 但每层最后一只是没有怪可补的，所以任务里补锁前先判「本层是否已清完」
+      （小地图出传送点）和「是否已出结算弹窗」，并且只补 1 次就交回外层，
+      否则空切会白赔 1s+/层（见 ScriptTask.battle_relock_after_kill）。
+
+    为什么放在这里而不是塞进共享的 BattleTaskConfig：
+    「刷完一波就没了」和「持续刷怪」两种场景的取舍相反，塞进共享组会让
+    所有任务的设置页都多出用不上的选项（迷窟的做法同理）。
+    """
+    # 目标死后原地补锁（连续刷怪场景。单 boss / 刷怪间隔长时关掉，走正常流程）
+    fast_relock: bool = Field(default=True, description='fast_relock_help')
+
+
 class Buzhoushan(ConfigBase):
     scheduler: Scheduler = Field(default_factory=Scheduler)
     buzhoushan_config: BuzhoushanConfig = Field(default_factory=BuzhoushanConfig)
-    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
+    battle_config: BuzhoushanBattleConfig = Field(default_factory=BuzhoushanBattleConfig)

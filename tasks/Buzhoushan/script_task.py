@@ -5,6 +5,8 @@
 当前进度：进页 -> 次数 -> 选层 -> 点塔 -> 确认 -> 进层弹窗/记录初始坐标 -> 清怪
           -> 连续2次锁不到目标时查「前往下一层」，没有就以初始点来回巡逻索敌
           -> 最后一层清完等结算弹窗（通关/阵亡）-> 点「返回不周山」回挑战页。
+战斗细节：目标死了先原地补锁一次（battle_config.fast_relock），补不到或本层已清完
+          就交回外层；结算弹窗出现时会中断正在空转的锁目标（见 battle_interrupted）。
 后续：多轮挑战（剩余次数>0 再开一局）、扫荡/奖励。
 
 层数地图：1 层在右下、越高越往上，单屏 5~6 座塔（第1/11/21/31/41...）。
@@ -658,7 +660,9 @@ class ScriptTask(GameUi, BuzhoushanAssets):
 
             # 已锁定但动作不是「攻击」（采集/交互物）时，多点一次「目标」切走；
             # 真空场时也就多花 0.5s，比误判成「清完」去巡逻划算
-            if self.ui_ensure_target_locked(max_switch=2, timeout=2):
+            # abort_check：结算弹窗已经把画面压暗时，锁目标只会空转到超时（实测 6s）
+            if self.ui_ensure_target_locked(max_switch=2, timeout=2,
+                                            abort_check=self.battle_interrupted):
                 if self.battle_queue_attack() == 'settle':
                     return 'settle'
                 fail = 0
@@ -752,6 +756,8 @@ class ScriptTask(GameUi, BuzhoushanAssets):
 
         - 每次挑「优先级最高且冷却好」的技能释放，没进冷却会延后重排（队列模式自带）；
         - 每次点击后校验目标，目标丢失返回 'target_lost'；
+        - 目标死了先原地补锁（配置 battle_config.fast_relock，见 battle_relock_after_kill），
+          补到就留在同一轮里接着打，省掉退回外层重锁的 ~0.6s/只；
         - 出现结算弹窗（通关/阵亡）返回 'settle'。
         - 连点次数 / 点击间隔取战斗预设里的 clicks / click_interval
 
@@ -769,6 +775,7 @@ class ScriptTask(GameUi, BuzhoushanAssets):
             check_stop=self.battle_attack_stop_reason,
             target_check=lambda image: self.ui_target_attackable(image=image),
             include_attack=self.battle_use_normal_attack(),
+            on_target_lost=self.battle_relock_after_kill,
         )
 
     def battle_attack_stop_reason(self, image=None) -> str | None:
@@ -779,6 +786,50 @@ class ScriptTask(GameUi, BuzhoushanAssets):
             logger.info('Attack stopped: settlement popup')
             return 'settle'
         return None
+
+    # ---------------------------------------------------------------- 中断与补锁
+    def battle_interrupted(self) -> bool:
+        """
+        战斗被打断（结算弹窗出现）：锁目标这类「等界面响应」的循环要尽快退出
+
+        结算弹窗会把背景压暗，右上角菜单的收起/展开特征都匹配不上，
+        `ui_close_menu` 不放弃就会一路空转满 6s 超时（2026-11-05 日志最后一段
+        从 02:05:15 白等到 02:05:23 才认到结算）。
+
+        **只看最新一帧、不截图**：它会被锁目标的循环每轮调一次，
+        这里再截一张就等于自己制造空转。
+        """
+        image = self.device.image if self.exist_image() else None
+        if image is None:
+            return False
+        return bool(self.I_BUZHOUSHAN_SETTLE.match(image))
+
+    def battle_relock_after_kill(self) -> bool:
+        """
+        目标死了原地补锁（battle_skill_loop 的 on_target_lost 回调）
+
+        补锁一次约 0.45s，完整重锁约 1.1s，所以默认开（battle_config.fast_relock）。
+        但「这一波已经打完了」时补锁纯属空切，所以先用最新一帧（不额外截图）挡掉两种情况：
+
+        - 已出结算弹窗：交给循环收尾，别补；
+        - 本层已清完（小地图出传送点）：场上不会有怪了，直接去点「前往下一层」。
+
+        而且只补 1 次：不周山一层就 4~5 只怪，一次没补到就交回外层走完整流程，
+        空切 3 次（~1.4s/层 × 10 层）比省下的还多。
+
+        :return: True = 已补锁到下一个目标，循环接着打；False = 交回外层
+        """
+        if not self.battle_fast_relock():
+            return False
+        image = self.device.image if self.exist_image() else None
+        if image is not None:
+            if self.I_BUZHOUSHAN_SETTLE.match(image):
+                logger.info('出现结算弹窗，不再补锁，交给外层收尾')
+                return False
+            if self.has_teleport(image=image):
+                logger.info('本层已清完，不再补锁，准备前往下一层')
+                return False
+        return self.battle_relock_target(max_switch=1)
 
 
 if __name__ == '__main__':
