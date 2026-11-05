@@ -133,8 +133,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     WORLD_PEAK_ORDER = (
         ('兽毛之争', 'fight'),
         ('木料之争', 'gather'),
-        ('为了荣耀', 'glory'),
         ('世界之巅', 'gather'),
+        ('为了荣耀', 'glory'),
         ('黄金比例', 'fight'),
         ('世界印记', 'gather'),
         ('世界之心', 'drop'),
