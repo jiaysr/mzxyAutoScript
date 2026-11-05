@@ -425,12 +425,23 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         # 任务页里一个都没有：可能今天还没接（等下面接取），也可能已经交完了（重跑）
         all_missing_before = bool(statuses) and all(
             status == 'missing' for status in statuses.values())
+        # 7 个任务全在任务页上（完成 / 进行中都算）= 今天已经接过了，
+        # 没必要再开一次 NPC + 活动弹窗去接取页空跑一趟（真机实测这一段白花 11 秒）
+        all_present_before = bool(statuses) and all(
+            status in ('done', 'pending') for status in statuses.values())
 
         if self.map_in_location(self.WORLD_PEAK_LOCATION):
             logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
             # 人可能就在出生点旁边（重跑/复位），试一下判断阵营
             self.camp = self.detect_camp() or getattr(self, 'camp', None)
             return self.do_world_peak_and_deliver()
+
+        if all_present_before:
+            logger.info('任务页里 7 个任务都在（今天已经接过了），跳过接取，直接进图做任务')
+            if not self.ensure_world_peak_map():
+                logger.warning('没进到世界之巅地图')
+                return False
+            return self.do_world_peak_and_deliver(statuses=statuses)
 
         # 加量卡必须在「接任务之前」开好：接一个任务消耗一张卡，所以只覆盖接取这一段。
         # 注意 enable_bonus 会导航到「任务加量」页再回主页面，所以得放在找 NPC / 开弹窗之前。
@@ -773,6 +784,13 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return True
 
         logger.info('不在世界之巅地图（重启上线会自动离开），重新进图')
+        # 弹窗还开着（刚接完任务的场景）就别再找一次 NPC：地点读不出来多半是被弹窗挡着
+        if self.activity_panel_open():
+            logger.info('活动弹窗还开着，直接进图')
+            entered = self.enter_world_peak(timeout=timeout)
+            if entered:
+                self.camp = self.detect_camp() or getattr(self, 'camp', None)
+            return entered
         if not self.find_npc(self.NPC_NEW):
             logger.warning('找不到入口 NPC（世界之巅守门人），进不了图')
             return False
