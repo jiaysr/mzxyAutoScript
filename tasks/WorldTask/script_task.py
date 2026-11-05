@@ -2,13 +2,18 @@
 """
 世界任务（WorldTask）：每天一次，只在开放世界时段（09:00-24:00）里跑
 
-当前进度：**认人 + 打开活动弹窗 + 接 7 个跨服任务 + 进世界之巅地图** —— 判断是否在 NPC 所在地图
+当前进度：**接 7 个跨服任务 + 进世界之巅 + 做采集类任务** —— 判断是否在 NPC 所在地图
 （默认域外灵岛）→ 打开小地图把视口拖到右上角 → 点录好的 NPC 点位 → **主动关掉小地图** →
 用「人物坐标有没有变化」判断这一下点没点中（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC
 → 在守门人对话里点「查看世界之巅活动」→ 活动弹窗打开 → 切到「跨服任务」tab
 → 按顺序接 7 个任务（接过的会被游戏移到列表末尾，所以每次接第一行）
-→ 切回「世界之巅」tab 点「进入世界之巅」→ 等右上角地点变成「世界之巅」。
-做任务 / 交任务后面接着补。
+→ 切回「世界之巅」tab 点「进入世界之巅」→ 等右上角地点变成「世界之巅」
+→ 任务页里逐个做采集类任务（木料之争 / 世界之巅 / 世界印记）。
+其余任务、重启回岛、交付后面接着补。
+
+**重启上线会自动离开世界之巅**：人物上线时会被送回域外灵岛，所以每次要做图里的任务之前
+都要 `ensure_world_peak_map()` 确认一次（不在就重走「守门人 → 活动弹窗 → 进入世界之巅」）；
+已经在地图里（上一轮没做完）则跳过接取阶段直接做任务。
 
 任务完成检测（接任务之前就要开着）：
     左下角聊天栏会打 `[系]任务：【跨服】世界之巅已完成`，`monitor.py` 用「[系]任务」前缀模板
@@ -247,15 +252,24 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     # ---------------------------------------------------------------- 玩法
     def world_task_flow(self) -> bool:
         """
-        当前阶段：认人 + 打开活动弹窗 + 接 7 个跨服任务 + 进世界之巅地图
+        当前阶段：接 7 个跨服任务 + 进世界之巅地图 + 做采集类任务
 
         真机页面链路（2026-11-05 录制）：
         守门人对话 -> 点「查看世界之巅活动」-> 世界之巅活动弹窗（顶部 tab 条）
         -> 世界之巅 tab（活动主页，带黄帝立绘和「进入世界之巅」按钮）-> 跨服任务 tab（接取列表）
         -> 按顺序接 7 个任务 -> 回世界之巅 tab 点「进入世界之巅」-> 等地点变成世界之巅
+        -> 任务页里逐个做采集类任务
 
-        :return: 接完任务并且已经进到世界之巅地图返回 True
+        **重启上线后人物会自动离开世界之巅回到域外灵岛**，所以：
+        - 已经在地图里（上一轮没做完 / 手动进来的）：跳过接取，直接做任务；
+        - 不在图里：先走接取阶段，再 `ensure_world_peak_map()` 重新进图。
+
+        :return: 接取阶段正常走完、并且在世界之巅里做完能做的任务返回 True
         """
+        if self.map_in_location(self.WORLD_PEAK_LOCATION):
+            logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
+            return self.run_gather_tasks()
+
         if not self.find_npc(self.NPC_NEW):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
             return False
@@ -301,9 +315,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                        if not any(self.task_name_match(text, name) for text in self.completed_tasks)]
             logger.attr('还没完成', ', '.join(missing) or 'none')
 
-        # 接取阶段到此结束；接着进世界之巅地图
-        entered = self.enter_world_peak()
-        if not entered:
+        # 接取阶段到此结束；接着确保人在世界之巅地图里（重启上线会自动离开，所以要重新进）
+        if not self.ensure_world_peak_map():
             logger.warning('没进到世界之巅地图，把弹窗关掉收尾')
             self.close_activity_panel()
             return False
@@ -313,6 +326,26 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.warning('采集类任务没做完')
             return False
         return True
+
+    def ensure_world_peak_map(self, timeout: float = 40) -> bool:
+        """
+        确保人在世界之巅地图里
+
+        **重启游戏上线后人物会自动离开世界之巅回到域外灵岛**，所以每次要做图里的任务之前
+        都得确认一次：不在就走「找守门人 -> 打开活动弹窗 -> 进入世界之巅」重新进图。
+        """
+        if self.map_in_location(self.WORLD_PEAK_LOCATION):
+            logger.info('已经在世界之巅地图里')
+            return True
+
+        logger.info('不在世界之巅地图（重启上线会自动离开），重新进图')
+        if not self.find_npc(self.NPC_NEW):
+            logger.warning('找不到入口 NPC（世界之巅守门人），进不了图')
+            return False
+        if not self.open_activity_panel():
+            logger.warning('世界之巅活动弹窗打不开，进不了图')
+            return False
+        return self.enter_world_peak(timeout=timeout)
 
     # ---------------------------------------------------------------- 世界之巅：做任务
     def task_completed(self, name: str) -> bool:

@@ -315,6 +315,53 @@ def test_enter_world_peak_needs_home_tab():
     assert task.device.clicks == []
 
 
+# ---------------------------------------------------------------- 重启后重新进图
+def test_ensure_world_peak_map_when_inside():
+    """已经在地图里：不找 NPC、不开面板"""
+    task = make_enter_task([True])
+    events = []
+    task.find_npc = lambda npc, retry=2: events.append('npc') or True
+    task.open_activity_panel = lambda timeout=12: events.append('panel') or True
+
+    assert task.ensure_world_peak_map() is True
+    assert events == []
+
+
+def test_ensure_world_peak_map_reenters_after_restart():
+    """重启上线后人物会被送回域外灵岛：重新走 找NPC -> 开面板 -> 进图"""
+    task = make_enter_task([False])
+    events = []
+    task.find_npc = lambda npc, retry=2: events.append('npc') or True
+    task.open_activity_panel = lambda timeout=12: events.append('panel') or True
+    task.ensure_activity_tab = lambda name=None, max_swipe=3: True
+    task.map_in_location = lambda name: False
+    # 进图判定：ensure 里查一次（不在）、enter 里再查一次（不在）-> 点按钮 -> 变成世界之巅
+    flags = [False, False]
+    task.map_in_location = lambda name: flags.pop(0) if flags else True
+
+    assert task.ensure_world_peak_map(timeout=2) is True
+    assert events == ['npc', 'panel'], events
+    assert len(task.device.clicks) == 1, task.device.clicks
+
+
+def test_ensure_world_peak_map_fails_without_npc():
+    task = make_enter_task([False])
+    task.find_npc = lambda npc, retry=2: False
+    task.open_activity_panel = lambda timeout=12: True
+
+    assert task.ensure_world_peak_map(timeout=1) is False
+    assert task.device.clicks == []
+
+
+def test_ensure_world_peak_map_fails_without_panel():
+    task = make_enter_task([False])
+    task.find_npc = lambda npc, retry=2: True
+    task.open_activity_panel = lambda timeout=12: False
+
+    assert task.ensure_world_peak_map(timeout=1) is False
+    assert task.device.clicks == []
+
+
 def main():
     cases = [
         test_task_name_match_strips_prefix,
@@ -336,6 +383,10 @@ def main():
         test_enter_world_peak_clicks_and_waits,
         test_enter_world_peak_retries_then_fails,
         test_enter_world_peak_needs_home_tab,
+        test_ensure_world_peak_map_when_inside,
+        test_ensure_world_peak_map_reenters_after_restart,
+        test_ensure_world_peak_map_fails_without_npc,
+        test_ensure_world_peak_map_fails_without_panel,
     ]
     failed = 0
     for case in cases:
