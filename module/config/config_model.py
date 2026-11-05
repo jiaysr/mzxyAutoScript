@@ -30,6 +30,7 @@ from tasks.SilverGiftBox.config import SilverGiftBox
 from tasks.AutoTask.config import AutoTask
 from tasks.Buzhoushan.config import Buzhoushan
 from tasks.Dungeon.config import Dungeon
+from tasks.WorldTask.config import WorldTask
 
 
 class ConfigModel(ConfigBase):
@@ -54,6 +55,7 @@ class ConfigModel(ConfigBase):
     auto_task: AutoTask = Field(default_factory=AutoTask)
     buzhoushan: Buzhoushan = Field(default_factory=Buzhoushan)
     dungeon: Dungeon = Field(default_factory=Dungeon)
+    world_task: WorldTask = Field(default_factory=WorldTask)
 
     def __init__(self, config_name: str=None) -> None:
         """

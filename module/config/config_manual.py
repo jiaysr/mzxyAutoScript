@@ -21,6 +21,7 @@ class ConfigManual:
         > DouXianGe
         > Dungeon
         > SilverGiftBox
+        > WorldTask
         > AutoTask
         """
 
