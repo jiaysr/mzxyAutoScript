@@ -266,6 +266,55 @@ def test_disable_bonus_failure_is_swallowed():
     assert task.states == []
 
 
+# ---------------------------------------------------------------- 进入世界之巅
+def make_enter_task(in_map, ensure_tab=True):
+    """
+    造一个测「进入世界之巅」的实例
+
+    :param in_map: map_in_location() 的返回值序列（最后一个会一直重复）
+    """
+    task = ScriptTask.__new__(ScriptTask)
+    task.device = FakeDevice()
+    task.device.stuck_record_clear = lambda: None
+    task.ui_reset_current_page = lambda: None
+    task.reset_records = lambda: None
+    states = {'in_map': list(in_map)}
+    task.map_in_location = lambda name: (states['in_map'].pop(0) if len(states['in_map']) > 1
+                                         else states['in_map'][0])
+    task.ensure_activity_tab = lambda name=None, max_swipe=3: ensure_tab
+    task.states = states
+    return task
+
+
+def test_enter_world_peak_when_already_inside():
+    """已经在地图里：不点按钮"""
+    task = make_enter_task([True])
+    assert task.enter_world_peak(timeout=1) is True
+    assert task.device.clicks == []
+
+
+def test_enter_world_peak_clicks_and_waits():
+    """不在图里：点按钮 -> 等地点变成世界之巅"""
+    task = make_enter_task([False, True])
+    assert task.enter_world_peak(timeout=2) is True
+    assert len(task.device.clicks) == 1
+    assert task.device.clicks[0][2] == 'enter_world_peak'
+
+
+def test_enter_world_peak_retries_then_fails():
+    """点两次都进不去：返回 False，并且点了两次"""
+    task = make_enter_task([False])
+    assert task.enter_world_peak(timeout=0.2) is False
+    assert len(task.device.clicks) == 2
+
+
+def test_enter_world_peak_needs_home_tab():
+    """回不到世界之巅 tab 就不该瞎点"""
+    task = make_enter_task([False], ensure_tab=False)
+    assert task.enter_world_peak(timeout=1) is False
+    assert task.device.clicks == []
+
+
 def main():
     cases = [
         test_task_name_match_strips_prefix,
@@ -283,6 +332,10 @@ def main():
         test_enable_bonus_when_count_unreadable,
         test_disable_bonus_stops_both_sides,
         test_disable_bonus_failure_is_swallowed,
+        test_enter_world_peak_when_already_inside,
+        test_enter_world_peak_clicks_and_waits,
+        test_enter_world_peak_retries_then_fails,
+        test_enter_world_peak_needs_home_tab,
     ]
     failed = 0
     for case in cases:

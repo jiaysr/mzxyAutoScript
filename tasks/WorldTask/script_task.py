@@ -2,11 +2,12 @@
 """
 世界任务（WorldTask）：每天一次，只在开放世界时段（09:00-24:00）里跑
 
-当前进度：**认人 + 打开活动弹窗 + 接 7 个跨服任务** —— 判断是否在 NPC 所在地图（默认域外灵岛）→
-打开小地图把视口拖到右上角 → 点录好的 NPC 点位 → **主动关掉小地图** → 用「人物坐标有没有变化」
-判断这一下点没点中（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC
+当前进度：**认人 + 打开活动弹窗 + 接 7 个跨服任务 + 进世界之巅地图** —— 判断是否在 NPC 所在地图
+（默认域外灵岛）→ 打开小地图把视口拖到右上角 → 点录好的 NPC 点位 → **主动关掉小地图** →
+用「人物坐标有没有变化」判断这一下点没点中（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC
 → 在守门人对话里点「查看世界之巅活动」→ 活动弹窗打开 → 切到「跨服任务」tab
-→ 按顺序接 7 个任务（接过的会被游戏移到列表末尾，所以每次接第一行）。
+→ 按顺序接 7 个任务（接过的会被游戏移到列表末尾，所以每次接第一行）
+→ 切回「世界之巅」tab 点「进入世界之巅」→ 等右上角地点变成「世界之巅」。
 做任务 / 交任务后面接着补。
 
 任务完成检测（接任务之前就要开着）：
@@ -90,6 +91,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     ACTIVITY_HOME_TAB = '世界之巅'
     # 世界任务所在 tab
     ACTIVITY_TASK_TAB = '跨服任务'
+    # 进图后右上角的地点名
+    WORLD_PEAK_LOCATION = '世界之巅'
 
     # 要接的跨服任务（列表里的先后顺序）
     # 接过的任务会被游戏移到列表末尾，所以「每次接第一行」就能按这个顺序接完
@@ -231,14 +234,14 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     # ---------------------------------------------------------------- 玩法
     def world_task_flow(self) -> bool:
         """
-        当前阶段：认人 + 打开活动弹窗 + 接 7 个跨服任务
+        当前阶段：认人 + 打开活动弹窗 + 接 7 个跨服任务 + 进世界之巅地图
 
         真机页面链路（2026-11-05 录制）：
         守门人对话 -> 点「查看世界之巅活动」-> 世界之巅活动弹窗（顶部 tab 条）
         -> 世界之巅 tab（活动主页，带黄帝立绘和「进入世界之巅」按钮）-> 跨服任务 tab（接取列表）
-        -> 按顺序接 7 个任务
+        -> 按顺序接 7 个任务 -> 回世界之巅 tab 点「进入世界之巅」-> 等地点变成世界之巅
 
-        :return: 接取阶段正常走完（接过任务 / 列表里已经没有可接的）返回 True
+        :return: 接完任务并且已经进到世界之巅地图返回 True
         """
         if not self.find_npc(self.NPC_NEW):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
@@ -285,9 +288,47 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                        if not any(self.task_name_match(text, name) for text in self.completed_tasks)]
             logger.attr('还没完成', ', '.join(missing) or 'none')
 
-        # 目前到此为止：把界面收干净，别把游戏留在弹窗里
-        self.close_activity_panel()
-        return bool(accepted) or (self.task_list_readable and not accepted) or bool(self.completed_tasks)
+        # 接取阶段到此结束；接着进世界之巅地图
+        entered = self.enter_world_peak()
+        if not entered:
+            logger.warning('没进到世界之巅地图，把弹窗关掉收尾')
+            self.close_activity_panel()
+            return False
+        return True
+
+    # ---------------------------------------------------------------- 进入世界之巅
+    def enter_world_peak(self, timeout: float = 40) -> bool:
+        """
+        在世界之巅 tab 里点「进入世界之巅」-> 等右上角地点变成「世界之巅」
+
+        :return: 已经在该地图里返回 True
+        """
+        logger.hr('进入世界之巅')
+        if self.map_in_location(self.WORLD_PEAK_LOCATION):
+            logger.info('已经在世界之巅地图里')
+            return True
+        if not self.ensure_activity_tab(self.ACTIVITY_HOME_TAB):
+            logger.warning(f'没回到 [{self.ACTIVITY_HOME_TAB}] tab')
+            return False
+
+        for attempt in (1, 2):
+            x, y = self.C_ENTER_WORLD_PEAK.coord()
+            logger.info(f'Click 进入世界之巅 at ({x},{y}) (attempt {attempt})')
+            self.device.click(x=x, y=y, control_name=self.C_ENTER_WORLD_PEAK.name)
+            self.device.click_record_clear()
+
+            # 进图要过读条，期间地点读不出来是正常的，所以别让卡死检测误报
+            timer = Timer(timeout).start()
+            while not timer.reached():
+                self.device.stuck_record_clear()
+                if self.map_in_location(self.WORLD_PEAK_LOCATION):
+                    logger.info('已进入世界之巅地图')
+                    self.ui_reset_current_page()
+                    return True
+                self.device.sleep(0.5)
+            logger.warning(f'第 {attempt} 次点「进入世界之巅」没进图')
+        logger.warning('进入世界之巅失败')
+        return False
 
     # ---------------------------------------------------------------- 世界之巅活动弹窗
     def _ocr_items(self) -> list:

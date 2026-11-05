@@ -15,6 +15,8 @@ class WorldTaskAssets:
 	C_NEW = RuleClick(roi_front=(674,153,14,19), roi_back=(631,118,100,100), name="new")
 	# 交付任务npc 
 	C_ITEM_2 = RuleClick(roi_front=(703,129,26,25), roi_back=(637,115,100,100), name="item_2")
+	# 世界之巅 tab 里的「进入世界之巅」按钮 
+	C_ENTER_WORLD_PEAK = RuleClick(roi_front=(540,552,200,48), roi_back=(500,530,300,90), name="enter_world_peak")
 
 
 	# Image Rule Assets

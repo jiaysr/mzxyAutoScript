@@ -10,5 +10,11 @@
     "roiFront": "703,129,26,25",
     "roiBack": "637,115,100,100",
     "description": "交付任务npc"
+  },
+  {
+    "itemName": "enter_world_peak",
+    "roiFront": "540,552,200,48",
+    "roiBack": "500,530,300,90",
+    "description": "世界之巅 tab 里的「进入世界之巅」按钮"
   }
 ]

@@ -46,7 +46,7 @@ def main() -> bool:
     device = Device(config)
     task = ScriptTask(config, device)
     cfg = config.world_task.world_task_config
-    log(f'配置：地图={cfg.location} 加量={cfg.use_bonus}')
+    log(f'配置：地图={cfg.location} 加量={cfg.bonus_multiplier.value}')
 
     # 角色可能在挂机时被打死（域外灵岛不是安全区）：死亡由全局逻辑处理并抛 TaskEnd，
     # 复活后重试一次即可（真机 2026-11-05 17:35 就碰上过）
