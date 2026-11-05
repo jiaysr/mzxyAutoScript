@@ -190,6 +190,32 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         # tab 名 -> 上次 OCR 到的坐标（切过 tab 没滑过 tab 条时，切别的 tab 直接点，省一次 900ms 的 OCR）
         self._tab_positions: dict = {}
 
+    # 黑屏判定：真机出现过「游戏已经黑屏，脚本还在点」的情况
+    BLACK_MEAN_MAX = 6.0
+    BLACK_STRIKES = 5
+
+    def check_screen_alive(self) -> None:
+        """
+        画面连续全黑 = 游戏崩了/闪退：抛 GameNotRunningError
+
+        调度器收到 GameNotRunningError 会安排 Restart 拉起游戏、并把本任务重新排上，
+        比对着黑屏继续点、把时间全耗掉强。
+        """
+        image = self.device.image
+        if image is None:
+            return
+        try:
+            mean = float(image.mean())
+        except Exception:  # noqa: BLE001 - 拿不到图就别拦
+            return
+        if mean <= self.BLACK_MEAN_MAX:
+            self._black_strikes = getattr(self, '_black_strikes', 0) + 1
+            logger.warning(f'画面接近全黑（亮度 {mean:.1f}，连续 {self._black_strikes}/{self.BLACK_STRIKES} 次）')
+            if self._black_strikes >= self.BLACK_STRIKES:
+                raise GameNotRunningError('画面连续全黑，游戏可能已经崩溃')
+        else:
+            self._black_strikes = 0
+
     def screenshot(self):
         """
         截图 + （监测开着时）跑一遍任务完成提示监测
@@ -198,6 +224,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         所以挂在每次截图上、并在点完「接取」后连拍 2 秒，才不会漏。
         """
         image = super().screenshot()
+        self.check_screen_alive()
         if self.task_monitor.enabled:
             for name in self.task_monitor.detect(image):
                 if name not in self.completed_tasks:
@@ -225,18 +252,16 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             raise TaskEnd(self.TASK_NAME)
 
         success = False
-        bonus_enabled = False
         try:
             self.prepare_game()
             # 完成提示监测从这一刻起就开着：中途重跑（人已在地图里）不会再走到接取阶段，
             # 不加这一句那边就永远收不到「已完成」提示，掉落任务也会白重打
             self.task_monitor.start()
-            # 加量卡：先启用，接完任务再关掉（关闭放在 finally，失败/阵亡也不会让卡一直烧）
-            if self.bonus_multiplier() != BonusMultiplier.NONE:
-                bonus_enabled = self.enable_bonus()
             success = self.world_task_flow()
         finally:
-            self.finish_bonus(bonus_enabled)
+            # 加量卡由流程在「接完所有任务」时立刻关掉（接一个任务消耗一张卡，不能一直开着）；
+            # 这里只是兜底：中途异常时别让卡继续生效
+            self.finish_bonus(getattr(self, '_bonus_enabled', False))
             # 监测是临时的：本次运行结束就收掉（后面做任务的流程会自己再 start）
             self.task_monitor.stop()
             # 正常/异常都要重排，避免 next_run 停在过去霸占调度
@@ -252,10 +277,25 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         if not bonus_enabled:
             return
+        self._bonus_enabled = False
         if getattr(self, '_rerun_requested', False):
             logger.info('阵亡重跑，加量卡先留着（重跑还要用）')
+            self._bonus_enabled = True
             return
         self.disable_bonus()
+
+    def close_bonus_after_accept(self) -> None:
+        """
+        接完所有任务立刻关加量卡
+
+        真机确认：**每接一个任务就消耗一张卡**（128 张 -> 接 7 个 -> 121 张），
+        所以卡只要覆盖「接取」这一小段，接完必须马上关 —— 停留到做任务阶段是白烧卡。
+        """
+        if not getattr(self, '_bonus_enabled', False):
+            return
+        logger.info('7 个任务接完了，关掉加量卡')
+        self.disable_bonus()
+        self._bonus_enabled = False
 
     # ---------------------------------------------------------------- 加量卡
     def bonus_multiplier(self) -> BonusMultiplier:
@@ -356,6 +396,13 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             self.camp = self.detect_camp() or getattr(self, 'camp', None)
             return self.do_world_peak_and_deliver()
 
+        # 加量卡必须在「接任务之前」开好：接一个任务消耗一张卡，所以只覆盖接取这一段。
+        # 注意 enable_bonus 会导航到「任务加量」页再回主页面，所以得放在找 NPC / 开弹窗之前。
+        self._bonus_enabled = (self.bonus_multiplier() != BonusMultiplier.NONE
+                               and self.enable_bonus())
+        if self._bonus_enabled:
+            logger.info('加量卡已开，开始接任务')
+
         if not self.find_npc(self.NPC_NEW):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
             return False
@@ -376,10 +423,11 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return False
         logger.info('跨服任务列表已打开')
 
-        # 接任务：监测从这一刻开始（接取时有的任务会当场判定完成）
+        # 监测从这一刻开始（接取时有的任务会当场判定完成）
         self.task_monitor.start()
         accepted = self.accept_tasks()
         self.accepted_tasks = accepted
+        self.close_bonus_after_accept()
         if accepted:
             logger.attr('本次接取', ', '.join(accepted))
         elif self.task_list_readable:
@@ -413,17 +461,22 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.warning('没进到世界之巅地图，把弹窗关掉收尾')
             self.close_activity_panel()
             return False
-        return self.do_world_peak_and_deliver()
+        # 刚才已经读过任务页，接完的状态直接给后面用，别为了同一件事再开一次任务页
+        statuses_after = {name: ('done' if statuses.get(name) == 'done' else 'pending')
+                          for name, _kind in self.WORLD_PEAK_ORDER}
+        return self.do_world_peak_and_deliver(statuses=statuses_after)
 
-    def do_world_peak_and_deliver(self) -> bool:
+    def do_world_peak_and_deliver(self, statuses: dict = None) -> bool:
         """
         世界之巅里的收尾：做任务 -> 重启游戏 -> 任务榜交付
 
         重启用框架 Restart 任务的实现（`app_restart`：停游戏、启动、登录），
         因为**交付必须在重启之后做**：上线后人物会自动离开世界之巅回到域外灵岛，
         任务榜 NPC 在域外灵岛。
+
+        :param statuses: 已经读过的任务页状态（不传就自己去读一次）
         """
-        if not self.run_world_peak_tasks():
+        if not self.run_world_peak_tasks(statuses=statuses):
             logger.warning('世界之巅里的任务没做完，先不重启交付')
             return False
         if not self.restart_and_wait():
@@ -593,16 +646,19 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         # 没有可交付的也算完成：重跑时不会因为「已经交完」而反复失败
         return True
 
-    def run_world_peak_tasks(self) -> bool:
+    def run_world_peak_tasks(self, statuses: dict = None) -> bool:
         """
         按 WORLD_PEAK_ORDER 顺序做世界之巅里的任务，已完成（任务页状态「完成」）的跳过
 
         世界之心没有自己的玩法（打怪掉落），所以排在最后统一判断：
         还没完成就重打「为了荣耀」等掉落，重试 `DROP_RETRY` 次还不掉就今天收工。
+
+        :param statuses: 已经读过的任务页状态（不传就自己去读一次）
         """
         logger.hr('世界之巅：做任务')
-        names = [name for name, _kind in self.WORLD_PEAK_ORDER]
-        statuses = dict(self.read_task_page_statuses(names))
+        if statuses is None:
+            names = [name for name, _kind in self.WORLD_PEAK_ORDER]
+            statuses = dict(self.read_task_page_statuses(names))
         # 只做「进行中」的：done = 做完等交付；missing = 今天没接（或已经交付掉了），都不该再打
         pending = [(name, kind) for name, kind in self.WORLD_PEAK_ORDER
                    if statuses.get(name) == 'pending']
@@ -1141,6 +1197,16 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 return True
 
             if not self.ui_ensure_target_locked(target_name=target):
+                # 锁不到目标也可能是「人被打退了，够不着怪」：这时也要回点位，
+                # 否则会站在 12 格外死等（真机实测干等了 2 分半，最后被怪打死）
+                if self.fight_drift_timer.reached():
+                    self.fight_drift_timer.reset()
+                    if self.fight_drifted(position):
+                        logger.warning(f'锁不到 [{target}] 且人已偏离打架位 {position}，回点位')
+                        if not self.fight_goto_point(task_name, position, corner,
+                                                     rule_key=rule_key):
+                            return False
+                        continue
                 if lock_timeout is None:
                     logger.info(f'没锁到 [{target}]，等刷新')
                     self.device.sleep(1.0)
