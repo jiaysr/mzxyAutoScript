@@ -48,15 +48,24 @@ from module.exception import (GameNotRunningError,
                               GameStuckError,
                               TaskEnd)
 from module.logger import logger
+from tasks.AutoTask.assets import AutoTaskAssets
+from tasks.AutoTask.config import BonusMultiplier
+from tasks.AutoTask.page import page_bonus
+from tasks.AutoTask.script_task import ScriptTask as AutoTaskScriptTask
 from tasks.GameUi.game_ui import GameUi
 from tasks.WorldTask.assets import WorldTaskAssets
 from tasks.WorldTask.monitor import TaskCompleteMonitor
 from tasks.WorldTask.schedule import clamp_to_open_world, in_open_world, next_run_after
 
 
-class ScriptTask(GameUi, WorldTaskAssets):
+class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     SCHEDULER_NAME = 'WorldTask'
     TASK_NAME = 'WorldTask'
+
+    # 任务加量页的操作直接复用自动任务的实现（同一套页面、同一套按钮语义）
+    read_bonus_counts = AutoTaskScriptTask.read_bonus_counts
+    set_bonus_state = AutoTaskScriptTask.set_bonus_state
+    set_bonus_side = AutoTaskScriptTask.set_bonus_side
 
     # 两个 NPC（名字对应 res/click.json 里的 itemName）
     NPC_NEW = 'new'        # 入口 NPC：世界之巅守门人（接任务 / 进世界之巅）
@@ -147,15 +156,77 @@ class ScriptTask(GameUi, WorldTaskAssets):
             raise TaskEnd(self.TASK_NAME)
 
         success = False
+        bonus_enabled = False
         try:
             self.prepare_game()
+            # 加量卡：先启用，接完任务再关掉（关闭放在 finally，失败/阵亡也不会让卡一直烧）
+            if self.bonus_multiplier() != BonusMultiplier.NONE:
+                bonus_enabled = self.enable_bonus()
             success = self.world_task_flow()
         finally:
+            if bonus_enabled:
+                self.disable_bonus()
             # 监测是临时的：本次运行结束就收掉（后面做任务的流程会自己再 start）
             self.task_monitor.stop()
             # 正常/异常都要重排，避免 next_run 停在过去霸占调度
             self.schedule_next_run(success=success)
         raise TaskEnd(self.TASK_NAME)
+
+    # ---------------------------------------------------------------- 加量卡
+    def bonus_multiplier(self) -> BonusMultiplier:
+        """配置里选的加量卡（NONE = 不加量）"""
+        return self.config.world_task.world_task_config.bonus_multiplier
+
+    def enable_bonus(self, timeout: float = 40) -> bool:
+        """
+        进任务加量页，按配置启用加量卡
+
+        页面与按钮语义都复用自动任务的实现（`read_bonus_counts` / `set_bonus_state`）：
+        按钮显示「停止加量」= 已激活，显示「激活加量卡」= 未激活；同一时间只允许一张卡生效。
+
+        卡不够要接的任务数（7 张）就跳过：不启用、也不报错，照常不加量接任务。
+        :return: 真的启用了返回 True
+        """
+        want = self.bonus_multiplier()
+        if want == BonusMultiplier.NONE:
+            return False
+
+        logger.hr(f'启用加量卡 [{want.value}]')
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_bonus, timeout=timeout):
+            raise GameStuckError('Bonus page does not appear')
+
+        counts = self.read_bonus_counts()
+        key = '3x' if want == BonusMultiplier.X3 else '5x'
+        have = counts.get(key) or 0
+        need = len(self.ACCEPT_TASKS)
+        logger.attr('加量卡', f'{key} 需要 {need} 张，拥有 {have} 张')
+        if have < need:
+            logger.warning(f'加量卡不足（{key} 要 {need} 张，只有 {have} 张），跳过加量')
+            return False
+
+        self.set_bonus_state(want)
+        logger.info(f'加量卡已启用：{want.value}（{have} 张）')
+        return True
+
+    def disable_bonus(self, timeout: float = 40) -> bool:
+        """
+        回任务加量页把加量卡停掉（两张都停）
+
+        接完任务必须关，否则卡会一直生效烧掉。这里失败只告警，不覆盖任务本身的成败。
+        """
+        logger.hr('关闭加量卡')
+        try:
+            self.ui_reset_current_page()
+            if not self.ui_goto(page_bonus, timeout=timeout):
+                logger.error('加量页没打开，加量卡可能还在生效，请手动检查')
+                return False
+            self.set_bonus_state(BonusMultiplier.NONE)
+            logger.info('加量卡已关闭')
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'关闭加量卡失败：{e}')
+            return False
 
     # ---------------------------------------------------------------- 玩法
     def world_task_flow(self) -> bool:
@@ -389,9 +460,9 @@ class ScriptTask(GameUi, WorldTaskAssets):
         :return: 成功接取的任务名（按接取顺序）
         """
         logger.hr('接取跨服任务')
-        cfg = self.config.world_task.world_task_config
-        if cfg.use_bonus:
-            logger.warning('世界任务的加量还没接（下一步结合自动任务的加量页实现），本次按不加量处理')
+        want = self.bonus_multiplier()
+        if want != BonusMultiplier.NONE:
+            logger.attr('加量卡', f'{want.value}（run() 里已按需启用，接完会关掉）')
 
         accepted = []
         self.task_list_readable = False

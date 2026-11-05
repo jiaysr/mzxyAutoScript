@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from tasks.WorldTask.script_task import ScriptTask
+from tasks.AutoTask.config import BonusMultiplier
 
 ROW_TOP = 214
 ROW_PITCH = 87
@@ -41,7 +42,7 @@ class FakeDevice:
         pass
 
 
-def make_task(names, use_bonus=False):
+def make_task(names, bonus=BonusMultiplier.NONE):
     """
     造一个「列表里正好有 names 这些任务」的任务实例
 
@@ -52,7 +53,7 @@ def make_task(names, use_bonus=False):
     task.screenshot = lambda: None
     task.watch = lambda seconds=2.0, interval=0.2: None
     task.config = SimpleNamespace(
-        world_task=SimpleNamespace(world_task_config=SimpleNamespace(use_bonus=use_bonus)))
+        world_task=SimpleNamespace(world_task_config=SimpleNamespace(bonus_multiplier=bonus)))
     state = {'rows': [(f'【跨服】{name}', 1091, ROW_TOP + i * ROW_PITCH)
                       for i, name in enumerate(names)]}
     task.state = state
@@ -195,6 +196,76 @@ def test_all_tasks_completed():
     assert task.all_tasks_completed() is False
 
 
+# ---------------------------------------------------------------- 加量卡
+def make_bonus_task(bonus=BonusMultiplier.X3, counts=None, goto=True):
+    """
+    造一个测加量卡的实例（加量页的页面操作全部打成替身，不连设备）
+
+    :param counts: read_bonus_counts() 的返回值，None 表示读不出来
+    """
+    task = ScriptTask.__new__(ScriptTask)
+    task.device = FakeDevice()
+    task.config = SimpleNamespace(
+        world_task=SimpleNamespace(world_task_config=SimpleNamespace(bonus_multiplier=bonus)))
+    task.reset_records = lambda: None
+    navigated = []
+    task.ui_reset_current_page = lambda: navigated.append('reset')
+    task.ui_goto = lambda page, timeout=None: navigated.append(page) or goto
+    task.read_bonus_counts = lambda: counts if counts is not None else {'3x': None, '5x': None}
+    states = []
+    task.set_bonus_state = lambda want: states.append(want)
+    task.navigated = navigated
+    task.states = states
+    return task
+
+
+def test_enable_bonus_skipped_when_none():
+    """配置成 none：根本不去加量页"""
+    task = make_bonus_task(bonus=BonusMultiplier.NONE)
+    assert task.enable_bonus() is False
+    assert task.navigated == []
+    assert task.states == []
+
+
+def test_enable_bonus_skipped_when_cards_insufficient():
+    """卡不足 7 张：跳过加量（不报错、也不激活）"""
+    task = make_bonus_task(bonus=BonusMultiplier.X3, counts={'3x': 6, '5x': 99})
+    assert task.enable_bonus() is False
+    assert task.states == [], '卡不够就不该动加量状态'
+
+
+def test_enable_bonus_activates_when_enough():
+    """卡够 7 张：进加量页并启用对应那张"""
+    task = make_bonus_task(bonus=BonusMultiplier.X3, counts={'3x': 7, '5x': 0})
+    assert task.enable_bonus() is True
+    assert task.states == [BonusMultiplier.X3]
+
+    # 5 倍卡走另一侧
+    task = make_bonus_task(bonus=BonusMultiplier.X5, counts={'3x': 0, '5x': 9})
+    assert task.enable_bonus() is True
+    assert task.states == [BonusMultiplier.X5]
+
+
+def test_enable_bonus_when_count_unreadable():
+    """数量读不出来：按不足处理，跳过加量"""
+    task = make_bonus_task(bonus=BonusMultiplier.X3)
+    assert task.enable_bonus() is False
+    assert task.states == []
+
+
+def test_disable_bonus_stops_both_sides():
+    task = make_bonus_task(bonus=BonusMultiplier.X3, counts={'3x': 7, '5x': 0})
+    assert task.disable_bonus() is True
+    assert task.states == [BonusMultiplier.NONE]
+
+
+def test_disable_bonus_failure_is_swallowed():
+    """关加量页失败：只返回 False，不能把任务本身的成败覆盖掉"""
+    task = make_bonus_task(bonus=BonusMultiplier.X3, goto=False)
+    assert task.disable_bonus() is False
+    assert task.states == []
+
+
 def main():
     cases = [
         test_task_name_match_strips_prefix,
@@ -206,6 +277,12 @@ def main():
         test_close_bonus_promo_closes_without_ticking,
         test_close_bonus_promo_noop_when_absent,
         test_all_tasks_completed,
+        test_enable_bonus_skipped_when_none,
+        test_enable_bonus_skipped_when_cards_insufficient,
+        test_enable_bonus_activates_when_enough,
+        test_enable_bonus_when_count_unreadable,
+        test_disable_bonus_stops_both_sides,
+        test_disable_bonus_failure_is_swallowed,
     ]
     failed = 0
     for case in cases:
