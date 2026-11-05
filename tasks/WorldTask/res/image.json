@@ -1,61 +1,61 @@
 [
   {
-    "itemName": "new",
-    "imageName": "res_new.png",
+    "itemName": "npc_gate_dialog",
+    "imageName": "res_npc_gate_dialog.png",
     "roiFront": "618,178,198,89",
     "roiBack": "603,175,267,125",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "入口npc对话框特征"
+    "description": "入口 NPC（世界之巅守门人）的对话框特征"
   },
   {
-    "itemName": "item_2",
-    "imageName": "res_item_2.png",
+    "itemName": "npc_deliver_dialog",
+    "imageName": "res_npc_deliver_dialog.png",
     "roiFront": "616,113,198,89",
     "roiBack": "599,105,267,125",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "交付任务npc对话框特征"
+    "description": "交付 NPC（世界之巅任务榜）的对话框特征"
   },
   {
-    "itemName": "item_3",
-    "imageName": "res_item_3.png",
+    "itemName": "npc_gate_option",
+    "imageName": "res_npc_gate_option.png",
     "roiFront": "512,399,247,44",
     "roiBack": "498,356,267,125",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "入口npc点击位置打开面板"
+    "description": "入口 NPC 对话里的「查看世界之巅活动」选项（点它打开活动弹窗）"
   },
   {
-    "itemName": "item_4",
-    "imageName": "res_item_4.png",
+    "itemName": "activity_panel",
+    "imageName": "res_activity_panel.png",
     "roiFront": "89,207,155,173",
     "roiBack": "73,192,215,246",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "世界之巅弹窗特征"
+    "description": "世界之巅活动弹窗特征（弹窗开着才认得到）"
   },
   {
-    "itemName": "item_5",
-    "imageName": "res_item_5.png",
+    "itemName": "accept_list_page",
+    "imageName": "res_accept_list_page.png",
     "roiFront": "1039,190,104,49",
     "roiBack": "985,169,203,440",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "人物接取页面特征"
+    "description": "跨服任务接取列表页特征（右侧带「接取」按钮）"
   },
   {
-    "itemName": "promo_close",
-    "imageName": "res_close_x_green.png",
+    "itemName": "bonus_promo_close",
+    "imageName": "res_bonus_promo_close.png",
     "roiFront": "943,218,34,37",
     "roiBack": "900,200,140,110",
     "method": "Template matching",
     "threshold": 0.85,
-    "description": "加量推广弹窗右上角绿X（搜索范围只给弹窗那一块，避免误点面板的X）"
+    "description": "加量推广弹窗右上角绿 X（搜索范围只给弹窗那一块，避免误点面板的 X）"
   },
   {
-    "itemName": "task_complete_trigger",
-    "imageName": "task_complete_trigger.png",
+    "itemName": "task_complete_prefix",
+    "imageName": "task_complete_prefix.png",
     "roiFront": "0,679,97,27",
     "roiBack": "0,679,638,37",
     "method": "Template matching",

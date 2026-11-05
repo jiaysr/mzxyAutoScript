@@ -1,15 +1,15 @@
 [
   {
-    "itemName": "new",
+    "itemName": "activity_tab_bar",
     "roiFront": "78,82,1052,68",
     "roiBack": "78,82,1052,68",
     "mode": "Single",
     "method": "Default",
     "keyword": "",
-    "description": "世家之巅弹窗顶部tab识别区域"
+    "description": "世界之巅活动弹窗顶部的 tab 条（读当前 tab 名、找目标 tab）"
   },
   {
-    "itemName": "bonus_promo",
+    "itemName": "bonus_promo_body",
     "roiFront": "330,250,650,90",
     "roiBack": "330,250,650,90",
     "mode": "Full",
@@ -27,7 +27,7 @@
     "description": "任务页的任务列表（任务名 / 状态 / 寻路按钮，按同一行 y 配对）"
   },
   {
-    "itemName": "task_complete",
+    "itemName": "chat_system_line",
     "roiFront": "0,679,638,37",
     "roiBack": "0,679,638,37",
     "mode": "Full",
@@ -36,13 +36,13 @@
     "description": "左下角聊天栏系统消息行（[系]任务：xxx已完成）"
   },
   {
-    "itemName": "item_5",
+    "itemName": "deliver_task_title",
     "roiFront": "622,118,368,42",
     "roiBack": "617,119,376,42",
     "mode": "Single",
     "method": "Default",
     "keyword": "",
-    "description": "确认交付的任务名称"
+    "description": "交付详情页顶部的任务名（二次确认要交的是哪个任务）"
   },
   {
     "itemName": "deliver_list",

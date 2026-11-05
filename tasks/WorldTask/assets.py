@@ -11,50 +11,50 @@ class WorldTaskAssets:
 
 
 	# Click Rule Assets
-	# 入口npc（接任务，进入世界之巅地图） 
-	C_NEW = RuleClick(roi_front=(674,153,14,19), roi_back=(631,118,100,100), name="new")
-	# 交付任务npc 
-	C_ITEM_2 = RuleClick(roi_front=(703,129,26,25), roi_back=(637,115,100,100), name="item_2")
+	# 小地图上的入口 NPC（世界之巅守门人）：点它开对话，接任务/进图都从这里进 
+	C_NPC_GATE_POINT = RuleClick(roi_front=(674,153,14,19), roi_back=(631,118,100,100), name="npc_gate_point")
+	# 小地图上的交付 NPC（世界之巅任务榜）：点它开交付列表 
+	C_NPC_DELIVER_POINT = RuleClick(roi_front=(703,129,26,25), roi_back=(637,115,100,100), name="npc_deliver_point")
 	# 世界之巅 tab 里的「进入世界之巅」按钮 
 	C_ENTER_WORLD_PEAK = RuleClick(roi_front=(540,552,200,48), roi_back=(500,530,300,90), name="enter_world_peak")
 	# 兽毛之争：小地图视口在右下角时的野怪刷新点（精确到点，点完人物自动走过去） 
-	C_BEAST_POINT = RuleClick(roi_front=(455,407,1,1), roi_back=(455,407,1,1), name="beast_point")
+	C_FIGHT_BEAST_POINT = RuleClick(roi_front=(455,407,1,1), roi_back=(455,407,1,1), name="fight_beast_point")
 	# 黄金比例：小地图视口在左上角时的野怪刷新点（精确到点，点完人物自动走过去） 
-	C_GOLDEN_POINT = RuleClick(roi_front=(536,371,1,1), roi_back=(536,371,1,1), name="golden_point")
+	C_FIGHT_GOLDEN_POINT = RuleClick(roi_front=(536,371,1,1), roi_back=(536,371,1,1), name="fight_golden_point")
 	# 为了荣耀（黄帝阵营）：小地图视口在右下角时，去打炎帝守门人的点位 
-	C_GLORY_HUANGDI_POINT = RuleClick(roi_front=(749,305,1,1), roi_back=(749,305,1,1), name="glory_huangdi_point")
+	C_FIGHT_GLORY_HUANGDI_POINT = RuleClick(roi_front=(626,385,1,1), roi_back=(626,385,1,1), name="fight_glory_huangdi_point")
 	# 为了荣耀（炎帝阵营）：小地图视口在左上角时，去打黄帝守门人的点位 
-	C_GLORY_YANDI_POINT = RuleClick(roi_front=(315,325,1,1), roi_back=(315,325,1,1), name="glory_yandi_point")
+	C_FIGHT_GLORY_YANDI_POINT = RuleClick(roi_front=(315,325,1,1), roi_back=(315,325,1,1), name="fight_glory_yandi_point")
 
 
 	# Image Rule Assets
-	# 入口npc对话框特征 
-	I_NEW = RuleImage(roi_front=(618,178,198,89), roi_back=(603,175,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_new.png")
-	# 交付任务npc对话框特征 
-	I_ITEM_2 = RuleImage(roi_front=(616,113,198,89), roi_back=(599,105,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_2.png")
-	# 入口npc点击位置打开面板 
-	I_ITEM_3 = RuleImage(roi_front=(512,399,247,44), roi_back=(498,356,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_3.png")
-	# 世界之巅弹窗特征 
-	I_ITEM_4 = RuleImage(roi_front=(89,207,155,173), roi_back=(73,192,215,246), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_4.png")
-	# 人物接取页面特征 
-	I_ITEM_5 = RuleImage(roi_front=(1039,190,104,49), roi_back=(985,169,203,440), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_item_5.png")
-	# 加量推广弹窗右上角绿X（搜索范围只给弹窗那一块，避免误点面板的X） 
-	I_PROMO_CLOSE = RuleImage(roi_front=(943,218,34,37), roi_back=(900,200,140,110), threshold=0.85, method="Template matching", file="./tasks/WorldTask/res/res_close_x_green.png")
+	# 入口 NPC（世界之巅守门人）的对话框特征 
+	I_NPC_GATE_DIALOG = RuleImage(roi_front=(618,178,198,89), roi_back=(603,175,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_npc_gate_dialog.png")
+	# 交付 NPC（世界之巅任务榜）的对话框特征 
+	I_NPC_DELIVER_DIALOG = RuleImage(roi_front=(616,113,198,89), roi_back=(599,105,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_npc_deliver_dialog.png")
+	# 入口 NPC 对话里的「查看世界之巅活动」选项（点它打开活动弹窗） 
+	I_NPC_GATE_OPTION = RuleImage(roi_front=(512,399,247,44), roi_back=(498,356,267,125), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_npc_gate_option.png")
+	# 世界之巅活动弹窗特征（弹窗开着才认得到） 
+	I_ACTIVITY_PANEL = RuleImage(roi_front=(89,207,155,173), roi_back=(73,192,215,246), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_activity_panel.png")
+	# 跨服任务接取列表页特征（右侧带「接取」按钮） 
+	I_ACCEPT_LIST_PAGE = RuleImage(roi_front=(1039,190,104,49), roi_back=(985,169,203,440), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_accept_list_page.png")
+	# 加量推广弹窗右上角绿 X（搜索范围只给弹窗那一块，避免误点面板的 X） 
+	I_BONUS_PROMO_CLOSE = RuleImage(roi_front=(943,218,34,37), roi_back=(900,200,140,110), threshold=0.85, method="Template matching", file="./tasks/WorldTask/res/res_bonus_promo_close.png")
 	# 左下角聊天栏「[系]任务」前缀（任务完成提示的第一级过滤） 
-	I_TASK_COMPLETE_TRIGGER = RuleImage(roi_front=(0,679,97,27), roi_back=(0,679,638,37), threshold=0.9, method="Template matching", file="./tasks/WorldTask/res/task_complete_trigger.png")
+	I_TASK_COMPLETE_PREFIX = RuleImage(roi_front=(0,679,97,27), roi_back=(0,679,638,37), threshold=0.9, method="Template matching", file="./tasks/WorldTask/res/task_complete_prefix.png")
 
 
 	# Ocr Rule Assets
-	# 世家之巅弹窗顶部tab识别区域 
-	O_NEW = RuleOcr(roi=(78,82,1052,68), area=(78,82,1052,68), mode="Single", method="Default", keyword="", name="new")
+	# 世界之巅活动弹窗顶部的 tab 条（读当前 tab 名、找目标 tab） 
+	O_ACTIVITY_TAB_BAR = RuleOcr(roi=(78,82,1052,68), area=(78,82,1052,68), mode="Single", method="Default", keyword="", name="activity_tab_bar")
 	# 加量推广弹窗正文区域（识别到「任务加量」即为弹窗开着） 
-	O_BONUS_PROMO = RuleOcr(roi=(330,250,650,90), area=(330,250,650,90), mode="Full", method="Default", keyword="", name="bonus_promo")
+	O_BONUS_PROMO_BODY = RuleOcr(roi=(330,250,650,90), area=(330,250,650,90), mode="Full", method="Default", keyword="", name="bonus_promo_body")
 	# 任务页的任务列表（任务名 / 状态 / 寻路按钮，按同一行 y 配对） 
 	O_TASK_PAGE_LIST = RuleOcr(roi=(280,125,890,560), area=(280,125,890,560), mode="Full", method="Default", keyword="", name="task_page_list")
 	# 左下角聊天栏系统消息行（[系]任务：xxx已完成） 
-	O_TASK_COMPLETE = RuleOcr(roi=(0,679,638,37), area=(0,679,638,37), mode="Full", method="Default", keyword="", name="task_complete")
-	# 确认交付的任务名称 
-	O_ITEM_5 = RuleOcr(roi=(622,118,368,42), area=(617,119,376,42), mode="Single", method="Default", keyword="", name="item_5")
+	O_CHAT_SYSTEM_LINE = RuleOcr(roi=(0,679,638,37), area=(0,679,638,37), mode="Full", method="Default", keyword="", name="chat_system_line")
+	# 交付详情页顶部的任务名（二次确认要交的是哪个任务） 
+	O_DELIVER_TASK_TITLE = RuleOcr(roi=(622,118,368,42), area=(617,119,376,42), mode="Single", method="Default", keyword="", name="deliver_task_title")
 	# 交付榜对话框里第一行任务（完成的任务排最上面，只看第一行） 
 	O_DELIVER_LIST = RuleOcr(roi=(280,322,660,56), area=(280,322,660,56), mode="Full", method="Default", keyword="", name="deliver_list")
 	# 交付详情页右下角按钮（只有「确认/完成」才是交任务，返回/领取不点） 
@@ -64,7 +64,7 @@ class WorldTaskAssets:
 
 
 	# Swipe Rule Assets
-	# tab滑动 
-	S_NEW = RuleSwipe(roi_front=(890,90,93,55), roi_back=(419,89,115,59), mode="default", name="new")
+	# 活动弹窗 tab 条的滑动（从右往左滑，露出后面的 tab） 
+	S_ACTIVITY_TAB_SWIPE = RuleSwipe(roi_front=(890,90,93,55), roi_back=(419,89,115,59), mode="default", name="activity_tab_swipe")
 
 

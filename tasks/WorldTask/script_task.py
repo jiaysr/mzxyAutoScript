@@ -21,12 +21,12 @@
     接取时有些任务会当场判定完成，这些名字先记下来，后面就不用再去世界之巅做。
 
 游戏里的页面链路（2026-11-05 录制，见 tasks/WorldTask/res/）：
-    守门人对话（I_NEW）→「查看世界之巅活动」选项行（I_ITEM_3）→ 世界之巅活动弹窗
-    →「世界之巅」tab 有黄帝立绘（I_ITEM_4）→「跨服任务」tab（O_NEW 读 tab 名，S_NEW 滑 tab 条）
-    → 任务列表：左边任务名（O_TASK_LIST），右边每行一个「接取」按钮（I_ITEM_5）
+    守门人对话（I_NPC_GATE_DIALOG）→「查看世界之巅活动」选项行（I_NPC_GATE_OPTION）→ 世界之巅活动弹窗
+    →「世界之巅」tab 有黄帝立绘（I_ACTIVITY_PANEL）→「跨服任务」tab（O_ACTIVITY_TAB_BAR 读 tab 名，S_ACTIVITY_TAB_SWIPE 滑 tab 条）
+    → 任务列表：左边任务名（O_TASK_PAGE_LIST），右边每行一个「接取」按钮（I_ACCEPT_LIST_PAGE）
     活动时间：每周星期一到星期五 9:00-24:00（与 schedule.py 的窗口一致）
 
-接取时的加量推广弹窗（I_PROMO_CLOSE / O_BONUS_PROMO）：
+接取时的加量推广弹窗（I_BONUS_PROMO_CLOSE / O_BONUS_PROMO_BODY）：
     点「接取」会弹「当前任务加量功能未激活…」，它盖在列表上会吞掉后续点击。
     处理方式与 AutoTask.click_auto_start 一致：出现就点绿X关掉，**不勾「今日不再提示」**
     （勾了就改动了玩家的游戏设置）。
@@ -41,8 +41,8 @@
 - 被手动运行 / 别的任务 task_call 提前叫醒而门没开时，只重排到最近一次开门，不碰游戏。
 
 NPC 素材（tasks/WorldTask/res/，标注工具录制）：
-- 点位 C_NEW / C_ITEM_2 是按「小地图视口在右上角」录的，所以点之前必须先 map_pan_to_corner('top_right')；
-- 对话框特征 I_NEW / I_ITEM_2 匹配的是标题 + 第一行台词，NPC 台词变了模板就会失效（届时重录即可）。
+- 点位 C_NPC_GATE_POINT / C_NPC_DELIVER_POINT 是按「小地图视口在右上角」录的，所以点之前必须先 map_pan_to_corner('top_right')；
+- 对话框特征 I_NPC_GATE_DIALOG / I_NPC_DELIVER_DIALOG 匹配的是标题 + 第一行台词，NPC 台词变了模板就会失效（届时重录即可）。
 """
 import difflib
 import re
@@ -77,9 +77,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     set_bonus_state = AutoTaskScriptTask.set_bonus_state
     set_bonus_side = AutoTaskScriptTask.set_bonus_side
 
-    # 两个 NPC（名字对应 res/click.json 里的 itemName）
-    NPC_NEW = 'new'        # 入口 NPC：世界之巅守门人（接任务 / 进世界之巅）
-    NPC_ITEM_2 = 'item_2'  # 交付 NPC：世界之巅任务榜
+    # 两个 NPC（名字对应 res/ 里的 npc_* 素材）
+    NPC_GATE = 'gate'        # 入口 NPC：世界之巅守门人（接任务 / 进世界之巅）
+    NPC_DELIVER = 'deliver'  # 交付 NPC：世界之巅任务榜
 
     # 点完点位后，多久内人物坐标必须变化（否则认定这一下没点中）
     NPC_MOVE_TIMEOUT = 4
@@ -153,7 +153,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     CAMP_YANDI = 'yandi'
     CAMP_SPAWNS = {
         CAMP_HUANGDI: (56, 60),
-        CAMP_YANDI: (439, 384),
+        CAMP_YANDI: (327, 363),
     }
     CAMP_SPAWN_TOLERANCE = 45        # 出生点判定容差（走路会有点偏差）
 
@@ -179,8 +179,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     def __init__(self, config, device):
         super().__init__(config, device)
         # 任务完成提示监测：接任务时 start()、接取的任务全部完成时 stop()
-        self.task_monitor = TaskCompleteMonitor(self.I_TASK_COMPLETE_TRIGGER,
-                                                self.O_TASK_COMPLETE)
+        self.task_monitor = TaskCompleteMonitor(self.I_TASK_COMPLETE_PREFIX,
+                                                self.O_CHAT_SYSTEM_LINE)
         self.completed_tasks: list = []   # 监测到的「已完成」任务名
         self.accepted_tasks: list = []    # 本次接取到的任务名
         self.camp = None                  # 世界之巅阵营（进场时按出生点判断）
@@ -453,7 +453,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if self._bonus_enabled:
             logger.info('加量卡已开，开始接任务')
 
-        if not self.find_npc(self.NPC_NEW):
+        if not self.find_npc(self.NPC_GATE):
             logger.warning('没找到入口 NPC（世界之巅守门人）')
             return False
         logger.info('入口 NPC 已确认：世界之巅守门人')
@@ -468,7 +468,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return False
         # 切完拿新一帧再判断（appear 用的是 device.image，不刷新会读到切换前的画面）
         self.screenshot()
-        if not self.appear(self.I_ITEM_5):
+        if not self.appear(self.I_ACCEPT_LIST_PAGE):
             logger.warning('跨服任务列表里没看到「接取」按钮')
             return False
         logger.info('跨服任务列表已打开')
@@ -619,7 +619,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             if not self.deliver_detail_open():
                 self.device.sleep(0.3)
                 continue
-            title = self.O_ITEM_5.ocr_single_line(self.device.image)
+            title = self.O_DELIVER_TASK_TITLE.ocr_single_line(self.device.image)
             if title and self.task_name_match(title, name):
                 break
             self.device.sleep(0.3)
@@ -671,7 +671,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         完成的任务排在列表最上面，所以不需要滚列表；一直交到第一行不是我们的任务为止。
         """
         logger.hr('交付世界任务')
-        if not self.find_npc(self.NPC_ITEM_2):
+        if not self.find_npc(self.NPC_DELIVER):
             logger.warning('找不到交付 NPC（世界之巅任务榜）')
             return False
 
@@ -852,7 +852,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             if entered:
                 self.camp = self.detect_camp() or getattr(self, 'camp', None)
             return entered
-        if not self.find_npc(self.NPC_NEW):
+        if not self.find_npc(self.NPC_GATE):
             logger.warning('找不到入口 NPC（世界之巅守门人），进不了图')
             return False
         if not self.open_activity_panel():
@@ -1153,10 +1153,10 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     def fight_click_rule(self, key: str):
         """小地图点位规则：兽毛之争 / 黄金比例 直接用任务名，为了荣耀用 glory_xxx"""
         rules = {
-            '兽毛之争': self.C_BEAST_POINT,
-            '黄金比例': self.C_GOLDEN_POINT,
-            'glory_huangdi': self.C_GLORY_HUANGDI_POINT,
-            'glory_yandi': self.C_GLORY_YANDI_POINT,
+            '兽毛之争': self.C_FIGHT_BEAST_POINT,
+            '黄金比例': self.C_FIGHT_GOLDEN_POINT,
+            'glory_huangdi': self.C_FIGHT_GLORY_HUANGDI_POINT,
+            'glory_yandi': self.C_FIGHT_GLORY_YANDI_POINT,
         }
         if key not in rules:
             raise ValueError(f'Unknown fight point [{key}], expect {list(rules)}')
@@ -1468,9 +1468,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     # ---------------------------------------------------------------- 世界之巅活动弹窗
     def _ocr_items(self) -> list:
         """顶部 tab 条 OCR 原始结果（单测里替换这一层）"""
-        roi = self.O_NEW.roi
+        roi = self.O_ACTIVITY_TAB_BAR.roi
         items = []
-        for item in self.O_NEW.detect_and_ocr(self.device.image, logDisplay=False):
+        for item in self.O_ACTIVITY_TAB_BAR.detect_and_ocr(self.device.image, logDisplay=False):
             text = item.ocr_text.strip()
             if not text:
                 continue
@@ -1499,8 +1499,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         need_ocr = True
         while not timer.reached():
             self.screenshot()
-            cheap = (self.appear(self.I_ITEM_4) or self.appear(self.I_ITEM_5)
-                     or self.appear(self.I_ITEM_3))
+            cheap = (self.appear(self.I_ACTIVITY_PANEL) or self.appear(self.I_ACCEPT_LIST_PAGE)
+                     or self.appear(self.I_NPC_GATE_OPTION))
             if not cheap:
                 if not need_ocr or not self.activity_panel_open(refresh=False):
                     return True
@@ -1524,9 +1524,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if image is None:
             return False
         # 便宜的特征（弹窗右上角绿X，ROI 只给了弹窗那一块）优先
-        if self.I_PROMO_CLOSE.match(image):
+        if self.I_BONUS_PROMO_CLOSE.match(image):
             return True
-        text = self.O_BONUS_PROMO.ocr_single_line(image)
+        text = self.O_BONUS_PROMO_BODY.ocr_single_line(image)
         return '加量' in (text or '')
 
     def close_bonus_promo(self, timeout: float = 10) -> bool:
@@ -1546,7 +1546,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             if not self.bonus_promo_open(refresh=False):
                 logger.info('Bonus promo closed')
                 return True
-            if self.appear_then_click(self.I_PROMO_CLOSE, interval=1):
+            if self.appear_then_click(self.I_BONUS_PROMO_CLOSE, interval=1):
                 self.device.click_record_clear()
             # 0.5s 一帧会在 1.5s 的完成提示窗口里只采到 3 帧，这里用 0.3s
             self.device.sleep(0.3)
@@ -1604,7 +1604,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         读跨服任务列表：[(任务名, 接取按钮中心x, 接取按钮中心y)]
 
-        接取按钮用 I_ITEM_5 在按钮列里全匹配出来，任务名按每行的 y 单行识别（rec-only）。
+        接取按钮用 I_ACCEPT_LIST_PAGE 在按钮列里全匹配出来，任务名按每行的 y 单行识别（rec-only）。
         实测：整块 detect_and_ocr 688ms，逐行 rec-only 34ms/行，5 行约 170ms。
         同一帧只读一次（按帧缓存），重复调用不重复 OCR。
         """
@@ -1614,7 +1614,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if key is not None and self._rows_cache[0] == key:
             return list(self._rows_cache[1])
 
-        buttons = sorted(self.I_ITEM_5.match_all_any(image, threshold=self.I_ITEM_5.threshold),
+        buttons = sorted(self.I_ACCEPT_LIST_PAGE.match_all_any(image, threshold=self.I_ACCEPT_LIST_PAGE.threshold),
                          key=lambda m: m[2])
         rows = []
         for _score, x, y, w, h in buttons:
@@ -1717,12 +1717,12 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         :return: 这次滑动后已知 tab 的布局有没有变化；没变化说明已经到底
         """
         before = self.tab_signature()
-        x1, y1, x2, y2 = self.S_NEW.coord()
+        x1, y1, x2, y2 = self.S_ACTIVITY_TAB_SWIPE.coord()
         if not forward:
             x1, y1, x2, y2 = x2, y2, x1, y1
         logger.info(f'Swipe activity tabs {"right" if forward else "left"} '
                     f'({x1},{y1}) -> ({x2},{y2})')
-        self.device.swipe(p1=(x1, y1), p2=(x2, y2), control_name=self.S_NEW.name)
+        self.device.swipe(p1=(x1, y1), p2=(x2, y2), control_name=self.S_ACTIVITY_TAB_SWIPE.name)
         self.device.click_record_clear()
         self.device.sleep(0.6)
         # 滑过之后 tab 位置全变了，缓存作废
@@ -1831,7 +1831,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             timer = Timer(6).start()
             while not timer.reached():
                 self.screenshot()
-                if self.appear(self.I_ITEM_4):
+                if self.appear(self.I_ACTIVITY_PANEL):
                     logger.info(f'Activity tab [{name}] is showing')
                     return True
                 if self.find_tab(name) is None and self.activity_panel_open():
@@ -1850,7 +1850,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         if refresh:
             self.maybe_screenshot()
-        if self.appear(self.I_ITEM_4) or self.appear(self.I_ITEM_5):
+        if self.appear(self.I_ACTIVITY_PANEL) or self.appear(self.I_ACCEPT_LIST_PAGE):
             return True
         # 切过 tab 之后立绘就没了，改看顶部 tab 条：认出 2 个以上已知 tab 就算开着
         known = [text for text, _, _ in self.tab_items()
@@ -1876,11 +1876,11 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             self.screenshot()
             # 轮询只查两个便宜特征（各 4ms）：黄帝立绘 / 接取按钮。
             # tab 条 OCR 要 900ms，放在每轮里会把开弹窗拖成 4s+
-            if self.appear(self.I_ITEM_4) or self.appear(self.I_ITEM_5):
+            if self.appear(self.I_ACTIVITY_PANEL) or self.appear(self.I_ACCEPT_LIST_PAGE):
                 logger.info('Activity panel opened')
                 self._tab_positions.clear()
                 return True
-            if not clicked and self.appear_then_click(self.I_ITEM_3, interval=1):
+            if not clicked and self.appear_then_click(self.I_NPC_GATE_OPTION, interval=1):
                 logger.info('Click 查看世界之巅活动')
                 clicked = True
                 self.device.click_record_clear()
@@ -1898,8 +1898,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     def npc_click(self, npc: str):
         """NPC 名称 -> 小地图上的点位（录制的点击规则）"""
         clicks = {
-            self.NPC_NEW: self.C_NEW,
-            self.NPC_ITEM_2: self.C_ITEM_2,
+            self.NPC_GATE: self.C_NPC_GATE_POINT,
+            self.NPC_DELIVER: self.C_NPC_DELIVER_POINT,
         }
         if npc not in clicks:
             raise ValueError(f'Unknown npc [{npc}], expect {list(clicks)}')
@@ -1908,8 +1908,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     def npc_template(self, npc: str):
         """NPC 名称 -> 对话框特征（模板匹配）"""
         templates = {
-            self.NPC_NEW: self.I_NEW,
-            self.NPC_ITEM_2: self.I_ITEM_2,
+            self.NPC_GATE: self.I_NPC_GATE_DIALOG,
+            self.NPC_DELIVER: self.I_NPC_DELIVER_DIALOG,
         }
         if npc not in templates:
             raise ValueError(f'Unknown npc [{npc}], expect {list(templates)}')
@@ -1922,7 +1922,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         :return: NPC 名称；都不是返回 None
         """
         self.maybe_screenshot()
-        for npc in (self.NPC_NEW, self.NPC_ITEM_2):
+        for npc in (self.NPC_GATE, self.NPC_DELIVER):
             if self.appear(self.npc_template(npc)):
                 return npc
         return None
@@ -2105,7 +2105,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         判断地图 -> 打开小地图拖到右上角 -> 点 NPC -> 关小地图 -> 确认对话框是这个 NPC
 
-        :param npc: NPC 名称（NPC_NEW / NPC_ITEM_2）
+        :param npc: NPC 名称（NPC_GATE / NPC_DELIVER）
         :param retry: 整个流程最多试几轮（外层；单轮里 open_npc_dialog 自己还会重试点位）
         :return: 该 NPC 的对话框已经打开返回 True
         """
@@ -2184,6 +2184,6 @@ if __name__ == '__main__':
     device = Device(config)
     try:
        t= ScriptTask(config, device)
-       t.swipe(t.S_ITEM_2)
+       t.swipe(t.S_ACTIVITY_TAB_SWIPE)
     except TaskEnd:
         pass

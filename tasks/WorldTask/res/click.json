@@ -1,15 +1,15 @@
 [
   {
-    "itemName": "new",
+    "itemName": "npc_gate_point",
     "roiFront": "674,153,14,19",
     "roiBack": "631,118,100,100",
-    "description": "入口npc（接任务，进入世界之巅地图）"
+    "description": "小地图上的入口 NPC（世界之巅守门人）：点它开对话，接任务/进图都从这里进"
   },
   {
-    "itemName": "item_2",
+    "itemName": "npc_deliver_point",
     "roiFront": "703,129,26,25",
     "roiBack": "637,115,100,100",
-    "description": "交付任务npc"
+    "description": "小地图上的交付 NPC（世界之巅任务榜）：点它开交付列表"
   },
   {
     "itemName": "enter_world_peak",
@@ -18,25 +18,25 @@
     "description": "世界之巅 tab 里的「进入世界之巅」按钮"
   },
   {
-    "itemName": "beast_point",
+    "itemName": "fight_beast_point",
     "roiFront": "455,407,1,1",
     "roiBack": "455,407,1,1",
     "description": "兽毛之争：小地图视口在右下角时的野怪刷新点（精确到点，点完人物自动走过去）"
   },
   {
-    "itemName": "golden_point",
+    "itemName": "fight_golden_point",
     "roiFront": "536,371,1,1",
     "roiBack": "536,371,1,1",
     "description": "黄金比例：小地图视口在左上角时的野怪刷新点（精确到点，点完人物自动走过去）"
   },
   {
-    "itemName": "glory_huangdi_point",
-    "roiFront": "749,305,1,1",
-    "roiBack": "749,305,1,1",
+    "itemName": "fight_glory_huangdi_point",
+    "roiFront": "626,385,1,1",
+    "roiBack": "626,385,1,1",
     "description": "为了荣耀（黄帝阵营）：小地图视口在右下角时，去打炎帝守门人的点位"
   },
   {
-    "itemName": "glory_yandi_point",
+    "itemName": "fight_glory_yandi_point",
     "roiFront": "315,325,1,1",
     "roiBack": "315,325,1,1",
     "description": "为了荣耀（炎帝阵营）：小地图视口在左上角时，去打黄帝守门人的点位"
