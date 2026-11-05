@@ -313,6 +313,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 return False
             self.set_bonus_state(BonusMultiplier.NONE)
             logger.info('加量卡已关闭')
+            # 关完回主页面，别把加量页留在那儿影响后续任务
+            self.ui_reset_current_page()
+            self.ui_goto(page_main, timeout=30)
             return True
         except Exception as e:  # noqa: BLE001
             logger.error(f'关闭加量卡失败：{e}')
@@ -343,6 +346,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             if not self.restart_and_wait():
                 return False
             return self.deliver_tasks()
+        # 任务页里一个都没有：可能今天还没接（等下面接取），也可能已经交完了（重跑）
+        all_missing_before = bool(statuses) and all(
+            status == 'missing' for status in statuses.values())
 
         if self.map_in_location(self.WORLD_PEAK_LOCATION):
             logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
@@ -381,6 +387,13 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.info('跨服任务列表里没有可接的任务（今天应该已经接过了）')
         else:
             logger.warning('一个跨服任务都没接上')
+
+        # 开跑前任务页里一个都没有、现在也没接到新的 = 今天已经做完并交付过了（重跑）
+        # 这种情况不该再进图，更不该为了交付白重启一次游戏
+        if all_missing_before and not accepted:
+            logger.warning('任务页里没有世界任务、也没接到新的：今天应该已经做完并交完了，收工')
+            self.close_activity_panel()
+            return True
 
         if self.completed_tasks:
             logger.attr('已完成', ', '.join(self.completed_tasks))
