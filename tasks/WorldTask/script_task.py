@@ -692,9 +692,38 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             self.device.sleep(0.8)
 
         logger.attr('已交付', ', '.join(delivered) or 'none')
-        self.close_npc_dialog()
+        self.close_task_board()
         # 没有可交付的也算完成：重跑时不会因为「已经交完」而反复失败
         return True
+
+    def close_task_board(self, timeout: float = 12) -> bool:
+        """
+        交付完把任务榜对话框**确认关掉**
+
+        不能「看一眼没有对话框就算关了」：交付过程中每交一个都会弹「奖励」浮层，
+        全局弹窗处理虽然会关掉它，但截图的那一瞬可能正好被浮层盖着，
+        于是误判成已关闭、把对话框留在屏幕上（真机 23:31:55 就是这样收尾的）。
+        所以要求**连续两次**看在任务榜不在，中间留时间让浮层/动画过去。
+        """
+        clean_checks = 0
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            # screenshot 同时会触发全局弹窗清理（奖励浮层、人机验证等）
+            self.screenshot()
+            if self.npc_dialog() is not None:
+                clean_checks = 0
+                logger.info('关上任务榜对话框')
+                if self.appear_then_click(self.I_CLOSE_X_GREEN, interval=0.4):
+                    self.device.click_record_clear()
+            else:
+                clean_checks += 1
+                if clean_checks >= 2:
+                    logger.info('任务榜对话框已关闭')
+                    return True
+            self.device.sleep(0.6)
+
+        logger.warning('任务榜对话框没关掉（可能被浮层挡住），请手动确认一眼')
+        return False
 
     def run_world_peak_tasks(self, statuses: dict = None) -> bool:
         """
