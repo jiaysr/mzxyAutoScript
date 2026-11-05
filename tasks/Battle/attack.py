@@ -335,22 +335,36 @@ class BattleAttack:
         if cache:
             self._battle_slot_version += 1
 
-    def battle_task_preset(self) -> str:
+    def battle_task_config_object(self):
         """
-        任务自己配的「战斗配置」预设 id（没配返回空串）
+        当前任务在 `config.model` 里的配置对象（没有任务上下文返回 None）
 
-        任务配置里的字段名统一叫 `battle_preset`（是 `str`，前端渲染成预设下拉框），
-        放在任务自己的 `battle_config` 组里，默认值就是系统预设（default）。
-        用 `self.config.task.command` 拿到当前任务名，再去它的配置组里取。
+        按 `self.config.task.command` 反查，`battle_preset` / `use_normal_attack` 这些
+        都要从它（或它的 `battle_config` 组）里取。
         """
         task = getattr(self.config, 'task', None)
         command = getattr(task, 'command', '') or ''
         if not command:
-            return ''
-        task_config = getattr(self.config.model, convert_to_underscore(command), None)
+            return None
+        return getattr(self.config.model, convert_to_underscore(command), None)
+
+    def battle_task_preset(self) -> str:
+        """
+        任务自己配的「战斗配置」预设 id（没配返回空串）
+
+        **字段在任务 config 的 `battle_config` 组里**（`BattleTaskConfig.battle_preset`）。
+        早期实现取的是任务根节点的 `battle_preset` —— 那个字段根本不存在，
+        于是永远返回空串、静默回落到系统预设（症状：任务里选了预设但不生效）；
+        老任务（世界首领 / 仙府 / 迷窟 / 不周山 / 副本 / 战车）都各自覆盖过这个方法，
+        现在统一在这里取，新任务不用再覆盖。
+        """
+        task_config = self.battle_task_config_object()
         if task_config is None:
             return ''
-        return str(getattr(task_config, 'battle_preset', '') or '')
+        # 字段在「战斗配置」组里；兼容把字段直接放任务根上的自定义任务
+        group = getattr(task_config, 'battle_config', None)
+        source = group if group is not None else task_config
+        return str(getattr(source, 'battle_preset', '') or '')
 
     def battle_task_battle_config(self):
         """
@@ -359,11 +373,7 @@ class BattleAttack:
         字段都放在各任务 config 的 `battle_config` 组里，这里按
         `self.config.task.command` 反查，供 use_normal_attack / fast_relock 这类开关使用。
         """
-        task = getattr(self.config, 'task', None)
-        command = getattr(task, 'command', '') or ''
-        if not command:
-            return None
-        task_config = getattr(self.config.model, convert_to_underscore(command), None)
+        task_config = self.battle_task_config_object()
         if task_config is None:
             return None
         return getattr(task_config, 'battle_config', None)

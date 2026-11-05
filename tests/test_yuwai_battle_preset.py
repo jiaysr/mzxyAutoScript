@@ -154,7 +154,10 @@ def test_preset_loop_uses_skill_loop():
     assert slots == [2, 0], '技能位顺序 = 预设优先级，不能被改写'
     assert kwargs['include_attack'] is False, '不点普通攻击（共享默认关）'
     assert kwargs['attack_interval'] == task.NORMAL_ATTACK_INTERVAL
-    assert kwargs['max_attempts'] == task.SKILL_MAX_ATTEMPTS
+    # 释放节奏（clicks / attempts / cooldown_timeout）现在由「战斗预设」各自提供，
+    # battle_skill_loop 自己读预设；任务侧不该再写死这些参数（b7eec81b 之后）
+    for hardcoded in ('max_attempts', 'clicks', 'cooldown_timeout', 'click_interval'):
+        assert hardcoded not in kwargs, f'{hardcoded} 应交由预设决定，别在任务里写死'
     assert callable(kwargs['check_stop']) and callable(kwargs['on_cast'])
     assert callable(kwargs['on_target_lost']), '目标死了要能快速补锁，别退回外层重锁'
     assert task._battle_deadline == end, '停止条件要能读到本场截止时间'

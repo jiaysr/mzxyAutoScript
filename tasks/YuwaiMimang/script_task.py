@@ -516,7 +516,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         """
         本任务选的战斗预设（配置 -> 战斗配置 -> 战斗预设）
 
-        共享实现 `BattleAttack.battle_task_preset()` 取的是任务根节点的 `battle_preset`，
+        共享实现现在会读 `battle_config` 组；这里仍然自己取，是为了直跑脚本（没有任务上下文）时也能拿到，
         取不到嵌套在 `battle_config` 组里的字段，会静默回落到系统预设；
         世界首领 / 仙府九重天也是各自覆盖的，这里只影响域外迷窟。
         """

@@ -450,7 +450,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         """
         本任务选的战斗预设（配置 -> battle_config.battle_preset）
 
-        共享的 BattleAttack.battle_task_preset() 取的是任务根节点的 battle_preset，
+        共享实现现在会读 battle_config 组；这里仍然自己取，是为了直跑脚本（没有任务上下文）时也能拿到，
         取不到嵌套在 battle_config 组里的字段，会静默回落到系统预设。
         先在仙府任务里覆盖，只影响本任务。
         """
