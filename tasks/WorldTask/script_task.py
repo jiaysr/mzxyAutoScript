@@ -46,6 +46,7 @@ NPC 素材（tasks/WorldTask/res/，标注工具录制）：
 """
 import difflib
 import re
+import time
 from datetime import datetime
 
 from module.base.timer import Timer
@@ -296,6 +297,41 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         logger.info('7 个任务接完了，关掉加量卡')
         self.disable_bonus()
         self._bonus_enabled = False
+
+    # ---------------------------------------------------------------- 阵亡
+    DEATH_CONTINUE_LIMIT = 3         # 同一个任务里连续阵亡这么多次就交回框架重跑
+
+    def handle_death(self) -> None:
+        """
+        阵亡：**原地复活后接着做当前任务**，不整任务重跑
+
+        框架默认是 `revive() + rerun_task()`（重排本任务、从第一步重来），
+        但世界任务每一步都可续（点位/打架位都写在代码里、任务页状态能判断做到哪了），
+        复活后人被送回出生点，外层循环的「跑偏就回点位」会把他带回任务点接着打/采。
+
+        阵亡次数超过 `DEATH_CONTINUE_LIMIT` 才交回框架重跑（避免原地反复送人头）。
+        """
+        if not self.appear(self.I_DEATH_DIALOG):
+            return
+
+        self.death_count = getattr(self, 'death_count', 0) + 1
+        logger.warning(f'Character died（第 {self.death_count} 次）')
+        if self.death_count > self.DEATH_CONTINUE_LIMIT:
+            logger.warning('阵亡次数太多，交回框架重跑本任务')
+            self.revive()
+            self.rerun_task()
+            return
+
+        try:
+            self.revive()
+        except GameStuckError as e:  # 复活按钮点不动：交回框架
+            logger.warning(f'复活失败（{e}），交回框架重跑')
+            self.rerun_task()
+            return
+
+        # 复活后人被送回出生点：清一下页面状态和锁目标缓存，让外层立刻按「跑偏」回点位
+        self._target_name_cache = None
+        logger.info('已复活，继续当前任务（跑偏会自动回点位）')
 
     # ---------------------------------------------------------------- 加量卡
     def bonus_multiplier(self) -> BonusMultiplier:
@@ -1152,6 +1188,35 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return not self.map_pos_match(location[1], location[2], position,
                                       self.FIGHT_DRIFT_TOLERANCE)
 
+    TARGET_NAME_CHECK_INTERVAL = 0.5   # 目标名校验节流（验名字要 OCR，0.1s 一次太费）
+
+    def fight_target_ok(self, target: str, image=None) -> bool:
+        """
+        放技能前确认「锁着的目标就是要打的那只」
+
+        真机教训：技能循环原来只校验「目标可攻击」，一旦锁丢了、游戏自动锁到旁边别的怪
+        （日志里的「烬火使者」），技能就打偏了。这里每次都比名字，
+        但名字要 OCR，所以按 `TARGET_NAME_CHECK_INTERVAL` 节流；名字读不出来时按原目标处理
+        （别因为一次 OCR 抖动就停手）。
+        """
+        if not self.ui_target_attackable(image=image):
+            return False
+
+        now = time.time()
+        cached = getattr(self, '_target_name_cache', None)
+        if cached is None or now - cached[0] >= self.TARGET_NAME_CHECK_INTERVAL:
+            name = self.ui_target_name()
+            self._target_name_cache = (now, name)
+        else:
+            name = cached[1]
+
+        if not name:
+            return True
+        if not self.task_name_match(name, target):
+            logger.warning(f'锁着的目标变成 [{name}]（要打 [{target}]），停止放技能')
+            return False
+        return True
+
     def fight_stop_reason(self, task_name: str, position: tuple, image=None):
         """
         打怪循环的停止条件（每轮都被调用，所以查坐标要按 5 秒节流）
@@ -1196,6 +1261,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 logger.info(f'[{task_name}] 已完成')
                 return True
 
+            self._target_name_cache = None
             if not self.ui_ensure_target_locked(target_name=target):
                 # 锁不到目标也可能是「人被打退了，够不着怪」：这时也要回点位，
                 # 否则会站在 12 格外死等（真机实测干等了 2 分半，最后被怪打死）
@@ -1223,7 +1289,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             reason = self.battle_skill_loop(
                 slots,
                 check_stop=lambda image=None: self.fight_stop_reason(task_name, position),
-                target_check=lambda image: self.ui_target_attackable(image=image),
+                target_check=lambda image: self.fight_target_ok(target, image=image),
                 include_attack=self.battle_use_normal_attack(),
             )
             if self.task_completed(task_name):
