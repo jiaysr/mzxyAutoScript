@@ -124,6 +124,25 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     # 判定「走到目标点」的坐标容差
     WOOD_POS_TOLERANCE = 15
 
+    # 世界之巅两个阵营：每天首次进图随机分配，出生点不同（真机实测）
+    CAMP_HUANGDI = 'huangdi'
+    CAMP_YANDI = 'yandi'
+    CAMP_SPAWNS = {
+        CAMP_HUANGDI: (56, 60),
+        CAMP_YANDI: (439, 384),
+    }
+    CAMP_SPAWN_TOLERANCE = 45        # 出生点判定容差（走路会有点偏差）
+
+    # 为了荣耀：同一套打怪流程，但阵营不同 -> 目标 / 打架位 / 小地图锚点 / 点位都不同
+    GLORY_TASK = '为了荣耀'
+    GLORY_VARIANTS = {
+        # 阵营: (目标名, 打架位, 小地图锚点角, 小地图点位规则名)
+        CAMP_HUANGDI: ('炎帝守门人', (400, 316), 'bottom_right', 'glory_huangdi'),
+        CAMP_YANDI: ('黄帝守门人', (90, 128), 'top_left', 'glory_yandi'),
+    }
+    # 不知道自己是哪个阵营时，每个变体给多少秒去「锁到目标」，锁不到就换另一个
+    GLORY_PROBE_LOCK_TIMEOUT = 25
+
     # 要接的跨服任务（列表里的先后顺序）
     # 接过的任务会被游戏移到列表末尾，所以「每次接第一行」就能按这个顺序接完
     ACCEPT_TASKS = ('世界之巅', '黄金比例', '木料之争', '兽毛之争',
@@ -136,6 +155,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                                                 self.O_TASK_COMPLETE)
         self.completed_tasks: list = []   # 监测到的「已完成」任务名
         self.accepted_tasks: list = []    # 本次接取到的任务名
+        self.camp = None                  # 世界之巅阵营（进场时按出生点判断）
         # 逐行识别用的 OCR 引擎（rec-only 比整块 detect 快 4 倍以上）
         from module.ocr.models import get_local_ocr_model
         self._ocr = get_local_ocr_model()
@@ -280,6 +300,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         if self.map_in_location(self.WORLD_PEAK_LOCATION):
             logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
+            # 人可能就在出生点旁边（重跑/复位），试一下判断阵营
+            self.camp = self.detect_camp() or getattr(self, 'camp', None)
             return self.run_world_peak_tasks()
 
         if not self.find_npc(self.NPC_NEW):
@@ -340,11 +362,14 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return True
 
     def run_world_peak_tasks(self) -> bool:
-        """世界之巅地图里的任务：先做采集类，再打怪类"""
+        """世界之巅地图里的任务：采集类 -> 打怪类 -> 为了荣耀（分阵营）"""
         if not self.run_gather_tasks():
             return False
         if not self.run_fight_tasks():
             logger.warning('打怪类任务没做完')
+            return False
+        if not self.run_glory_task():
+            logger.warning(f'{self.GLORY_TASK} 没做完')
             return False
         return True
 
@@ -366,7 +391,11 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if not self.open_activity_panel():
             logger.warning('世界之巅活动弹窗打不开，进不了图')
             return False
-        return self.enter_world_peak(timeout=timeout)
+        entered = self.enter_world_peak(timeout=timeout)
+        if entered:
+            # 刚进图就站在阵营出生点旁边，这时候判断阵营最准
+            self.camp = self.detect_camp() or getattr(self, 'camp', None)
+        return entered
 
     # ---------------------------------------------------------------- 世界之巅：做任务
     def task_completed(self, name: str) -> bool:
@@ -666,15 +695,17 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return True
 
     # ---------------------------------------------------------------- 打怪类任务
-    def fight_click_rule(self, task_name: str):
-        """打怪任务名 -> 小地图上的刷新点点击规则"""
+    def fight_click_rule(self, key: str):
+        """小地图点位规则：兽毛之争 / 黄金比例 直接用任务名，为了荣耀用 glory_xxx"""
         rules = {
             '兽毛之争': self.C_BEAST_POINT,
             '黄金比例': self.C_GOLDEN_POINT,
+            'glory_huangdi': self.C_GLORY_HUANGDI_POINT,
+            'glory_yandi': self.C_GLORY_YANDI_POINT,
         }
-        if task_name not in rules:
-            raise ValueError(f'Unknown fight task [{task_name}], expect {list(rules)}')
-        return rules[task_name]
+        if key not in rules:
+            raise ValueError(f'Unknown fight point [{key}], expect {list(rules)}')
+        return rules[key]
 
     def run_fight_tasks(self) -> bool:
         """
@@ -742,7 +773,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 break
         return collected
 
-    def run_fight_task(self, task_name: str, target: str, position: tuple, corner: str) -> bool:
+    def run_fight_task(self, task_name: str, target: str, position: tuple, corner: str,
+                       rule_key: str = None, lock_timeout: float = None) -> bool:
         """
         做一个打怪任务：小地图拖到锚点角 -> 点刷新点 -> 走到打架位 -> 循环打目标
 
@@ -750,16 +782,21 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         :param target: 目标怪名字（锁目标时校验）
         :param position: 打架位坐标
         :param corner: 小地图锚点角（bottom_right / top_left ...）
+        :param rule_key: 小地图点位规则（默认用任务名）
+        :param lock_timeout: 多久锁不到目标就放弃（None = 一直等，打怪任务用）
         """
         logger.hr(f'世界任务：{task_name}')
         if self.task_completed(task_name):
             logger.info(f'[{task_name}] 本次已收到完成提示，跳过')
             return True
-        if not self.fight_goto_point(task_name, position, corner):
+        rule_key = rule_key or task_name
+        if not self.fight_goto_point(task_name, position, corner, rule_key=rule_key):
             return False
-        return self.fight_until_complete(task_name, target, position, corner)
+        return self.fight_until_complete(task_name, target, position, corner,
+                                          rule_key=rule_key, lock_timeout=lock_timeout)
 
-    def fight_goto_point(self, task_name: str, position: tuple, corner: str) -> bool:
+    def fight_goto_point(self, task_name: str, position: tuple, corner: str,
+                         rule_key: str = None) -> bool:
         """
         去打架位：小地图拖到指定角落 -> 点刷新点 -> 主动关小地图 -> 轮询等走到
 
@@ -775,7 +812,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if not self.map_pan_to_corner(corner):
             logger.warning(f'小地图没拖到 [{corner}]')
             return False
-        rule = self.fight_click_rule(task_name)
+        rule = self.fight_click_rule(rule_key or task_name)
         x, y = rule.coord()
         logger.info(f'小地图点刷新点 ({x},{y})')
         self.device.click(x=x, y=y, control_name=rule.name)
@@ -815,16 +852,19 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return None
 
     def fight_until_complete(self, task_name: str, target: str,
-                             position: tuple, corner: str) -> bool:
+                             position: tuple, corner: str,
+                             rule_key: str = None, lock_timeout: float = None) -> bool:
         """
         打目标怪直到任务完成
 
         真机玩法（兽毛之争）：刷新点附近 3 只怪、打死 4~5 秒重新刷新，
         所以目标死了不用补锁、直接重新锁下一只；技能按任务「战斗配置」里的预设放。
 
+        :param lock_timeout: 多久一直锁不到目标就放弃（None = 一定要打到达成/超时）
         :return: 任务完成返回 True
         """
         logger.hr(f'打 [{target}]', level=2)
+        rule_key = rule_key or task_name
         preset = self.battle_preset()
         slots = self.battle_plan_slots(preset=preset)
         if not slots:
@@ -832,15 +872,25 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
         self.fight_drift_timer = Timer(self.FIGHT_DRIFT_CHECK).start()
         timer = Timer(self.FIGHT_TIMEOUT).start()
+        lock_timer = None
         while not timer.reached():
             if self.task_completed(task_name):
                 logger.info(f'[{task_name}] 已完成')
                 return True
 
             if not self.ui_ensure_target_locked(target_name=target):
-                logger.info(f'没锁到 [{target}]，等刷新')
+                if lock_timeout is None:
+                    logger.info(f'没锁到 [{target}]，等刷新')
+                    self.device.sleep(1.0)
+                    continue
+                # 阵营未知时用来「探一探这个点位对不对」：锁不到就换另一个
+                lock_timer = lock_timer or Timer(lock_timeout).start()
+                if lock_timer.reached():
+                    logger.warning(f'{lock_timeout}s 都没锁到 [{target}]，换另一个点位')
+                    return False
                 self.device.sleep(1.0)
                 continue
+            lock_timer = None
 
             reason = self.battle_skill_loop(
                 slots,
@@ -852,11 +902,59 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 logger.info(f'[{task_name}] 已完成')
                 return True
             if reason == 'drift':
-                if not self.fight_goto_point(task_name, position, corner):
+                if not self.fight_goto_point(task_name, position, corner, rule_key=rule_key):
                     return False
             # 其它情况（target_lost = 这只打死了、timeout = 这轮没打出去）都回到外层重新锁
         logger.warning(f'打 [{task_name}] 超时')
         return False
+
+    # ---------------------------------------------------------------- 为了荣耀（分阵营）
+    def detect_camp(self):
+        """
+        按当前位置判断自己是哪个阵营（只在刚进图的出生点附近才准）
+
+        世界之巅每天首次进图随机分配阵营：黄帝出生点 ≈ (56,60)、炎帝 ≈ (439,384)。
+        """
+        location = self.map_move_read_pos()
+        if location is None:
+            return None
+        for camp, spawn in self.CAMP_SPAWNS.items():
+            if self.map_pos_match(location[1], location[2], spawn, self.CAMP_SPAWN_TOLERANCE):
+                logger.attr('阵营', f'{camp}（出生点附近 {location[1]},{location[2]}）')
+                return camp
+        logger.info(f'当前位置 {location[1]},{location[2]} 不在任何阵营出生点附近，判断不出阵营')
+        return None
+
+    def run_glory_task(self) -> bool:
+        """
+        为了荣耀：和打怪任务同一套流程，只是按阵营换「目标 / 打架位 / 小地图点位」
+
+        阵营未知（比如中途重跑、人早就不在出生点了）时两个点位都试一遍：
+        每个点位给 `GLORY_PROBE_LOCK_TIMEOUT` 秒，锁不到目标就换另一个。
+        """
+        logger.hr(f'世界任务：{self.GLORY_TASK}')
+        if self.task_completed(self.GLORY_TASK):
+            logger.info('本次已收到完成提示，跳过')
+            return True
+
+        camp = getattr(self, 'camp', None) or self.detect_camp()
+        if camp is not None:
+            return self.run_glory_variant(camp)
+
+        logger.warning('不知道自己属于哪个阵营，两个点位都试一遍')
+        for candidate in self.GLORY_VARIANTS:
+            if self.run_glory_variant(candidate, lock_timeout=self.GLORY_PROBE_LOCK_TIMEOUT):
+                self.camp = candidate
+                return True
+        logger.warning('两个阵营的点位都没打成')
+        return False
+
+    def run_glory_variant(self, camp: str, lock_timeout: float = None) -> bool:
+        """按阵营打对应的守门人"""
+        target, position, corner, rule_key = self.GLORY_VARIANTS[camp]
+        logger.info(f'为了荣耀：{camp} 阵营 -> 目标 [{target}] 打架位 {position}（{corner}）')
+        return self.run_fight_task(self.GLORY_TASK, target, position, corner,
+                                   rule_key=rule_key, lock_timeout=lock_timeout)
 
     # ---------------------------------------------------------------- 进入世界之巅
     def enter_world_peak(self, timeout: float = 40) -> bool:

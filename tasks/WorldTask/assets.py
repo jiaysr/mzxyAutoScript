@@ -21,6 +21,10 @@ class WorldTaskAssets:
 	C_BEAST_POINT = RuleClick(roi_front=(455,407,1,1), roi_back=(455,407,1,1), name="beast_point")
 	# 黄金比例：小地图视口在左上角时的野怪刷新点（精确到点，点完人物自动走过去） 
 	C_GOLDEN_POINT = RuleClick(roi_front=(536,371,1,1), roi_back=(536,371,1,1), name="golden_point")
+	# 为了荣耀（黄帝阵营）：小地图视口在右下角时，去打炎帝守门人的点位 
+	C_GLORY_HUANGDI_POINT = RuleClick(roi_front=(749,305,1,1), roi_back=(749,305,1,1), name="glory_huangdi_point")
+	# 为了荣耀（炎帝阵营）：小地图视口在左上角时，去打黄帝守门人的点位 
+	C_GLORY_YANDI_POINT = RuleClick(roi_front=(315,325,1,1), roi_back=(315,325,1,1), name="glory_yandi_point")
 
 
 	# Image Rule Assets

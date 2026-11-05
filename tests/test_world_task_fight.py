@@ -196,7 +196,7 @@ def test_fight_regotos_on_drift():
     task.battle_use_normal_attack = lambda: False
     task.ui_ensure_target_locked = lambda target_name=None, action=None, max_switch=None: True
     regotos = []
-    task.fight_goto_point = lambda *args: regotos.append(args) or True
+    task.fight_goto_point = lambda *args, **kwargs: regotos.append(args) or True
 
     reasons = ['drift', 'target_lost', 'complete']
     def loop(slots, **kwargs):
@@ -268,6 +268,90 @@ def test_read_task_page_statuses_marks_done():
     assert result == {'兽毛之争': 'done', '黄金比例': 'pending', '世界之心': 'missing'}, result
 
 
+# ---------------------------------------------------------------- 为了荣耀（分阵营）
+def test_glory_variants_table():
+    """两个阵营的目标 / 打架位 / 锚点角 / 点位都不一样"""
+    task = make_task()
+    variants = ScriptTask.GLORY_VARIANTS
+    assert variants['huangdi'][:3] == ('炎帝守门人', (400, 316), 'bottom_right')
+    assert variants['yandi'][:3] == ('黄帝守门人', (90, 128), 'top_left')
+    assert task.fight_click_rule(variants['huangdi'][3]).coord() == (749, 305)
+    assert task.fight_click_rule(variants['yandi'][3]).coord() == (315, 325)
+
+
+def test_detect_camp():
+    task = make_task()
+    readings = [('世界之巅', 60, 65), ('世界之巅', 439, 384), ('世界之巅', 300, 300)]
+    task.map_move_read_pos = lambda retry=None: readings.pop(0)
+
+    assert task.detect_camp() == 'huangdi'
+    assert task.detect_camp() == 'yandi'
+    assert task.detect_camp() is None, '不在任何出生点附近就判断不出来'
+
+
+def test_run_glory_known_camp():
+    """阵营已知：只打对应那一个变体"""
+    task = make_task()
+    task.camp = 'yandi'
+    task.task_completed = lambda name: False
+    calls = []
+    task.run_glory_variant = lambda camp, lock_timeout=None: calls.append((camp, lock_timeout)) or True
+
+    assert task.run_glory_task() is True
+    assert calls == [('yandi', None)], calls
+
+
+def test_run_glory_unknown_camp_tries_both():
+    """阵营未知：两个点位都试，第一个锁不到目标就换第二个"""
+    task = make_task()
+    task.camp = None
+    task.task_completed = lambda name: False
+    task.detect_camp = lambda: None
+    calls = []
+    def variant(camp, lock_timeout=None):
+        calls.append(camp)
+        return camp == 'yandi'          # 黄帝点位锁不到目标，炎帝可以
+    task.run_glory_variant = variant
+
+    assert task.run_glory_task() is True
+    assert calls == ['huangdi', 'yandi'], calls
+    assert task.camp == 'yandi', '试出来之后要记住阵营'
+
+
+def test_run_glory_both_variants_fail():
+    task = make_task()
+    task.camp = None
+    task.task_completed = lambda name: False
+    task.detect_camp = lambda: None
+    task.run_glory_variant = lambda camp, lock_timeout=None: False
+
+    assert task.run_glory_task() is False
+    assert task.camp is None
+
+
+def test_run_glory_skips_when_completed():
+    task = make_task()
+    task.task_completed = lambda name: True
+    called = []
+    task.run_glory_variant = lambda camp, lock_timeout=None: called.append(camp) or True
+
+    assert task.run_glory_task() is True
+    assert called == []
+
+
+def test_fight_lock_timeout_gives_up():
+    """探点位时：一直锁不到目标就按超时放弃（不然会干等 10 分钟）"""
+    task = make_task()
+    task.task_completed = lambda name: False
+    task.battle_preset = lambda: {}
+    task.battle_plan_slots = lambda preset=None: [0]
+    task.battle_use_normal_attack = lambda: False
+    task.ui_ensure_target_locked = lambda target_name=None, action=None, max_switch=None: False
+
+    assert task.fight_until_complete('为了荣耀', '炎帝守门人', (400, 316), 'bottom_right',
+                                     rule_key='glory_huangdi', lock_timeout=0.2) is False
+
+
 def main():
     cases = [
         test_fight_task_table,
@@ -286,6 +370,13 @@ def main():
         test_run_fight_tasks_order_and_failure,
         test_read_task_page_statuses_unreadable_means_pending,
         test_read_task_page_statuses_marks_done,
+        test_glory_variants_table,
+        test_detect_camp,
+        test_run_glory_known_camp,
+        test_run_glory_unknown_camp_tries_both,
+        test_run_glory_both_variants_fail,
+        test_run_glory_skips_when_completed,
+        test_fight_lock_timeout_gives_up,
     ]
     failed = 0
     for case in cases:

@@ -28,5 +28,17 @@
     "roiFront": "536,371,1,1",
     "roiBack": "536,371,1,1",
     "description": "黄金比例：小地图视口在左上角时的野怪刷新点（精确到点，点完人物自动走过去）"
+  },
+  {
+    "itemName": "glory_huangdi_point",
+    "roiFront": "749,305,1,1",
+    "roiBack": "749,305,1,1",
+    "description": "为了荣耀（黄帝阵营）：小地图视口在右下角时，去打炎帝守门人的点位"
+  },
+  {
+    "itemName": "glory_yandi_point",
+    "roiFront": "315,325,1,1",
+    "roiBack": "315,325,1,1",
+    "description": "为了荣耀（炎帝阵营）：小地图视口在左上角时，去打黄帝守门人的点位"
   }
 ]

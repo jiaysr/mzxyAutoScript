@@ -334,8 +334,7 @@ def test_ensure_world_peak_map_reenters_after_restart():
     task.find_npc = lambda npc, retry=2: events.append('npc') or True
     task.open_activity_panel = lambda timeout=12: events.append('panel') or True
     task.ensure_activity_tab = lambda name=None, max_swipe=3: True
-    task.map_in_location = lambda name: False
-    # 进图判定：ensure 里查一次（不在）、enter 里再查一次（不在）-> 点按钮 -> 变成世界之巅
+    task.detect_camp = lambda: None          # 进图后会顺手判断阵营，这里不关心
     flags = [False, False]
     task.map_in_location = lambda name: flags.pop(0) if flags else True
 
