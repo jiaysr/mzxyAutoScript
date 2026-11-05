@@ -191,6 +191,10 @@ class MapNavigation(BaseTask, GameUiAssets):
         - 相似度 >= 0.75：容忍首字误识
         - 相似度 >= 0.6 且前两字一致：容忍其他形近字误识
         地点名来自固定列表，相互之间差异大，不会误判
+
+        例外是**同一地点的不同变体**（`沙狱外` / `沙狱[单人]` / `沙狱[多人]`）：
+        它们前两字全一样，靠相似度必然互相认错，所以「单人/多人/双人」和结尾的「外」
+        这两个标记要求两边**完全一致**。
         """
         if not ocr_text or not name:
             return False
@@ -198,10 +202,16 @@ class MapNavigation(BaseTask, GameUiAssets):
         target = re.sub(r'[^\u4e00-\u9fa5]', '', self.map_fix_name(name))
         if not candidate or not target:
             return False
-        # 单人/多人/双人必须一致，避免「沙狱单人」和「沙狱多人」相似度刚好 0.75 被误判
+        # 变体标记必须两边一致：只查「target 有、candidate 没有」会漏掉反方向 ——
+        # target 是外图（沙狱外）时它本身不带任何标记，于是落到相似度规则：
+        # 「沙狱多」vs「沙狱外」= 0.667 >= 0.6 且前两字相同 -> 被当成同一张图。
+        # 2026-11-05 就是这样把「人还在沙狱[多人]里」判成「已经在外图」，
+        # 于是没走出去 -> 认错地图 -> 在副本里找万事通找到怪身上 -> 卡死在治疗重试。
         for token in ('单人', '多人', '双人'):
-            if token in target and token not in candidate:
+            if (token in target) != (token in candidate):
                 return False
+        if target.endswith('外') != candidate.endswith('外'):
+            return False
         if target in candidate:
             return True
         if len(target) < 2 or len(candidate) < 2:
