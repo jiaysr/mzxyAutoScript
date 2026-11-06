@@ -18,6 +18,7 @@ class ConfigManual:
         > AncientHunt
         > XianfuJiuchongtian
         > Buzhoushan
+        > FumoShanjian
         > DouXianGe
         > Dungeon
         > SilverGiftBox

@@ -1,0 +1,11 @@
+[
+  {
+    "itemName": "fumo_dialog_options",
+    "roiFront": "526,314,226,213",
+    "roiBack": "526,314,226,213",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "伏魔山涧-伏魔大使对话选项文字区（OCR 定位「进入伏魔涧」并点击）"
+  }
+]

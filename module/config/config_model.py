@@ -29,6 +29,7 @@ from tasks.DouXianGe.config import DouXianGe
 from tasks.SilverGiftBox.config import SilverGiftBox
 from tasks.AutoTask.config import AutoTask
 from tasks.Buzhoushan.config import Buzhoushan
+from tasks.FumoShanjian.config import FumoShanjian
 from tasks.Dungeon.config import Dungeon
 from tasks.WorldTask.config import WorldTask
 
@@ -54,6 +55,7 @@ class ConfigModel(ConfigBase):
     silver_gift_box: SilverGiftBox = Field(default_factory=SilverGiftBox)
     auto_task: AutoTask = Field(default_factory=AutoTask)
     buzhoushan: Buzhoushan = Field(default_factory=Buzhoushan)
+    fumo_shanjian: FumoShanjian = Field(default_factory=FumoShanjian)
     dungeon: Dungeon = Field(default_factory=Dungeon)
     world_task: WorldTask = Field(default_factory=WorldTask)
 

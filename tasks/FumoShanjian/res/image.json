@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "fumo_dialog",
+    "imageName": "res_fumo_dialog.png",
+    "roiFront": "616,108,170,84",
+    "roiBack": "607,96,304,131",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "伏魔山涧-伏魔大使对话弹窗（标题「伏魔大使」+首行「进入伏魔涧后」，用于确认NPC对话已打开）"
+  },
+  {
+    "itemName": "fumo_dialog_confirm",
+    "imageName": "res_fumo_dialog_confirm.png",
+    "roiFront": "806,542,190,62",
+    "roiBack": "760,520,260,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "伏魔山涧-伏魔大使对话框右下角「确定」按钮（与玲珑换宝/迷窟对话框同位置同款，实测像素一致）"
+  }
+]
