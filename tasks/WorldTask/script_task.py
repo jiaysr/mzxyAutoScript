@@ -153,7 +153,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     CAMP_YANDI = 'yandi'
     CAMP_SPAWNS = {
         CAMP_HUANGDI: (56, 60),
-        CAMP_YANDI: (327, 363),
+        CAMP_YANDI: (439, 384),
     }
     CAMP_SPAWN_TOLERANCE = 45        # 出生点判定容差（走路会有点偏差）
 
@@ -161,7 +161,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     GLORY_TASK = '为了荣耀'
     GLORY_VARIANTS = {
         # 阵营: (目标名, 打架位, 小地图锚点角, 小地图点位规则名)
-        CAMP_HUANGDI: ('炎帝守门人', (400, 316), 'bottom_right', 'glory_huangdi'),
+        CAMP_HUANGDI: ('炎帝守门人', (327, 363), 'bottom_right', 'glory_huangdi'),
         CAMP_YANDI: ('黄帝守门人', (90, 128), 'top_left', 'glory_yandi'),
     }
     # 不知道自己是哪个阵营时，每个变体给多少秒去「锁到目标」，锁不到就换另一个

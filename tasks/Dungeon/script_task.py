@@ -110,4 +110,4 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     t = ScriptTask(config, device)
-    t.device.click(315,325)  # 先点一下，避免被悬浮窗挡住
+    t.device.click(626,385)  # 先点一下，避免被悬浮窗挡住
