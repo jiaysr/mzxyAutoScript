@@ -102,6 +102,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
     ACTIVITY_TASK_TAB = '跨服任务'
     # 进图后右上角的地点名
     WORLD_PEAK_LOCATION = '世界之巅'
+    # 两个 NPC（世界之巅守门人 / 世界之巅任务榜）所在地图：游戏里固定是域外灵岛，
+    # 不做成配置项（以前配错地图只会让脚本白传送、找不到 NPC）
+    WORLD_TASK_MAP = '域外灵岛'
 
     # 世界之巅里的「采集类」任务：任务名 -> 点「寻路」后人物走到的完成点坐标
     # 三个任务玩法一样（锁定采集物 -> 点动作按钮 -> 采完继续），只是完成点不同
@@ -139,8 +142,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         ('世界印记', 'gather'),
         ('世界之心', 'drop'),
     )
-    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务（任意怪都会掉，包括为了荣耀的守门人）
-    DROP_FARM_TASK = '为了荣耀'      # 刷掉落就用为为了荣耀的点（守门人一直有，任务做完也照样掉）
+    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务（任意怪都会掉）
+    # 刷掉落借哪个打怪任务的位置：配置 world_task_config.drop_farm_task（默认为了荣耀）
     DROP_FARM_SECONDS = 90           # 每轮刷多久（一轮结束才查提示，不用频繁中断）
     DROP_FARM_TIMEOUT = 3600         # 保险：连续刷这么久还没掉就今天收工（1 小时）
 
@@ -164,8 +167,10 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         CAMP_HUANGDI: ('炎帝守门人', (327, 363), 'bottom_right', 'glory_huangdi'),
         CAMP_YANDI: ('黄帝守门人', (90, 128), 'top_left', 'glory_yandi'),
     }
-    # 不知道自己是哪个阵营时，每个变体给多少秒去「锁到目标」，锁不到就换另一个
-    GLORY_PROBE_LOCK_TIMEOUT = 25
+    # 不知道自己是哪个阵营时：每个点位给多久去确认「守门人能不能打」。
+    # 只锁目标、不放技能 —— 两只守门人里只有对家的能锁成「攻击」，
+    # 哪边可打就说明自己是另一个阵营，不用像以前那样先打 25 秒再看结果。
+    GLORY_PROBE_TIMEOUT = 10
 
     # 要接的跨服任务（列表里的先后顺序）
     # 接过的任务会被游戏移到列表末尾，所以「每次接第一行」就能按这个顺序接完
@@ -193,41 +198,16 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         # tab 名 -> 上次 OCR 到的坐标（切过 tab 没滑过 tab 条时，切别的 tab 直接点，省一次 900ms 的 OCR）
         self._tab_positions: dict = {}
 
-    # 黑屏判定：真机出现过「游戏已经黑屏，脚本还在点」的情况
-    BLACK_MEAN_MAX = 6.0
-    BLACK_STRIKES = 5
-
-    def check_screen_alive(self) -> None:
-        """
-        画面连续全黑 = 游戏崩了/闪退：抛 GameNotRunningError
-
-        调度器收到 GameNotRunningError 会安排 Restart 拉起游戏、并把本任务重新排上，
-        比对着黑屏继续点、把时间全耗掉强。
-        """
-        image = self.device.image
-        if image is None:
-            return
-        try:
-            mean = float(image.mean())
-        except Exception:  # noqa: BLE001 - 拿不到图就别拦
-            return
-        if mean <= self.BLACK_MEAN_MAX:
-            self._black_strikes = getattr(self, '_black_strikes', 0) + 1
-            logger.warning(f'画面接近全黑（亮度 {mean:.1f}，连续 {self._black_strikes}/{self.BLACK_STRIKES} 次）')
-            if self._black_strikes >= self.BLACK_STRIKES:
-                raise GameNotRunningError('画面连续全黑，游戏可能已经崩溃')
-        else:
-            self._black_strikes = 0
-
     def screenshot(self):
         """
         截图 + （监测开着时）跑一遍任务完成提示监测
 
         提示是**最顶层弹窗**（任何界面都盖在上面），但只在左下角聊天行停留 1.5 秒，
         所以挂在每次截图上、并在点完「接取」后连拍 2 秒，才不会漏。
+
+        黑屏检测已经收到 `BaseTask.screenshot()` 里（所有任务共用），这里不用再查。
         """
         image = super().screenshot()
-        self.check_screen_alive()
         if self.task_monitor.enabled:
             for name in self.task_monitor.detect(image):
                 if name not in self.completed_tasks:
@@ -696,28 +676,50 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         # 没有可交付的也算完成：重跑时不会因为「已经交完」而反复失败
         return True
 
-    def close_task_board(self, timeout: float = 12) -> bool:
+    def task_board_open(self, image=None) -> bool:
+        """
+        任务榜对话框还开着没有
+
+        先看模板（4ms），模板认不到再用标题 OCR 兜底：真机 2026-11-06 09:37 收尾时
+        `I_NPC_DELIVER_DIALOG` 只匹配到 0.746（阈值 0.8）—— 面板位置会随列表行数有
+        1~3px 位移，模板对这种位移很敏感，只靠模板就会把开着的对话框当已关闭。
+        """
+        if image is None:
+            self.screenshot()
+            image = self.device.image
+        if self.I_NPC_DELIVER_DIALOG.match(image) or self.I_NPC_GATE_DIALOG.match(image):
+            return True
+        title = self.O_DELIVER_TASK_TITLE.ocr_single_line(image)
+        if '任务榜' in (title or ''):
+            return True
+        # 交付详情页盖在列表上时也算「没关完」：那里标题是任务名，用「任务奖励」标记判断
+        detail = ''.join(item.ocr_text for item in
+                         self.O_DELIVER_DETAIL.detect_and_ocr(image, logDisplay=False))
+        return '任务奖励' in detail
+
+    def close_task_board(self, timeout: float = 15, clean_needed: int = 3) -> bool:
         """
         交付完把任务榜对话框**确认关掉**
 
         不能「看一眼没有对话框就算关了」：交付过程中每交一个都会弹「奖励」浮层，
         全局弹窗处理虽然会关掉它，但截图的那一瞬可能正好被浮层盖着，
-        于是误判成已关闭、把对话框留在屏幕上（真机 23:31:55 就是这样收尾的）。
-        所以要求**连续两次**看在任务榜不在，中间留时间让浮层/动画过去。
+        于是误判成已关闭、把对话框留在屏幕上（真机 2026-11-06 09:37 就是这样收尾的：
+        模板 0.746 没认出来 -> 一次都没点 X -> 对话框留在屏幕上 5 分钟）。
+        所以：模板认不到再用标题 OCR，并且要求**连续多次**看在任务榜不在。
         """
         clean_checks = 0
         timer = Timer(timeout).start()
         while not timer.reached():
             # screenshot 同时会触发全局弹窗清理（奖励浮层、人机验证等）
-            self.screenshot()
-            if self.npc_dialog() is not None:
+            image = self.screenshot()
+            if self.task_board_open(image=image):
                 clean_checks = 0
                 logger.info('关上任务榜对话框')
                 if self.appear_then_click(self.I_CLOSE_X_GREEN, interval=0.4):
                     self.device.click_record_clear()
             else:
                 clean_checks += 1
-                if clean_checks >= 2:
+                if clean_checks >= clean_needed:
                     logger.info('任务榜对话框已关闭')
                     return True
             self.device.sleep(0.6)
@@ -772,15 +774,20 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return self.run_glory_task()
         raise ValueError(f'Unknown task kind [{kind}] for [{name}]')
 
+    def drop_farm_task(self) -> str:
+        """世界之心刷掉落借哪个打怪任务的位置（配置项，默认为了荣耀）"""
+        task = self.config.world_task.world_task_config.drop_farm_task
+        return str(getattr(task, 'value', task) or '')
+
     def ensure_drop_task(self, drop_done: bool = False) -> bool:
         """
-        世界之心是**打怪掉落**：所有任务做完还没掉到，就一直刷「为了荣耀」的点直到掉出来
+        世界之心是**打怪掉落**：所有任务做完还没掉到，就一直刷直到掉出来
 
-        真机确认（2026-11-05）：
-        - 世界之巅里击败**任何**怪物都有概率掉世界之心；
-        - 「为了荣耀」的守门人任务做完之后照样能打、照样掉，所以拿它当刷怪点最稳。
+        真机确认（2026-11-05）：世界之巅里击败**任何**怪物都有概率掉世界之心，
+        所以刷哪个点都行 —— 用配置 `drop_farm_task` 指定（为了荣耀 / 兽毛之争 / 黄金比例），
+        默认「为了荣耀」：守门人一直有，任务做完也照样能打。
 
-        所以这里**不看任务状态、也不设轮数**：一轮一轮打（每轮 `DROP_FARM_SECONDS` 秒），
+        这里**不看任务状态、也不设轮数**：一轮一轮打（每轮 `DROP_FARM_SECONDS` 秒），
         直到监测到「世界之心已完成」的提示为止；1 小时还没掉才收工（保险，避免无限刷）。
 
         :param drop_done: 任务页里显示已经完成了（重跑时省掉无谓的刷怪）
@@ -789,11 +796,12 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.info(f'{self.DROP_TASK} 已经完成了')
             return True
 
+        farm_task = self.drop_farm_task()
         timer = Timer(self.DROP_FARM_TIMEOUT).start()
         rounds = 0
         while not timer.reached():
             rounds += 1
-            logger.info(f'{self.DROP_TASK} 还没掉到，去 [{self.DROP_FARM_TASK}] 的点刷怪'
+            logger.info(f'{self.DROP_TASK} 还没掉到，去 [{farm_task}] 的点刷怪'
                         f'（第 {rounds} 轮，每轮 {self.DROP_FARM_SECONDS:.0f}s）')
             self.farm_for_drop()
             if self.task_completed(self.DROP_TASK):
@@ -805,33 +813,48 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
     def farm_for_drop(self, seconds: float = None) -> None:
         """
-        去「为了荣耀」的点打守门人，只为刷「世界之心」掉落
+        去配置的打怪任务点位打一段时间，只为刷「世界之心」掉落
 
-        为了荣耀本身完成与否都不影响掉落，所以这里不走 run_fight_task（那个看到完成就跳过），
-        直接按阵营点位走过去打一段时间。
+        任务本身完成与否都不影响掉落，所以这里不走 run_fight_task（那个看到完成就跳过），
+        直接按点位走过去打一段时间。为了荣耀要按阵营选点位，其它打怪任务用固定刷新点。
 
         :param seconds: 这一轮打多久（默认 DROP_FARM_SECONDS）
         """
         seconds = self.DROP_FARM_SECONDS if seconds is None else seconds
-        camp = getattr(self, 'camp', None) or self.detect_camp()
-        candidates = [camp] if camp else list(self.GLORY_VARIANTS)
-        if not camp:
-            logger.info('阵营未知，两个阵营的点位都试一下')
+        task = self.drop_farm_task()
+        if task == self.GLORY_TASK:
+            self.farm_for_drop_glory(seconds)
+            return
 
-        for candidate in candidates:
-            target, position, corner, rule_key = self.GLORY_VARIANTS[candidate]
-            logger.hr(f'刷 {self.DROP_TASK}：{candidate} 阵营，打 {seconds:.0f}s 的 [{target}]',
-                      level=2)
-            if not self.fight_goto_point(self.DROP_FARM_TASK, position, corner,
-                                         rule_key=rule_key):
-                logger.warning(f'去 {candidate} 阵营的刷怪点失败')
-                continue
-            self.fight_until_complete(
-                self.DROP_TASK, target, position, corner, rule_key=rule_key,
-                timeout=seconds,
-                lock_timeout=None if camp else self.GLORY_PROBE_LOCK_TIMEOUT)
-            if camp or self.task_completed(self.DROP_TASK):
-                break           # 阵营已知就只打自己那个点
+        rows = {row[0]: row for row in self.FIGHT_TASKS}
+        row = rows.get(task)
+        if row is None:
+            logger.warning(f'世界之心刷怪点配置的 [{task}] 不是打怪任务，跳过本轮')
+            return
+        _name, target, position, corner = row
+        logger.hr(f'刷 {self.DROP_TASK}：{task} 的点，打 {seconds:.0f}s 的 [{target}]', level=2)
+        if not self.fight_goto_point(task, position, corner):
+            logger.warning(f'去 [{task}] 的刷新点失败')
+            return
+        self.fight_until_complete(self.DROP_TASK, target, position, corner,
+                                  rule_key=task, timeout=seconds)
+
+    def farm_for_drop_glory(self, seconds: float) -> None:
+        """为了荣耀点位刷掉落：阵营未知时先探阵营，再按对应点位打一段"""
+        camp = getattr(self, 'camp', None) or self.detect_camp()
+        if camp is None:
+            camp = self.probe_camp()
+        if camp is None:
+            logger.warning('两个阵营的守门人都不是可攻击目标，这轮刷不了')
+            return
+
+        target, position, corner, rule_key = self.GLORY_VARIANTS[camp]
+        logger.hr(f'刷 {self.DROP_TASK}：{camp} 阵营，打 {seconds:.0f}s 的 [{target}]', level=2)
+        if not self.fight_goto_point(self.GLORY_TASK, position, corner, rule_key=rule_key):
+            logger.warning(f'去 {camp} 阵营的刷怪点失败')
+            return
+        self.fight_until_complete(self.DROP_TASK, target, position, corner,
+                                  rule_key=rule_key, timeout=seconds)
 
     def ensure_world_peak_map(self, timeout: float = 40) -> bool:
         """
@@ -1404,8 +1427,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         为了荣耀：和打怪任务同一套流程，只是按阵营换「目标 / 打架位 / 小地图点位」
 
-        阵营未知（比如中途重跑、人早就不在出生点了）时两个点位都试一遍：
-        每个点位给 `GLORY_PROBE_LOCK_TIMEOUT` 秒，锁不到目标就换另一个。
+        阵营未知（比如中途重跑、人早就不在出生点了）时先「探阵营」：
+        两个点位各去一次、只锁目标不放技能 —— 自己阵营的守门人是**不可攻击**的，
+        对家的守门人才能锁成「攻击」，哪边可打就是哪个阵营，不用先白打 25 秒。
         """
         logger.hr(f'世界任务：{self.GLORY_TASK}')
         if self.task_completed(self.GLORY_TASK):
@@ -1413,23 +1437,49 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return True
 
         camp = getattr(self, 'camp', None) or self.detect_camp()
-        if camp is not None:
-            return self.run_glory_variant(camp)
+        if camp is None:
+            logger.warning('不知道自己属于哪个阵营，去两个点位确认哪只守门人可攻击')
+            camp = self.probe_camp()
+        if camp is None:
+            logger.warning('两个点位都没有可攻击的守门人，为了荣耀先跳过')
+            return False
+        return self.run_glory_variant(camp)
 
-        logger.warning('不知道自己属于哪个阵营，两个点位都试一遍')
+    def probe_camp(self):
+        """
+        阵营未知时探一次：两个点位各去看一眼守门人能不能打
+
+        只看「锁到目标 + 动作按钮是攻击」，不放技能、不开打；
+        哪边可打说明那是对家的守门人，自己就是另一个阵营。
+        :return: CAMP_HUANGDI / CAMP_YANDI；两边都不可打返回 None
+        """
         for candidate in self.GLORY_VARIANTS:
-            if self.run_glory_variant(candidate, lock_timeout=self.GLORY_PROBE_LOCK_TIMEOUT):
+            if self.probe_glory_variant(candidate):
                 self.camp = candidate
-                return True
-        logger.warning('两个阵营的点位都没打成')
-        return False
+                logger.attr('阵营', candidate)
+                return candidate
+        return None
 
-    def run_glory_variant(self, camp: str, lock_timeout: float = None) -> bool:
+    def probe_glory_variant(self, camp: str) -> bool:
+        """去该阵营的点位，确认对应守门人是不是「可攻击」目标"""
+        target, position, corner, rule_key = self.GLORY_VARIANTS[camp]
+        logger.info(f'探阵营：去 {camp} 点位 {position}，看 [{target}] 能不能打')
+        if not self.fight_goto_point(self.GLORY_TASK, position, corner, rule_key=rule_key):
+            logger.warning(f'{camp} 点位的刷新点走不到')
+            return False
+        if not self.ui_ensure_target_locked(target_name=target, max_switch=3,
+                                           timeout=self.GLORY_PROBE_TIMEOUT):
+            logger.info(f'{camp} 点位没锁到可攻击的 [{target}]，不是这个阵营')
+            return False
+        logger.info(f'{camp} 点位的 [{target}] 可攻击')
+        return True
+
+    def run_glory_variant(self, camp: str) -> bool:
         """按阵营打对应的守门人"""
         target, position, corner, rule_key = self.GLORY_VARIANTS[camp]
         logger.info(f'为了荣耀：{camp} 阵营 -> 目标 [{target}] 打架位 {position}（{corner}）')
         return self.run_fight_task(self.GLORY_TASK, target, position, corner,
-                                   rule_key=rule_key, lock_timeout=lock_timeout)
+                                   rule_key=rule_key)
 
     # ---------------------------------------------------------------- 进入世界之巅
     def enter_world_peak(self, timeout: float = 40) -> bool:
@@ -1919,12 +1969,23 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         当前屏幕上是哪个 NPC 的对话框
 
+        模板对面板位置敏感（同 `task_board_open`：同一个面板会因列表行数有 1~3px 位移，
+        `I_NPC_DELIVER_DIALOG` 实测会从 1.0 掉到 0.746），所以模板都不命中时再兜底：
+        守门人看对话里的「查看世界之巅活动」选项行，任务榜看标题 OCR「世界之巅任务榜」。
+        这块 OCR 只有 ~17ms（rec-only 小区域），不会拖慢等对话框的轮询。
+
         :return: NPC 名称；都不是返回 None
         """
         self.maybe_screenshot()
+        image = self.device.image
         for npc in (self.NPC_GATE, self.NPC_DELIVER):
-            if self.appear(self.npc_template(npc)):
+            if self.npc_template(npc).match(image):
                 return npc
+        if self.I_NPC_GATE_OPTION.match(image):
+            return self.NPC_GATE
+        title = self.O_DELIVER_TASK_TITLE.ocr_single_line(image)
+        if '任务榜' in (title or ''):
+            return self.NPC_DELIVER
         return None
 
     def minimap_top_right(self) -> bool:
@@ -2081,11 +2142,12 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         """
         判断当前所在地图：不在 NPC 所在地图就传送过去
 
-        :param name: 目标地图，默认取配置 world_task_config.location
+        NPC 固定在域外灵岛（`WORLD_TASK_MAP`），不做成配置项：游戏里就那一张图，
+        配错了只会白传送一趟、还是找不到 NPC。
+        :param name: 目标地图，默认 `WORLD_TASK_MAP`
         :return: 已经在目标地图（或传送成功）返回 True
         """
-        if name is None:
-            name = self.config.world_task.world_task_config.location
+        name = name or self.WORLD_TASK_MAP
         location = self.read_location()
         if location is None:
             # 读不出来：按「大概率已经在」处理，继续往下走（找 NPC 失败会重试并暴露问题），
