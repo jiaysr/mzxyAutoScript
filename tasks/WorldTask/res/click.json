@@ -12,12 +12,6 @@
     "description": "小地图上的交付 NPC（世界之巅任务榜）：点它开交付列表"
   },
   {
-    "itemName": "enter_world_peak",
-    "roiFront": "540,552,200,48",
-    "roiBack": "500,530,300,90",
-    "description": "世界之巅 tab 里的「进入世界之巅」按钮"
-  },
-  {
     "itemName": "fight_beast_point",
     "roiFront": "455,407,1,1",
     "roiBack": "455,407,1,1",

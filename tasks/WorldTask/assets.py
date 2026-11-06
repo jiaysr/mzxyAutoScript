@@ -15,8 +15,6 @@ class WorldTaskAssets:
 	C_NPC_GATE_POINT = RuleClick(roi_front=(674,153,14,19), roi_back=(631,118,100,100), name="npc_gate_point")
 	# 小地图上的交付 NPC（世界之巅任务榜）：点它开交付列表 
 	C_NPC_DELIVER_POINT = RuleClick(roi_front=(703,129,26,25), roi_back=(637,115,100,100), name="npc_deliver_point")
-	# 世界之巅 tab 里的「进入世界之巅」按钮 
-	C_ENTER_WORLD_PEAK = RuleClick(roi_front=(540,552,200,48), roi_back=(500,530,300,90), name="enter_world_peak")
 	# 兽毛之争：小地图视口在右下角时的野怪刷新点（精确到点，点完人物自动走过去） 
 	C_FIGHT_BEAST_POINT = RuleClick(roi_front=(455,407,1,1), roi_back=(455,407,1,1), name="fight_beast_point")
 	# 黄金比例：小地图视口在左上角时的野怪刷新点（精确到点，点完人物自动走过去） 
@@ -42,6 +40,8 @@ class WorldTaskAssets:
 	I_BONUS_PROMO_CLOSE = RuleImage(roi_front=(943,218,34,37), roi_back=(900,200,140,110), threshold=0.85, method="Template matching", file="./tasks/WorldTask/res/res_bonus_promo_close.png")
 	# 左下角聊天栏「[系]任务」前缀（任务完成提示的第一级过滤） 
 	I_TASK_COMPLETE_PREFIX = RuleImage(roi_front=(0,679,97,27), roi_back=(0,679,638,37), threshold=0.9, method="Template matching", file="./tasks/WorldTask/res/task_complete_prefix.png")
+	# 世界之巅活动首页（世界之巅 / 周末限时）中央的「进入世界之巅」按钮
+	I_ENTER_WORLD_PEAK = RuleImage(roi_front=(529,556,226,47), roi_back=(513,525,253,104), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_enter_world_peak.png")
 
 
 	# Ocr Rule Assets

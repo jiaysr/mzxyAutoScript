@@ -7,7 +7,8 @@
 用「人物坐标有没有变化」判断这一下点没点中（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC
 → 在守门人对话里点「查看世界之巅活动」→ 活动弹窗打开 → 切到「跨服任务」tab
 → 按顺序接 7 个任务（接过的会被游戏移到列表末尾，所以每次接第一行）
-→ 切回「世界之巅」tab 点「进入世界之巅」→ 等右上角地点变成「世界之巅」
+→ 切回活动首页 tab（工作日「世界之巅」/ 周六周日「周末限时」）点「进入世界之巅」
+→ 等右上角地点变成「世界之巅」
 → 任务页里逐个做采集类任务（木料之争 / 世界之巅 / 世界印记）。
 其余任务、重启回岛、交付后面接着补。
 
@@ -22,9 +23,11 @@
 
 游戏里的页面链路（2026-11-05 录制，见 tasks/WorldTask/res/）：
     守门人对话（I_NPC_GATE_DIALOG）→「查看世界之巅活动」选项行（I_NPC_GATE_OPTION）→ 世界之巅活动弹窗
-    →「世界之巅」tab 有黄帝立绘（I_ACTIVITY_PANEL）→「跨服任务」tab（O_ACTIVITY_TAB_BAR 读 tab 名，S_ACTIVITY_TAB_SWIPE 滑 tab 条）
+    → 活动首页 tab（工作日「世界之巅」/ 周六周日「周末限时」）有黄帝立绘（I_ACTIVITY_PANEL）
+      →「跨服任务」tab（O_ACTIVITY_TAB_BAR 读 tab 名，S_ACTIVITY_TAB_SWIPE 滑 tab 条）
     → 任务列表：左边任务名（O_TASK_PAGE_LIST），右边每行一个「接取」按钮（I_ACCEPT_LIST_PAGE）
-    活动时间：每周星期一到星期五 9:00-24:00（与 schedule.py 的窗口一致）
+    活动时间：工作日「世界之巅」、周六周日「周末限时」，均为 9:00-24:00
+    （与 schedule.py 的窗口一致）
 
 接取时的加量推广弹窗（I_BONUS_PROMO_CLOSE / O_BONUS_PROMO_BODY）：
     点「接取」会弹「当前任务加量功能未激活…」，它盖在列表上会吞掉后续点击。
@@ -94,10 +97,14 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
     # 世界之巅活动弹窗顶部 tab：按顺序登记，用来判断该往哪个方向翻
     # 目前流程只用得到前两个（世界之巅 = 活动主页 / 跨服任务 = 接取列表）
+    # 注意：周六/周日的前两个 tab 会交换位置（周末限时 / 世界之巅），
+    # 首页不能按固定序号找，见 activity_home_tabs()
     ACTIVITY_TABS = ('世界之巅', '周末限时', '跨服任务', '灭世铸烬',
                      '荣誉商店', '荣耀币商店', '玩法说明')
-    # 世界之巅是第一个 tab：弹窗停在上次的 tab 时，只能往左翻回来
+    # 工作日活动首页
     ACTIVITY_HOME_TAB = '世界之巅'
+    # 周六/周日活动首页：页面和「进入世界之巅」按钮与世界之巅一致，只是名字不同
+    ACTIVITY_WEEKEND_TAB = '周末限时'
     # 世界任务所在 tab
     ACTIVITY_TASK_TAB = '跨服任务'
     # 进图后右上角的地点名
@@ -441,8 +448,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if not self.open_activity_panel():
             logger.warning('世界之巅活动弹窗没打开')
             return False
-        # 接取只需要「跨服任务」这一个 tab：直接切过去，不再先回世界之巅（省一次切 tab + OCR）。
-        # 进世界之巅的阶段再用 ensure_activity_tab(ACTIVITY_HOME_TAB) 归位。
+        # 接取只需要「跨服任务」这一个 tab：直接切过去，不再先回活动首页（省一次切 tab + OCR）。
+        # 进世界之巅的阶段再用 ensure_activity_home_tab() 归位（工作日世界之巅 / 周末周末限时）。
         if not self.switch_tab(self.ACTIVITY_TASK_TAB):
             logger.warning(f'没切到 tab [{self.ACTIVITY_TASK_TAB}]')
             return False
@@ -1482,9 +1489,60 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                                    rule_key=rule_key)
 
     # ---------------------------------------------------------------- 进入世界之巅
+    def expected_activity_home_tab(self) -> str:
+        """当前日期能进图的首页：周六周日=周末限时，周一到周五=世界之巅"""
+        if datetime.now().weekday() >= 5:
+            return self.ACTIVITY_WEEKEND_TAB
+        return self.ACTIVITY_HOME_TAB
+
+    def activity_home_tabs(self) -> tuple:
+        """首页 tab 尝试顺序：当前日期对应的优先，另一个只作兜底"""
+        expected = self.expected_activity_home_tab()
+        other = (self.ACTIVITY_WEEKEND_TAB if expected == self.ACTIVITY_HOME_TAB
+                 else self.ACTIVITY_HOME_TAB)
+        return expected, other
+
+    def enter_world_peak_visible(self, refresh: bool = True) -> bool:
+        """
+        当前页有没有「进入世界之巅」按钮（= 停在能进图的那个首页）
+
+        周六周日只有「周末限时」有按钮；周一到周五只有「世界之巅」有按钮。
+        不能用 I_ACTIVITY_PANEL 判断：另一个 tab 的页面也可能有同样的立绘，
+        但那里没有进入按钮，点了也不会进图。
+        """
+        if refresh:
+            self.maybe_screenshot()
+        image = getattr(self.device, 'image', None)
+        if image is None:
+            return False
+        return self.I_ENTER_WORLD_PEAK.match(image)
+
+    def ensure_activity_home_tab(self) -> bool:
+        """
+        确保停在当前日期能进图的首页：周一到周五「世界之巅」，周六周日「周末限时」
+        """
+        if self.enter_world_peak_visible():
+            logger.info('Activity enter button is showing')
+            return True
+
+        # 先切到当前日期对应的首页；另一个只在兜底时试（防止日期/UI 判断偏差）
+        for name in self.activity_home_tabs():
+            coord = self.find_tab(name)
+            if coord is not None:
+                logger.info(f'Click activity home tab [{name}]')
+                self.click_tab(name, coord)
+            elif not self.switch_tab(name):
+                continue
+            if self.enter_world_peak_visible(refresh=False):
+                return True
+
+        logger.warning('世界之巅 / 周末限时 的「进入世界之巅」按钮都没找到')
+        return False
+
     def enter_world_peak(self, timeout: float = 40) -> bool:
         """
-        在世界之巅 tab 里点「进入世界之巅」-> 等右上角地点变成「世界之巅」
+        在当前日期能进图的首页（工作日世界之巅 / 周六周日周末限时）
+        点「进入世界之巅」-> 等右上角地点变成「世界之巅」
 
         :return: 已经在该地图里返回 True
         """
@@ -1492,14 +1550,16 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if self.map_in_location(self.WORLD_PEAK_LOCATION):
             logger.info('已经在世界之巅地图里')
             return True
-        if not self.ensure_activity_tab(self.ACTIVITY_HOME_TAB):
-            logger.warning(f'没回到 [{self.ACTIVITY_HOME_TAB}] tab')
-            return False
 
         for attempt in (1, 2):
-            x, y = self.C_ENTER_WORLD_PEAK.coord()
-            logger.info(f'Click 进入世界之巅 at ({x},{y}) (attempt {attempt})')
-            self.device.click(x=x, y=y, control_name=self.C_ENTER_WORLD_PEAK.name)
+            if not self.ensure_activity_home_tab():
+                logger.warning('没回到 [世界之巅 / 周末限时] 首页 tab')
+                return False
+
+            logger.info(f'Click 进入世界之巅 (attempt {attempt})')
+            if not self.appear_then_click(self.I_ENTER_WORLD_PEAK):
+                logger.warning('进入世界之巅按钮不见了，重试')
+                continue
             self.device.click_record_clear()
 
             # 进图要过读条，期间地点读不出来是正常的，所以别让卡死检测误报
@@ -1532,10 +1592,11 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         # 记下位置：同一套 tab 布局下再切 tab 就不用重新 OCR 了
         positions = getattr(self, '_tab_positions', None)
         if positions is not None:
+            tab_order = self.activity_tab_order()
             for text, x, y in items:
                 index = self.tab_index(text)
                 if index >= 0:
-                    positions[self.ACTIVITY_TABS[index]] = (x, y)
+                    positions[tab_order[index]] = (x, y)
         return items
 
     def close_activity_panel(self, timeout: float = 8) -> bool:
@@ -1786,8 +1847,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
     def tab_signature(self) -> tuple:
         """已知 tab 的 (文本, x)，用来判断 tab 条到底了没（OCR 噪声项不算）"""
+        known_tabs = self.activity_tab_order()
         return tuple((text, x) for text, x, _ in self.tab_items()
-                     if any(self.ocr_name_match(text, tab) for tab in self.ACTIVITY_TABS))
+                     if any(self.ocr_name_match(text, tab) for tab in known_tabs))
 
     def click_tab(self, name: str, coord=None) -> bool:
         """点 tab：切过去之后等画面稳定"""
@@ -1803,9 +1865,22 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         self.screenshot()
         return True
 
+    def activity_tab_order(self) -> tuple:
+        """
+        当前 tab 条的真实顺序
+
+        周六/周日前两个 tab 会交换（周末限时 / 世界之巅），
+        其余 tab 顺序不变；按序号判断翻页方向时要用这份顺序。
+        """
+        if datetime.now().weekday() >= 5:
+            home = (self.ACTIVITY_WEEKEND_TAB, self.ACTIVITY_HOME_TAB)
+        else:
+            home = (self.ACTIVITY_HOME_TAB, self.ACTIVITY_WEEKEND_TAB)
+        return home + tuple(tab for tab in self.ACTIVITY_TABS if tab not in home)
+
     def tab_index(self, name: str) -> int:
-        """tab 在 ACTIVITY_TABS 里的序号；认不出来返回 -1"""
-        for index, tab in enumerate(self.ACTIVITY_TABS):
+        """tab 在当前 tab 条里的序号；认不出来返回 -1"""
+        for index, tab in enumerate(self.activity_tab_order()):
             if self.ocr_name_match(name, tab):
                 return index
         return -1
@@ -1868,20 +1943,20 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
     def ensure_activity_tab(self, name: str = None, max_swipe: int = 3) -> bool:
         """
-        确保停在某个 tab 页面（默认世界之巅：活动主页）
+        确保停在某个 tab 页面（默认当前日期的活动首页）
 
-        弹窗会记住上次停在哪个 tab，打开时不一定是世界之巅，所以进弹窗后先归位。
+        弹窗会记住上次停在哪个 tab，打开时不一定是活动首页，所以进弹窗后先归位。
         :return: 已经在该 tab（或切过去了）返回 True
         """
-        name = name or self.ACTIVITY_HOME_TAB
+        name = name or self.expected_activity_home_tab()
         if not self.switch_tab(name, max_swipe=max_swipe):
             return False
-        # 切过去之后用该 tab 的内容特征确认（世界之巅 = 黄帝立绘）
-        if self.tab_index(name) == 0:
+        # 活动首页用「进入世界之巅」按钮模板确认（两个首页长得像，立绘特征不可靠）
+        if name in (self.ACTIVITY_HOME_TAB, self.ACTIVITY_WEEKEND_TAB):
             timer = Timer(6).start()
             while not timer.reached():
                 self.screenshot()
-                if self.appear(self.I_ACTIVITY_PANEL):
+                if self.enter_world_peak_visible(refresh=False):
                     logger.info(f'Activity tab [{name}] is showing')
                     return True
                 if self.find_tab(name) is None and self.activity_panel_open():
@@ -1903,8 +1978,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         if self.appear(self.I_ACTIVITY_PANEL) or self.appear(self.I_ACCEPT_LIST_PAGE):
             return True
         # 切过 tab 之后立绘就没了，改看顶部 tab 条：认出 2 个以上已知 tab 就算开着
+        known_tabs = self.activity_tab_order()
         known = [text for text, _, _ in self.tab_items()
-                 if any(self.ocr_name_match(text, tab) for tab in self.ACTIVITY_TABS)]
+                 if any(self.ocr_name_match(text, tab) for tab in known_tabs)]
         return len(known) >= 2
 
     def open_activity_panel(self, timeout: float = 12) -> bool:

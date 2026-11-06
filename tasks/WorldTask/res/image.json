@@ -61,5 +61,14 @@
     "method": "Template matching",
     "threshold": 0.9,
     "description": "左下角聊天栏「[系]任务」前缀（任务完成提示的第一级过滤）"
+  },
+  {
+    "itemName": "enter_world_peak",
+    "imageName": "res_enter_world_peak.png",
+    "roiFront": "529,556,226,47",
+    "roiBack": "513,525,253,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界之巅活动首页（世界之巅 / 周末限时）中央的「进入世界之巅」按钮"
   }
 ]
