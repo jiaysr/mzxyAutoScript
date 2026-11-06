@@ -43,5 +43,7 @@ class YuwaiMimangAssets:
 	O_INSIDE_LOCATION = RuleOcr(roi=(1080,80,200,45), area=(1080,80,200,45), mode="Full", method="Default", keyword="域外迷窟", name="inside_location")
 	# 域外迷窟-剩余怪物数量文字（读剩余怪物数用） 
 	O_INSIDE_REMAINING_TEXT = RuleOcr(roi=(430,578,260,45), area=(430,578,260,45), mode="Full", method="Default", keyword="剩余怪物数量", name="inside_remaining_text")
+	# NPC对话弹窗-选项区（可滚动）。Full 模式一次读出所有可见选项，由脚本按文字定位「进入域外迷窟」
+	O_NPC_DIALOG_OPTIONS = RuleOcr(roi=(492,319,279,207), area=(492,319,279,207), mode="Full", method="Default", keyword="", name="npc_dialog_options")
 
 

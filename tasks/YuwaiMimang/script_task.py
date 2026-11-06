@@ -3,7 +3,8 @@
 域外迷窟（YuwaiMimang）
 
 流程：传送沼泽 -> 开小地图 -> 右侧 NPC 列表滑动找「迷窟守卫」-> 点击
-     -> 人物自动走到 NPC 处 -> 等对话弹窗 -> 点「进入域外迷窟」-> 进入迷窟地图
+     -> 人物自动走到 NPC 处 -> 等对话弹窗 -> OCR 选项区找「进入域外迷窟」
+     （列表可滚动，找不到会自动上下翻）-> 点文字位置 -> 进入迷窟地图
      -> 锁白名单目标 -> 打怪 -> 时段结束（11:30 / 16:30）后离场
 
 打怪（配置 -> 战斗配置）：
@@ -1040,16 +1041,113 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         logger.warning('NPC dialog does not appear')
         return False
 
+    # NPC 对话选项区滚动：每步距离 / 最多滚多少步 / 拖动时长 / 停稳等待
+    # 选项列表没有惯性，普通 swipe 松手即停；起止点都落在列表内部，避免点到滚动条
+    OPTION_SCROLL_DISTANCE = 140
+    OPTION_SCROLL_MAX = 6
+    OPTION_SCROLL_DURATION = 0.25
+    OPTION_SCROLL_SETTLE = 0.4
+
+    def read_dialog_options(self) -> list[tuple[str, int, int]]:
+        """
+        用 Full 模式 OCR 当前可见的 NPC 对话选项
+
+        :return: [(文字, 屏幕x, 屏幕y)]，坐标是文字框中心，可直接点击
+        """
+        self.screenshot()
+        roi = self.O_NPC_DIALOG_OPTIONS.roi
+        options = []
+        for item in self.O_NPC_DIALOG_OPTIONS.detect_and_ocr(self.device.image, logDisplay=False):
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            xs = [point[0] for point in item.box]
+            ys = [point[1] for point in item.box]
+            x = int((min(xs) + max(xs)) / 2) + roi[0]
+            y = int((min(ys) + max(ys)) / 2) + roi[1]
+            options.append((text, x, y))
+        return options
+
+    @staticmethod
+    def dialog_option_signature(options: list[tuple[str, int, int]]) -> tuple:
+        """当前可见选项的文字签名，用于判断滚动是否已经到顶/到底"""
+        return tuple(sorted(text for text, _, _ in options))
+
+    def scroll_dialog_options(self, down: bool = True) -> bool:
+        """
+        把 NPC 对话选项列表滚动一屏
+
+        :param down: True = 查看下面的选项（内容上移），False = 查看上面的选项
+        :return: 滚动后画面发生变化返回 True；已经到顶/到底返回 False
+        """
+        x0, y0, w, h = self.O_NPC_DIALOG_OPTIONS.roi
+        cx = x0 + w // 2
+        if down:
+            p1 = (cx, y0 + h - 30)
+            p2 = (cx, max(y0 + 30, p1[1] - self.OPTION_SCROLL_DISTANCE))
+        else:
+            p1 = (cx, y0 + 30)
+            p2 = (cx, min(y0 + h - 30, p1[1] + self.OPTION_SCROLL_DISTANCE))
+
+        before = self.dialog_option_signature(self.read_dialog_options())
+        logger.info(f'Scroll dialog options {"down" if down else "up"}: {p1} -> {p2}')
+        self.device.swipe(p1=p1, p2=p2, duration=self.OPTION_SCROLL_DURATION,
+                          control_name='mimang_dialog_option_scroll')
+        self.device.click_record_clear()
+        self.device.sleep(self.OPTION_SCROLL_SETTLE)
+        after = self.dialog_option_signature(self.read_dialog_options())
+        if after == before:
+            logger.info('Dialog options do not scroll any more (reached top/bottom)')
+            return False
+        return True
+
+    def find_dialog_option(self, option: str, retry: int = 2) -> tuple[int, int] | None:
+        """
+        在 NPC 对话选项里找 option 的文字位置（列表可上下滚动）
+
+        先看当前视图；找不到就向下滚到底，再向上滚回顶部，
+        这样无论目标在当前位置的上方还是下方都能覆盖到。
+
+        :param option: 要查找的选项文字（如「进入域外迷窟」）
+        :param retry: 当前视图 OCR 重试次数（防止单帧识别抖动）
+        :return: 文字框中心 (屏幕x, 屏幕y)；找不到返回 None
+        """
+        for attempt in range(1, retry + 1):
+            self.reset_records()
+            options = self.read_dialog_options()
+            logger.info(f'Dialog options: {[text for text, _, _ in options]}')
+            for text, x, y in options:
+                if self.ocr_name_match(text, option):
+                    logger.info(f'Dialog option [{text}] found at ({x},{y})')
+                    return x, y
+            logger.warning(f'Dialog option [{option}] not found in current view '
+                           f'(attempt {attempt}/{retry})')
+            self.device.sleep(0.4)
+
+        for direction, label in ((True, 'down'), (False, 'up')):
+            for step in range(1, self.OPTION_SCROLL_MAX + 1):
+                if not self.scroll_dialog_options(down=direction):
+                    break
+                options = self.read_dialog_options()
+                logger.info(f'Dialog options after scroll {label} {step}: '
+                            f'{[text for text, _, _ in options]}')
+                for text, x, y in options:
+                    if self.ocr_name_match(text, option):
+                        logger.info(f'Dialog option [{text}] found at ({x},{y}) '
+                                    f'after scroll {label} {step}')
+                        return x, y
+        logger.warning(f'Dialog option [{option}] not found after scrolling')
+        return None
+
     def click_enter_mimang(self, enter_text: str, enter_wait: int = 2) -> bool:
-        """点「进入域外迷窟」选项，随后等地图加载"""
+        """OCR 找到「进入域外迷窟」的文字位置并点击，随后等地图加载"""
         logger.hr(f'Click [{enter_text}]')
-        # 先用文字素材确认「进入域外迷窟」这一行存在，再点整行
-        if not self.appear(self.I_NPC_DIALOG_ENTER_TEXT):
+        coord = self.find_dialog_option(enter_text)
+        if coord is None:
             logger.warning(f'Enter option [{enter_text}] does not appear')
             return False
-        x, y = self.C_NPC_DIALOG_ENTER.coord()
-        logger.info(f'Click enter option at ({x},{y})')
-        self.device.click(x=x, y=y, control_name='mimang_enter')
+        logger.info(f'Click enter option at {coord}')
+        self.device.click(x=coord[0], y=coord[1], control_name='mimang_enter')
         self.device.click_record_clear()
         self.device.sleep(max(1, enter_wait))
         return True
@@ -1091,6 +1189,6 @@ if __name__ == '__main__':
     config = Config('oas1')
     device = Device(config)
     try:
-        ScriptTask(config, device).run()
+        ScriptTask(config, device).click_enter_mimang('进入域外迷窟', enter_wait=2)
     except TaskEnd:
         pass
