@@ -17,6 +17,7 @@ from module.atom.swipe import RuleSwipe
 from module.base.timer import Timer
 from module.config.config import Config
 from module.device.device import Device
+from module.exception import GameNotRunningError
 from module.logger import logger
 from module.ocr.base_ocr import OcrMode
 from tasks.Component.config_base import Time
@@ -27,6 +28,35 @@ from typing import Union
 class BaseTask(GlobalGame):
     config: Config = None
     device: Device = None
+
+    # 黑屏判定：真机出现过「游戏已经黑屏/闪退，脚本还对着黑屏一直点」的情况。
+    # 每次截图统计一次，连续这么多次都是接近全黑才认定游戏崩了（截图节流 0.3s，约 1.5 秒）；
+    # 登录/启动流程会长时间黑屏，那些任务把 CHECK_SCREEN_ALIVE 关掉（见 RestartBase）。
+    CHECK_SCREEN_ALIVE = True
+    BLACK_MEAN_MAX = 6.0
+    BLACK_STRIKES = 5
+
+    def check_screen_alive(self) -> None:
+        """
+        画面连续全黑 = 游戏崩了/闪退：抛 GameNotRunningError
+
+        调度器收到 GameNotRunningError 会安排 Restart 拉起游戏、并把本任务重新排上，
+        比对着黑屏继续点、把时间全耗掉强。亮屏一帧就把计数清零。
+        """
+        image = self.device.image
+        if image is None:
+            return
+        try:
+            mean = float(image.mean())
+        except Exception:  # noqa: BLE001 - 拿不到图就别拦
+            return
+        if mean <= self.BLACK_MEAN_MAX:
+            self._black_strikes = getattr(self, '_black_strikes', 0) + 1
+            logger.warning(f'画面接近全黑（亮度 {mean:.1f}，连续 {self._black_strikes}/{self.BLACK_STRIKES} 次）')
+            if self._black_strikes >= self.BLACK_STRIKES:
+                raise GameNotRunningError('画面连续全黑，游戏可能已经崩溃')
+        else:
+            self._black_strikes = 0
 
     folder: str
     name: str
@@ -61,10 +91,12 @@ class BaseTask(GlobalGame):
 
     def screenshot(self):
         """
-        截图，并做全局处理：阵亡检测（复活并重跑）、人机验证答题与已知弹窗清理
+        截图，并做全局处理：黑屏检测、阵亡检测（复活并重跑）、人机验证答题与已知弹窗清理
         :return:
         """
         self.device.screenshot()
+        if self.CHECK_SCREEN_ALIVE:
+            self.check_screen_alive()
         self.handle_death()
         # 人机验证盖在最上层，不解掉什么都做不了，放在弹窗清理前面
         self.handle_captcha()
