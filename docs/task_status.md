@@ -486,8 +486,6 @@
 6. 需要中文名/说明时补 `assets/i18n/zh-CN.json`；
 7. 完成后更新本文档的「状态总览」与对应小节。
 
-详细规范见 [mcp/task_dev_guide.md](mcp/task_dev_guide.md)。
-
 ## 七、更新记录
 
 | 日期 | 变更 |
