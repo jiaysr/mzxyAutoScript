@@ -28,6 +28,7 @@ from tasks.Dungeon.counts import (FIELD_NAMES, config_counts,
 from tasks.Dungeon.runner import DungeonAborted
 from tasks.GameUi.game_ui import GameUi
 from tasks.GameUi.pages.page import page_activity_dungeon, page_main
+from tasks.WorldBoss.assets import WorldBossAssets
 
 
 class DungeonBase(GameUi, DungeonAssets):
@@ -450,7 +451,14 @@ class DungeonBase(GameUi, DungeonAssets):
     def dungeon_click_minimap_target(self, corner: str, click_rule) -> bool:
         """打开小地图、平移到指定角落、点击目标点，然后关掉小地图"""
         if not self.map_open_minimap():
-            return False
+            # 结算/奖励弹窗是模态的，会吃掉小地图入口的点击：2026-11-06 真机
+            # 沙狱[单人] 的沙灵神奖励弹窗就是这样，连点 7 次入口都打不开小地图。
+            # 先把已知弹窗关掉再重试一次，仍打不开才交给调用方。
+            logger.info('Minimap does not open, close result popups and retry')
+            self.dungeon_close_result_popups()
+            self.device.sleep(0.5)
+            if not self.map_open_minimap():
+                return False
         try:
             if not self.map_pan_to_corner(corner,
                                            max_drags=self.DUNGEON_PAN_MAX_DRAGS):
@@ -611,12 +619,18 @@ class DungeonBase(GameUi, DungeonAssets):
             image = self.device.image
         return self.dungeon_finish_visible(image)
 
-    # Boss 击杀奖励弹窗（沙狱[多人]沙灵神等）；子类覆盖这两个规则
+    # Boss 击杀奖励弹窗（「恭喜您成功击败XX获得以下奖励」+ 确定）：
+    # 触发条件是「击杀后掉了贵重物品」，不绑定某个副本或 Boss —— 同一只 Boss 也
+    # 有时弹、有时不弹（沙灵神/幽灵/梦魇兽/守墓人都见到过），所以不能按副本/Boss
+    # 白名单登记，统一用世界首领的归属奖规则在基类默认处理；样式不同的再在子类覆盖。
+    # 2026-11-06 02:31 真机：沙狱[单人]没接这两个规则，沙灵神奖励弹窗一直盖着
+    # 小地图入口 —— 锁敌点不动「目标」、连点 7 次小地图也打不开，最后
+    # 「Unable to walk to boss [舞娘]」-> Run failed，整轮副本（帝玉岭/琉璃）全被跳过。
     def dungeon_boss_reward_rule(self):
-        return None
+        return WorldBossAssets.I_BOSS_REWARD
 
     def dungeon_boss_reward_close_rule(self):
-        return None
+        return WorldBossAssets.C_BOSS_REWARD_CLOSE
 
     def dungeon_boss_reward_visible(self, image=None) -> bool:
         rule = self.dungeon_boss_reward_rule()

@@ -7,10 +7,10 @@
 - 副本内：两个 Boss / 出口
 
 单人/多人只有入口点击不同，内部点位当前按同一套坐标处理；出口只判外地图。
+击杀后掉落贵重物品会弹领奖弹窗，由基类统一用 WorldBoss 的 I_BOSS_REWARD 关闭。
 """
 from module.logger import logger
 from tasks.Dungeon.common import DungeonBase
-from tasks.WorldBoss.assets import WorldBossAssets
 
 
 class DiyulingBase(DungeonBase):
@@ -26,13 +26,6 @@ class DiyulingBase(DungeonBase):
     # （len(name) < 3 直接判不匹配），读错一次就永远锁不上 -> 反复换目标 -> 最后 assume killed。
     # 这里把实测到的两种误读登记成别名，_dungeon_target_names() 会把它们展开进白名单。
     BOSS_NAME_ALIASES = {'沙王': ('沙主', '沙玉')}
-
-    def dungeon_boss_reward_rule(self):
-        # 幽灵有领奖弹窗：复用世界首领的归属奖检测/关闭
-        return WorldBossAssets.I_BOSS_REWARD
-
-    def dungeon_boss_reward_close_rule(self):
-        return WorldBossAssets.C_BOSS_REWARD_CLOSE
 
     def run_once(self) -> bool:
         logger.hr(f'[{self.name}] 完成一次')

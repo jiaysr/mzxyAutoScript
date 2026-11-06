@@ -5,14 +5,13 @@
 入口：沙狱外 -> 小地图视口左下角 -> 点 (479,400,28,30) -> 进入「沙狱[多人]」
 初始坐标：206,107
 Boss：沙灵神 (107,137) -> 舞娘 (240,205)，两个都从小地图视口左上角点过去
-特殊：沙灵神击杀会弹「恭喜您成功击败沙灵神获得以下奖励」，复用 WorldBoss 的
-      I_BOSS_REWARD + C_BOSS_REWARD_CLOSE 关闭
+特殊：击杀后掉落贵重物品会弹「恭喜您成功击败XX获得以下奖励」，由基类统一用
+      WorldBoss 的 I_BOSS_REWARD + C_BOSS_REWARD_CLOSE 关闭（见 DungeonBase）。
 完成：出现「你将在1分钟以后被传出副本」弹窗 -> 关闭 -> 左上角出口 (649,232,27,28)
       回到沙狱外（只判地图，不校验落点）视为完成 1 次
 """
 from module.logger import logger
 from tasks.Dungeon.common import DungeonBase
-from tasks.WorldBoss.assets import WorldBossAssets
 
 
 class ShayuMulti(DungeonBase):
@@ -26,12 +25,6 @@ class ShayuMulti(DungeonBase):
         ('沙灵神', 'shayu_multi_shalingshen', (107, 137)),
         ('舞娘', 'shayu_multi_wuniang', (240, 205)),
     )
-
-    def dungeon_boss_reward_rule(self):
-        return WorldBossAssets.I_BOSS_REWARD
-
-    def dungeon_boss_reward_close_rule(self):
-        return WorldBossAssets.C_BOSS_REWARD_CLOSE
 
     def run_once(self) -> bool:
         logger.hr(f'[{self.name}] 完成一次')
