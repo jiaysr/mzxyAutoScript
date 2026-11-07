@@ -18,16 +18,30 @@ from tasks.base_task import BaseTask
 class TopMenuNavigation(BaseTask, GameUiAssets):
     """右上角菜单（展开/收起 + 菜单图标）导航能力"""
 
+    def menu_icons_visible(self) -> bool:
+        """
+        右上角菜单是否展开（以菜单图标是否可见为准）
+
+        不要用箭头模板判断展开/收起：游戏更新后箭头方向会变，
+        实测**展开状态匹配的是 I_MENU_COLLAPSED**（左箭头），
+        按箭头判断会把已展开的菜单当成收起，反复点开关，
+        最后触发连点保护（GameTooManyClickError）。
+        """
+        return (self.appear(self.I_MENU_BAG_ICON)
+                or self.appear(self.I_ACTIVITY_ICON))
+
     def ui_open_menu(self, timeout: float = 6) -> bool:
         """确保右上角菜单展开（处于收起状态时点击开关展开）"""
         timer = Timer(timeout).start()
         while not timer.reached():
             self.screenshot()
-            if self.appear(self.I_MENU_EXPANDED):
+            # 图标可见 = 菜单已经展开，直接返回，绝不能再点箭头
+            if self.menu_icons_visible():
                 return True
-            if self.appear(self.I_MENU_COLLAPSED):
-                logger.info('Expand top-right menu')
-                self.appear_then_click(self.I_MENU_COLLAPSED, interval=0.5)
+            logger.info('Expand top-right menu')
+            # 箭头方向随版本变化，哪个开关模板命中就点哪个
+            if not self.appear_then_click(self.I_MENU_COLLAPSED, interval=0.5):
+                self.appear_then_click(self.I_MENU_EXPANDED, interval=0.5)
             sleep(0.2)
         logger.warning('Top-right menu not expanded')
         return False

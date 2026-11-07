@@ -48,6 +48,8 @@ _log_switch_lock = threading.Lock()#线程锁
 class Script:
     # 任务因「游戏没运行」被中断时，Restart 拉起后重跑的次数上限（防游戏反复闪退时死循环）
     GAME_NOT_RUNNING_RETRY = 2
+    # 任务因游戏卡住/连点保护被中断时，Restart 后重跑的次数上限
+    GAME_STUCK_RETRY = 2
 
     def __init__(self, config_name: str ='oas') -> None:
         logger.hr('Start', level=0)
@@ -68,6 +70,8 @@ class Script:
         self.anti_ban_guard: AntiBanGuard = AntiBanGuard()
         # 因「游戏没运行」被中断的任务 -> 连续中断次数（见 _handle_game_not_running）
         self.game_not_running_retry = {}
+        # 因游戏卡住/连点保护被中断的任务 -> 连续中断次数（见 _handle_game_stuck）
+        self.stuck_retry = {}
         # 本次 run() 是否被「游戏没运行」中断（用于区分正常结束）
         self.game_not_running_aborted = False
 
@@ -576,6 +580,7 @@ class Script:
             logger.warning('If you are playing by hand, please stop Alas')
             self.config.notifier.push(title=f'{I18n.trans_zh_cn(command)}{command}', content=f"<{self.config_name}> GameStuckError or GameTooManyClickError")
             self.config.task_call('Restart')
+            self._handle_game_stuck(command)
             self.device.sleep(10)
             return False
         except GameBugError as e:
@@ -631,6 +636,27 @@ class Script:
             return
         logger.info(f'Task `{command}` will run again after Restart '
                     f'({retry}/{self.GAME_NOT_RUNNING_RETRY})')
+        self.config.task_call(command)
+
+    def _handle_game_stuck(self, command: str) -> None:
+        """
+        任务因游戏卡住 / 连点保护被中断：Restart 后把本任务重新排上
+
+        和 `_handle_game_not_running` 同理：任务自己的 finally 通常已经按失败间隔
+        把 next_run 排到第二天，只排 Restart 不重排本任务的话，这次就再也不会重试。
+        Restart 排在本任务之前（优先级 0），所以会先重启、再重跑本任务。
+
+        连续中断超过 GAME_STUCK_RETRY 次就放弃，交给调度器的失败三次保护退出。
+        """
+        if command == 'Restart':
+            return
+        retry = self.stuck_retry.get(command, 0) + 1
+        self.stuck_retry[command] = retry
+        if retry > self.GAME_STUCK_RETRY:
+            logger.error(f'Task `{command}` gave up after {retry} game-stuck errors')
+            return
+        logger.info(f'Task `{command}` will run again after Restart '
+                    f'({retry}/{self.GAME_STUCK_RETRY})')
         self.config.task_call(command)
 
     def _ensure_game_running_on_startup(self) -> None:
@@ -739,6 +765,7 @@ class Script:
             if success and not self.game_not_running_aborted:
                 # 正常跑完（不是被「游戏没运行」中断）：清掉该任务的重试计数
                 self.game_not_running_retry.pop(command, None)
+                self.stuck_retry.pop(command, None)
             self.config.model.running_task = ''
             logger.info(f'Scheduler: End task `{task}`')
             self.is_first_task = False
