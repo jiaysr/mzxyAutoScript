@@ -61,6 +61,8 @@ class BaseCor:
     keyword: str = ""  # 默认为空
     color_filter: ColorFilterConfig = None  # 颜色过滤，识别前先二值化
     cache_disable: bool = False  # 置 true 时不使用帧缓存（每次调用都重新识别）
+    # 置 true 时不把识别文本写进日志（账号等敏感文本用）
+    log_disable: bool = False
 
 
     def __init__(self,
@@ -168,8 +170,9 @@ class BaseCor:
         # after proces
         result = self.after_process(result)
         # logger.info("ocr result score: %s%s" % (result,score))
-        logger.attr(name='%s %ss' % (self.name, float2str(time.time() - start_time)),
-                    text=f'[{result}]')
+        if not getattr(self, 'log_disable', False):
+            logger.attr(name='%s %ss' % (self.name, float2str(time.time() - start_time)),
+                        text=f'[{result}]')
         return result
 
     def ocr_single_line(self, image):
@@ -211,8 +214,9 @@ class BaseCor:
         # after proces
         result = self.after_process(result)
         # logger.info("ocr result score: %s" % score)
-        logger.attr(name='%s %ss' % (self.name, float2str(time.time() - start_time)),
-                    text=f'[{result}]')
+        if not getattr(self, 'log_disable', False):
+            logger.attr(name='%s %ss' % (self.name, float2str(time.time() - start_time)),
+                        text=f'[{result}]')
         return result
 
     def _predict(self, image) -> list[BoxedResult]:
@@ -296,7 +300,7 @@ class BaseCor:
                 continue
             result.ocr_text = self.after_process(result.ocr_text)
             results.append(result)
-        if logDisplay:
+        if logDisplay and not getattr(self, 'log_disable', False):
             logger.attr(name='%s %ss' % (self.name, float2str(time.time() - start_time)),
                         text=str([result.ocr_text for result in results]))
         return results
@@ -378,8 +382,9 @@ class BaseCor:
                 continue
             results += result.ocr_text
         # logger.info("ocr result score: %s" % score)
-        logger.attr(name='%s %ss' % (self.name, float2str(time.time() - start_time)),
-                    text=f'[{results}]')
+        if not getattr(self, 'log_disable', False):
+            logger.attr(name='%s %ss' % (self.name, float2str(time.time() - start_time)),
+                        text=f'[{results}]')
         return results
 
 

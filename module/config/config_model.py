@@ -293,6 +293,7 @@ class ConfigModel(ConfigBase):
         is_credential = (task == 'restart' and group == 'login_official_config'
                          and argument in ('account', 'password'))
         is_password = argument == 'password'
+        is_account = argument == 'account'
 
         # pandtic验证
         if not is_credential:
@@ -316,7 +317,7 @@ class ConfigModel(ConfigBase):
                 value = True
             if isinstance(value, str) and value == 'false':
                 value = False
-        log_value = '[REDACTED]' if is_password else value
+        log_value = '[REDACTED]' if is_password or is_account else value
 
         task_object = getattr(self, task, None)
         group_object = getattr(task_object, group, None)
@@ -347,8 +348,8 @@ class ConfigModel(ConfigBase):
             self.save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            # Pydantic 异常包含输入值，密码字段不能直接输出异常。
-            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
+            # Pydantic 异常包含输入值，凭据字段不能直接输出异常。
+            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password or is_account else e)
             return False
 
     def copy_script_task(self, task_name: str, source_task: BaseModel) -> bool:

@@ -51,7 +51,8 @@ class ConfigModify(Config):
         group = convert_to_underscore(group)
         argument = convert_to_underscore(argument)
         is_password = argument == 'password'
-        log_value = '[REDACTED]' if is_password else value
+        is_account = argument == 'account'
+        log_value = '[REDACTED]' if is_password or is_account else value
 
         path = f'{task}.{group}.{argument}'
         task_object = getattr(self.model, task, None)
@@ -65,12 +66,12 @@ class ConfigModify(Config):
         try:
             setattr(group_object, argument, value)
             argument_object = getattr(group_object, argument, None)
-            log_value = '[REDACTED]' if is_password else argument_object
+            log_value = '[REDACTED]' if is_password or is_account else argument_object
             logger.info(f'gui_set_task {task}.{group}.{argument}.{log_value}')
             super().save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            logger.error(f'gui_set_task {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
+            logger.error(f'gui_set_task {task}.{group}.{argument} validation failed [REDACTED]' if is_password or is_account else e)
             return False
 
     def gui_task_list(self) -> str:

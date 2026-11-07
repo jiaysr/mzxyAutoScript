@@ -195,6 +195,7 @@ class Script:
         is_credential = (task == 'restart' and group == 'login_official_config'
                          and argument in ('account', 'password'))
         is_password = argument == 'password'
+        is_account = argument == 'account'
         # pandtic验证
         if not is_credential and isinstance(value, str):
             if len(value) == 8:
@@ -203,7 +204,7 @@ class Script:
                 except ValueError:
                     pass
 
-        log_value = '[REDACTED]' if is_password else value
+        log_value = '[REDACTED]' if is_password or is_account else value
         path = f'{task}.{group}.{argument}'
         task_object = getattr(self.config.model, task, None)
         group_object = getattr(task_object, group, None)
@@ -216,12 +217,12 @@ class Script:
         try:
             setattr(group_object, argument, value)
             argument_object = getattr(group_object, argument, None)
-            log_value = '[REDACTED]' if is_password else argument_object
+            log_value = '[REDACTED]' if is_password or is_account else argument_object
             logger.info(f'Set arg {task}.{group}.{argument}.{log_value}')
             self.config.save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
+            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password or is_account else e)
             return False
 
     @zerorpc.stream
