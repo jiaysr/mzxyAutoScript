@@ -291,6 +291,9 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         :return: {1: 数量, 2: 数量, 3: 数量, 4: 数量}（不存在的碎片按 0）
         """
         logger.hr(f'读背包 {color}仙玉碎片数量（模板定位）')
+        # bag_scan_rule 只负责在当前页面逐屏扫描；这里必须先真正打开背包页，
+        # 否则会对着仙府页/主页面扫，永远命中不了模板（日志里只有「第 N 屏未命中」）。
+        self.bag_open_ready()
         rule_name = self.PICK_RULES.get(color)
         rule = getattr(self, rule_name, None) if rule_name else None
         result = {i: 0 for i in range(1, len(NUMERALS) + 1)}
@@ -671,8 +674,19 @@ if __name__ == '__main__':
 
     config = Config('oas1')
     device = Device(config)
+    task = ScriptTask(config, device)
     try:
-        ScriptTask(config, device).run()
+        # 直接测试：按当前配置的阶段自动打开背包 -> 整理 -> 扫描对应颜色的仙玉碎片
+        stage = int(config.xianfu_jiuchongtian.xianfu_config.stage)
+        color = XIAOGUAN_COLORS[3]
+        logger.attr('测试阶段', f'{stage} -> {color}')
+        counts = task.bag_piece_counts(color)
+        logger.attr(f'测试结果：{color}仙玉碎片数量', counts)
+
+        # 只想测试「找单个物品」时，用下面这行（返回图标中心坐标，None = 没找到）
+        # rule = getattr(task, task.PICK_RULES[color])
+        # coord = task.bag_find_item(f'{color}仙玉碎片一', rule)
+        # logger.attr(f'{color}仙玉碎片一坐标', coord)
     except TaskEnd:
         pass
 
