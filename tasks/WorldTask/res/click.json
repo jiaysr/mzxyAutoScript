@@ -34,5 +34,11 @@
     "roiFront": "315,325,1,1",
     "roiBack": "315,325,1,1",
     "description": "为了荣耀（炎帝阵营）：小地图视口在左上角时，去打黄帝守门人的点位"
+  },
+  {
+    "itemName": "activity_not_open_close",
+    "roiFront": "943,285,44,42",
+    "roiBack": "930,274,73,74",
+    "description": "「活动暂未开启」弹窗的关闭按钮"
   }
 ]

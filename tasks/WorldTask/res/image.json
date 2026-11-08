@@ -70,5 +70,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "世界之巅活动首页（世界之巅 / 周末限时）中央的「进入世界之巅」按钮"
+  },
+  {
+    "itemName": "activity_not_open",
+    "imageName": "res_activity_not_open.png",
+    "roiFront": "534,332,203,60",
+    "roiBack": "497,319,270,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "「活动暂未开启」弹窗（点击进入世界之巅前可能出现，需要先关闭）"
   }
 ]

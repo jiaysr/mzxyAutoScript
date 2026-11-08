@@ -23,6 +23,8 @@ class WorldTaskAssets:
 	C_FIGHT_GLORY_HUANGDI_POINT = RuleClick(roi_front=(626,385,1,1), roi_back=(626,385,1,1), name="fight_glory_huangdi_point")
 	# 为了荣耀（炎帝阵营）：小地图视口在左上角时，去打黄帝守门人的点位 
 	C_FIGHT_GLORY_YANDI_POINT = RuleClick(roi_front=(315,325,1,1), roi_back=(315,325,1,1), name="fight_glory_yandi_point")
+	# 「活动暂未开启」弹窗的关闭按钮
+	C_ACTIVITY_NOT_OPEN_CLOSE = RuleClick(roi_front=(943,285,44,42), roi_back=(930,274,73,74), name="activity_not_open_close")
 
 
 	# Image Rule Assets
@@ -42,6 +44,8 @@ class WorldTaskAssets:
 	I_TASK_COMPLETE_PREFIX = RuleImage(roi_front=(0,679,97,27), roi_back=(0,679,638,37), threshold=0.9, method="Template matching", file="./tasks/WorldTask/res/task_complete_prefix.png")
 	# 世界之巅活动首页（世界之巅 / 周末限时）中央的「进入世界之巅」按钮
 	I_ENTER_WORLD_PEAK = RuleImage(roi_front=(529,556,226,47), roi_back=(513,525,253,104), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_enter_world_peak.png")
+	# 「活动暂未开启」弹窗（点击进入世界之巅前可能出现，需要先关闭）
+	I_ACTIVITY_NOT_OPEN = RuleImage(roi_front=(534,332,203,60), roi_back=(497,319,270,83), threshold=0.8, method="Template matching", file="./tasks/WorldTask/res/res_activity_not_open.png")
 
 
 	# Ocr Rule Assets

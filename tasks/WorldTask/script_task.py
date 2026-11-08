@@ -1539,6 +1539,31 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         logger.warning('世界之巅 / 周末限时 的「进入世界之巅」按钮都没找到')
         return False
 
+    def close_activity_not_open_popup(self, timeout: float = 6) -> bool:
+        """
+        关闭「活动暂未开启」弹窗
+
+        这个弹窗会盖住「进入世界之巅」按钮，必须在点按钮之前清掉；
+        命中模板后点录制的关闭位置，直到模板消失。
+        """
+        self.screenshot()
+        if not self.appear(self.I_ACTIVITY_NOT_OPEN):
+            return True
+        logger.info('Close activity-not-open popup')
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.appear(self.I_ACTIVITY_NOT_OPEN):
+                logger.info('Activity-not-open popup closed')
+                return True
+            if self.appear_then_click(self.I_ACTIVITY_NOT_OPEN,
+                                      action=self.C_ACTIVITY_NOT_OPEN_CLOSE,
+                                      interval=1):
+                self.device.click_record_clear()
+            self.device.sleep(0.4)
+        logger.warning('Activity-not-open popup does not close')
+        return False
+
     def enter_world_peak(self, timeout: float = 40) -> bool:
         """
         在当前日期能进图的首页（工作日世界之巅 / 周六周日周末限时）
@@ -1552,9 +1577,17 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             return True
 
         for attempt in (1, 2):
+            # 「活动暂未开启」弹窗会盖住按钮，先关掉再找首页/按钮
+            if not self.close_activity_not_open_popup():
+                logger.warning('「活动暂未开启」弹窗关不掉，重试')
+                continue
             if not self.ensure_activity_home_tab():
                 logger.warning('没回到 [世界之巅 / 周末限时] 首页 tab')
                 return False
+            # 切 tab 期间也可能弹出来，点按钮前再确认一次
+            if not self.close_activity_not_open_popup():
+                logger.warning('「活动暂未开启」弹窗关不掉，重试')
+                continue
 
             logger.info(f'Click 进入世界之巅 (attempt {attempt})')
             if not self.appear_then_click(self.I_ENTER_WORLD_PEAK):
