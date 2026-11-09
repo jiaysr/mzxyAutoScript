@@ -89,6 +89,10 @@ class DungeonBase(GameUi, DungeonAssets):
             return
         logger.warning(f'[{self.name}] Character died outside dungeon, revive and continue')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：继续当前副本流程（页面状态由各流程自行校验）"""
 
     def dungeon_notify_uncleared(self) -> None:
         """副本内死亡/自动离开：推送「<副本名>未通关」，然后跳过该副本剩余次数"""

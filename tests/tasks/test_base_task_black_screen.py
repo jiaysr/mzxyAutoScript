@@ -25,6 +25,9 @@ class FakeTask(BaseTask):
         self._black_strikes = 0
 
     # 截图流程里的全局处理在单测里不需要
+    def handle_disconnect(self):
+        pass
+
     def handle_death(self):
         pass
 

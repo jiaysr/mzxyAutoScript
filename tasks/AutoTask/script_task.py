@@ -679,6 +679,10 @@ class ScriptTask(GameUi, AutoTaskAssets):
             return
         logger.warning('Character died')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：等自动任务时继续等，其他阶段整任务重跑"""
         if self._waiting_auto:
             logger.info('Died while waiting auto task, game auto continues')
             return

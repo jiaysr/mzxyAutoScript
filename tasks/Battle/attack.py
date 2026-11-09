@@ -402,13 +402,29 @@ class BattleAttack:
         这一场实际使用的预设：任务配置里选的那个，没选就用系统预设
 
         （id 写错/预设被删都会自动回落到系统预设，不会因为配置不同步就打不出技能）
+
+        按任务实例缓存：任务运行期间配置不会重新加载，而取技能位和取释放节奏
+        会各调一次，缓存后只真正解析一次，避免每只怪重复读配置和刷重复日志。
         """
+        cached = getattr(self, '_battle_preset_cache', None)
+        if cached is not None:
+            return cached
         battle = self.config.battle
         catalog = self.battle_catalog()
         preset_id = self.battle_task_preset() or DEFAULT_PRESET_ID
         preset = resolve_preset(battle, preset_id, catalog)
         logger.attr('战斗预设', f'{preset["name"]}（{preset["id"]}）')
+        self._battle_preset_cache = preset
         return preset
+
+    def battle_config_cache_clear(self) -> None:
+        """
+        清空战斗配置相关缓存（预设 + 释放计划）
+
+        配置热更新 / 手动切换预设后调用；正常任务运行期间配置不会变，不需要清。
+        """
+        self._battle_preset_cache = None
+        self._battle_plan_cache = None
 
     def battle_release_config(self, preset: dict = None) -> dict:
         """

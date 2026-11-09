@@ -831,6 +831,10 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
             return
         logger.warning('Character died, revive and continue')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：继续打怪（跑偏由 recover_in_battle 兜底）"""
         # 等复活/地图加载稳定，加载中点击会丢
         self.device.sleep(1)
 

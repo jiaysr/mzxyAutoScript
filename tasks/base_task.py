@@ -97,6 +97,8 @@ class BaseTask(GlobalGame):
         self.device.screenshot()
         if self.CHECK_SCREEN_ALIVE:
             self.check_screen_alive()
+        # 掉线重启后复用死亡复活逻辑；要放在死亡处理之前
+        self.handle_disconnect()
         self.handle_death()
         # 人机验证盖在最上层，不解掉什么都做不了，放在弹窗清理前面
         self.handle_captcha()

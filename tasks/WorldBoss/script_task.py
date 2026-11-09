@@ -1221,9 +1221,13 @@ class ScriptTask(GameUi, WorldBossAssets):
         stage = self._death_stage or 'navigate'
         logger.warning(f'Character died during {stage}, revive and resume')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：抛阶段异常，重试当前阶段"""
         # 等复活/地图加载稳定，加载中点击会丢
         self.device.sleep(1.0)
-        raise WorldBossDeath(stage)
+        raise WorldBossDeath(self._death_stage or 'navigate')
 
     # ---------------------------------------------------------------- 到达
     def wait_until_arrive(self, boss: dict, timeout: int = 180,

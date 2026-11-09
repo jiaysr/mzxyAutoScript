@@ -318,9 +318,13 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             self.rerun_task()
             return
 
-        # 复活后人被送回出生点：清一下页面状态和锁目标缓存，让外层立刻按「跑偏」回点位
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：清缓存继续当前任务（跑偏会自动回点位）"""
+        # 复活/重启后角色可能被送回出生点：清一下锁目标缓存，让外层立刻按「跑偏」回点位
         self._target_name_cache = None
-        logger.info('已复活，继续当前任务（跑偏会自动回点位）')
+        logger.info('已恢复，继续当前任务（跑偏会自动回点位）')
 
     # ---------------------------------------------------------------- 加量卡
     def bonus_multiplier(self) -> BonusMultiplier:

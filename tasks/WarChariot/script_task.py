@@ -358,6 +358,10 @@ class ScriptTask(GameUi, WarChariotAssets):
             return
         logger.warning('Character died before joining war chariot, revive and continue')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：继续当前检测/准备流程"""
         # 等复活/地图加载稳定，加载中点击会丢
         self.device.sleep(1)
 

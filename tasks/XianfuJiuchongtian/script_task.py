@@ -149,9 +149,13 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         death_stage = self._death_stage
         logger.warning(f'Character died during {death_stage}, revive and resume')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：抛阶段异常，重试当前阶段"""
         # 等复活/地图加载稳定，加载中点击会丢
         self.device.sleep(1)
-        raise XianfuDeath(death_stage)
+        raise XianfuDeath(self._death_stage)
 
     # ---------------------------------------------------------------- 准备
     def prepare(self, threshold: int, color: str, fixed_daguan: int) -> tuple:
