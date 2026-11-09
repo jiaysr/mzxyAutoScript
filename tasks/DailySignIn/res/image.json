@@ -1,0 +1,326 @@
+[
+  {
+    "itemName": "reward_bind_phone",
+    "imageName": "res_reward_bind_phone.png",
+    "roiFront": "392,220,175,57",
+    "roiBack": "381,209,198,93",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "奖励弹窗-绑定手机页特征（绑定手机领300银贝）"
+  },
+  {
+    "itemName": "reward_exchange",
+    "imageName": "res_reward_exchange.png",
+    "roiFront": "494,212,280,46",
+    "roiBack": "467,196,334,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "奖励弹窗-兑换礼包页特征（请输入您的礼包激活码）"
+  },
+  {
+    "itemName": "reward_online_1",
+    "imageName": "res_reward_online_1.png",
+    "roiFront": "968,208,184,44",
+    "roiBack": "940,180,237,432",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "奖励弹窗-在线领奖页特征1（已领取/领取奖励按钮）"
+  },
+  {
+    "itemName": "reward_online_2",
+    "imageName": "res_reward_online_2.png",
+    "roiFront": "974,377,184,44",
+    "roiBack": "940,180,237,432",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "奖励弹窗-在线领奖页特征2（第二档领取奖励按钮）"
+  },
+  {
+    "itemName": "reward_online_3",
+    "imageName": "res_reward_online_3.png",
+    "roiFront": "973,546,184,44",
+    "roiBack": "940,180,237,432",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "奖励弹窗-在线领奖页特征3（第三档领取奖励按钮）"
+  },
+  {
+    "itemName": "reward_top_gift",
+    "imageName": "res_reward_top_gift.png",
+    "roiFront": "94,182,135,47",
+    "roiBack": "85,166,169,86",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "奖励弹窗-至臻礼包页特征（特别回馈）"
+  },
+  {
+    "itemName": "reward_sign_in",
+    "imageName": "res_reward_sign_in.png",
+    "roiFront": "515,179,144,44",
+    "roiBack": "499,167,268,65",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "奖励弹窗-签到板页特征（本月已累计签到）"
+  },
+  {
+    "itemName": "reward_menu_icon",
+    "imageName": "res_reward_menu_icon.png",
+    "roiFront": "1216,149,34,30",
+    "roiBack": "613,134,667,80",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "主页面菜单-奖励按钮图标"
+  },
+  {
+    "itemName": "reward_sign_in_unsigned",
+    "imageName": "res_reward_sign_in_unsigned.png",
+    "roiFront": "366,374,116,26",
+    "roiBack": "126,251,1012,353",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "签到板-未签到物品边框（在签到区域从左到右、从上到下找）"
+  },
+  {
+    "itemName": "reward_sign_in_signed",
+    "imageName": "res_reward_sign_in_signed.png",
+    "roiFront": "169,379,117,26",
+    "roiBack": "126,251,1012,353",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "签到板-已签到物品边框（点击后用于确认签到成功）"
+  },
+  {
+    "itemName": "reward_item_detail_close",
+    "imageName": "res_reward_item_detail_close.png",
+    "roiFront": "944,184,51,49",
+    "roiBack": "619,9,498,626",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "签到板-物品详情弹窗关闭按钮"
+  },
+  {
+    "itemName": "xiuxin_entry",
+    "imageName": "res_xiuxin_entry.png",
+    "roiFront": "946,363,119,49",
+    "roiBack": "905,343,198,93",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "角色详情-进入修心按钮"
+  },
+  {
+    "itemName": "xiuxin_page",
+    "imageName": "res_xiuxin_page.png",
+    "roiFront": "582,19,111,41",
+    "roiBack": "531,0,214,78",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "修心页面特征（顶部修心标题）"
+  },
+  {
+    "itemName": "xiuxin_finished",
+    "imageName": "res_xiuxin_finished.png",
+    "roiFront": "212,575,202,37",
+    "roiBack": "212,575,202,37",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "修心结束判定（今日次数已用尽）"
+  },
+  {
+    "itemName": "fuhua_page",
+    "imageName": "res_fuhua_page.png",
+    "roiFront": "1068,126,175,39",
+    "roiBack": "1059,117,193,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "辅助/幻化页面特征（星命属性详情）"
+  },
+  {
+    "itemName": "shengxiao_page",
+    "imageName": "res_shengxiao_page.png",
+    "roiFront": "1012,117,186,39",
+    "roiBack": "1012,117,186,39",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "辅助/生肖页面特征（生肖加成）"
+  },
+  {
+    "itemName": "shengxiao_shop_button",
+    "imageName": "res_shengxiao_shop_button.png",
+    "roiFront": "1194,618,56,64",
+    "roiBack": "980,492,291,210",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "生肖页面-商店按钮"
+  },
+  {
+    "itemName": "shengxiao_shop_page",
+    "imageName": "res_shengxiao_shop_page.png",
+    "roiFront": "579,61,116,38",
+    "roiBack": "492,54,261,53",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "生肖商店弹窗特征（标题生肖商店）"
+  },
+  {
+    "itemName": "zodiac_gift_claimable",
+    "imageName": "res_zodiac_gift_claimable.png",
+    "roiFront": "923,196,148,43",
+    "roiBack": "865,181,256,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "生肖商店-福利礼包可领取按钮"
+  },
+  {
+    "itemName": "zodiac_gift_claimed",
+    "imageName": "res_zodiac_gift_claimed.png",
+    "roiFront": "923,196,148,43",
+    "roiBack": "865,181,256,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "生肖商店-福利礼包已领取按钮"
+  },
+  {
+    "itemName": "xianmeng_member_page",
+    "imageName": "res_xianmeng_member_page.png",
+    "roiFront": "818,640,148,43",
+    "roiBack": "767,629,256,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙盟/成员页面特征"
+  },
+  {
+    "itemName": "xianmeng_info_page",
+    "imageName": "res_xianmeng_info_page.png",
+    "roiFront": "574,591,148,43",
+    "roiBack": "519,576,256,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙盟/信息页面特征（仙盟捐献按钮）"
+  },
+  {
+    "itemName": "salary_unavailable",
+    "imageName": "res_salary_unavailable.png",
+    "roiFront": "329,588,148,43",
+    "roiBack": "269,579,256,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙盟/信息-不可领取俸禄按钮"
+  },
+  {
+    "itemName": "zodiac_gift_success",
+    "imageName": "res_zodiac_gift_success.png",
+    "roiFront": "547,341,180,39",
+    "roiBack": "505,325,256,70",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "生肖福利礼包-领取成功弹窗"
+  },
+  {
+    "itemName": "zodiac_gift_success_close",
+    "imageName": "res_zodiac_gift_success_close.png",
+    "roiFront": "947,285,35,49",
+    "roiBack": "891,275,123,73",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "生肖福利礼包-成功弹窗关闭按钮"
+  },
+  {
+    "itemName": "shengxiao_shop_close",
+    "imageName": "res_shengxiao_shop_close.png",
+    "roiFront": "1128,22,35,49",
+    "roiBack": "1091,11,94,82",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "生肖商店-关闭按钮"
+  },
+  {
+    "itemName": "vip_page",
+    "imageName": "res_vip_page.png",
+    "roiFront": "971,598,172,44",
+    "roiBack": "942,583,227,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP页面特征（特权商店按钮）"
+  },
+  {
+    "itemName": "vip_none",
+    "imageName": "res_vip_none.png",
+    "roiFront": "126,221,142,39",
+    "roiBack": "119,205,227,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP页面-当前无特权等级特征"
+  },
+  {
+    "itemName": "vip_welfare_entry",
+    "imageName": "res_vip_welfare_entry.png",
+    "roiFront": "704,601,142,39",
+    "roiBack": "665,583,227,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP页面-每日福利入口按钮"
+  },
+  {
+    "itemName": "vip_welfare_page",
+    "imageName": "res_vip_welfare_page.png",
+    "roiFront": "568,63,142,39",
+    "roiBack": "529,45,227,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP每日福利页面特征（标题每日福利）"
+  },
+  {
+    "itemName": "vip_welfare_claimable",
+    "imageName": "res_vip_welfare_claimable.png",
+    "roiFront": "958,178,142,39",
+    "roiBack": "909,161,227,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP每日福利-立刻领取按钮"
+  },
+  {
+    "itemName": "vip_welfare_claimed",
+    "imageName": "res_vip_welfare_claimed.png",
+    "roiFront": "958,178,142,39",
+    "roiBack": "909,161,227,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP每日福利-已领取按钮"
+  },
+  {
+    "itemName": "vip_welfare_success",
+    "imageName": "res_vip_welfare_success.png",
+    "roiFront": "339,321,356,40",
+    "roiBack": "332,305,583,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP每日福利-领取成功弹窗文案"
+  },
+  {
+    "itemName": "vip_welfare_success_close",
+    "imageName": "res_vip_welfare_success_close.png",
+    "roiFront": "938,267,51,49",
+    "roiBack": "733,245,437,99",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP每日福利-领取成功弹窗关闭按钮"
+  },
+  {
+    "itemName": "vip_close",
+    "imageName": "res_vip_close.png",
+    "roiFront": "1191,16,51,49",
+    "roiBack": "1129,2,147,92",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "VIP页面/每日福利页面-关闭按钮"
+  },
+  {
+    "itemName": "xianmeng_none",
+    "imageName": "res_xianmeng_none.png",
+    "roiFront": "422,230,226,41",
+    "roiBack": "411,211,474,128",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙盟-未加入仙盟特征"
+  }
+]

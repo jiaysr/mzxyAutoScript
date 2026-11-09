@@ -27,6 +27,7 @@ from tasks.XianfuJiuchongtian.config import XianfuJiuchongtian
 from tasks.YuwaiMimang.config import YuwaiMimang
 from tasks.DouXianGe.config import DouXianGe
 from tasks.SilverGiftBox.config import SilverGiftBox
+from tasks.DailySignIn.config import DailySignIn
 from tasks.AutoTask.config import AutoTask
 from tasks.Buzhoushan.config import Buzhoushan
 from tasks.FumoShanjian.config import FumoShanjian
@@ -53,6 +54,7 @@ class ConfigModel(ConfigBase):
     dou_xian_ge: DouXianGe = Field(default_factory=DouXianGe)
     quiz: Quiz = Field(default_factory=Quiz)
     silver_gift_box: SilverGiftBox = Field(default_factory=SilverGiftBox)
+    daily_sign_in: DailySignIn = Field(default_factory=DailySignIn)
     auto_task: AutoTask = Field(default_factory=AutoTask)
     buzhoushan: Buzhoushan = Field(default_factory=Buzhoushan)
     fumo_shanjian: FumoShanjian = Field(default_factory=FumoShanjian)

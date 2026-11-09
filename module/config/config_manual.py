@@ -22,6 +22,7 @@ class ConfigManual:
         > DouXianGe
         > Dungeon
         > SilverGiftBox
+        > DailySignIn
         > WorldTask
         > AutoTask
         """

@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "xiuxin_button",
+    "roiFront": "250,627,167,40",
+    "roiBack": "250,627,167,40",
+    "description": "修心页面-免费修心按钮"
+  },
+  {
+    "itemName": "claim_salary",
+    "roiFront": "329,588,148,43",
+    "roiBack": "329,588,148,43",
+    "description": "仙盟/信息-领取俸禄按钮"
+  },
+  {
+    "itemName": "vip_entry",
+    "roiFront": "239,29,22,37",
+    "roiBack": "239,29,22,37",
+    "description": "主页面-打开VIP页面"
+  }
+]
