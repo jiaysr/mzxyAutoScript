@@ -1,0 +1,14 @@
+[
+  {
+    "itemName": "lingdao_spawn",
+    "roiFront": "644,401,2,2",
+    "roiBack": "644,401,2,2",
+    "description": "域外灵岛-小地图右上角-野外雪人打怪点"
+  },
+  {
+    "itemName": "lingdao_healer_npc",
+    "roiFront": "815,343,21,25",
+    "roiBack": "815,343,21,25",
+    "description": "域外灵岛-小地图右上角-万事通NPC"
+  }
+]

@@ -561,7 +561,14 @@ class Script:
         try:
             self.device.screenshot()
             module_name = 'script_task'
-            module_path = str(Path.cwd() / 'tasks' / command / (module_name+'.py'))
+            module_path = Path.cwd() / 'tasks' / command / (module_name + '.py')
+            if not module_path.exists():
+                # 分组任务：tasks/<Group>/<Task>/script_task.py
+                matches = sorted((Path.cwd() / 'tasks').glob(f'*/{command}/{module_name}.py'))
+                if matches:
+                    module_path = matches[0]
+                    logger.info(f'Task `{command}` found in grouped folder: {module_path}')
+            module_path = str(module_path)
             logger.info(f'module_path: {module_path}, module_name: {module_name}')
             task_module = load_module(module_name, module_path)
             task_module.ScriptTask(config=self.config, device=self.device).run()

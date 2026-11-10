@@ -121,9 +121,17 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
         GlobalGame._disconnect_restarting = True
         try:
             self.restart_game_after_disconnect()
-            self.handle_death_resume()
+            self.handle_disconnect_resume()
         finally:
             GlobalGame._disconnect_restarting = False
+
+    def handle_disconnect_resume(self) -> None:
+        """
+        掉线重启后的续跑入口
+
+        默认和死亡复活一样；任务可覆盖成「不重置计时」等差异逻辑。
+        """
+        self.handle_death_resume()
 
     def restart_game_after_disconnect(self) -> None:
         """重启游戏并登录（复用 Restart 任务的流程）"""

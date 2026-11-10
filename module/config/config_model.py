@@ -34,6 +34,7 @@ from tasks.FumoShanjian.config import FumoShanjian
 from tasks.Dungeon.config import Dungeon
 from tasks.WorldTask.config import WorldTask
 from tasks.ZhongZhi.config import ZhongZhi
+from tasks.LimitedTime.WildSnowman.config import WildSnowman
 
 
 class ConfigModel(ConfigBase):
@@ -62,6 +63,7 @@ class ConfigModel(ConfigBase):
     dungeon: Dungeon = Field(default_factory=Dungeon)
     world_task: WorldTask = Field(default_factory=WorldTask)
     zhong_zhi: ZhongZhi = Field(default_factory=ZhongZhi)
+    wild_snowman: WildSnowman = Field(default_factory=WildSnowman)
 
     def __init__(self, config_name: str=None) -> None:
         """

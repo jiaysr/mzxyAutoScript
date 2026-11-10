@@ -26,6 +26,7 @@ class ConfigManual:
         > ZhongZhi
         > WorldTask
         > AutoTask
+        > WildSnowman
         """
 
     DEVICE_OVER_HTTP = False

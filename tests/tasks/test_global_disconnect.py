@@ -11,6 +11,7 @@ class FakeDisconnectTask:
         self.visible = visible
         self.restarted = 0
         self.resumed = 0
+        self.disconnect_resumed = 0
 
     def appear(self, target, interval=None):
         return self.visible and target == self.I_DISCONNECT_DIALOG
@@ -18,22 +19,34 @@ class FakeDisconnectTask:
     def restart_game_after_disconnect(self):
         self.restarted += 1
 
+    def handle_disconnect_resume(self):
+        self.disconnect_resumed += 1
+
     def handle_death_resume(self):
         self.resumed += 1
 
 
-def test_disconnect_restarts_then_reuses_death_resume():
+def test_disconnect_restarts_then_uses_disconnect_resume():
     task = FakeDisconnectTask(visible=True)
     GlobalGame.handle_disconnect(task)
     assert task.restarted == 1
-    assert task.resumed == 1
+    assert task.disconnect_resumed == 1
+    assert task.resumed == 0
     assert GlobalGame._disconnect_restarting is False
+
+
+def test_disconnect_default_resume_delegates_to_death_resume():
+    task = FakeDisconnectTask(visible=True)
+    GlobalGame.handle_disconnect_resume(task)
+    assert task.disconnect_resumed == 0
+    assert task.resumed == 1
 
 
 def test_disconnect_ignored_when_absent():
     task = FakeDisconnectTask(visible=False)
     GlobalGame.handle_disconnect(task)
     assert task.restarted == 0
+    assert task.disconnect_resumed == 0
     assert task.resumed == 0
 
 
@@ -45,6 +58,7 @@ def test_disconnect_ignored_while_already_handling():
     finally:
         GlobalGame._disconnect_restarting = False
     assert task.restarted == 0
+    assert task.disconnect_resumed == 0
     assert task.resumed == 0
 
 
