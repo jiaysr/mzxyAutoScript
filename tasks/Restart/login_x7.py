@@ -110,10 +110,10 @@ class RestartX7(RestartBase):
         self.server_zone = int(match.group(1)) if match else None
         self.account_name = self.clean_account_name((cfg.account or '').strip())
         self.character_name = (cfg.character or '').strip()
+        # 账号属于敏感信息，日志里只保留区服和角色
         logger.attr(
             '登录目标',
             f'区服={raw_server or "上次登录"} '
-            f'账号={self.account_name or "上次登录"} '
             f'角色={self.character_name or "左侧默认"}')
 
     def login_failed(self, message: str) -> None:
@@ -435,18 +435,19 @@ class RestartX7(RestartBase):
                     return
             self.device.sleep(0.5)
 
-        target = self.account_name or '上次登录账号'
-        self.login_failed(f'未找到账号 [{target}]，请检查账号配置')
+        # 不在日志/通知里输出账号名
+        self.login_failed('未找到配置的账号或上次登录账号，请检查账号配置')
 
     def read_accounts(self, rules: tuple) -> list[AccountEntry]:
         accounts = []
         for index, rule in enumerate(rules, 1):
+            # 账号名属于敏感信息：关掉 RuleOcr 自己的识别结果日志
+            rule.log_disable = True
             raw = (rule.ocr(self.device.image) or '').strip()
             if not raw:
                 continue
             name = self.clean_account_name(raw)
             accounts.append(AccountEntry(index, rule, raw, name))
-            logger.attr(f'账号{index}', raw)
         return accounts
 
     def click_account(self, rule) -> bool:

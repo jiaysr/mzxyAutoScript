@@ -7,5 +7,59 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "仙盟战车-接受按钮（在 685,303,958,481 区域内寻找）"
+  },
+  {
+    "itemName": "chariot_finish",
+    "imageName": "res_chariot_finish.png",
+    "roiFront": "4,680,264,31",
+    "roiBack": "0,601,373,119",
+    "method": "Template matching",
+    "threshold": 0.9,
+    "description": "战车结束-世界频道「系统战车战结束」提示（左下角聊天栏）"
+  },
+  {
+    "itemName": "chariot_fail",
+    "imageName": "res_chariot_fail.png",
+    "roiFront": "164,95,513,104",
+    "roiBack": "147,81,568,142",
+    "method": "Template matching",
+    "threshold": 0.95,
+    "description": "战车结束-失败结算弹窗标题条（居中弹窗）"
+  },
+  {
+    "itemName": "chariot_win",
+    "imageName": "res_chariot_win.png",
+    "roiFront": "164,95,513,104",
+    "roiBack": "147,81,568,142",
+    "method": "Template matching",
+    "threshold": 0.95,
+    "description": "战车结束-胜利结算弹窗标题条（居中弹窗）"
+  },
+  {
+    "itemName": "chariot_confirm",
+    "imageName": "res_chariot_confirm.png",
+    "roiFront": "946,558,175,55",
+    "roiBack": "906,518,255,135",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "战车结算弹窗-确定按钮（搜索区在按钮四周各放宽 40px）"
+  },
+  {
+    "itemName": "chariot_move",
+    "imageName": "res_chariot_move.png",
+    "roiFront": "2,681,516,30",
+    "roiBack": "0,660,760,60",
+    "method": "Template matching",
+    "threshold": 0.9,
+    "description": "战车准备阶段完成-左下角聊天「准备阶段完成，开始战斗」提示（可移动）"
+  },
+  {
+    "itemName": "chariot_bye",
+    "imageName": "res_chariot_bye.png",
+    "roiFront": "2,681,508,30",
+    "roiBack": "0,660,760,60",
+    "method": "Template matching",
+    "threshold": 0.9,
+    "description": "战车轮空-左下角聊天「战车数量不足，无法开战」提示（本局轮空）"
   }
 ]

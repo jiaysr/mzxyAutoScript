@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-18",
+  "updated": "2026-11-04",
   "questions": [
     {
       "id": "q608767df5",
@@ -61,10 +61,10 @@
       "answer": "昆仑山",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "pending",
       "updated": "2026-09-18",
-      "correct": 2
+      "correct": 3
     },
     {
       "id": "qf43fab533",
@@ -77,10 +77,10 @@
       "answer": "杨过和小龙女",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 0
+      "correct": 2
     },
     {
       "id": "q286d55808",
@@ -141,10 +141,10 @@
       "answer": "文天祥",
       "verified": true,
       "wrong": [],
-      "hits": 4,
+      "hits": 5,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 3
+      "correct": 4
     },
     {
       "id": "qa5649cfb3",
@@ -157,10 +157,10 @@
       "answer": "青年",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 0
+      "correct": 2
     },
     {
       "id": "q3c55f21b7",
@@ -277,14 +277,18 @@
     {
       "id": "q6e65d28d9",
       "q": "成语”丁解牛\"括号中应该填入什么字？",
-      "options": [],
+      "options": [
+        "庖",
+        "刨",
+        "龅"
+      ],
       "answer": "庖",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
-      "updated": "2026-09-18",
-      "correct": 0
+      "updated": "2026-10-20",
+      "correct": 1
     },
     {
       "id": "q25e44478d",
@@ -377,10 +381,10 @@
       "answer": "蜈蚣还在门口穿鞋",
       "verified": true,
       "wrong": [],
-      "hits": 3,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 2
+      "correct": 3
     },
     {
       "id": "q6591b317a",
@@ -393,10 +397,10 @@
       "answer": "银河系",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 0
+      "correct": 1
     },
     {
       "id": "q0b9fe8690",
@@ -443,11 +447,11 @@
       "wrong": [
         "房屋"
       ],
-      "hits": 4,
+      "hits": 5,
       "source": "llm",
       "updated": "2026-09-21",
       "conflict": true,
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "q016d68233",
@@ -460,10 +464,10 @@
       "answer": "爱因斯坦",
       "verified": true,
       "wrong": [],
-      "hits": 3,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "q95fb3df0f",
@@ -492,25 +496,26 @@
       "answer": "福尔摩斯",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "qed215aebb",
       "q": "洛神赋图\"是哪位画家所画？",
       "options": [
         "曹植",
-        "顾恺之"
+        "顾恺之",
+        "顾闳中"
       ],
       "answer": "顾恺之",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 0
+      "correct": 1
     },
     {
       "id": "qdd1a1d56e",
@@ -606,10 +611,10 @@
       "answer": "陕西",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-18",
-      "correct": 0
+      "correct": 1
     },
     {
       "id": "q78385a3f4",
@@ -638,10 +643,10 @@
       "answer": "无限制",
       "verified": true,
       "wrong": [],
-      "hits": 3,
+      "hits": 5,
       "source": "pending",
       "updated": "2026-09-19",
-      "correct": 3
+      "correct": 5
     },
     {
       "id": "q0ba086159",
@@ -670,10 +675,10 @@
       "answer": "月老祠",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-19",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "q04ed4a3ce",
@@ -718,10 +723,10 @@
       "answer": "杨业",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-19",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "qb8c7c2de3",
@@ -797,10 +802,10 @@
       "answer": "浮元子",
       "verified": true,
       "wrong": [],
-      "hits": 4,
+      "hits": 5,
       "source": "llm",
       "updated": "2026-09-19",
-      "correct": 3
+      "correct": 4
     },
     {
       "id": "q5b74f1b3e",
@@ -831,10 +836,10 @@
       "wrong": [
         "活火山"
       ],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-19",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "q389216765",
@@ -847,10 +852,10 @@
       "answer": "浙江",
       "verified": true,
       "wrong": [],
-      "hits": 3,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-19",
-      "correct": 2
+      "correct": 3
     },
     {
       "id": "qf9370c733",
@@ -879,10 +884,10 @@
       "answer": "杨贵妃和唐玄宗",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-19",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "q9f620d43e",
@@ -895,10 +900,10 @@
       "answer": "西厢记",
       "verified": true,
       "wrong": [],
-      "hits": 3,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-19",
-      "correct": 2
+      "correct": 3
     },
     {
       "id": "q247e73f96",
@@ -913,10 +918,10 @@
       "wrong": [
         "天策上将"
       ],
-      "hits": 3,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 2
+      "correct": 3
     },
     {
       "id": "q9ab8ad3a2",
@@ -942,14 +947,15 @@
         "小白兔",
         "萤尤部族"
       ],
-      "answer": "蚩尤部族",
+      "answer": "大自然",
       "verified": false,
       "wrong": [
-        "蚩尤部族"
+        "蚩尤部族",
+        "大自然"
       ],
-      "hits": 2,
+      "hits": 5,
       "source": "llm",
-      "updated": "2026-10-05",
+      "updated": "2026-10-26",
       "conflict": true,
       "correct": 0
     },
@@ -966,10 +972,10 @@
       "wrong": [
         "风"
       ],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-20",
-      "correct": 0
+      "correct": 1
     },
     {
       "id": "q4ab9d11b8",
@@ -982,10 +988,10 @@
       "answer": "苏格兰",
       "verified": true,
       "wrong": [],
-      "hits": 3,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-20",
-      "correct": 2
+      "correct": 3
     },
     {
       "id": "q06294e131",
@@ -1011,15 +1017,15 @@
       "options": [
         "霜之哀伤",
         "毁灭之锤",
-        "灰使者"
+        "灰烬使者"
       ],
       "answer": "霜之哀伤",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-20",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "qd18c286a8",
@@ -1066,10 +1072,10 @@
       "answer": "小熊星座",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-20",
-      "correct": 0
+      "correct": 1
     },
     {
       "id": "q88ef99414",
@@ -1114,10 +1120,10 @@
       "answer": "张良",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-20",
-      "correct": 0
+      "correct": 2
     },
     {
       "id": "q7dcf22102",
@@ -1182,10 +1188,10 @@
       "wrong": [
         "生命"
       ],
-      "hits": 2,
+      "hits": 5,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 1
+      "correct": 4
     },
     {
       "id": "q2df3c7178",
@@ -1218,10 +1224,10 @@
       "wrong": [
         "铜贝100"
       ],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "qdc22de344",
@@ -1250,10 +1256,10 @@
       "answer": "重阳节",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 0
+      "correct": 1
     },
     {
       "id": "q9e0e742c7",
@@ -1266,10 +1272,10 @@
       "answer": "撒哈拉沙漠",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 0
+      "correct": 2
     },
     {
       "id": "q1460b1ebd",
@@ -1330,10 +1336,10 @@
       "answer": "凯尔特",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 4,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 1
+      "correct": 3
     },
     {
       "id": "q0e6a7ba5d",
@@ -1346,10 +1352,10 @@
       "answer": "英国",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 1
+      "correct": 2
     },
     {
       "id": "q66bb87fe1",
@@ -1410,10 +1416,10 @@
       "answer": "令堂",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 2,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 0
+      "correct": 1
     },
     {
       "id": "q01f94a1f3",
@@ -1426,10 +1432,10 @@
       "answer": "爱因斯坦",
       "verified": true,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "source": "llm",
-      "updated": "2026-09-21",
-      "correct": 1
+      "updated": "2026-10-25",
+      "correct": 2
     },
     {
       "id": "qd945bd25b",
@@ -1442,10 +1448,10 @@
       "answer": "3天",
       "verified": true,
       "wrong": [],
-      "hits": 1,
+      "hits": 3,
       "source": "llm",
       "updated": "2026-09-21",
-      "correct": 0
+      "correct": 2
     },
     {
       "id": "q6436fdba9",
@@ -1458,8 +1464,8 @@
       "answer": "火焰",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-21"
     },
@@ -1490,8 +1496,8 @@
       "answer": "楚国",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-21"
     },
@@ -1570,8 +1576,8 @@
       "answer": "李广",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-21"
     },
@@ -1586,8 +1592,8 @@
       "answer": "姬发",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-21"
     },
@@ -1602,8 +1608,8 @@
       "answer": "紫色",
       "verified": true,
       "wrong": [],
-      "hits": 3,
-      "correct": 3,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-21"
     },
@@ -1650,8 +1656,8 @@
       "answer": "塞车",
       "verified": true,
       "wrong": [],
-      "hits": 3,
-      "correct": 3,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-21"
     },
@@ -1666,7 +1672,7 @@
       "answer": "冶炼石",
       "verified": true,
       "wrong": [],
-      "hits": 3,
+      "hits": 4,
       "correct": 1,
       "source": "llm",
       "updated": "2026-09-23"
@@ -1778,8 +1784,8 @@
       "answer": "古代海底火山爆发而成",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-22"
     },
@@ -1842,8 +1848,8 @@
       "answer": "哈姆雷特",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-22"
     },
@@ -1889,8 +1895,8 @@
       "answer": "三字经",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-22"
     },
@@ -1987,8 +1993,8 @@
       "answer": "体天石只能增加体力属性点",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-23"
     },
@@ -2003,8 +2009,8 @@
       "answer": "祭天",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-23"
     },
@@ -2083,8 +2089,8 @@
       "answer": "寒食节",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-23"
     },
@@ -2163,8 +2169,8 @@
       "answer": "小马驹",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-24"
     },
@@ -2181,8 +2187,8 @@
       "wrong": [
         "牧野"
       ],
-      "hits": 4,
-      "correct": 3,
+      "hits": 5,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2215,8 +2221,8 @@
       "wrong": [
         "3次"
       ],
-      "hits": 1,
-      "correct": 0,
+      "hits": 2,
+      "correct": 1,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2229,11 +2235,12 @@
         "6个"
       ],
       "answer": "6个",
-      "verified": true,
+      "verified": false,
       "wrong": [
-        "5个"
+        "5个",
+        "6个"
       ],
-      "hits": 2,
+      "hits": 3,
       "correct": 0,
       "source": "llm",
       "updated": "2026-09-26"
@@ -2346,8 +2353,8 @@
       "answer": "赵匡胤",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-24"
     },
@@ -2394,8 +2401,8 @@
       "answer": "苏格拉底",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-24"
     },
@@ -2426,8 +2433,8 @@
       "answer": "野外捕捉",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-25"
     },
@@ -2458,8 +2465,8 @@
       "answer": "仙人掌",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-25"
     },
@@ -2490,8 +2497,8 @@
       "answer": "南瓜",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-25"
     },
@@ -2522,8 +2529,8 @@
       "answer": "宫崎骏",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-25"
     },
@@ -2554,8 +2561,8 @@
       "answer": "父子关系",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-25"
     },
@@ -2602,8 +2609,8 @@
       "answer": "引力",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-25"
     },
@@ -2618,8 +2625,8 @@
       "answer": "正月十五",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-25"
     },
@@ -2636,8 +2643,8 @@
       "wrong": [
         "3条"
       ],
-      "hits": 3,
-      "correct": 2,
+      "hits": 4,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2668,8 +2675,8 @@
       "answer": "天池",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2700,8 +2707,8 @@
       "answer": "朝下",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2716,8 +2723,8 @@
       "answer": "川菜",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2732,10 +2739,10 @@
       "answer": "马来群岛",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 5,
+      "correct": 3,
       "source": "llm",
-      "updated": "2026-10-13",
+      "updated": "2026-11-01",
       "conflict": true
     },
     {
@@ -2765,8 +2772,8 @@
       "answer": "50周年",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2797,8 +2804,8 @@
       "answer": "打瞌睡",
       "verified": true,
       "wrong": [],
-      "hits": 4,
-      "correct": 4,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2877,8 +2884,8 @@
       "answer": "76年",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2893,8 +2900,8 @@
       "answer": "蟋蟀",
       "verified": true,
       "wrong": [],
-      "hits": 5,
-      "correct": 5,
+      "hits": 6,
+      "correct": 6,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -2941,8 +2948,8 @@
       "answer": "灵气",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -3005,8 +3012,8 @@
       "answer": "格林童话",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -3021,8 +3028,8 @@
       "answer": "爱丽斯漫游仙境",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -3069,8 +3076,8 @@
       "answer": "破釜沉舟",
       "verified": true,
       "wrong": [],
-      "hits": 4,
-      "correct": 4,
+      "hits": 7,
+      "correct": 7,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -3133,8 +3140,8 @@
       "answer": "增加形象的美观度，还能增加移动速度",
       "verified": true,
       "wrong": [],
-      "hits": 3,
-      "correct": 3,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -3181,8 +3188,8 @@
       "answer": "书中香草发出的香气",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -3261,8 +3268,8 @@
       "answer": "斗鸡眼",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-26"
     },
@@ -3291,9 +3298,11 @@
         "土星"
       ],
       "answer": "金星",
-      "verified": true,
-      "wrong": [],
-      "hits": 2,
+      "verified": false,
+      "wrong": [
+        "金星"
+      ],
+      "hits": 3,
       "correct": 2,
       "source": "llm",
       "updated": "2026-09-27",
@@ -3325,11 +3334,14 @@
       ],
       "answer": "3个",
       "verified": false,
-      "wrong": [],
-      "hits": 3,
+      "wrong": [
+        "5个",
+        "3个"
+      ],
+      "hits": 5,
       "correct": 0,
       "source": "llm",
-      "updated": "2026-10-16"
+      "updated": "2026-10-31"
     },
     {
       "id": "q433b40529",
@@ -3342,8 +3354,8 @@
       "answer": "毛利兰",
       "verified": true,
       "wrong": [],
-      "hits": 3,
-      "correct": 3,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-27"
     },
@@ -3390,8 +3402,8 @@
       "answer": "红细胞",
       "verified": true,
       "wrong": [],
-      "hits": 4,
-      "correct": 4,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-09-27"
     },
@@ -3486,8 +3498,8 @@
       "answer": "阿拉伯数字",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-28"
     },
@@ -3502,8 +3514,8 @@
       "answer": "3个",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-28"
     },
@@ -3518,8 +3530,8 @@
       "answer": "集",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-28"
     },
@@ -3550,8 +3562,8 @@
       "answer": "王维",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-28"
     },
@@ -3582,8 +3594,8 @@
       "answer": "穷奇",
       "verified": true,
       "wrong": [],
-      "hits": 3,
-      "correct": 2,
+      "hits": 5,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-10-01"
     },
@@ -3614,8 +3626,8 @@
       "answer": "每天洗一次",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-09-29"
     },
@@ -3630,8 +3642,8 @@
       "answer": "苻坚",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-29"
     },
@@ -3662,8 +3674,8 @@
       "answer": "毕加索",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-09-29"
     },
@@ -3678,10 +3690,10 @@
       "answer": "尾部",
       "verified": false,
       "wrong": [],
-      "hits": 2,
+      "hits": 3,
       "correct": 0,
       "source": "llm",
-      "updated": "2026-10-14"
+      "updated": "2026-10-21"
     },
     {
       "id": "q003f9b7c3",
@@ -3710,8 +3722,8 @@
       "answer": "麦克白",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-29"
     },
@@ -3720,13 +3732,14 @@
       "q": "轩辕中共有几大技能系?",
       "options": [
         "5",
+        "8",
         "10"
       ],
       "answer": "5",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 0,
+      "hits": 3,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-01"
     },
@@ -3734,15 +3747,15 @@
       "id": "q9a7247aed",
       "q": "从你生下来到现在，是睁眼的次数多还是闭眼的次数多？",
       "options": [
-        "一样多",
+        "样多",
         "睁眼",
         "闭眼"
       ],
-      "answer": "一样多",
+      "answer": "样多",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-09-30"
     },
@@ -3820,11 +3833,13 @@
       ],
       "answer": "免费有求必应罐",
       "verified": false,
-      "wrong": [],
-      "hits": 1,
+      "wrong": [
+        "免费有求必应罐"
+      ],
+      "hits": 2,
       "correct": 0,
       "source": "llm",
-      "updated": "2026-10-01"
+      "updated": "2026-10-31"
     },
     {
       "id": "q699d98e05",
@@ -3869,8 +3884,8 @@
       "answer": "三叉戟",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-01"
     },
@@ -3885,8 +3900,8 @@
       "answer": "众神之园",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-01"
     },
@@ -3895,15 +3910,18 @@
       "q": "世界上最毒的物质是?",
       "options": [
         "鹤顶红",
+        "神经毒素",
+        "钋"
+      ],
+      "answer": "钋",
+      "verified": true,
+      "wrong": [
         "神经毒素"
       ],
-      "answer": "神经毒素",
-      "verified": false,
-      "wrong": [],
-      "hits": 1,
-      "correct": 0,
+      "hits": 2,
+      "correct": 1,
       "source": "llm",
-      "updated": "2026-10-01"
+      "updated": "2026-10-26"
     },
     {
       "id": "qdae61d069",
@@ -3916,8 +3934,8 @@
       "answer": "汉代",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-01"
     },
@@ -3948,8 +3966,8 @@
       "answer": "蒸汽机",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-01"
     },
@@ -4044,8 +4062,8 @@
       "answer": "血红蛋白",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-01"
     },
@@ -4076,8 +4094,8 @@
       "answer": "前十名",
       "verified": true,
       "wrong": [],
-      "hits": 4,
-      "correct": 4,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-10-02"
     },
@@ -4092,8 +4110,8 @@
       "answer": "无数次",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-02"
     },
@@ -4105,13 +4123,15 @@
         "绿茶",
         "菊花茶"
       ],
-      "answer": "菊花茶",
-      "verified": false,
-      "wrong": [],
-      "hits": 1,
-      "correct": 0,
+      "answer": "绿茶",
+      "verified": true,
+      "wrong": [
+        "菊花茶"
+      ],
+      "hits": 5,
+      "correct": 4,
       "source": "llm",
-      "updated": "2026-10-02"
+      "updated": "2026-10-24"
     },
     {
       "id": "q04bd81a77",
@@ -4124,8 +4144,8 @@
       "answer": "爱与美之神",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-02"
     },
@@ -4140,8 +4160,8 @@
       "answer": "木头",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-02"
     },
@@ -4156,8 +4176,8 @@
       "answer": "鬼谷子",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-02"
     },
@@ -4172,8 +4192,8 @@
       "answer": "虬髯客",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-02"
     },
@@ -4284,8 +4304,8 @@
       "answer": "太保",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-03"
     },
@@ -4332,8 +4352,8 @@
       "answer": "PlayStation",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-03"
     },
@@ -4348,8 +4368,8 @@
       "answer": "猫王",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 0,
+      "hits": 3,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-18"
     },
@@ -4361,13 +4381,15 @@
         "伏羲",
         "黄帝"
       ],
-      "answer": "黄帝",
-      "verified": false,
-      "wrong": [],
-      "hits": 2,
-      "correct": 0,
+      "answer": "伏羲",
+      "verified": true,
+      "wrong": [
+        "黄帝"
+      ],
+      "hits": 3,
+      "correct": 1,
       "source": "llm",
-      "updated": "2026-10-09"
+      "updated": "2026-10-28"
     },
     {
       "id": "q710efafcc",
@@ -4396,8 +4418,8 @@
       "answer": "扁鹊",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-03"
     },
@@ -4428,8 +4450,8 @@
       "answer": "6件",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-04"
     },
@@ -4460,8 +4482,8 @@
       "answer": "第三子",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-10-04"
     },
@@ -4508,8 +4530,8 @@
       "answer": "战国初期",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-04"
     },
@@ -4556,8 +4578,8 @@
       "answer": "元好问",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-10-04"
     },
@@ -4588,8 +4610,8 @@
       "answer": "曹操",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-05"
     },
@@ -4604,8 +4626,8 @@
       "answer": "吴刚",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-05"
     },
@@ -4620,8 +4642,8 @@
       "answer": "太阳神",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-10-05"
     },
@@ -4636,8 +4658,8 @@
       "answer": "金世遗",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-05"
     },
@@ -4652,8 +4674,8 @@
       "answer": "神农",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-10-05"
     },
@@ -4681,13 +4703,15 @@
         "墨西哥",
         "西班牙"
       ],
-      "answer": "西班牙",
+      "answer": "墨西哥",
       "verified": false,
-      "wrong": [],
-      "hits": 2,
+      "wrong": [
+        "墨西哥"
+      ],
+      "hits": 3,
       "correct": 0,
       "source": "llm",
-      "updated": "2026-10-13"
+      "updated": "2026-10-25"
     },
     {
       "id": "q2980018c2",
@@ -4716,8 +4740,8 @@
       "answer": "丹婴",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 0,
+      "hits": 2,
+      "correct": 1,
       "source": "llm",
       "updated": "2026-10-18"
     },
@@ -4780,8 +4804,8 @@
       "answer": "埃及",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-10-06"
     },
@@ -4795,11 +4819,13 @@
       ],
       "answer": "苏丹",
       "verified": false,
-      "wrong": [],
-      "hits": 2,
+      "wrong": [
+        "苏丹"
+      ],
+      "hits": 3,
       "correct": 0,
       "source": "llm",
-      "updated": "2026-10-08"
+      "updated": "2026-10-24"
     },
     {
       "id": "q7ca46385c",
@@ -4828,8 +4854,8 @@
       "answer": "沉默",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-06"
     },
@@ -4873,13 +4899,15 @@
         "齐天大圣",
         "姬霜"
       ],
-      "answer": "齐天大圣",
-      "verified": false,
-      "wrong": [],
-      "hits": 2,
-      "correct": 0,
+      "answer": "姬霜",
+      "verified": true,
+      "wrong": [
+        "齐天大圣"
+      ],
+      "hits": 3,
+      "correct": 1,
       "source": "llm",
-      "updated": "2026-10-17"
+      "updated": "2026-10-23"
     },
     {
       "id": "qd89f30de0",
@@ -4908,8 +4936,8 @@
       "answer": "罗马的梵蒂冈",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-07"
     },
@@ -4940,8 +4968,8 @@
       "answer": "维苏威火山",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-07"
     },
@@ -4956,8 +4984,8 @@
       "answer": "滑铁卢桥",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-07"
     },
@@ -4972,8 +5000,8 @@
       "answer": "宇宙射线",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-07"
     },
@@ -4997,15 +5025,15 @@
       "id": "q03e1dd032",
       "q": "80厘米的红螃蟹和30厘米的黑螃蟹赛跑，谁会赢？",
       "options": [
-        "一样快",
+        "样快",
         "红螃蟹",
         "黑螃蟹"
       ],
       "answer": "黑螃蟹",
       "verified": true,
       "wrong": [],
-      "hits": 4,
-      "correct": 4,
+      "hits": 5,
+      "correct": 5,
       "source": "llm",
       "updated": "2026-10-07"
     },
@@ -5036,8 +5064,8 @@
       "answer": "3次",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-08"
     },
@@ -5084,8 +5112,8 @@
       "answer": "吉他",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-08"
     },
@@ -5100,8 +5128,8 @@
       "answer": "共工",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-08"
     },
@@ -5116,8 +5144,8 @@
       "answer": "加拿大",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-08"
     },
@@ -5196,8 +5224,8 @@
       "answer": "五花肉",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-09"
     },
@@ -5228,8 +5256,8 @@
       "answer": "蒙古族",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-10-09"
     },
@@ -5244,8 +5272,8 @@
       "answer": "苏美尔",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-09"
     },
@@ -5260,8 +5288,8 @@
       "answer": "司马懿",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-09"
     },
@@ -5308,8 +5336,8 @@
       "answer": "被乌龟砸死",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-10"
     },
@@ -5340,8 +5368,8 @@
       "answer": "儒家",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-10"
     },
@@ -5372,8 +5400,8 @@
       "answer": "螃蟹",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 4,
+      "correct": 4,
       "source": "llm",
       "updated": "2026-10-10"
     },
@@ -5404,8 +5432,8 @@
       "answer": "8个",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-10"
     },
@@ -5468,8 +5496,8 @@
       "answer": "S型",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-11"
     },
@@ -5484,8 +5512,8 @@
       "answer": "道德经",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-11"
     },
@@ -5532,8 +5560,8 @@
       "answer": "八月十五",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-11"
     },
@@ -5580,8 +5608,8 @@
       "answer": "京师大学堂",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-12"
     },
@@ -5612,8 +5640,8 @@
       "answer": "2000年",
       "verified": true,
       "wrong": [],
-      "hits": 2,
-      "correct": 2,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-12"
     },
@@ -5628,8 +5656,8 @@
       "answer": "206",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-12"
     },
@@ -5644,8 +5672,8 @@
       "answer": "路飞",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-12"
     },
@@ -5660,8 +5688,8 @@
       "answer": "康熙",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-12"
     },
@@ -5690,12 +5718,15 @@
         "陵鱼"
       ],
       "answer": "赢鱼",
-      "verified": true,
-      "wrong": [],
-      "hits": 2,
+      "verified": false,
+      "wrong": [
+        "陵鱼",
+        "赢鱼"
+      ],
+      "hits": 4,
       "correct": 1,
       "source": "llm",
-      "updated": "2026-10-13"
+      "updated": "2026-11-03"
     },
     {
       "id": "q609a69d92",
@@ -5710,8 +5741,8 @@
       "wrong": [
         "五棵"
       ],
-      "hits": 2,
-      "correct": 1,
+      "hits": 3,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-16"
     },
@@ -5774,8 +5805,8 @@
       "answer": "赵飞燕",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-13"
     },
@@ -5806,8 +5837,8 @@
       "answer": "长颈鹿",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-13"
     },
@@ -5838,8 +5869,8 @@
       "answer": "智力",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-14"
     },
@@ -5851,13 +5882,15 @@
         "坐骑可以",
         "都可以"
       ],
-      "answer": "坐骑可以",
-      "verified": false,
-      "wrong": [],
-      "hits": 1,
-      "correct": 0,
+      "answer": "都可以",
+      "verified": true,
+      "wrong": [
+        "坐骑可以"
+      ],
+      "hits": 5,
+      "correct": 4,
       "source": "llm",
-      "updated": "2026-10-14"
+      "updated": "2026-10-29"
     },
     {
       "id": "q0972e2834",
@@ -5886,8 +5919,8 @@
       "answer": "白饭",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-14"
     },
@@ -5915,13 +5948,13 @@
         "金身",
         "冰草"
       ],
-      "answer": "",
-      "verified": false,
+      "answer": "冰草",
+      "verified": true,
       "wrong": [],
-      "hits": 0,
-      "correct": 0,
-      "source": "pending",
-      "updated": "2026-10-15"
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-29"
     },
     {
       "id": "q963f9ab99",
@@ -5995,13 +6028,13 @@
         "红茶",
         "花茶"
       ],
-      "answer": "",
-      "verified": false,
+      "answer": "绿茶",
+      "verified": true,
       "wrong": [],
-      "hits": 0,
-      "correct": 0,
-      "source": "pending",
-      "updated": "2026-10-15"
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-29"
     },
     {
       "id": "q678b8c707",
@@ -6014,8 +6047,8 @@
       "answer": "囚徒行走时带着铁球",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-16"
     },
@@ -6030,8 +6063,8 @@
       "answer": "地月吸引力",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-16"
     },
@@ -6046,8 +6079,8 @@
       "answer": "孙武",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-16"
     },
@@ -6062,8 +6095,8 @@
       "answer": "今夕是何年",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-16"
     },
@@ -6078,8 +6111,8 @@
       "answer": "家门前有五株柳树",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 3,
+      "correct": 3,
       "source": "llm",
       "updated": "2026-10-16"
     },
@@ -6094,8 +6127,8 @@
       "answer": "加拿大",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-16"
     },
@@ -6142,8 +6175,8 @@
       "answer": "沙王和幽怪",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-17"
     },
@@ -6174,8 +6207,8 @@
       "answer": "狂人日记",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-17"
     },
@@ -6254,8 +6287,8 @@
       "answer": "论语",
       "verified": true,
       "wrong": [],
-      "hits": 1,
-      "correct": 1,
+      "hits": 2,
+      "correct": 2,
       "source": "llm",
       "updated": "2026-10-17"
     },
@@ -6283,13 +6316,1778 @@
         "3个",
         "5个"
       ],
-      "answer": "1个",
+      "answer": "3个",
+      "verified": true,
+      "wrong": [
+        "1个"
+      ],
+      "hits": 2,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-01"
+    },
+    {
+      "id": "qddcef253e",
+      "q": "修真境界的进度达到100%后需要才能继续修炼?",
+      "options": [
+        "向上天祈祷",
+        "渡劫",
+        "给太虚真人说好话"
+      ],
+      "answer": "渡劫",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-18"
+    },
+    {
+      "id": "q7c3d20d09",
+      "q": "装备最多能升到多少星？",
+      "options": [
+        "18星",
+        "9星",
+        "5星"
+      ],
+      "answer": "18星",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-18"
+    },
+    {
+      "id": "qa744512c9",
+      "q": "兔子用腿拍打地面的动作来传递信息,用后腿拍打地面的大多数是?",
+      "options": [
+        "雌兔",
+        "雄兔",
+        "都会拍打"
+      ],
+      "answer": "雄兔",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-18"
+    },
+    {
+      "id": "q7adb9f549",
+      "q": "哪一种水在灭火时比较有用？",
+      "options": [
+        "热水",
+        "冷水",
+        "常温"
+      ],
+      "answer": "冷水",
+      "verified": false,
+      "wrong": [
+        "冷水"
+      ],
+      "hits": 3,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "q35d19b481",
+      "q": "“似花还似非花”下句？",
+      "options": [
+        "似物也非物",
+        "也无人惜从教坠",
+        "不恨此花飞尽"
+      ],
+      "answer": "也无人惜从教坠",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-18"
+    },
+    {
+      "id": "q447a9db6f",
+      "q": "幽山中有几个星盘?",
+      "options": [
+        "无数个",
+        "1个",
+        "9个"
+      ],
+      "answer": "9个",
+      "verified": true,
+      "wrong": [
+        "无数个"
+      ],
+      "hits": 2,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "q4fc4e3ea9",
+      "q": "唐高宗李治和武则天的合葬陵是什么陵?",
+      "options": [
+        "武平陵",
+        "乾陵",
+        "武王陵"
+      ],
+      "answer": "乾陵",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-18"
+    },
+    {
+      "id": "q793b4c3bc",
+      "q": "孙权字什么？",
+      "options": [
+        "孟德",
+        "仲谋",
+        "子建"
+      ],
+      "answer": "仲谋",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-18"
+    },
+    {
+      "id": "qcc97ec0f6",
+      "q": "徒弟学满出师，师徒中谁可获得奖励？",
+      "options": [
+        "师傅",
+        "都可以",
+        "徒弟"
+      ],
+      "answer": "都可以",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "q82f44e0b8",
+      "q": "以下哪种坐骑是游戏中所没有的？",
+      "options": [
+        "牛",
+        "龙",
+        "蟹"
+      ],
+      "answer": "蟹",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "q51fd2f800",
+      "q": "每日在线礼包可以获得多少银贝奖励?",
+      "options": [
+        "10点",
+        "20点",
+        "30点"
+      ],
+      "answer": "20点",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "qa960b7d38",
+      "q": "徐悲鸿擅长画什么？",
+      "options": [
+        "马",
+        "虎",
+        "虾"
+      ],
+      "answer": "马",
+      "verified": true,
+      "wrong": [],
+      "hits": 3,
+      "correct": 3,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "q68044bb97",
+      "q": "坦克是哪个国家发明的？",
+      "options": [
+        "英国",
+        "德国",
+        "美国"
+      ],
+      "answer": "英国",
+      "verified": true,
+      "wrong": [],
+      "hits": 3,
+      "correct": 3,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "qac9f653e2",
+      "q": "麻婆豆腐是我国哪个省份的名菜？",
+      "options": [
+        "重庆",
+        "四川",
+        "贵州"
+      ],
+      "answer": "四川",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "qef6384ae5",
+      "q": "医用酒精是多少度的?",
+      "options": [
+        "75",
+        "90",
+        "55"
+      ],
+      "answer": "75",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "q7b70e23d8",
+      "q": "下列哪一个不是我国的领海？",
+      "options": [
+        "南海",
+        "北海",
+        "黄海"
+      ],
+      "answer": "北海",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-19"
+    },
+    {
+      "id": "q770be4e2b",
+      "q": "忘川的方碑位于哪个位置？",
+      "options": [
+        "妖化蟹将附近",
+        "赢土复活点附近",
+        "妖化人鱼附近"
+      ],
+      "answer": "妖化蟹将附近",
+      "verified": true,
+      "wrong": [],
+      "hits": 3,
+      "correct": 3,
+      "source": "llm",
+      "updated": "2026-10-20"
+    },
+    {
+      "id": "q11862c049",
+      "q": "世界上最早的咖啡馆诞在哪个城市?",
+      "options": [
+        "麦加",
+        "米兰",
+        "巴黎"
+      ],
+      "answer": "麦加",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-20"
+    },
+    {
+      "id": "qabb3c78b8",
+      "q": "“开元盛世”是由唐朝哪个皇帝开创的？",
+      "options": [
+        "唐太宗",
+        "唐中宗",
+        "唐玄宗"
+      ],
+      "answer": "唐玄宗",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-20"
+    },
+    {
+      "id": "qa1fe84106",
+      "q": "孔子有多少弟子？",
+      "options": [
+        "三千人",
+        "三人",
+        "三百人"
+      ],
+      "answer": "三千人",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-20"
+    },
+    {
+      "id": "q3f05f90ec",
+      "q": "在哺乳动物中，最长寿的动物是什么？",
+      "options": [
+        "熊猫",
+        "大象",
+        "狗"
+      ],
+      "answer": "大象",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-20"
+    },
+    {
+      "id": "qbb4855a2a",
+      "q": "火影忍者》中我爱罗背上背着什么？",
+      "options": [
+        "葫芦",
+        "九尾",
+        "琴"
+      ],
+      "answer": "葫芦",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-20"
+    },
+    {
+      "id": "q0eeba1e89",
+      "q": "春风又绿江南岸\"的下一句是什么？",
+      "options": [
+        "日出江花红胜火",
+        "二月春风似剪刀",
+        "明月何时照我还"
+      ],
+      "answer": "明月何时照我还",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-20"
+    },
+    {
+      "id": "qbdd67fb9d",
+      "q": "背包中的东西放满了怎么办？",
+      "options": [
+        "把没用的东西吃掉",
+        "捐给灾区",
+        "卖掉或者扩充背包的格数"
+      ],
+      "answer": "卖掉或者扩充背包的格数",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-21"
+    },
+    {
+      "id": "qb599e66a2",
+      "q": "在哪个地图可以对玩家进行膜拜？",
+      "options": [
+        "忘川",
+        "域外灵岛",
+        "蓬莱仙岛"
+      ],
+      "answer": "域外灵岛",
       "verified": false,
       "wrong": [],
       "hits": 1,
       "correct": 0,
       "source": "llm",
-      "updated": "2026-10-17"
+      "updated": "2026-10-21"
+    },
+    {
+      "id": "qc16a16b2e",
+      "q": "文艺复兴时期雕塑艺术最高峰的代表是谁?",
+      "options": [
+        "米开朗琪罗",
+        "达芬奇",
+        "大卫"
+      ],
+      "answer": "米开朗琪罗",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-21"
+    },
+    {
+      "id": "qc873c45f8",
+      "q": "一般一个蜂群中有几个蜂王？",
+      "options": [
+        "1个",
+        "10个",
+        "无数个"
+      ],
+      "answer": "1个",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-21"
+    },
+    {
+      "id": "q3149ef2f5",
+      "q": "赤壁之战中，假装投降以接近曹军的吴国将领是？",
+      "options": [
+        "黄忠",
+        "黄盖",
+        "周瑜"
+      ],
+      "answer": "黄盖",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-21"
+    },
+    {
+      "id": "q7d860283b",
+      "q": "世界上生存生物最少的海叫什么？",
+      "options": [
+        "死海",
+        "黑海",
+        "爱琴海"
+      ],
+      "answer": "死海",
+      "verified": false,
+      "wrong": [
+        "死海"
+      ],
+      "hits": 2,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "q93da41cd1",
+      "q": "飞人”迈克尔·乔丹曾经是哪支球队的球员",
+      "options": [
+        "芝加哥公牛队",
+        "休斯顿火箭队",
+        "洛杉矶湖人队"
+      ],
+      "answer": "芝加哥公牛队",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-22"
+    },
+    {
+      "id": "q12aeffdbf",
+      "q": "水只有在100摄氏度才会沸腾？",
+      "options": [
+        "不对",
+        "对",
+        "不知道"
+      ],
+      "answer": "不对",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-22"
+    },
+    {
+      "id": "qbea7679c5",
+      "q": "袈裟为什么也叫百纳衣？",
+      "options": [
+        "由许多块布补缀而成",
+        "100个和尚一起做的",
+        "穿袈裟要念经100遍"
+      ],
+      "answer": "由许多块布补缀而成",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-22"
+    },
+    {
+      "id": "q8b707e9c6",
+      "q": "打副本的好处是什么？",
+      "options": [
+        "能让世界和平",
+        "能够获得众多宝物",
+        "能减肥"
+      ],
+      "answer": "能够获得众多宝物",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "q3476384d3",
+      "q": "蚩尤是上古时代什么族的部落的酋长?",
+      "options": [
+        "九黎",
+        "轩辕",
+        "苗疆"
+      ],
+      "answer": "九黎",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "pending",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "qe7baf0ae6",
+      "q": "小明的妈妈有3个儿子老大叫李大老二叫李二老三叫什么？",
+      "options": [
+        "李四",
+        "李小四",
+        "李小明"
+      ],
+      "answer": "李小明",
+      "verified": true,
+      "wrong": [],
+      "hits": 3,
+      "correct": 3,
+      "source": "llm",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "qa9ee4a1c1",
+      "q": "冬季夜空最亮的一颗恒星是？",
+      "options": [
+        "牛郎星",
+        "北极星",
+        "天狼星"
+      ],
+      "answer": "天狼星",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "q08c87da4f",
+      "q": "巴黎圣母院》的作者是谁？",
+      "options": [
+        "高尔基",
+        "雨果",
+        "大仲马"
+      ],
+      "answer": "雨果",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "qb3ac10410",
+      "q": "“春风拂槛露华浓”的上一句是?",
+      "options": [
+        "会向瑶台月下逢",
+        "名花倾国两相欢",
+        "云想衣裳花想容"
+      ],
+      "answer": "云想衣裳花想容",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "q4a58cb07a",
+      "q": "英国博物学家生物学家进化论的奠基人达尔文撰写了轰动了生物学界的著作是?",
+      "options": [
+        "物种起源",
+        "生化危机",
+        "进化论"
+      ],
+      "answer": "物种起源",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-23"
+    },
+    {
+      "id": "q86dbeecaf",
+      "q": "忘川有几个巨大的海兽雕像？",
+      "options": [
+        "3个",
+        "2个",
+        "6个"
+      ],
+      "answer": "6个",
+      "verified": false,
+      "wrong": [
+        "6个"
+      ],
+      "hits": 1,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "q2ad86d4a7",
+      "q": "角色出生后，所在的第一个关卡叫什么名字？",
+      "options": [
+        "中皇山",
+        "人猿泰山",
+        "西藏少林寺"
+      ],
+      "answer": "中皇山",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "qaab875525",
+      "q": "金身需要什么才能升级？",
+      "options": [
+        "魂气",
+        "用灵力喂养",
+        "天天抚摸"
+      ],
+      "answer": "魂气",
+      "verified": true,
+      "wrong": [],
+      "hits": 3,
+      "correct": 3,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "q280b367ab",
+      "q": "古代帝王封禅，郊祀的玉简文书叫什么？",
+      "options": [
+        "诰命",
+        "玉牒",
+        "族谱"
+      ],
+      "answer": "玉牒",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "qd0a6ad4d0",
+      "q": "张家界风景区位于我国的哪省份?",
+      "options": [
+        "贵州",
+        "湖南",
+        "四川"
+      ],
+      "answer": "湖南",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "pending",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "q5a8ae6960",
+      "q": "古代的巴比伦王国的位置相当于现在的哪个国家？",
+      "options": [
+        "伊拉克",
+        "伊朗",
+        "科威特"
+      ],
+      "answer": "伊拉克",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "qe23c99a62",
+      "q": "“床前明月光”是李白的千古名句，其中“床”指的是什么？",
+      "options": [
+        "窗户",
+        "井上的围栏",
+        "卧具"
+      ],
+      "answer": "井上的围栏",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "pending",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "qbd64570fa",
+      "q": "普洱茶的产地在哪？",
+      "options": [
+        "广西",
+        "贵州",
+        "云南"
+      ],
+      "answer": "云南",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "q9fa4b414a",
+      "q": "屈原所作的中国古代最长的抒情诗是？",
+      "options": [
+        "九歌",
+        "离骚",
+        "长恨歌"
+      ],
+      "answer": "离骚",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "q8a45b662f",
+      "q": "代人作文章被称之为“捉刀”，“捉刀”最早说的是谁?",
+      "options": [
+        "曹操",
+        "曹植",
+        "曹丕"
+      ],
+      "answer": "曹操",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-24"
+    },
+    {
+      "id": "qc0c16b817",
+      "q": "牧野蚩尤刀斧手手中拿着的是?",
+      "options": [
+        "大刀",
+        "长枪",
+        "斧头"
+      ],
+      "answer": "大刀",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "pending",
+      "updated": "2026-10-25"
+    },
+    {
+      "id": "qf8c55d75e",
+      "q": "16世纪西班牙殖民者在南美掠夺的白银到哪去了？",
+      "options": [
+        "通过贸易的形式流入中国",
+        "被海盗攻击了",
+        "皇室成员赌博输光了"
+      ],
+      "answer": "通过贸易的形式流入中国",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-25"
+    },
+    {
+      "id": "q92d3779fe",
+      "q": "我国民间有“夜猫子进宅，无事不来”、“不怕夜猫子叫，就怕夜猫子笑”等俗语，其中的夜猫子指什么？",
+      "options": [
+        "猫头鹰",
+        "猫",
+        "一种传说中的怪兽"
+      ],
+      "answer": "猫头鹰",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-25"
+    },
+    {
+      "id": "q1044d1209",
+      "q": "铸造五铢钱的皇帝是?",
+      "options": [
+        "汉武帝",
+        "秦始皇",
+        "唐太宗"
+      ],
+      "answer": "汉武帝",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-25"
+    },
+    {
+      "id": "q047209d40",
+      "q": "成语“一衣带水”中的“水”原意是指？",
+      "options": [
+        "露水",
+        "长江",
+        "清泉"
+      ],
+      "answer": "长江",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-25"
+    },
+    {
+      "id": "q49f91c074",
+      "q": "牧野炎帝身边有几个亲兵?",
+      "options": [
+        "1个",
+        "2个",
+        "10个"
+      ],
+      "answer": "2个",
+      "verified": false,
+      "wrong": [
+        "2个"
+      ],
+      "hits": 1,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-10-26"
+    },
+    {
+      "id": "q6766aee2d",
+      "q": "书法“瘦金体”由谁所创？",
+      "options": [
+        "唐太宗",
+        "宋徽宗",
+        "宋高宗"
+      ],
+      "answer": "宋徽宗",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-26"
+    },
+    {
+      "id": "qf6e531084",
+      "q": "最安全的交通工具，发生事故几率最小的是",
+      "options": [
+        "飞机",
+        "火车",
+        "轮船"
+      ],
+      "answer": "飞机",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-26"
+    },
+    {
+      "id": "qb467e9508",
+      "q": "年轮气候学是根据树木什么的变化推论过去气候的一门学科？",
+      "options": [
+        "树木生长周期",
+        "树木生长环境",
+        "年轮"
+      ],
+      "answer": "年轮",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-26"
+    },
+    {
+      "id": "qc8eac2a5b",
+      "q": "俗称“四不象”的动物是？",
+      "options": [
+        "麋鹿",
+        "驯鹿",
+        "驼鹿"
+      ],
+      "answer": "麋鹿",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-26"
+    },
+    {
+      "id": "q6b951f7ea",
+      "q": "轩辕中刑狼手中所持武器分别为？",
+      "options": [
+        "大剑和盾牌",
+        "大剑和斧头",
+        "斧头和盾牌"
+      ],
+      "answer": "斧头和盾牌",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-27"
+    },
+    {
+      "id": "qe3ca2d17c",
+      "q": "轩辕世界中一个玩家能获得几个称号？",
+      "options": [
+        "无数个",
+        "100个",
+        "10个"
+      ],
+      "answer": "无数个",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "pending",
+      "updated": "2026-10-27"
+    },
+    {
+      "id": "q66a7f5c78",
+      "q": "明代的似话本小说“三言”分别是喻世明言》警世通言》和什么?",
+      "options": [
+        "醒世恒言",
+        "救世恒言",
+        "醒世敬言"
+      ],
+      "answer": "醒世恒言",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "pending",
+      "updated": "2026-10-27"
+    },
+    {
+      "id": "qb547a1523",
+      "q": "阴历一年的最后一天的晚上叫什么？",
+      "options": [
+        "除夕",
+        "守岁",
+        "中元"
+      ],
+      "answer": "除夕",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-27"
+    },
+    {
+      "id": "qfadd3f693",
+      "q": "意大利诗人阿利盖利.但丁的长诗 神曲》分为三部分,分别是地狱》，炼狱》和什么？",
+      "options": [
+        "死狱",
+        "人间",
+        "天堂"
+      ],
+      "answer": "天堂",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-27"
+    },
+    {
+      "id": "qa3a87fa38",
+      "q": "\"乐不思蜀\"这个典故涉及到的历史人物?",
+      "options": [
+        "刘备",
+        "刘禅",
+        "姜维"
+      ],
+      "answer": "刘禅",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-27"
+    },
+    {
+      "id": "q433e82de8",
+      "q": "被誉为“赛车之父”的是？",
+      "options": [
+        "兰博基尼",
+        "福特",
+        "法拉利"
+      ],
+      "answer": "法拉利",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-27"
+    },
+    {
+      "id": "q694ca6cef",
+      "q": "“青丘”势力的首领叫什么？",
+      "options": [
+        "巴洛特利",
+        "孙悟空",
+        "吕绝"
+      ],
+      "answer": "吕绝",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "q2e25774d7",
+      "q": "白原势力首领罗毅和赢土势力首领姬霜是什么关系？",
+      "options": [
+        "情侣",
+        "父女",
+        "敌人"
+      ],
+      "answer": "敌人",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "pending",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "qb1444ed6b",
+      "q": "八大行星中最靠近地球的行星是什么？",
+      "options": [
+        "金星",
+        "火星",
+        "土星"
+      ],
+      "answer": "金星",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "q70c502b34",
+      "q": "围棋棋盘上的九个小圆点被叫做？",
+      "options": [
+        "天元",
+        "星",
+        "点"
+      ],
+      "answer": "星",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-28"
+    },
+    {
+      "id": "q8d5e145d3",
+      "q": "忘川的蛟龙最喜欢的是谁?",
+      "options": [
+        "蚌仙儿",
+        "精卫",
+        "水灵"
+      ],
+      "answer": "蚌仙儿",
+      "verified": false,
+      "wrong": [
+        "蚌仙儿"
+      ],
+      "hits": 1,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-10-29"
+    },
+    {
+      "id": "q9589e0498",
+      "q": "谁最爱说这些话：1.大师兄！师傅被妖怪抓走了！2.二师兄！师傅被妖怪抓走了！",
+      "options": [
+        "孙悟空",
+        "猪八戒",
+        "沙僧"
+      ],
+      "answer": "沙僧",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-29"
+    },
+    {
+      "id": "qccd49d772",
+      "q": "“甲壳虫”系列是一下哪个国家生产的车型？",
+      "options": [
+        "美国",
+        "德国",
+        "日本"
+      ],
+      "answer": "德国",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-29"
+    },
+    {
+      "id": "qf2303544d",
+      "q": "红色彼岸花的学名是什么？",
+      "options": [
+        "曼珠沙华",
+        "芬陀利花",
+        "曼陀罗华"
+      ],
+      "answer": "曼珠沙华",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-29"
+    },
+    {
+      "id": "qf799e51a9",
+      "q": "海洋中最多的生物是哪种?",
+      "options": [
+        "浮游生物",
+        "鱼类",
+        "细菌"
+      ],
+      "answer": "浮游生物",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-29"
+    },
+    {
+      "id": "q10ae995b7",
+      "q": "\"打蛇打七寸”的七寸是指",
+      "options": [
+        "心脏",
+        "脖子",
+        "头部"
+      ],
+      "answer": "心脏",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-29"
+    },
+    {
+      "id": "q323bf92cd",
+      "q": "阿里巴巴和四十大盗的故事中打开石门的咒语是？",
+      "options": [
+        "麦子开门",
+        "芝麻开门",
+        "阿里巴巴"
+      ],
+      "answer": "芝麻开门",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "q58b65d9c2",
+      "q": "下列半岛哪个以出产石油著称？",
+      "options": [
+        "辽东半岛",
+        "朝鲜半岛",
+        "阿拉伯半岛"
+      ],
+      "answer": "阿拉伯半岛",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "q7063b9fdc",
+      "q": "古代的死刑在什么季节行刑？",
+      "options": [
+        "夏季",
+        "春季",
+        "秋季"
+      ],
+      "answer": "秋季",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "q6cc8686f7",
+      "q": "明朝的开国皇帝是？",
+      "options": [
+        "朱允炆",
+        "朱棣",
+        "朱元璋"
+      ],
+      "answer": "朱元璋",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "qa3ac9ac62",
+      "q": "白雪公主被她继母害的其中一次是吃了什么水果？",
+      "options": [
+        "香蕉",
+        "橘子",
+        "苹果"
+      ],
+      "answer": "苹果",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-30"
+    },
+    {
+      "id": "qa4c1e0c49",
+      "q": "孔位升品需要什么？",
+      "options": [
+        "砺光石",
+        "冶炼石",
+        "幻灵石"
+      ],
+      "answer": "砺光石",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-31"
+    },
+    {
+      "id": "qca90034d1",
+      "q": "大小形状同样的两个球，一个是木制的，一个是铁制的，从楼上同时掉下，哪个先着地?",
+      "options": [
+        "同时着地",
+        "木球",
+        "铁球"
+      ],
+      "answer": "同时着地",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-31"
+    },
+    {
+      "id": "q2ad2c79a2",
+      "q": "西湖白堤是因纪念哪位诗人而得名？",
+      "options": [
+        "李白",
+        "白居易",
+        "白朗"
+      ],
+      "answer": "白居易",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-31"
+    },
+    {
+      "id": "qad7a5675e",
+      "q": "副扑克牌共有多少张?",
+      "options": [
+        "44",
+        "54",
+        "64"
+      ],
+      "answer": "54",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-31"
+    },
+    {
+      "id": "qafa3460b9",
+      "q": "海贼王》中路飞吃下的是什么恶魔果实？",
+      "options": [
+        "橡胶果实",
+        "鸟鸟果实",
+        "甜甜果实"
+      ],
+      "answer": "橡胶果实",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-10-31"
+    },
+    {
+      "id": "q2aa5c0296",
+      "q": "白马寺是佛教在中华大地上兴起的第几座佛教寺院?",
+      "options": [
+        "第100座",
+        "第5座",
+        "第1座"
+      ],
+      "answer": "第1座",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-31"
+    },
+    {
+      "id": "qaf62579ef",
+      "q": "动画钢之炼金术》的作者被称为?",
+      "options": [
+        "马婶",
+        "牛姨",
+        "羊姐"
+      ],
+      "answer": "牛姨",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-10-31"
+    },
+    {
+      "id": "qa0e48d197",
+      "q": "西游记里琵琶洞内要与唐僧结亲的女妖怪原形是什么？",
+      "options": [
+        "蝎子精",
+        "琵琶精",
+        "玉兔精"
+      ],
+      "answer": "蝎子精",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-01"
+    },
+    {
+      "id": "qfd6a86541",
+      "q": "以下哪种幻化形象是当前游戏里没有的？",
+      "options": [
+        "独角兽",
+        "孔雀",
+        "狐尾"
+      ],
+      "answer": "独角兽",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-02"
+    },
+    {
+      "id": "qacab65158",
+      "q": "点化他人一次自己可以获得几点天地精华?",
+      "options": [
+        "3点",
+        "6点",
+        "9点"
+      ],
+      "answer": "6点",
+      "verified": false,
+      "wrong": [
+        "6点"
+      ],
+      "hits": 1,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-11-02"
+    },
+    {
+      "id": "qbbb10486b",
+      "q": "\"山外青山楼外楼”在原诗 题临安邸》中的下句是?",
+      "options": [
+        "西湖歌舞几时休",
+        "烟花三月下扬州",
+        "唯见长江天际流"
+      ],
+      "answer": "西湖歌舞几时休",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-11-02"
+    },
+    {
+      "id": "q972e01197",
+      "q": "孙悟空的法号是什么？",
+      "options": [
+        "悟空",
+        "悟能",
+        "悟饭"
+      ],
+      "answer": "悟空",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-11-02"
+    },
+    {
+      "id": "q4d4f71c14",
+      "q": "司母戊鼎是什么朝代青铜器的代表作?",
+      "options": [
+        "商朝",
+        "春秋",
+        "周朝"
+      ],
+      "answer": "商朝",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-02"
+    },
+    {
+      "id": "q240f45de8",
+      "q": "梦游天姥吟留别》中“使我不得开心颜”的上一句是？",
+      "options": [
+        "安能摧眉折腰事权贵",
+        "古来万事东流水",
+        "别君去兮何时还？"
+      ],
+      "answer": "安能摧眉折腰事权贵",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-11-02"
+    },
+    {
+      "id": "q8bf8fdc0f",
+      "q": "轩辕中哪种任务类型给的金钱最多",
+      "options": [
+        "史诗",
+        "主线",
+        "金钱"
+      ],
+      "answer": "金钱",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "pending",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "qd6b6c4c75",
+      "q": "2人角斗场对战获胜后获得几点技能经验？",
+      "options": [
+        "4点",
+        "5点",
+        "1点"
+      ],
+      "answer": "5点",
+      "verified": false,
+      "wrong": [
+        "1点",
+        "5点"
+      ],
+      "hits": 2,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-11-04"
+    },
+    {
+      "id": "qaecc9d0ee",
+      "q": "除夏威夷之外，哪个州也是美国本土以外的州？",
+      "options": [
+        "马达加斯加",
+        "阿拉斯加",
+        "新德里"
+      ],
+      "answer": "阿拉斯加",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "qffb46bab4",
+      "q": "三个孩子吃三个饼要用3分钟，九十个孩子九十个饼要用多少时间?",
+      "options": [
+        "3分钟",
+        "9分钟",
+        "30分钟"
+      ],
+      "answer": "3分钟",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "qf84d0d5bc",
+      "q": "烽火戏诸侯是为博哪位美女一笑?",
+      "options": [
+        "妲己",
+        "褒姒",
+        "虞姬"
+      ],
+      "answer": "褒姒",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "q30d1de3ef",
+      "q": "三国中施行草船借箭之计的人是谁?",
+      "options": [
+        "诸葛亮",
+        "许褚",
+        "黄盖"
+      ],
+      "answer": "诸葛亮",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "qc5f7fc201",
+      "q": "创立年号同时也是中国第一个使用年号的皇帝是谁?",
+      "options": [
+        "秦始皇",
+        "唐太宗",
+        "汉武帝"
+      ],
+      "answer": "汉武帝",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "q9bca62eec",
+      "q": "教皇佩戴渔夫戒指的传统已经有多少年的历史?",
+      "options": [
+        "300年",
+        "800年",
+        "1200年"
+      ],
+      "answer": "800年",
+      "verified": true,
+      "wrong": [],
+      "hits": 2,
+      "correct": 2,
+      "source": "llm",
+      "updated": "2026-11-03"
+    },
+    {
+      "id": "q08fee80e6",
+      "q": "势力的税率最多可以为多少？",
+      "options": [
+        "15%",
+        "20%",
+        "25%"
+      ],
+      "answer": "20%",
+      "verified": false,
+      "wrong": [
+        "20%"
+      ],
+      "hits": 1,
+      "correct": 0,
+      "source": "llm",
+      "updated": "2026-11-04"
+    },
+    {
+      "id": "q61b048e7a",
+      "q": "如果游戏中遇到突发问题、游戏漏洞该怎么办?",
+      "options": [
+        "及时联系客服",
+        "大声叫骂",
+        "祈祷"
+      ],
+      "answer": "及时联系客服",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-04"
+    },
+    {
+      "id": "q02de1f713",
+      "q": "牧野蚩尤统帅的马匹上的飘带是什么颜色的？",
+      "options": [
+        "红色",
+        "绿色",
+        "紫色"
+      ],
+      "answer": "绿色",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "pending",
+      "updated": "2026-11-04"
+    },
+    {
+      "id": "qd4d603140",
+      "q": "迈克尔杰克逊最热销的专辑是的哪个？",
+      "options": [
+        "颤栗",
+        "坏",
+        "危险"
+      ],
+      "answer": "颤栗",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-04"
+    },
+    {
+      "id": "qe0fc8287b",
+      "q": "沼泽里没有下面哪角色?",
+      "options": [
+        "牛六",
+        "牛五",
+        "牛四"
+      ],
+      "answer": "牛六",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-04"
+    },
+    {
+      "id": "q893b12f7c",
+      "q": "好莱坞位于美国什么州？",
+      "options": [
+        "内华达州",
+        "加利福尼亚州",
+        "佛罗里达州"
+      ],
+      "answer": "加利福尼亚州",
+      "verified": true,
+      "wrong": [],
+      "hits": 1,
+      "correct": 1,
+      "source": "llm",
+      "updated": "2026-11-04"
     }
   ]
 }

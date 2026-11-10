@@ -19,10 +19,12 @@ class ConfigMenu:
         # 脚本设置（战斗是独立页面：技能预设/顺序/禁用，不是任务，不进调度器）
         self.menu['Script'] = ['Script', 'Battle', 'Restart']
         # 日常的任务
-        self.menu["Daily Task"] = ['Quiz', 'WarChariot', 'SilverGiftBox', 'AutoTask']
+        self.menu["Daily Task"] = ['Quiz', 'WarChariot', 'SilverGiftBox', 'DailySignIn',
+                                   'WorldTask', 'AutoTask']
         # 战斗的任务
         self.menu["Battle Task"] = ['WorldBoss', 'Arena', 'CrossArena', 'AncientHunt',
-                                    'XianfuJiuchongtian', 'YuwaiMimang', 'DouXianGe']
+                                    'XianfuJiuchongtian', 'Buzhoushan', 'FumoShanjian',
+                                    'YuwaiMimang', 'DouXianGe']
         # 副本玩法（单独分组）
         self.menu["Dungeon"] = ['Dungeon']
         # 开发工具

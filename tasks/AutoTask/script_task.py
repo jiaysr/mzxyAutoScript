@@ -3,7 +3,7 @@
 自动任务（AutoTask）：每日任务的一种
 
 流程（循环直到除循环任务外全满）：
-队伍页确保单人 -> 特权页查过期 -> 读 10 任务选下一个（加量优先）
+队伍页确保单人 -> 特权页查过期 -> 读任务列表选下一个（加量优先）
 -> 加量页调卡 -> 特权页进详情点自动 -> 回主页按间隔查完成弹窗
 -> 回特权页重读选下一个。
 """
@@ -51,7 +51,7 @@ class ScriptTask(GameUi, AutoTaskAssets):
     PRIVILEGE_ROW_HALF = 42
     # 滚完等列表停稳再识别
     PRIVILEGE_SCROLL_SLEEP = 1.0
-    # 最多滚几屏（10 个任务一屏 7 个，滚 1 次全见；多留余量防漏）
+    # 最多滚几屏（一屏约 7 行，多留余量防漏）
     PRIVILEGE_MAX_SCROLL = 3
 
     # 任务名 -> 加量配置字段（只有这 6 个支持加量卡；循环任务永不参选）
@@ -77,6 +77,9 @@ class ScriptTask(GameUi, AutoTaskAssets):
         '仙盟任务': 6,
         '麒麟任务': 5,
         '玲珑每日': 6,
+        # 新版本新增：不可使用加量卡，解锁后由「全部自动」一起完成
+        '忘川每日': 12,
+        '灵岛每日': 5,
         '循环任务': None,
     }
 
@@ -169,7 +172,7 @@ class ScriptTask(GameUi, AutoTaskAssets):
         cells = []
         for item in self.O_PRIVILEGE_TASK_LIST.detect_and_ocr(self.device.image, logDisplay=False):
             text = item.ocr_text.strip()
-            if not text or text == '查看':
+            if not text or '查看' in text:
                 continue
             cx = sum(point[0] for point in item.box) / len(item.box) + roi_x
             cy = sum(point[1] for point in item.box) / len(item.box) + roi_y
@@ -208,6 +211,12 @@ class ScriptTask(GameUi, AutoTaskAssets):
         result = {}
         for _, row in self.group_privilege_rows():
             line = ' '.join(text for _, text in sorted(row))
+            # 新任务有等级要求：未解锁时进度位置显示「70级开启」，不参与自动任务
+            match_locked = re.search(r'\d+\s*级\s*开', line)
+            if match_locked:
+                name = line[:match_locked.start()].strip()
+                logger.info(f'任务[{name or "?"}] 未解锁（{match_locked.group(0)}），跳过')
+                continue
             match_progress = re.search(r'进度\s*[:：]?\s*(\d+)\s*/\s*(\d+)', line)
             if match_progress:
                 # 有进度：去掉进度部分，剩下就是任务名（名不一定以"任务"结尾，如玲珑每日）；
@@ -679,6 +688,10 @@ class ScriptTask(GameUi, AutoTaskAssets):
             return
         logger.warning('Character died')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：等自动任务时继续等，其他阶段整任务重跑"""
         if self._waiting_auto:
             logger.info('Died while waiting auto task, game auto continues')
             return

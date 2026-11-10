@@ -1,0 +1,9 @@
+[
+  {
+    "itemName": "dungeon_list_swipe",
+    "roiFront": "182,477,227,46",
+    "roiBack": "189,191,221,58",
+    "mode": "default",
+    "description": "副本页-列表向下整段快滑（会跳过中间行，仅留档，不要用于逐行识别）"
+  }
+]

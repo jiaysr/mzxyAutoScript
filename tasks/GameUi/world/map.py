@@ -62,6 +62,16 @@ class MapNavigation(BaseTask, GameUiAssets):
         ('蓬菜', '蓬莱'),
         # 「仙府九重天」的「仙」常被识别成「山」
         ('山府', '仙府'),
+        # 副本外地图
+        ('沙獄', '沙狱'),
+        ('少狱', '沙狱'),
+        ('帝玉领', '帝玉岭'),
+        ('帝玉領', '帝玉岭'),
+        ('単人', '单人'),
+        ('單人', '单人'),
+        ('雙人', '双人'),
+        ('琉璃幻镜', '琉璃幻境'),
+        ('琉璃幻培', '琉璃幻境'),
     )
 
     # 最近一次成功解析的位置（用于 OCR 漏掉分隔符时的坐标拆分消歧，见 map_split_digits）
@@ -132,13 +142,16 @@ class MapNavigation(BaseTask, GameUiAssets):
             best = min(candidates, key=lambda c: abs(len(str(c[0])) - len(str(c[1]))))
         return name, best[0], best[1]
 
-    def map_current_location(self):
+    def map_current_location(self, image=None):
         """
         读取主页面右上角当前地点与坐标
+        :param image: 可选，传入当前帧则不再重复截图
         :return: (地点名, x, y)；识别失败返回 None
         """
-        self.screenshot()
-        results = self.O_MAP_LOCATION.detect_and_ocr(self.device.image, logDisplay=False)
+        if image is None:
+            self.screenshot()
+            image = self.device.image
+        results = self.O_MAP_LOCATION.detect_and_ocr(image, logDisplay=False)
         text = ''.join(item.ocr_text for item in results)
         location = self.map_parse_location(text, hint=self._last_map_location)
         logger.attr('Map current location', f'{text} -> {location}')
@@ -170,24 +183,44 @@ class MapNavigation(BaseTask, GameUiAssets):
     def map_name_match(self, ocr_text: str, name: str) -> bool:
         """
         地点名匹配（容忍 OCR 形近字误识）
+
         - 先按 MAP_NAME_FIXES 修正已知形近字（万剑家 -> 万剑冢）
+        - 再只保留汉字比较：地点名里的「[单人]」「[多人]」等括号会被 OCR 丢掉/改写，
+          统一去掉非汉字后再比，避免「沙狱[单人]」和「沙狱单人」匹配不上
         - 完全包含：直接命中
         - 相似度 >= 0.75：容忍首字误识
         - 相似度 >= 0.6 且前两字一致：容忍其他形近字误识
         地点名来自固定列表，相互之间差异大，不会误判
+
+        例外是**同一地点的不同变体**（`沙狱外` / `沙狱[单人]` / `沙狱[多人]`）：
+        它们前两字全一样，靠相似度必然互相认错，所以「单人/多人/双人」和结尾的「外」
+        这两个标记要求两边**完全一致**。
         """
         if not ocr_text or not name:
             return False
-        candidate = self.map_fix_name(ocr_text)
-        if name in candidate:
-            return True
-        if len(name) < 2 or len(candidate) < 2:
+        candidate = re.sub(r'[^\u4e00-\u9fa5]', '', self.map_fix_name(ocr_text))
+        target = re.sub(r'[^\u4e00-\u9fa5]', '', self.map_fix_name(name))
+        if not candidate or not target:
             return False
-        window = candidate[:len(name)]
-        ratio = SequenceMatcher(None, window, name).ratio()
+        # 变体标记必须两边一致：只查「target 有、candidate 没有」会漏掉反方向 ——
+        # target 是外图（沙狱外）时它本身不带任何标记，于是落到相似度规则：
+        # 「沙狱多」vs「沙狱外」= 0.667 >= 0.6 且前两字相同 -> 被当成同一张图。
+        # 2026-11-05 就是这样把「人还在沙狱[多人]里」判成「已经在外图」，
+        # 于是没走出去 -> 认错地图 -> 在副本里找万事通找到怪身上 -> 卡死在治疗重试。
+        for token in ('单人', '多人', '双人'):
+            if (token in target) != (token in candidate):
+                return False
+        if target.endswith('外') != candidate.endswith('外'):
+            return False
+        if target in candidate:
+            return True
+        if len(target) < 2 or len(candidate) < 2:
+            return False
+        window = candidate[:len(target)]
+        ratio = SequenceMatcher(None, window, target).ratio()
         if ratio >= 0.75:
             return True
-        return ratio >= 0.6 and window[:2] == name[:2]
+        return ratio >= 0.6 and window[:2] == target[:2]
 
     def map_pos_match(self, x: int, y: int, position: tuple, tolerance: int = None) -> bool:
         """坐标是否与记录的初始坐标在同一位置"""
@@ -263,7 +296,9 @@ class MapNavigation(BaseTask, GameUiAssets):
             self.screenshot()
             if not self.appear(self.I_MAP_WORLD_MAP_LIST_PAGE):
                 return True
-            self.click(self.C_MAP_WORLD_MAP_LIST_CLOSE, interval=1)
+            # 列表行数不同（10/11 行）会让「请选择」面板整体上下浮动约 48px，
+            # 关闭按钮不能写死坐标，按绿X模板的实际匹配位置点
+            self.appear_then_click(self.I_MAP_WORLD_MAP_LIST_CLOSE_ICON, interval=1)
             sleep(0.2)
         logger.warning('World map list does not close')
         return False
@@ -281,6 +316,9 @@ class MapNavigation(BaseTask, GameUiAssets):
                 logger.info('World map list is open')
                 self.device.sleep(self.MAP_LIST_SETTLE)
                 return True
+            # 页面没识别出来时会反复点同一个按钮，清掉点击记录避免撞上
+            # 框架的「同一按钮 10 次」连点保护（GameTooManyClickError）
+            self.device.click_record_clear()
             if self.appear(self.I_MAP_MINIMAP_WORLD_MAP):
                 # 小地图弹窗：点「世界地图」
                 self.appear_then_click(self.I_MAP_MINIMAP_WORLD_MAP, interval=1)
@@ -354,10 +392,32 @@ class MapNavigation(BaseTask, GameUiAssets):
         return False
 
     def map_minimap_arrows(self) -> set:
-        """识别小地图四边蓝色边界箭头，返回 {'top','right','bottom','left'} 的子集"""
+        """
+        识别小地图四边边界箭头，返回 {'top','right','bottom','left'} 的子集
+
+        优先用录制的箭头模板匹配（I_ITEM_7..10）；地图底色和箭头颜色相近时，
+        纯颜色阈值会把地图纹理误判成箭头（忘川实测左箭头误报）。模板全都没命中时
+        再退回颜色判断，兼容其它地图。
+        """
         if self.device.image is None:
             self.screenshot()
-        hsv = cv2.cvtColor(self.device.image, cv2.COLOR_RGB2HSV)
+        image = self.device.image
+        arrows = set()
+        for side, rule in (
+                ('top', self.I_ITEM_7),
+                ('left', self.I_ITEM_8),
+                ('bottom', self.I_ITEM_9),
+                ('right', self.I_ITEM_10),
+        ):
+            if rule.match(image):
+                arrows.add(side)
+        if arrows:
+            return arrows
+        return self._map_minimap_arrows_color(image)
+
+    def _map_minimap_arrows_color(self, image) -> set:
+        """颜色阈值兜底：模板一个都没命中时使用"""
+        hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
         mask = cv2.inRange(hsv, (95, 120, 120), (125, 255, 255))
         arrows = set()
         for side, (x, y, w, h) in self.MAP_ARROW_REGIONS.items():
@@ -601,11 +661,13 @@ class MapNavigation(BaseTask, GameUiAssets):
     # 滚完等列表停稳的固定等待（实测惯性 0.6~0.9s 内停住）
     MAP_NPC_LIST_SETTLE_SLEEP = 1.0
 
-    def map_open_minimap_and_click_npc(self, npc_name: str, max_swipe: int = None) -> bool:
+    def map_open_minimap_and_click_npc(self, npc_name: str, max_swipe: int = None,
+                                       region: tuple = None) -> bool:
         """
-        开小地图 -> 右侧 NPC 列表滑动找 npc_name -> 点击 -> 关小地图
+        开小地图 -> NPC 列表滑动找 npc_name -> 点击 -> 关小地图
 
         点完 NPC 后人物会自动寻路走到 NPC 处，调用方再用 map_wait_walk_arrive 等走完。
+        :param region: NPC 列表区域；不同地图的小地图窗口宽度不同，默认用 MAP_NPC_LIST_REGION
         """
         logger.hr(f'Find NPC [{npc_name}] in minimap')
         self.map_close_minimap()
@@ -614,13 +676,15 @@ class MapNavigation(BaseTask, GameUiAssets):
             logger.error('Minimap does not open')
             return False
         try:
-            return self.map_minimap_find_npc_click(npc_name, max_swipe=max_swipe)
+            return self.map_minimap_find_npc_click(npc_name, max_swipe=max_swipe,
+                                                   region=region)
         finally:
             # 点完 NPC 后人物自动寻路，小地图会自己关；这里先主动关掉，
             # 否则小地图盖住地图画面，寻路途中的坐标读取都看不到
             self.map_close_minimap()
 
-    def map_minimap_find_npc_click(self, npc_name: str, max_swipe: int = None) -> bool:
+    def map_minimap_find_npc_click(self, npc_name: str, max_swipe: int = None,
+                                   region: tuple = None) -> bool:
         """
         在小地图右侧 NPC 列表里找 npc_name 并点击（列表可上下滚动）
 
@@ -628,35 +692,36 @@ class MapNavigation(BaseTask, GameUiAssets):
         框架的 Full 模式在整串不匹配时会退化成逐字符匹配，几乎总返回 True。
         """
         max_swipe = max_swipe if max_swipe is not None else self.MAP_NPC_LIST_MAX_SWIPE
+        region = region if region is not None else self.MAP_NPC_LIST_REGION
         last_signature = None
         for attempt in range(1, max_swipe + 1):
             self.reset_records()
             self.screenshot()
-            coord = self.map_minimap_npc_locate(npc_name)
+            coord = self.map_minimap_npc_locate(npc_name, region)
             if coord is not None:
                 logger.attr(f'NPC [{npc_name}] found at {attempt}th scan', f'{coord[0]:.0f},{coord[1]:.0f}')
                 self.device.click(x=coord[0], y=coord[1], control_name=f'minimap_npc_{npc_name}')
                 self.device.click_record_clear()
                 return True
             # 列表内容没变 = 已经到底
-            signature = self.map_minimap_npc_signature()
+            signature = self.map_minimap_npc_signature(region)
             if signature == last_signature:
                 logger.warning(f'NPC list does not scroll any more, [{npc_name}] not found')
                 return False
             last_signature = signature
             logger.info(f'NPC [{npc_name}] not on screen {attempt}, scroll list down')
-            self.map_minimap_npc_swipe_down()
+            self.map_minimap_npc_swipe_down(region)
         logger.error(f'NPC [{npc_name}] not found after {max_swipe} scrolls')
         return False
 
-    def map_minimap_npc_locate(self, npc_name: str):
+    def map_minimap_npc_locate(self, npc_name: str, region: tuple = None):
         """
         在 NPC 列表区域 OCR 找 npc_name，返回可点击坐标；没找到返回 None
 
         命中判定用 ocr_name_match / ocr_name_pick（容忍 OCR 形近字、丢字）。
         """
         rule = self.O_MAP_MINIMAP_NPC_TEXT
-        roi = self.MAP_NPC_LIST_REGION
+        roi = region if region is not None else self.MAP_NPC_LIST_REGION
         old_roi = rule.roi
         try:
             rule.roi = roi
@@ -678,18 +743,18 @@ class MapNavigation(BaseTask, GameUiAssets):
             return int(x), int(y)
         return None
 
-    def map_minimap_npc_signature(self) -> tuple:
+    def map_minimap_npc_signature(self, region: tuple = None) -> tuple:
         """当前列表可见文本的签名，用来判断滑动是否还有效（到底/卡住）"""
         rule = self.O_MAP_MINIMAP_NPC_TEXT
         old_roi = rule.roi
         try:
-            rule.roi = self.MAP_NPC_LIST_REGION
+            rule.roi = region if region is not None else self.MAP_NPC_LIST_REGION
             results = rule.detect_and_ocr(self.device.image, logDisplay=False)
         finally:
             rule.roi = old_roi
         return tuple(sorted(item.ocr_text.strip() for item in results))
 
-    def map_minimap_npc_swipe_down(self) -> None:
+    def map_minimap_npc_swipe_down(self, region: tuple = None) -> None:
         """
         NPC 列表往下滚 2 行（156px）
 
@@ -698,7 +763,7 @@ class MapNavigation(BaseTask, GameUiAssets):
         按住 0.4s 再抬手则惯性被吃掉，实测拖 156px 只滚 ~215px（≈2.8 行 < 一屏），
         相邻两次采样必定有重叠。滚完等列表停稳（实测 0.6~0.9s）再让上层识别。
         """
-        x0, y0, w, h = self.MAP_NPC_LIST_REGION
+        x0, y0, w, h = region if region is not None else self.MAP_NPC_LIST_REGION
         center_x = x0 + w // 2
         distance = self.MAP_NPC_LIST_ROW_PITCH * self.MAP_NPC_LIST_SWIPE_ROWS
         start_y = y0 + h - 40

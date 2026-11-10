@@ -1,8 +1,8 @@
 [
   {
     "itemName": "privilege_task_list",
-    "roiFront": "280,100,420,600",
-    "roiBack": "280,100,420,600",
+    "roiFront": "280,100,580,600",
+    "roiBack": "280,100,580,600",
     "mode": "Full",
     "method": "Default",
     "keyword": "",

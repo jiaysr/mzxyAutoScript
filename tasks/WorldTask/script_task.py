@@ -1,0 +1,2364 @@
+# This Python file uses the following encoding: utf-8
+"""
+世界任务（WorldTask）：每天一次，只在开放世界时段（09:00-24:00）里跑
+
+当前进度：**接 7 个跨服任务 + 进世界之巅 + 做采集类任务** —— 判断是否在 NPC 所在地图
+（默认域外灵岛）→ 打开小地图把视口拖到右上角 → 点录好的 NPC 点位 → **主动关掉小地图** →
+用「人物坐标有没有变化」判断这一下点没点中（没动且没对话框就重试）→ 对话框出来后用模板确认是哪个 NPC
+→ 在守门人对话里点「查看世界之巅活动」→ 活动弹窗打开 → 切到「跨服任务」tab
+→ 按顺序接 7 个任务（接过的会被游戏移到列表末尾，所以每次接第一行）
+→ 切回活动首页 tab（工作日「世界之巅」/ 周六周日「周末限时」）点「进入世界之巅」
+→ 等右上角地点变成「世界之巅」
+→ 任务页里逐个做采集类任务（木料之争 / 世界之巅 / 世界印记）。
+其余任务、重启回岛、交付后面接着补。
+
+**重启上线会自动离开世界之巅**：人物上线时会被送回域外灵岛，所以每次要做图里的任务之前
+都要 `ensure_world_peak_map()` 确认一次（不在就重走「守门人 → 活动弹窗 → 进入世界之巅」）；
+已经在地图里（上一轮没做完）则跳过接取阶段直接做任务。
+
+任务完成检测（接任务之前就要开着）：
+    左下角聊天栏会打 `[系]任务：【跨服】世界之巅已完成`，`monitor.py` 用「[系]任务」前缀模板
+    做一级过滤、命中后再 OCR 抽任务名；挂在本任务的每次截图上，所以接任务、走图全程都不漏。
+    接取时有些任务会当场判定完成，这些名字先记下来，后面就不用再去世界之巅做。
+
+游戏里的页面链路（2026-11-05 录制，见 tasks/WorldTask/res/）：
+    守门人对话（I_NPC_GATE_DIALOG）→「查看世界之巅活动」选项行（I_NPC_GATE_OPTION）→ 世界之巅活动弹窗
+    → 活动首页 tab（工作日「世界之巅」/ 周六周日「周末限时」）有黄帝立绘（I_ACTIVITY_PANEL）
+      →「跨服任务」tab（O_ACTIVITY_TAB_BAR 读 tab 名，S_ACTIVITY_TAB_SWIPE 滑 tab 条）
+    → 任务列表：左边任务名（O_TASK_PAGE_LIST），右边每行一个「接取」按钮（I_ACCEPT_LIST_PAGE）
+    活动时间：工作日「世界之巅」、周六周日「周末限时」，均为 9:00-24:00
+    （与 schedule.py 的窗口一致）
+
+接取时的加量推广弹窗（I_BONUS_PROMO_CLOSE / O_BONUS_PROMO_BODY）：
+    点「接取」会弹「当前任务加量功能未激活…」，它盖在列表上会吞掉后续点击。
+    处理方式与 AutoTask.click_auto_start 一致：出现就点绿X关掉，**不勾「今日不再提示」**
+    （勾了就改动了玩家的游戏设置）。
+
+为什么点完要主动关小地图：点位点击不一定生效（地图没拖到位、点在遮罩上都会吃掉），
+小地图开着又正好盖住对话框，只会白等到超时。所以关掉之后拿主页面右上角的坐标当判据：
+坐标动了 = 点中了、人物在走过去；坐标不动、对话框也不出 = 这一下没生效，重试。
+
+排期（与玩法无关，先看这里）：
+- 下次运行时间 = 现在 + 成功/失败间隔，再夹进开放世界时段（09:00-24:00），见 schedule.py；
+- 写入走 server=False：默认路径在 server_update != 09:00 时会把时间整体覆盖掉；
+- 被手动运行 / 别的任务 task_call 提前叫醒而门没开时，只重排到最近一次开门，不碰游戏。
+
+NPC 素材（tasks/WorldTask/res/，标注工具录制）：
+- 点位 C_NPC_GATE_POINT / C_NPC_DELIVER_POINT 是按「小地图视口在右上角」录的，所以点之前必须先 map_pan_to_corner('top_right')；
+- 对话框特征 I_NPC_GATE_DIALOG / I_NPC_DELIVER_DIALOG 匹配的是标题 + 第一行台词，NPC 台词变了模板就会失效（届时重录即可）。
+"""
+import difflib
+import re
+import time
+from datetime import datetime
+
+from module.base.timer import Timer
+from module.exception import (GameNotRunningError,
+                              GamePageUnknownError,
+                              GameStuckError,
+                              TaskEnd)
+from module.logger import logger
+from tasks.AutoTask.assets import AutoTaskAssets
+from tasks.AutoTask.config import BonusMultiplier
+from tasks.AutoTask.page import page_bonus
+from tasks.AutoTask.script_task import ScriptTask as AutoTaskScriptTask
+from tasks.Battle.slots import ACTION_BUTTON_DISC_CENTER
+from tasks.Battle.target_action import ACTION_GATHER
+from tasks.GameUi.game_ui import GameUi
+from tasks.GameUi.pages.page import page_main, page_task
+from tasks.WorldTask.assets import WorldTaskAssets
+from tasks.WorldTask.monitor import TaskCompleteMonitor
+from tasks.WorldTask.schedule import clamp_to_open_world, in_open_world, next_run_after
+
+
+class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
+    SCHEDULER_NAME = 'WorldTask'
+    TASK_NAME = 'WorldTask'
+
+    # 任务加量页的操作直接复用自动任务的实现（同一套页面、同一套按钮语义）
+    read_bonus_counts = AutoTaskScriptTask.read_bonus_counts
+    set_bonus_state = AutoTaskScriptTask.set_bonus_state
+    set_bonus_side = AutoTaskScriptTask.set_bonus_side
+
+    # 两个 NPC（名字对应 res/ 里的 npc_* 素材）
+    NPC_GATE = 'gate'        # 入口 NPC：世界之巅守门人（接任务 / 进世界之巅）
+    NPC_DELIVER = 'deliver'  # 交付 NPC：世界之巅任务榜
+
+    # 点完点位后，多久内人物坐标必须变化（否则认定这一下没点中）
+    NPC_MOVE_TIMEOUT = 4
+    # 判断「坐标变了」的容差（像素）
+    NPC_MOVE_TOLERANCE = 3
+    # 坐标变了之后，最多等多久对话框（人物在走过去）
+    NPC_DIALOG_TIMEOUT = 20
+    # 坐标停住多久还不出对话框，认定卡住
+    NPC_STUCK_TIMEOUT = 5
+    # 单次找 NPC 最多点几次
+    NPC_RETRY = 3
+
+    # 世界之巅活动弹窗顶部 tab：按顺序登记，用来判断该往哪个方向翻
+    # 目前流程只用得到前两个（世界之巅 = 活动主页 / 跨服任务 = 接取列表）
+    # 注意：周六/周日的前两个 tab 会交换位置（周末限时 / 世界之巅），
+    # 首页不能按固定序号找，见 activity_home_tabs()
+    ACTIVITY_TABS = ('世界之巅', '周末限时', '跨服任务', '灭世铸烬',
+                     '荣誉商店', '荣耀币商店', '玩法说明')
+    # 工作日活动首页
+    ACTIVITY_HOME_TAB = '世界之巅'
+    # 周六/周日活动首页：页面和「进入世界之巅」按钮与世界之巅一致，只是名字不同
+    ACTIVITY_WEEKEND_TAB = '周末限时'
+    # 世界任务所在 tab
+    ACTIVITY_TASK_TAB = '跨服任务'
+    # 进图后右上角的地点名
+    WORLD_PEAK_LOCATION = '世界之巅'
+    # 两个 NPC（世界之巅守门人 / 世界之巅任务榜）所在地图：游戏里固定是域外灵岛，
+    # 不做成配置项（以前配错地图只会让脚本白传送、找不到 NPC）
+    WORLD_TASK_MAP = '域外灵岛'
+
+    # 世界之巅里的「采集类」任务：任务名 -> 点「寻路」后人物走到的完成点坐标
+    # 三个任务玩法一样（锁定采集物 -> 点动作按钮 -> 采完继续），只是完成点不同
+    GATHER_TASKS = (
+        ('木料之争', (145, 470)),
+        ('世界之巅', (302, 250)),
+        ('世界印记', (428, 107)),
+    )
+
+    # 世界之巅里的「打怪类」任务：小地图拖到某个角落 -> 点刷新点 -> 走到打架位 -> 打指定怪
+    # 玩法都一样，只有「锚点角 / 刷新点 / 打架位 / 目标名」不同
+    FIGHT_TASKS = (
+        # 任务名, 目标名, 打架位, 小地图锚点角, 小地图点位规则
+        ('兽毛之争', '野兽', (226, 375), 'bottom_right'),
+        ('黄金比例', '黄金鼠', (220, 156), 'top_left'),
+    )
+    FIGHT_DRIFT_CHECK = 5.0          # 打怪时每隔几秒查一次坐标
+    FIGHT_DRIFT_TOLERANCE = 12       # 偏离打架位超过这个格数就回点位
+    FIGHT_TRAVEL_TIMEOUT = 90        # 走过去 / 回点位的超时
+    FIGHT_TIMEOUT = 600              # 单个任务打怪阶段的超时
+    # 判定「走到目标点」的坐标容差
+    WOOD_POS_TOLERANCE = 15
+
+    # 世界之巅里的任务执行顺序（任务名, 玩法）
+    # - gather：任务页点「寻路」-> 走到完成点 -> 循环采集
+    # - fight ：小地图点刷新点 -> 走到打架位 -> 打指定怪
+    # - glory ：为了荣耀，按阵营换目标/点位
+    # - drop  ：世界之心，**没有自己的玩法** —— 前面打怪的掉落物，最后统一判断
+    WORLD_PEAK_ORDER = (
+        ('兽毛之争', 'fight'),
+        ('木料之争', 'gather'),
+        ('世界之巅', 'gather'),
+        ('为了荣耀', 'glory'),
+        ('黄金比例', 'fight'),
+        ('世界印记', 'gather'),
+        ('世界之心', 'drop'),
+    )
+    DROP_TASK = '世界之心'           # 靠打怪掉落的那个任务（任意怪都会掉）
+    # 刷掉落借哪个打怪任务的位置：配置 world_task_config.drop_farm_task（默认为了荣耀）
+    DROP_FARM_SECONDS = 90           # 每轮刷多久（一轮结束才查提示，不用频繁中断）
+    DROP_FARM_TIMEOUT = 3600         # 保险：连续刷这么久还没掉就今天收工（1 小时）
+
+    # 交付（重启后在世界之巅任务榜 NPC 那里交）：列表第一行就是下一个要交的任务
+    DELIVER_MAX = 7                  # 最多交几个（=要接的任务数）
+    DELIVER_BUTTON_TEXTS = ('确认', '完成')   # 只有这两个文案才是交任务按钮
+
+    # 世界之巅两个阵营：每天首次进图随机分配，出生点不同（真机实测）
+    CAMP_HUANGDI = 'huangdi'
+    CAMP_YANDI = 'yandi'
+    CAMP_SPAWNS = {
+        CAMP_HUANGDI: (56, 60),
+        CAMP_YANDI: (439, 384),
+    }
+    CAMP_SPAWN_TOLERANCE = 45        # 出生点判定容差（走路会有点偏差）
+
+    # 为了荣耀：同一套打怪流程，但阵营不同 -> 目标 / 打架位 / 小地图锚点 / 点位都不同
+    GLORY_TASK = '为了荣耀'
+    GLORY_VARIANTS = {
+        # 阵营: (目标名, 打架位, 小地图锚点角, 小地图点位规则名)
+        CAMP_HUANGDI: ('炎帝守门人', (327, 363), 'bottom_right', 'glory_huangdi'),
+        CAMP_YANDI: ('黄帝守门人', (90, 128), 'top_left', 'glory_yandi'),
+    }
+    # 不知道自己是哪个阵营时：每个点位给多久去确认「守门人能不能打」。
+    # 只锁目标、不放技能 —— 两只守门人里只有对家的能锁成「攻击」，
+    # 哪边可打就说明自己是另一个阵营，不用像以前那样先打 25 秒再看结果。
+    GLORY_PROBE_TIMEOUT = 10
+
+    # 要接的跨服任务（列表里的先后顺序）
+    # 接过的任务会被游戏移到列表末尾，所以「每次接第一行」就能按这个顺序接完
+    ACCEPT_TASKS = ('世界之巅', '黄金比例', '木料之争', '兽毛之争',
+                    '世界印记', '为了荣耀', '世界之心')
+    # OCR 异体字修正（真机把「黄」读成繁体「黃」，任务名就没对上）
+    TASK_TEXT_FIXES = {'黃': '黄', '爭': '争', '記': '记', '巔': '巅', '為': '为'}
+    # 任务名相似度门槛：繁体/错一个字要能认（0.667），但不能把 世界之巅/世界之心 认错（0.75 由「只取最像的」挡住）
+    TASK_NAME_SIMILARITY = 0.65
+
+    def __init__(self, config, device):
+        super().__init__(config, device)
+        # 任务完成提示监测：接任务时 start()、接取的任务全部完成时 stop()
+        self.task_monitor = TaskCompleteMonitor(self.I_TASK_COMPLETE_PREFIX,
+                                                self.O_CHAT_SYSTEM_LINE)
+        self.completed_tasks: list = []   # 监测到的「已完成」任务名
+        self.accepted_tasks: list = []    # 本次接取到的任务名
+        self.camp = None                  # 世界之巅阵营（进场时按出生点判断）
+        # 逐行识别用的 OCR 引擎（rec-only 比整块 detect 快 4 倍以上）
+        from module.ocr.models import get_local_ocr_model
+        self._ocr = get_local_ocr_model()
+        # 按帧缓存：同一帧上重复读列表 / 读 tab 条不再重新 OCR
+        self._rows_cache: tuple = (None, [])
+        self._tabs_cache: tuple = (None, [])
+        # tab 名 -> 上次 OCR 到的坐标（切过 tab 没滑过 tab 条时，切别的 tab 直接点，省一次 900ms 的 OCR）
+        self._tab_positions: dict = {}
+
+    def screenshot(self):
+        """
+        截图 + （监测开着时）跑一遍任务完成提示监测
+
+        提示是**最顶层弹窗**（任何界面都盖在上面），但只在左下角聊天行停留 1.5 秒，
+        所以挂在每次截图上、并在点完「接取」后连拍 2 秒，才不会漏。
+
+        黑屏检测已经收到 `BaseTask.screenshot()` 里（所有任务共用），这里不用再查。
+        """
+        image = super().screenshot()
+        if self.task_monitor.enabled:
+            for name in self.task_monitor.detect(image):
+                if name not in self.completed_tasks:
+                    self.completed_tasks.append(name)
+                logger.info(f'任务完成提示：{name}')
+            if self.all_tasks_completed():
+                logger.info('接取的任务已全部完成')
+                self.task_monitor.stop()
+        return image
+
+    def all_tasks_completed(self) -> bool:
+        """接取到的任务是不是全部识别到「已完成」"""
+        if not self.accepted_tasks:
+            return False
+        for name in self.accepted_tasks:
+            if not any(self.task_name_match(text, name) for text in self.completed_tasks):
+                return False
+        return True
+
+    def run(self) -> None:
+        logger.hr('世界任务')
+        if not in_open_world(datetime.now()):
+            self.schedule_wait_open_world()
+            logger.warning('开放世界还没开门（09:00-24:00），本次不执行，已排到开门时间')
+            raise TaskEnd(self.TASK_NAME)
+
+        success = False
+        try:
+            self.prepare_game()
+            # 完成提示监测从这一刻起就开着：中途重跑（人已在地图里）不会再走到接取阶段，
+            # 不加这一句那边就永远收不到「已完成」提示，掉落任务也会白重打
+            self.task_monitor.start()
+            success = self.world_task_flow()
+        finally:
+            # 加量卡由流程在「接完所有任务」时立刻关掉（接一个任务消耗一张卡，不能一直开着）；
+            # 这里只是兜底：中途异常时别让卡继续生效
+            self.finish_bonus(getattr(self, '_bonus_enabled', False))
+            # 监测是临时的：本次运行结束就收掉（后面做任务的流程会自己再 start）
+            self.task_monitor.stop()
+            # 正常/异常都要重排，避免 next_run 停在过去霸占调度
+            self.schedule_next_run(success=success)
+        raise TaskEnd(self.TASK_NAME)
+
+    def finish_bonus(self, bonus_enabled: bool) -> None:
+        """
+        收尾时把加量卡关掉
+
+        例外：**阵亡重跑**（`_rerun_requested`）时先留着 —— 框架复活后会立刻把本任务重跑一遍，
+        接着还要用这张卡；等真正跑完那一轮再关。
+        """
+        if not bonus_enabled:
+            return
+        self._bonus_enabled = False
+        if getattr(self, '_rerun_requested', False):
+            logger.info('阵亡重跑，加量卡先留着（重跑还要用）')
+            self._bonus_enabled = True
+            return
+        self.disable_bonus()
+
+    def close_bonus_after_accept(self) -> None:
+        """
+        接完所有任务立刻关加量卡
+
+        真机确认：**每接一个任务就消耗一张卡**（128 张 -> 接 7 个 -> 121 张），
+        所以卡只要覆盖「接取」这一小段，接完必须马上关 —— 停留到做任务阶段是白烧卡。
+        """
+        if not getattr(self, '_bonus_enabled', False):
+            return
+        logger.info('7 个任务接完了，关掉加量卡')
+        self.disable_bonus()
+        self._bonus_enabled = False
+
+    # ---------------------------------------------------------------- 阵亡
+    DEATH_CONTINUE_LIMIT = 3         # 同一个任务里连续阵亡这么多次就交回框架重跑
+
+    def handle_death(self) -> None:
+        """
+        阵亡：**原地复活后接着做当前任务**，不整任务重跑
+
+        框架默认是 `revive() + rerun_task()`（重排本任务、从第一步重来），
+        但世界任务每一步都可续（点位/打架位都写在代码里、任务页状态能判断做到哪了），
+        复活后人被送回出生点，外层循环的「跑偏就回点位」会把他带回任务点接着打/采。
+
+        阵亡次数超过 `DEATH_CONTINUE_LIMIT` 才交回框架重跑（避免原地反复送人头）。
+        """
+        if not self.appear(self.I_DEATH_DIALOG):
+            return
+
+        self.death_count = getattr(self, 'death_count', 0) + 1
+        logger.warning(f'Character died（第 {self.death_count} 次）')
+        if self.death_count > self.DEATH_CONTINUE_LIMIT:
+            logger.warning('阵亡次数太多，交回框架重跑本任务')
+            self.revive()
+            self.rerun_task()
+            return
+
+        try:
+            self.revive()
+        except GameStuckError as e:  # 复活按钮点不动：交回框架
+            logger.warning(f'复活失败（{e}），交回框架重跑')
+            self.rerun_task()
+            return
+
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：清缓存继续当前任务（跑偏会自动回点位）"""
+        # 复活/重启后角色可能被送回出生点：清一下锁目标缓存，让外层立刻按「跑偏」回点位
+        self._target_name_cache = None
+        logger.info('已恢复，继续当前任务（跑偏会自动回点位）')
+
+    # ---------------------------------------------------------------- 加量卡
+    def bonus_multiplier(self) -> BonusMultiplier:
+        """配置里选的加量卡（NONE = 不加量）"""
+        return self.config.world_task.world_task_config.bonus_multiplier
+
+    def enable_bonus(self, timeout: float = 40) -> bool:
+        """
+        进任务加量页，按配置启用加量卡
+
+        页面与按钮语义都复用自动任务的实现（`read_bonus_counts` / `set_bonus_state`）：
+        按钮显示「停止加量」= 已激活，显示「激活加量卡」= 未激活；同一时间只允许一张卡生效。
+
+        卡不够要接的任务数（7 张）就跳过：不启用、也不报错，照常不加量接任务。
+        :return: 真的启用了返回 True
+        """
+        want = self.bonus_multiplier()
+        if want == BonusMultiplier.NONE:
+            return False
+
+        logger.hr(f'启用加量卡 [{want.value}]')
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_bonus, timeout=timeout):
+            raise GameStuckError('Bonus page does not appear')
+
+        counts = self.read_bonus_counts()
+        key = '3x' if want == BonusMultiplier.X3 else '5x'
+        have = counts.get(key) or 0
+        need = len(self.ACCEPT_TASKS)
+        logger.attr('加量卡', f'{key} 需要 {need} 张，拥有 {have} 张')
+        if have < need:
+            logger.warning(f'加量卡不足（{key} 要 {need} 张，只有 {have} 张），跳过加量')
+            return False
+
+        self.set_bonus_state(want)
+        logger.info(f'加量卡已启用：{want.value}（{have} 张）')
+        # 启用完人在「任务加量」页，后面要找 NPC、读地点，先回主页面
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_main, timeout=30):
+            logger.warning('启用加量卡后没回到主页面')
+            return False
+        return True
+
+    def disable_bonus(self, timeout: float = 40) -> bool:
+        """
+        回任务加量页把加量卡停掉（两张都停）
+
+        接完任务必须关，否则卡会一直生效烧掉。这里失败只告警，不覆盖任务本身的成败。
+        """
+        logger.hr('关闭加量卡')
+        try:
+            self.ui_reset_current_page()
+            if not self.ui_goto(page_bonus, timeout=timeout):
+                logger.error('加量页没打开，加量卡可能还在生效，请手动检查')
+                return False
+            self.set_bonus_state(BonusMultiplier.NONE)
+            logger.info('加量卡已关闭')
+            # 关完回主页面，别把加量页留在那儿影响后续任务
+            self.ui_reset_current_page()
+            self.ui_goto(page_main, timeout=30)
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'关闭加量卡失败：{e}')
+            return False
+
+    # ---------------------------------------------------------------- 玩法
+    def world_task_flow(self) -> bool:
+        """
+        当前阶段：接 7 个跨服任务 + 进世界之巅地图 + 做采集类任务
+
+        真机页面链路（2026-11-05 录制）：
+        守门人对话 -> 点「查看世界之巅活动」-> 世界之巅活动弹窗（顶部 tab 条）
+        -> 世界之巅 tab（活动主页，带黄帝立绘和「进入世界之巅」按钮）-> 跨服任务 tab（接取列表）
+        -> 按顺序接 7 个任务 -> 回世界之巅 tab 点「进入世界之巅」-> 等地点变成世界之巅
+        -> 任务页里逐个做采集类任务
+
+        **重启上线后人物会自动离开世界之巅回到域外灵岛**，所以：
+        - 已经在地图里（上一轮没做完 / 手动进来的）：跳过接取，直接做任务；
+        - 不在图里：先走接取阶段，再 `ensure_world_peak_map()` 重新进图。
+
+        :return: 接取阶段正常走完、并且在世界之巅里做完能做的任务返回 True
+        """
+        # 先看任务页：全部已完成（多半是阵亡重跑/交付前重跑）就不用再进图，直接重启交付
+        order_names = [name for name, _kind in self.WORLD_PEAK_ORDER]
+        statuses = dict(self.read_task_page_statuses(order_names))
+        if statuses and all(status == 'done' for status in statuses.values()):
+            logger.info('任务页显示 7 个任务全做完了，直接重启游戏去交付')
+            if not self.restart_and_wait():
+                return False
+            return self.deliver_tasks()
+        # 任务页里一个都没有：可能今天还没接（等下面接取），也可能已经交完了（重跑）
+        all_missing_before = bool(statuses) and all(
+            status == 'missing' for status in statuses.values())
+        # 7 个任务全在任务页上（完成 / 进行中都算）= 今天已经接过了，
+        # 没必要再开一次 NPC + 活动弹窗去接取页空跑一趟（真机实测这一段白花 11 秒）
+        all_present_before = bool(statuses) and all(
+            status in ('done', 'pending') for status in statuses.values())
+
+        if self.map_in_location(self.WORLD_PEAK_LOCATION):
+            logger.info('已经在世界之巅地图里，跳过接取阶段，直接做任务')
+            # 人可能就在出生点旁边（重跑/复位），试一下判断阵营
+            self.camp = self.detect_camp() or getattr(self, 'camp', None)
+            # 上面刚读过任务页，状态直接传下去，别再开一次任务页
+            return self.do_world_peak_and_deliver(statuses=statuses)
+
+        if all_present_before:
+            logger.info('任务页里 7 个任务都在（今天已经接过了），跳过接取，直接进图做任务')
+            if not self.ensure_world_peak_map():
+                logger.warning('没进到世界之巅地图')
+                return False
+            return self.do_world_peak_and_deliver(statuses=statuses)
+
+        # 加量卡必须在「接任务之前」开好：接一个任务消耗一张卡，所以只覆盖接取这一段。
+        # 注意 enable_bonus 会导航到「任务加量」页再回主页面，所以得放在找 NPC / 开弹窗之前。
+        self._bonus_enabled = (self.bonus_multiplier() != BonusMultiplier.NONE
+                               and self.enable_bonus())
+        if self._bonus_enabled:
+            logger.info('加量卡已开，开始接任务')
+
+        if not self.find_npc(self.NPC_GATE):
+            logger.warning('没找到入口 NPC（世界之巅守门人）')
+            return False
+        logger.info('入口 NPC 已确认：世界之巅守门人')
+
+        if not self.open_activity_panel():
+            logger.warning('世界之巅活动弹窗没打开')
+            return False
+        # 接取只需要「跨服任务」这一个 tab：直接切过去，不再先回活动首页（省一次切 tab + OCR）。
+        # 进世界之巅的阶段再用 ensure_activity_home_tab() 归位（工作日世界之巅 / 周末周末限时）。
+        if not self.switch_tab(self.ACTIVITY_TASK_TAB):
+            logger.warning(f'没切到 tab [{self.ACTIVITY_TASK_TAB}]')
+            return False
+        # 切完拿新一帧再判断（appear 用的是 device.image，不刷新会读到切换前的画面）
+        self.screenshot()
+        if not self.appear(self.I_ACCEPT_LIST_PAGE):
+            logger.warning('跨服任务列表里没看到「接取」按钮')
+            return False
+        logger.info('跨服任务列表已打开')
+
+        # 监测从这一刻开始（接取时有的任务会当场判定完成）
+        self.task_monitor.start()
+        accepted = self.accept_tasks()
+        self.accepted_tasks = accepted
+        self.close_bonus_after_accept()
+        if accepted:
+            logger.attr('本次接取', ', '.join(accepted))
+        elif self.task_list_readable:
+            # 列表能读、但没有一个能接 = 今天已经全接过了（重跑时会走到这里）
+            logger.info('跨服任务列表里没有可接的任务（今天应该已经接过了）')
+        else:
+            logger.warning('一个跨服任务都没接上')
+
+        # 开跑前任务页里一个都没有、现在也没接到新的 = 今天已经做完并交付过了（重跑）
+        # 这种情况不该再进图，更不该为了交付白重启一次游戏
+        if all_missing_before and not accepted:
+            logger.warning('任务页里没有世界任务、也没接到新的：今天应该已经做完并交完了，收工')
+            self.close_activity_panel()
+            return True
+
+        if self.completed_tasks:
+            logger.attr('已完成', ', '.join(self.completed_tasks))
+        else:
+            logger.info('接完没有当场判定完成的任务')
+
+        # 监测到全部完成就停；否则交给后面的流程继续监测（做任务的流程还没实现）
+        if self.all_tasks_completed():
+            self.task_monitor.stop()
+        else:
+            missing = [name for name in self.accepted_tasks
+                       if not any(self.task_name_match(text, name) for text in self.completed_tasks)]
+            logger.attr('还没完成', ', '.join(missing) or 'none')
+
+        # 接取阶段到此结束；接着确保人在世界之巅地图里（重启上线会自动离开，所以要重新进）
+        if not self.ensure_world_peak_map():
+            logger.warning('没进到世界之巅地图，把弹窗关掉收尾')
+            self.close_activity_panel()
+            return False
+        # 刚才已经读过任务页，接完的状态直接给后面用，别为了同一件事再开一次任务页
+        statuses_after = {name: ('done' if statuses.get(name) == 'done' else 'pending')
+                          for name, _kind in self.WORLD_PEAK_ORDER}
+        return self.do_world_peak_and_deliver(statuses=statuses_after)
+
+    def do_world_peak_and_deliver(self, statuses: dict = None) -> bool:
+        """
+        世界之巅里的收尾：做任务 -> 重启游戏 -> 任务榜交付
+
+        重启用框架 Restart 任务的实现（`app_restart`：停游戏、启动、登录），
+        因为**交付必须在重启之后做**：上线后人物会自动离开世界之巅回到域外灵岛，
+        任务榜 NPC 在域外灵岛。
+
+        :param statuses: 已经读过的任务页状态（不传就自己去读一次）
+        """
+        if not self.run_world_peak_tasks(statuses=statuses):
+            logger.warning('世界之巅里的任务没做完，先不重启交付')
+            return False
+        if not self.restart_and_wait():
+            logger.warning('重启后没回到主页面，交付跳过')
+            return False
+        return self.deliver_tasks()
+
+    # ---------------------------------------------------------------- 重启 + 交付
+    def restart_and_wait(self, timeout: float = 120) -> bool:
+        """
+        用框架 Restart 任务的实现重启游戏（停游戏 -> 启动 -> 登录）
+
+        交付前必须重启：上线后人物会自动离开世界之巅回到域外灵岛，任务榜 NPC 在那里。
+        """
+        logger.hr('重启游戏（交付前）')
+        from tasks.Restart.script_task import ScriptTask as RestartScriptTask
+        RestartScriptTask(config=self.config, device=self.device).app_restart()
+        logger.info('重启完成，等回到主页面')
+        self.device.stuck_record_clear()
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_main, timeout=timeout):
+            logger.warning('重启后没回到主页面')
+            return False
+        logger.attr('重启后地点', f'{self.read_location()}')
+        return True
+
+    def task_board_first_row(self):
+        """
+        任务榜对话框里第一行的任务名 + 可点中心
+
+        完成的任务会排在列表最上面，所以只需要看第一行。
+        注意 OCR 会把「【跨服】世界印记」拆成两段，同一行的文字要拼起来。
+        """
+        self.screenshot()
+        image = self.device.image
+        roi = self.O_DELIVER_LIST.roi
+        items = []
+        for item in self.O_DELIVER_LIST.detect_and_ocr(image, logDisplay=False):
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            box = item.box
+            x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+            y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+            items.append((text, x, y))
+        if not items:
+            return None
+
+        items.sort(key=lambda item: (item[2], item[1]))
+        top_y = items[0][2]
+        row = [item for item in items if abs(item[2] - top_y) <= 25]
+        name = ''.join(text for text, _x, _y in sorted(row, key=lambda item: item[1]))
+        x = int(sum(item[1] for item in row) / len(row))
+        return name, x, top_y
+
+    def is_our_task(self, name: str) -> bool:
+        return any(self.task_name_match(name, task) for task in self.ACCEPT_TASKS)
+
+    def deliver_confirm_text(self) -> str:
+        """详情页右下角按钮的文案（交任务的按钮是「确认/完成」）"""
+        self.screenshot()
+        image = self.device.image
+        texts = [item.ocr_text.strip() for item in
+                 self.O_DELIVER_CONFIRM.detect_and_ocr(image, logDisplay=False)]
+        return ' '.join(text for text in texts if text)
+
+    def deliver_detail_open(self) -> bool:
+        """交付详情页开着没有（「任务奖励」只在详情页出现；列表页会读到乱码）"""
+        self.screenshot()
+        text = ' '.join(item.ocr_text.strip() for item in
+                        self.O_DELIVER_DETAIL.detect_and_ocr(self.device.image, logDisplay=False))
+        return '任务奖励' in text
+
+    def deliver_one_task(self, name: str, coord: tuple, timeout: float = 10) -> bool:
+        """
+        交付一个任务：点列表里的这一行 -> 详情页二次确认任务名 -> 点右下角提交 -> 等回列表
+
+        :param name: 期望交付的任务名（详情页会再 OCR 一次确认）
+        :param coord: 列表里该行的点击坐标
+        """
+        logger.info(f'交付 [{name}] at {coord}')
+        self.device.click(x=coord[0], y=coord[1], control_name='deliver_task')
+        self.device.click_record_clear()
+
+        # 二次确认：详情页打开 + 标题就是这个任务
+        timer = Timer(timeout).start()
+        title = ''
+        while not timer.reached():
+            self.screenshot()
+            if not self.deliver_detail_open():
+                self.device.sleep(0.3)
+                continue
+            title = self.O_DELIVER_TASK_TITLE.ocr_single_line(self.device.image)
+            if title and self.task_name_match(title, name):
+                break
+            self.device.sleep(0.3)
+        if not (title and self.task_name_match(title, name)):
+            logger.warning(f'详情页没确认到 [{name}]（读到 "{title}"），不点提交')
+            return False
+        logger.info(f'详情页确认：[{title}]')
+
+        # 只有「确认/完成」才是交任务按钮，别的文案（返回/领取等）不点
+        clicked = False
+        timer = Timer(timeout).start()
+        while not timer.reached() and not clicked:
+            self.screenshot()
+            image = self.device.image
+            roi = self.O_DELIVER_CONFIRM.roi
+            for item in self.O_DELIVER_CONFIRM.detect_and_ocr(image, logDisplay=False):
+                text = item.ocr_text.strip()
+                if not any(word in text for word in self.DELIVER_BUTTON_TEXTS):
+                    logger.info(f'右下角是 [{text}]，不是交任务按钮，不点')
+                    continue
+                box = item.box
+                x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+                y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+                logger.info(f'点提交 [{text}] at ({x},{y})')
+                self.device.click(x=x, y=y, control_name='deliver_confirm')
+                self.device.click_record_clear()
+                clicked = True
+                break
+            if not clicked:
+                self.device.sleep(0.3)
+        if not clicked:
+            logger.warning('详情页没找到交任务按钮')
+            return False
+
+        # 等详情页关掉（回到列表页）
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            if not self.deliver_detail_open():
+                logger.info('已回到任务榜列表')
+                return True
+            self.device.sleep(0.3)
+        logger.warning('交付后没回到列表页')
+        return False
+
+    def deliver_tasks(self) -> bool:
+        """
+        任务榜交付：每次只看列表第一行，点它 -> 二次确认 -> 提交 -> 回列表 -> 再来
+
+        完成的任务排在列表最上面，所以不需要滚列表；一直交到第一行不是我们的任务为止。
+        """
+        logger.hr('交付世界任务')
+        if not self.find_npc(self.NPC_DELIVER):
+            logger.warning('找不到交付 NPC（世界之巅任务榜）')
+            return False
+
+        delivered = []
+        for _attempt in range(self.DELIVER_MAX):
+            row = self.task_board_first_row()
+            if row is None:
+                logger.info('任务榜列表是空的，没有可交付的任务')
+                break
+            name, x, y = row
+            if not self.is_our_task(name):
+                logger.info(f'第一行是 [{name}]，不是世界任务，停止交付')
+                break
+            if not self.deliver_one_task(name, (x, y)):
+                logger.warning(f'交付 [{name}] 失败，停止')
+                break
+            delivered.append(name)
+            self.device.sleep(0.8)
+
+        logger.attr('已交付', ', '.join(delivered) or 'none')
+        self.close_task_board()
+        # 没有可交付的也算完成：重跑时不会因为「已经交完」而反复失败
+        return True
+
+    def task_board_open(self, image=None) -> bool:
+        """
+        任务榜对话框还开着没有
+
+        先看模板（4ms），模板认不到再用标题 OCR 兜底：真机 2026-11-06 09:37 收尾时
+        `I_NPC_DELIVER_DIALOG` 只匹配到 0.746（阈值 0.8）—— 面板位置会随列表行数有
+        1~3px 位移，模板对这种位移很敏感，只靠模板就会把开着的对话框当已关闭。
+        """
+        if image is None:
+            self.screenshot()
+            image = self.device.image
+        if self.I_NPC_DELIVER_DIALOG.match(image) or self.I_NPC_GATE_DIALOG.match(image):
+            return True
+        title = self.O_DELIVER_TASK_TITLE.ocr_single_line(image)
+        if '任务榜' in (title or ''):
+            return True
+        # 交付详情页盖在列表上时也算「没关完」：那里标题是任务名，用「任务奖励」标记判断
+        detail = ''.join(item.ocr_text for item in
+                         self.O_DELIVER_DETAIL.detect_and_ocr(image, logDisplay=False))
+        return '任务奖励' in detail
+
+    def close_task_board(self, timeout: float = 15, clean_needed: int = 3) -> bool:
+        """
+        交付完把任务榜对话框**确认关掉**
+
+        不能「看一眼没有对话框就算关了」：交付过程中每交一个都会弹「奖励」浮层，
+        全局弹窗处理虽然会关掉它，但截图的那一瞬可能正好被浮层盖着，
+        于是误判成已关闭、把对话框留在屏幕上（真机 2026-11-06 09:37 就是这样收尾的：
+        模板 0.746 没认出来 -> 一次都没点 X -> 对话框留在屏幕上 5 分钟）。
+        所以：模板认不到再用标题 OCR，并且要求**连续多次**看在任务榜不在。
+        """
+        clean_checks = 0
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            # screenshot 同时会触发全局弹窗清理（奖励浮层、人机验证等）
+            image = self.screenshot()
+            if self.task_board_open(image=image):
+                clean_checks = 0
+                logger.info('关上任务榜对话框')
+                if self.appear_then_click(self.I_CLOSE_X_GREEN, interval=0.4):
+                    self.device.click_record_clear()
+            else:
+                clean_checks += 1
+                if clean_checks >= clean_needed:
+                    logger.info('任务榜对话框已关闭')
+                    return True
+            self.device.sleep(0.6)
+
+        logger.warning('任务榜对话框没关掉（可能被浮层挡住），请手动确认一眼')
+        return False
+
+    def run_world_peak_tasks(self, statuses: dict = None) -> bool:
+        """
+        按 WORLD_PEAK_ORDER 顺序做世界之巅里的任务，已完成（任务页状态「完成」）的跳过
+
+        世界之心没有自己的玩法（打怪掉落），所以排在最后统一判断：
+        还没掉到就一直刷「为了荣耀」的点，直到出现完成提示（1 小时保险）。
+
+        :param statuses: 已经读过的任务页状态（不传就自己去读一次）
+        """
+        logger.hr('世界之巅：做任务')
+        if statuses is None:
+            names = [name for name, _kind in self.WORLD_PEAK_ORDER]
+            statuses = dict(self.read_task_page_statuses(names))
+        # 只做「进行中」的：done = 做完等交付；missing = 今天没接（或已经交付掉了），都不该再打
+        pending = [(name, kind) for name, kind in self.WORLD_PEAK_ORDER
+                   if statuses.get(name) == 'pending']
+        missing = [name for name, _kind in self.WORLD_PEAK_ORDER
+                   if statuses.get(name) == 'missing']
+        logger.attr('要做', ', '.join(name for name, _ in pending) or 'none')
+        if missing:
+            logger.attr('任务页里没有', ', '.join(missing))
+        if not pending:
+            logger.info('任务页里没有要做的任务了')
+            return True
+
+        for name, kind in pending:
+            if kind == 'drop':
+                continue              # 掉落任务最后统一判断
+            if not self.run_world_peak_task(name, kind):
+                logger.warning(f'任务 [{name}] 没做完，先停')
+                return False
+
+        return self.ensure_drop_task(drop_done=(statuses.get(self.DROP_TASK) == 'done'))
+
+    def run_world_peak_task(self, name: str, kind: str) -> bool:
+        """按玩法分派做单个任务"""
+        if kind == 'gather':
+            positions = dict(self.GATHER_TASKS)
+            return self.run_gather_task(name, positions[name])
+        if kind == 'fight':
+            rows = {row[0]: row for row in self.FIGHT_TASKS}
+            target, position, corner = rows[name][1:]
+            return self.run_fight_task(name, target, position, corner)
+        if kind == 'glory':
+            return self.run_glory_task()
+        raise ValueError(f'Unknown task kind [{kind}] for [{name}]')
+
+    def drop_farm_task(self) -> str:
+        """世界之心刷掉落借哪个打怪任务的位置（配置项，默认为了荣耀）"""
+        task = self.config.world_task.world_task_config.drop_farm_task
+        return str(getattr(task, 'value', task) or '')
+
+    def ensure_drop_task(self, drop_done: bool = False) -> bool:
+        """
+        世界之心是**打怪掉落**：所有任务做完还没掉到，就一直刷直到掉出来
+
+        真机确认（2026-11-05）：世界之巅里击败**任何**怪物都有概率掉世界之心，
+        所以刷哪个点都行 —— 用配置 `drop_farm_task` 指定（为了荣耀 / 兽毛之争 / 黄金比例），
+        默认「为了荣耀」：守门人一直有，任务做完也照样能打。
+
+        这里**不看任务状态、也不设轮数**：一轮一轮打（每轮 `DROP_FARM_SECONDS` 秒），
+        直到监测到「世界之心已完成」的提示为止；1 小时还没掉才收工（保险，避免无限刷）。
+
+        :param drop_done: 任务页里显示已经完成了（重跑时省掉无谓的刷怪）
+        """
+        if drop_done or self.task_completed(self.DROP_TASK):
+            logger.info(f'{self.DROP_TASK} 已经完成了')
+            return True
+
+        farm_task = self.drop_farm_task()
+        timer = Timer(self.DROP_FARM_TIMEOUT).start()
+        rounds = 0
+        while not timer.reached():
+            rounds += 1
+            logger.info(f'{self.DROP_TASK} 还没掉到，去 [{farm_task}] 的点刷怪'
+                        f'（第 {rounds} 轮，每轮 {self.DROP_FARM_SECONDS:.0f}s）')
+            self.farm_for_drop()
+            if self.task_completed(self.DROP_TASK):
+                logger.info(f'{self.DROP_TASK} 掉到了（第 {rounds} 轮），完成')
+                return True
+
+        logger.warning(f'{self.DROP_TASK} 刷了 {rounds} 轮（{self.DROP_FARM_TIMEOUT:.0f}s）还没掉，今天先收工')
+        return True
+
+    def farm_for_drop(self, seconds: float = None) -> None:
+        """
+        去配置的打怪任务点位打一段时间，只为刷「世界之心」掉落
+
+        任务本身完成与否都不影响掉落，所以这里不走 run_fight_task（那个看到完成就跳过），
+        直接按点位走过去打一段时间。为了荣耀要按阵营选点位，其它打怪任务用固定刷新点。
+
+        :param seconds: 这一轮打多久（默认 DROP_FARM_SECONDS）
+        """
+        seconds = self.DROP_FARM_SECONDS if seconds is None else seconds
+        task = self.drop_farm_task()
+        if task == self.GLORY_TASK:
+            self.farm_for_drop_glory(seconds)
+            return
+
+        rows = {row[0]: row for row in self.FIGHT_TASKS}
+        row = rows.get(task)
+        if row is None:
+            logger.warning(f'世界之心刷怪点配置的 [{task}] 不是打怪任务，跳过本轮')
+            return
+        _name, target, position, corner = row
+        logger.hr(f'刷 {self.DROP_TASK}：{task} 的点，打 {seconds:.0f}s 的 [{target}]', level=2)
+        if not self.fight_goto_point(task, position, corner):
+            logger.warning(f'去 [{task}] 的刷新点失败')
+            return
+        self.fight_until_complete(self.DROP_TASK, target, position, corner,
+                                  rule_key=task, timeout=seconds)
+
+    def farm_for_drop_glory(self, seconds: float) -> None:
+        """为了荣耀点位刷掉落：阵营未知时先探阵营，再按对应点位打一段"""
+        camp = getattr(self, 'camp', None) or self.detect_camp()
+        if camp is None:
+            camp = self.probe_camp()
+        if camp is None:
+            logger.warning('两个阵营的守门人都不是可攻击目标，这轮刷不了')
+            return
+
+        target, position, corner, rule_key = self.GLORY_VARIANTS[camp]
+        logger.hr(f'刷 {self.DROP_TASK}：{camp} 阵营，打 {seconds:.0f}s 的 [{target}]', level=2)
+        if not self.fight_goto_point(self.GLORY_TASK, position, corner, rule_key=rule_key):
+            logger.warning(f'去 {camp} 阵营的刷怪点失败')
+            return
+        self.fight_until_complete(self.DROP_TASK, target, position, corner,
+                                  rule_key=rule_key, timeout=seconds)
+
+    def ensure_world_peak_map(self, timeout: float = 40) -> bool:
+        """
+        确保人在世界之巅地图里
+
+        **重启游戏上线后人物会自动离开世界之巅回到域外灵岛**，所以每次要做图里的任务之前
+        都得确认一次：不在就走「找守门人 -> 打开活动弹窗 -> 进入世界之巅」重新进图。
+        """
+        if self.map_in_location(self.WORLD_PEAK_LOCATION):
+            logger.info('已经在世界之巅地图里')
+            return True
+
+        logger.info('不在世界之巅地图（重启上线会自动离开），重新进图')
+        # 弹窗还开着（刚接完任务的场景）就别再找一次 NPC：地点读不出来多半是被弹窗挡着
+        if self.activity_panel_open():
+            logger.info('活动弹窗还开着，直接进图')
+            entered = self.enter_world_peak(timeout=timeout)
+            if entered:
+                self.camp = self.detect_camp() or getattr(self, 'camp', None)
+            return entered
+        if not self.find_npc(self.NPC_GATE):
+            logger.warning('找不到入口 NPC（世界之巅守门人），进不了图')
+            return False
+        if not self.open_activity_panel():
+            logger.warning('世界之巅活动弹窗打不开，进不了图')
+            return False
+        entered = self.enter_world_peak(timeout=timeout)
+        if entered:
+            # 刚进图就站在阵营出生点旁边，这时候判断阵营最准
+            self.camp = self.detect_camp() or getattr(self, 'camp', None)
+        return entered
+
+    # ---------------------------------------------------------------- 世界之巅：做任务
+    def task_completed(self, name: str) -> bool:
+        """监测到的完成提示里有没有这个任务"""
+        if not name:
+            return False
+        return any(self.task_name_match(text, name) for text in self.completed_tasks)
+
+    def open_task_page(self, timeout: float = 30) -> bool:
+        """打开任务页（左侧栏「任务」）"""
+        logger.hr('打开任务页', level=2)
+        self.ui_reset_current_page()
+        if not self.ui_goto(page_task, timeout=timeout):
+            logger.warning('任务页没打开')
+            return False
+        return True
+
+    def close_task_page(self, timeout: float = 10) -> bool:
+        """关掉任务页（右上角返回）"""
+        timer = Timer(timeout).start()
+        clicked = False
+        while not timer.reached():
+            self.screenshot()
+            if not self.appear(self.I_CLOSE_RETURN):
+                return True
+            if self.appear_then_click(self.I_CLOSE_RETURN, interval=1):
+                clicked = True
+                self.device_record_clear()
+                self.device.sleep(0.5)
+            self.device.sleep(0.3)
+        logger.warning('任务页关不掉')
+        return not self.appear(self.I_CLOSE_RETURN)
+
+    def device_record_clear(self) -> None:
+        """点完立刻清记录（避免连点保护）"""
+        self.device.click_record_clear()
+
+    def task_page_items(self) -> list:
+        """任务页列表 OCR：[(文本, 中心x, 中心y)]"""
+        self.screenshot()
+        image = self.device.image
+        roi = self.O_TASK_PAGE_LIST.roi
+        items = []
+        for item in self.O_TASK_PAGE_LIST.detect_and_ocr(image, logDisplay=False):
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            box = item.box
+            x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+            y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+            items.append((text, x, y))
+        return items
+
+    def task_page_rows(self) -> list:
+        """
+        读任务页列表：[(任务名, 状态, 寻路按钮x, 寻路按钮y)]
+
+        按「寻路」按钮分行；同一行里 x<900 的文字拼起来才是任务名（OCR 会把
+        「兽毛之争」拆成两段），含「完成/进行中」的那段是状态。
+        """
+        items = self.task_page_items()
+        anchors = [(x, y) for text, x, y in items if '寻路' in text]
+        rows = []
+        for walk_x, walk_y in anchors:
+            names, status = [], ''
+            for text, x, y in items:
+                if abs(y - walk_y) > 25:
+                    continue
+                if '完成' in text or '进行中' in text:
+                    status = text
+                    continue
+                if x >= 900:
+                    continue          # 中间那列空着，名字列在 x<900
+                if re.fullmatch(r'\[\d+\]', text):
+                    continue          # 等级前缀 [66]
+                names.append((x, text))
+            name = ''.join(text for _x, text in sorted(names))
+            rows.append((name, status, walk_x, walk_y))
+        return rows
+
+    def find_task_page_row(self, name: str):
+        """在任务页里找某任务行，返回 (任务名, 状态, 寻路x, 寻路y)；没有返回 None"""
+        for row in self.task_page_rows():
+            if name and name in row[0]:
+                return row
+        return None
+
+    def swipe_task_page_list(self, forward: bool = True, before=None) -> bool:
+        """
+        滑任务页的列表（任务多的时候列表可以滚动）
+
+        真机实测：**没有惯性** —— 拖多少像素列表就走多少（拖 350px ≈ 4.5 行），
+        所以拖拽距离就是滚动量，可以放心用它定位。
+
+        :param forward: True=往下翻（找更靠后的任务）
+        :param before: 滑动前的行名序列；调用方已经读过就传进来，省一次 OCR
+        :return: 这次滑动后列表内容变了没有（没变就是到底了）
+        """
+        if before is None:
+            before = tuple(row[0] for row in self.task_page_rows())
+        x = 700                      # 避开左侧栏和右侧「寻路」按钮列
+        if forward:
+            start, end = (x, 600), (x, 250)
+        else:
+            start, end = (x, 250), (x, 600)
+        logger.info(f'滑任务页列表 {"下" if forward else "上"} {start} -> {end}')
+        self.device.hold_drag(start, end, hold=0.2, control_name='task_page_scroll')
+        self.device.click_record_clear()
+        self.device.sleep(0.5)
+        after = tuple(row[0] for row in self.task_page_rows())
+        if before == after:
+            logger.info('任务页列表没滑动（到底了）')
+            return False
+        return True
+
+    def find_task_page_row(self, name: str, max_scroll: int = 3):
+        """
+        在任务页里找某任务行，返回 (任务名, 状态, 寻路x, 寻路y)；没有返回 None
+
+        任务多时列表可以滚动：当前屏没有就往下翻着找，翻不动（到底）就收手。
+        判「到底」用「这一屏的行名和上一屏一样」——比数次数可靠。
+        """
+        seen = set()
+        for attempt in range(max_scroll + 1):
+            rows = self.task_page_rows()
+            for row in rows:
+                if name and name in row[0]:
+                    return row
+            signature = tuple(row[0] for row in rows)
+            if signature in seen:
+                break                # 已经到底，再滑也没用
+            seen.add(signature)
+            if attempt >= max_scroll:
+                break
+            if not self.swipe_task_page_list(forward=True, before=signature):
+                break
+        logger.warning(f'任务页里没找到 [{name}]（翻了 {len(seen) - 1} 次）')
+        return None
+
+    def task_page_walk_to(self, name: str, row=None) -> bool:
+        """在任务页点某任务的「寻路」按钮（row 可以传现成的行，省一次 OCR）"""
+        row = row or self.find_task_page_row(name)
+        if row is None:
+            logger.warning(f'任务页里没找到 [{name}]')
+            return False
+        row_name, status, walk_x, walk_y = row
+        logger.info(f'任务 [{row_name}] 状态[{status}]，点寻路 ({walk_x},{walk_y})')
+        self.device.click(x=walk_x, y=walk_y, control_name=f'walk_{name}')
+        self.device.click_record_clear()
+        return True
+
+    def wait_task_page_closed(self, timeout: float = 6) -> bool:
+        """
+        等任务页自动关闭（点了「寻路」之后游戏会自己关掉），关不掉再兜底点右上角返回
+        """
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.appear(self.I_CLOSE_RETURN):
+                return True
+            self.device.sleep(0.3)
+        logger.warning('任务页没有自动关闭，兜底点右上角返回')
+        return self.close_task_page()
+
+    def map_wait_arrive_at(self, position: tuple, tolerance: int = None,
+                           timeout: float = 120, interval: float = 0.4,
+                           still_timeout: float = 3.0) -> bool:
+        """
+        轮询坐标，等走到指定点附近
+
+        只在**第一次到位**时用：一读到「在目标点容差内」就返回，不要求「站定几秒」——
+        自动寻路本来就会停在点上，多等那几秒纯属浪费（真机实测回点位时白等 3 秒+）。
+
+        :param position: 目标坐标 (x, y)
+        :param interval: 轮询间隔（秒）
+        :param still_timeout: 走了一段又停住、仍离目标很远时，多久放弃（自动寻路失败的兜底）
+        :return: 到了返回 True
+        """
+        tolerance = self.WOOD_POS_TOLERANCE if tolerance is None else tolerance
+        logger.hr(f'等走到 {position[0]},{position[1]}', level=2)
+        timer = Timer(timeout).start()
+        last = None
+        still_since = None
+        while not timer.reached():
+            # 长时间轮询，清卡死记录，避免被框架判成卡死
+            self.device.stuck_record_clear()
+            location = self.map_move_read_pos()
+            if location is None:
+                self.device.sleep(interval)
+                continue
+
+            x, y = location[1], location[2]
+            if self.map_pos_match(x, y, position, tolerance):
+                logger.info(f'走到 {x},{y}（目标 {position[0]},{position[1]}）')
+                return True
+
+            # 兜底：走了一段又停住、却离目标很远 -> 自动寻路失败，别干等超时
+            if last is not None and abs(x - last[1]) <= 2 and abs(y - last[2]) <= 2:
+                still_since = still_since or datetime.now()
+                if (datetime.now() - still_since).total_seconds() >= still_timeout:
+                    logger.warning(f'寻路停在 {x},{y}，离目标 {position} 太远')
+                    return False
+            else:
+                still_since = None
+            last = location
+            self.device.sleep(interval)
+        logger.warning(f'走到 {position} 超时')
+        return False
+
+    def gather_until_complete(self, name: str, timeout: float = 600) -> bool:
+        """
+        循环采集直到任务完成
+
+        玩法（真机确认）：切目标直到锁到一个「采集」动作的目标（**不校验名称**）
+        -> 点右下角动作按钮（采集）-> 按钮从「采集」变回「攻击」= 这份采完了
+        -> 继续锁下一个，直到聊天栏报「任务完成」。
+        """
+        logger.hr(f'采集直到 [{name}] 完成', level=2)
+        timer = Timer(timeout).start()
+        count = 0
+        while not timer.reached():
+            if self.task_completed(name):
+                logger.info(f'[{name}] 已完成，共采集 {count} 次')
+                return True
+
+            if not self.ui_ensure_target_locked(action=ACTION_GATHER, max_switch=6):
+                logger.warning('附近没有可采集的目标，等一会儿再找')
+                self.device.sleep(1.0)
+                continue
+
+            x, y = ACTION_BUTTON_DISC_CENTER
+            self.device.click(x=x, y=y, control_name='action_gather')
+            self.device.click_record_clear()
+            count += 1
+
+            # 等按钮从「采集」变回「攻击」（= 这一份采完/目标消失）
+            lost = self.ui_target_lost_check(action=ACTION_GATHER)
+            wait = Timer(8).start()
+            while not wait.reached():
+                self.screenshot()
+                if self.task_completed(name):
+                    logger.info(f'[{name}] 已完成，共采集 {count} 次')
+                    return True
+                if lost():
+                    break
+                self.device.sleep(0.3)
+        logger.warning(f'采集 [{name}] 超时')
+        return False
+
+    def run_gather_task(self, name: str, position: tuple) -> bool:
+        """
+        做一个采集类任务：任务页寻路 -> 走到完成点 -> 循环采集到完成
+
+        已完成的两道关都跳过：
+        - 本次运行里已经看到过「xxx已完成」的提示（`task_completed`）；
+        - 任务页里这一行状态已经是「完成」（重跑时靠这个跳过，不白走一趟）。
+        """
+        logger.hr(f'世界任务：{name}')
+        if self.task_completed(name):
+            logger.info(f'[{name}] 本次已收到完成提示，跳过')
+            return True
+        if not self.open_task_page():
+            return False
+
+        row = self.find_task_page_row(name)
+        if row is None:
+            logger.warning(f'任务页里没找到 [{name}]')
+            self.close_task_page()
+            return False
+        if '完成' in row[1]:
+            logger.info(f'任务页显示 [{name}] 已完成，跳过')
+            self.close_task_page()
+            return True
+
+        # 点「寻路」后游戏会自己关掉任务页，不用再点关闭；没关才兜底
+        if not self.task_page_walk_to(name, row=row):
+            self.close_task_page()
+            return False
+        if not self.wait_task_page_closed():
+            return False
+
+        if not self.map_wait_arrive_at(position):
+            logger.warning(f'没走到 [{name}] 的完成点 {position}')
+            return False
+        return self.gather_until_complete(name)
+
+    # ---------------------------------------------------------------- 打怪类任务
+    def fight_click_rule(self, key: str):
+        """小地图点位规则：兽毛之争 / 黄金比例 直接用任务名，为了荣耀用 glory_xxx"""
+        rules = {
+            '兽毛之争': self.C_FIGHT_BEAST_POINT,
+            '黄金比例': self.C_FIGHT_GOLDEN_POINT,
+            'glory_huangdi': self.C_FIGHT_GLORY_HUANGDI_POINT,
+            'glory_yandi': self.C_FIGHT_GLORY_YANDI_POINT,
+        }
+        if key not in rules:
+            raise ValueError(f'Unknown fight point [{key}], expect {list(rules)}')
+        return rules[key]
+
+    def read_task_page_statuses(self, names: list) -> list:
+        """
+        读任务页，返回 [(任务名, 'done' / 'pending' / 'missing')]
+
+        任务多时列表会滚，所以先把整个列表读下来再比；读不到任务页就都按 pending 处理
+        （宁可按没做继续，也不要因为读不到就跳过）。
+        """
+        if not self.open_task_page():
+            return [(name, 'pending') for name in names]
+        try:
+            rows = self.read_all_task_rows()
+        finally:
+            self.close_task_page()
+
+        result = []
+        for name in names:
+            status = 'missing'
+            for row in rows:
+                if self.task_name_match(row[0], name):
+                    status = 'done' if '完成' in row[1] else 'pending'
+                    break
+            result.append((name, status))
+        return result
+
+    def read_all_task_rows(self, max_scroll: int = 4) -> list:
+        """把任务页整个列表读下来（自动往下翻页收集，同名只留第一次见到的）"""
+        collected, seen_names, seen_screens = [], set(), set()
+        for attempt in range(max_scroll + 1):
+            current = self.task_page_rows()
+            for row in current:
+                if row[0] in seen_names:
+                    continue
+                seen_names.add(row[0])
+                collected.append(row)
+            signature = tuple(row[0] for row in current)
+            if signature in seen_screens:
+                break
+            seen_screens.add(signature)
+            if attempt >= max_scroll:
+                break
+            if not self.swipe_task_page_list(forward=True, before=signature):
+                break
+        return collected
+
+    def run_fight_task(self, task_name: str, target: str, position: tuple, corner: str,
+                       rule_key: str = None, lock_timeout: float = None) -> bool:
+        """
+        做一个打怪任务：小地图拖到锚点角 -> 点刷新点 -> 走到打架位 -> 循环打目标
+
+        :param task_name: 任务名（用于判断完成提示）
+        :param target: 目标怪名字（锁目标时校验）
+        :param position: 打架位坐标
+        :param corner: 小地图锚点角（bottom_right / top_left ...）
+        :param rule_key: 小地图点位规则（默认用任务名）
+        :param lock_timeout: 多久锁不到目标就放弃（None = 一直等，打怪任务用）
+        """
+        logger.hr(f'世界任务：{task_name}')
+        if self.task_completed(task_name):
+            logger.info(f'[{task_name}] 本次已收到完成提示，跳过')
+            return True
+        rule_key = rule_key or task_name
+        if not self.fight_goto_point(task_name, position, corner, rule_key=rule_key):
+            return False
+        return self.fight_until_complete(task_name, target, position, corner,
+                                          rule_key=rule_key, lock_timeout=lock_timeout)
+
+    def fight_goto_point(self, task_name: str, position: tuple, corner: str,
+                         rule_key: str = None) -> bool:
+        """
+        去打架位：小地图拖到指定角落 -> 点刷新点 -> 主动关小地图 -> 轮询等走到
+
+        只是被打退几步（人还在打架位附近）时不用重开地图，直接接着打。
+        """
+        logger.hr(f'去 [{task_name}] 的刷新点', level=2)
+        if not self.fight_drifted(position):
+            logger.info('已经在打架位附近，不用重开地图')
+            return True
+        if not self.map_open_minimap_tap():
+            logger.warning('小地图打不开')
+            return False
+        if not self.map_pan_to_corner(corner):
+            logger.warning(f'小地图没拖到 [{corner}]')
+            return False
+        rule = self.fight_click_rule(rule_key or task_name)
+        x, y = rule.coord()
+        logger.info(f'小地图点刷新点 ({x},{y})')
+        self.device.click(x=x, y=y, control_name=rule.name)
+        self.device.click_record_clear()
+        # 主动关小地图，别指望它自己关（盖住画面就没法判断）
+        self.close_minimap_if_open()
+        if not self.map_wait_arrive_at(position,
+                                       tolerance=self.FIGHT_DRIFT_TOLERANCE,
+                                       timeout=self.FIGHT_TRAVEL_TIMEOUT):
+            logger.warning(f'没走到打架位 {position}')
+            return False
+        return True
+
+    def fight_drifted(self, position: tuple) -> bool:
+        """现在是不是已经离开打架位了（坐标读不出来按「没跑偏」处理）"""
+        location = self.map_move_read_pos()
+        if location is None:
+            return False
+        return not self.map_pos_match(location[1], location[2], position,
+                                      self.FIGHT_DRIFT_TOLERANCE)
+
+    TARGET_NAME_CHECK_INTERVAL = 0.5   # 目标名校验节流（验名字要 OCR，0.1s 一次太费）
+
+    def fight_target_ok(self, target: str, image=None) -> bool:
+        """
+        放技能前确认「锁着的目标就是要打的那只」
+
+        真机教训：技能循环原来只校验「目标可攻击」，一旦锁丢了、游戏自动锁到旁边别的怪
+        （日志里的「烬火使者」），技能就打偏了。这里每次都比名字，
+        但名字要 OCR，所以按 `TARGET_NAME_CHECK_INTERVAL` 节流；名字读不出来时按原目标处理
+        （别因为一次 OCR 抖动就停手）。
+        """
+        if not self.ui_target_attackable(image=image):
+            return False
+
+        now = time.time()
+        cached = getattr(self, '_target_name_cache', None)
+        if cached is None or now - cached[0] >= self.TARGET_NAME_CHECK_INTERVAL:
+            name = self.ui_target_name()
+            self._target_name_cache = (now, name)
+        else:
+            name = cached[1]
+
+        if not name:
+            return True
+        if not self.task_name_match(name, target):
+            logger.warning(f'锁着的目标变成 [{name}]（要打 [{target}]），停止放技能')
+            return False
+        return True
+
+    def fight_stop_reason(self, task_name: str, position: tuple, image=None):
+        """
+        打怪循环的停止条件（每轮都被调用，所以查坐标要按 5 秒节流）
+
+        - 任务完成提示出现 -> 'complete'
+        - 每 5 秒查一次坐标，偏离打架位 -> 'drift'（外层回点位后接着打）
+        """
+        if self.task_completed(task_name):
+            logger.info(f'[{task_name}] 已完成')
+            return 'complete'
+        if self.fight_drift_timer.reached():
+            self.fight_drift_timer.reset()
+            if self.fight_drifted(position):
+                logger.warning(f'人物偏离打架位 {position}，回点位')
+                return 'drift'
+        return None
+
+    def fight_until_complete(self, task_name: str, target: str,
+                             position: tuple, corner: str,
+                             rule_key: str = None, lock_timeout: float = None,
+                             timeout: float = None) -> bool:
+        """
+        打目标怪直到任务完成
+
+        真机玩法（兽毛之争）：刷新点附近 3 只怪、打死 4~5 秒重新刷新，
+        所以目标死了不用补锁、直接重新锁下一只；技能按任务「战斗配置」里的预设放。
+
+        :param lock_timeout: 多久一直锁不到目标就放弃（None = 一定要打到达成/超时）
+        :param timeout: 这一段最多打多久（None = FIGHT_TIMEOUT）；刷掉落时传短时段
+        :return: 任务完成返回 True
+        """
+        logger.hr(f'打 [{target}]', level=2)
+        rule_key = rule_key or task_name
+        preset = self.battle_preset()
+        slots = self.battle_plan_slots(preset=preset)
+        if not slots:
+            logger.warning('没识别到可释放的技能位，只点普通攻击')
+
+        self.fight_drift_timer = Timer(self.FIGHT_DRIFT_CHECK).start()
+        timer = Timer(self.FIGHT_TIMEOUT if timeout is None else timeout).start()
+        lock_timer = None
+        while not timer.reached():
+            if self.task_completed(task_name):
+                logger.info(f'[{task_name}] 已完成')
+                return True
+
+            self._target_name_cache = None
+            if not self.ui_ensure_target_locked(target_name=target):
+                # 锁不到目标也可能是「人被打退了，够不着怪」：这时也要回点位，
+                # 否则会站在 12 格外死等（真机实测干等了 2 分半，最后被怪打死）
+                if self.fight_drift_timer.reached():
+                    self.fight_drift_timer.reset()
+                    if self.fight_drifted(position):
+                        logger.warning(f'锁不到 [{target}] 且人已偏离打架位 {position}，回点位')
+                        if not self.fight_goto_point(task_name, position, corner,
+                                                     rule_key=rule_key):
+                            return False
+                        continue
+                if lock_timeout is None:
+                    logger.info(f'没锁到 [{target}]，等刷新')
+                    self.device.sleep(1.0)
+                    continue
+                # 阵营未知时用来「探一探这个点位对不对」：锁不到就换另一个
+                lock_timer = lock_timer or Timer(lock_timeout).start()
+                if lock_timer.reached():
+                    logger.warning(f'{lock_timeout}s 都没锁到 [{target}]，换另一个点位')
+                    return False
+                self.device.sleep(1.0)
+                continue
+            lock_timer = None
+
+            reason = self.battle_skill_loop(
+                slots,
+                check_stop=lambda image=None: self.fight_stop_reason(task_name, position),
+                target_check=lambda image: self.fight_target_ok(target, image=image),
+                include_attack=self.battle_use_normal_attack(),
+            )
+            if self.task_completed(task_name):
+                logger.info(f'[{task_name}] 已完成')
+                return True
+            if reason == 'drift':
+                if not self.fight_goto_point(task_name, position, corner, rule_key=rule_key):
+                    return False
+            # 其它情况（target_lost = 这只打死了、timeout = 这轮没打出去）都回到外层重新锁
+        logger.warning(f'打 [{task_name}] 超时')
+        return False
+
+    # ---------------------------------------------------------------- 为了荣耀（分阵营）
+    def detect_camp(self):
+        """
+        按当前位置判断自己是哪个阵营（只在刚进图的出生点附近才准）
+
+        世界之巅每天首次进图随机分配阵营：黄帝出生点 ≈ (56,60)、炎帝 ≈ (439,384)。
+        """
+        location = self.map_move_read_pos()
+        if location is None:
+            return None
+        for camp, spawn in self.CAMP_SPAWNS.items():
+            if self.map_pos_match(location[1], location[2], spawn, self.CAMP_SPAWN_TOLERANCE):
+                logger.attr('阵营', f'{camp}（出生点附近 {location[1]},{location[2]}）')
+                return camp
+        logger.info(f'当前位置 {location[1]},{location[2]} 不在任何阵营出生点附近，判断不出阵营')
+        return None
+
+    def run_glory_task(self) -> bool:
+        """
+        为了荣耀：和打怪任务同一套流程，只是按阵营换「目标 / 打架位 / 小地图点位」
+
+        阵营未知（比如中途重跑、人早就不在出生点了）时先「探阵营」：
+        两个点位各去一次、只锁目标不放技能 —— 自己阵营的守门人是**不可攻击**的，
+        对家的守门人才能锁成「攻击」，哪边可打就是哪个阵营，不用先白打 25 秒。
+        """
+        logger.hr(f'世界任务：{self.GLORY_TASK}')
+        if self.task_completed(self.GLORY_TASK):
+            logger.info('本次已收到完成提示，跳过')
+            return True
+
+        camp = getattr(self, 'camp', None) or self.detect_camp()
+        if camp is None:
+            logger.warning('不知道自己属于哪个阵营，去两个点位确认哪只守门人可攻击')
+            camp = self.probe_camp()
+        if camp is None:
+            logger.warning('两个点位都没有可攻击的守门人，为了荣耀先跳过')
+            return False
+        return self.run_glory_variant(camp)
+
+    def probe_camp(self):
+        """
+        阵营未知时探一次：两个点位各去看一眼守门人能不能打
+
+        只看「锁到目标 + 动作按钮是攻击」，不放技能、不开打；
+        哪边可打说明那是对家的守门人，自己就是另一个阵营。
+        :return: CAMP_HUANGDI / CAMP_YANDI；两边都不可打返回 None
+        """
+        for candidate in self.GLORY_VARIANTS:
+            if self.probe_glory_variant(candidate):
+                self.camp = candidate
+                logger.attr('阵营', candidate)
+                return candidate
+        return None
+
+    def probe_glory_variant(self, camp: str) -> bool:
+        """去该阵营的点位，确认对应守门人是不是「可攻击」目标"""
+        target, position, corner, rule_key = self.GLORY_VARIANTS[camp]
+        logger.info(f'探阵营：去 {camp} 点位 {position}，看 [{target}] 能不能打')
+        if not self.fight_goto_point(self.GLORY_TASK, position, corner, rule_key=rule_key):
+            logger.warning(f'{camp} 点位的刷新点走不到')
+            return False
+        if not self.ui_ensure_target_locked(target_name=target, max_switch=3,
+                                           timeout=self.GLORY_PROBE_TIMEOUT):
+            logger.info(f'{camp} 点位没锁到可攻击的 [{target}]，不是这个阵营')
+            return False
+        logger.info(f'{camp} 点位的 [{target}] 可攻击')
+        return True
+
+    def run_glory_variant(self, camp: str) -> bool:
+        """按阵营打对应的守门人"""
+        target, position, corner, rule_key = self.GLORY_VARIANTS[camp]
+        logger.info(f'为了荣耀：{camp} 阵营 -> 目标 [{target}] 打架位 {position}（{corner}）')
+        return self.run_fight_task(self.GLORY_TASK, target, position, corner,
+                                   rule_key=rule_key)
+
+    # ---------------------------------------------------------------- 进入世界之巅
+    def expected_activity_home_tab(self) -> str:
+        """当前日期能进图的首页：周六周日=周末限时，周一到周五=世界之巅"""
+        if datetime.now().weekday() >= 5:
+            return self.ACTIVITY_WEEKEND_TAB
+        return self.ACTIVITY_HOME_TAB
+
+    def activity_home_tabs(self) -> tuple:
+        """首页 tab 尝试顺序：当前日期对应的优先，另一个只作兜底"""
+        expected = self.expected_activity_home_tab()
+        other = (self.ACTIVITY_WEEKEND_TAB if expected == self.ACTIVITY_HOME_TAB
+                 else self.ACTIVITY_HOME_TAB)
+        return expected, other
+
+    def enter_world_peak_visible(self, refresh: bool = True) -> bool:
+        """
+        当前页有没有「进入世界之巅」按钮（= 停在能进图的那个首页）
+
+        周六周日只有「周末限时」有按钮；周一到周五只有「世界之巅」有按钮。
+        不能用 I_ACTIVITY_PANEL 判断：另一个 tab 的页面也可能有同样的立绘，
+        但那里没有进入按钮，点了也不会进图。
+        """
+        if refresh:
+            self.maybe_screenshot()
+        image = getattr(self.device, 'image', None)
+        if image is None:
+            return False
+        return self.I_ENTER_WORLD_PEAK.match(image)
+
+    def ensure_activity_home_tab(self) -> bool:
+        """
+        确保停在当前日期能进图的首页：周一到周五「世界之巅」，周六周日「周末限时」
+        """
+        if self.enter_world_peak_visible():
+            logger.info('Activity enter button is showing')
+            return True
+
+        # 先切到当前日期对应的首页；另一个只在兜底时试（防止日期/UI 判断偏差）
+        for name in self.activity_home_tabs():
+            coord = self.find_tab(name)
+            if coord is not None:
+                logger.info(f'Click activity home tab [{name}]')
+                self.click_tab(name, coord)
+            elif not self.switch_tab(name):
+                continue
+            if self.enter_world_peak_visible(refresh=False):
+                return True
+
+        logger.warning('世界之巅 / 周末限时 的「进入世界之巅」按钮都没找到')
+        return False
+
+    def close_activity_not_open_popup(self, timeout: float = 6) -> bool:
+        """
+        关闭「活动暂未开启」弹窗
+
+        这个弹窗会盖住「进入世界之巅」按钮，必须在点按钮之前清掉；
+        命中模板后点录制的关闭位置，直到模板消失。
+        """
+        self.screenshot()
+        if not self.appear(self.I_ACTIVITY_NOT_OPEN):
+            return True
+        logger.info('Close activity-not-open popup')
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.appear(self.I_ACTIVITY_NOT_OPEN):
+                logger.info('Activity-not-open popup closed')
+                return True
+            if self.appear_then_click(self.I_ACTIVITY_NOT_OPEN,
+                                      action=self.C_ACTIVITY_NOT_OPEN_CLOSE,
+                                      interval=1):
+                self.device.click_record_clear()
+            self.device.sleep(0.4)
+        logger.warning('Activity-not-open popup does not close')
+        return False
+
+    def enter_world_peak(self, timeout: float = 40) -> bool:
+        """
+        在当前日期能进图的首页（工作日世界之巅 / 周六周日周末限时）
+        点「进入世界之巅」-> 等右上角地点变成「世界之巅」
+
+        :return: 已经在该地图里返回 True
+        """
+        logger.hr('进入世界之巅')
+        if self.map_in_location(self.WORLD_PEAK_LOCATION):
+            logger.info('已经在世界之巅地图里')
+            return True
+
+        for attempt in (1, 2):
+            # 「活动暂未开启」弹窗会盖住按钮，先关掉再找首页/按钮
+            if not self.close_activity_not_open_popup():
+                logger.warning('「活动暂未开启」弹窗关不掉，重试')
+                continue
+            if not self.ensure_activity_home_tab():
+                logger.warning('没回到 [世界之巅 / 周末限时] 首页 tab')
+                return False
+            # 切 tab 期间也可能弹出来，点按钮前再确认一次
+            if not self.close_activity_not_open_popup():
+                logger.warning('「活动暂未开启」弹窗关不掉，重试')
+                continue
+
+            logger.info(f'Click 进入世界之巅 (attempt {attempt})')
+            if not self.appear_then_click(self.I_ENTER_WORLD_PEAK):
+                logger.warning('进入世界之巅按钮不见了，重试')
+                continue
+            self.device.click_record_clear()
+
+            # 进图要过读条，期间地点读不出来是正常的，所以别让卡死检测误报
+            timer = Timer(timeout).start()
+            while not timer.reached():
+                self.device.stuck_record_clear()
+                if self.map_in_location(self.WORLD_PEAK_LOCATION):
+                    logger.info('已进入世界之巅地图')
+                    self.ui_reset_current_page()
+                    return True
+                self.device.sleep(0.5)
+            logger.warning(f'第 {attempt} 次点「进入世界之巅」没进图')
+        logger.warning('进入世界之巅失败')
+        return False
+
+    # ---------------------------------------------------------------- 世界之巅活动弹窗
+    def _ocr_items(self) -> list:
+        """顶部 tab 条 OCR 原始结果（单测里替换这一层）"""
+        roi = self.O_ACTIVITY_TAB_BAR.roi
+        items = []
+        for item in self.O_ACTIVITY_TAB_BAR.detect_and_ocr(self.device.image, logDisplay=False):
+            text = item.ocr_text.strip()
+            if not text:
+                continue
+            box = item.box
+            x = int((min(p[0] for p in box) + max(p[0] for p in box)) / 2) + roi[0]
+            y = int((min(p[1] for p in box) + max(p[1] for p in box)) / 2) + roi[1]
+            items.append((text, x, y))
+        items.sort(key=lambda i: i[1])
+        # 记下位置：同一套 tab 布局下再切 tab 就不用重新 OCR 了
+        positions = getattr(self, '_tab_positions', None)
+        if positions is not None:
+            tab_order = self.activity_tab_order()
+            for text, x, y in items:
+                index = self.tab_index(text)
+                if index >= 0:
+                    positions[tab_order[index]] = (x, y)
+        return items
+
+    def close_activity_panel(self, timeout: float = 8) -> bool:
+        """
+        关掉世界之巅活动弹窗（右上角绿 X）
+
+        轮询只用便宜特征（黄帝立绘 / 接取按钮 / 守门人对话的选项行），都不在就当关掉了；
+        只有都不在但 tab OCR 仍认为弹窗开着（停在别的 tab）时才继续点 X。
+        """
+        timer = Timer(timeout).start()
+        need_ocr = True
+        while not timer.reached():
+            self.screenshot()
+            cheap = (self.appear(self.I_ACTIVITY_PANEL) or self.appear(self.I_ACCEPT_LIST_PAGE)
+                     or self.appear(self.I_NPC_GATE_OPTION))
+            if not cheap:
+                if not need_ocr or not self.activity_panel_open(refresh=False):
+                    return True
+                need_ocr = False
+            if self.appear_then_click(self.I_CLOSE_X_GREEN, interval=1):
+                self.device.click_record_clear()
+            self.device.sleep(0.5)
+        logger.warning('Activity panel does not close')
+        return False
+
+    # ---------------------------------------------------------------- 接取任务
+    def bonus_promo_open(self, refresh: bool = True) -> bool:
+        """
+        「当前任务加量功能未激活」推广弹窗开着没有
+
+        :param refresh: 是否先截一帧。循环里刚截过图就传 False，省掉 300ms 的截图节流等待。
+        """
+        if refresh:
+            self.maybe_screenshot()
+        image = getattr(self.device, 'image', None)
+        if image is None:
+            return False
+        # 便宜的特征（弹窗右上角绿X，ROI 只给了弹窗那一块）优先
+        if self.I_BONUS_PROMO_CLOSE.match(image):
+            return True
+        text = self.O_BONUS_PROMO_BODY.ocr_single_line(image)
+        return '加量' in (text or '')
+
+    def close_bonus_promo(self, timeout: float = 10) -> bool:
+        """
+        关掉加量推广弹窗（点绿X，不勾「今日不再提示」）
+
+        与 AutoTask.click_auto_start 里处理加量提示的做法一致：出现就点它的绿X关掉。
+        注意不能勾「今日不再提示」—— 那是改玩家的游戏设置。
+        :return: 已经关掉（或本来就没弹）返回 True
+        """
+        if not self.bonus_promo_open():
+            return True
+        logger.info('加量推广弹窗出现，点绿X关掉')
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.bonus_promo_open(refresh=False):
+                logger.info('Bonus promo closed')
+                return True
+            if self.appear_then_click(self.I_BONUS_PROMO_CLOSE, interval=1):
+                self.device.click_record_clear()
+            # 0.5s 一帧会在 1.5s 的完成提示窗口里只采到 3 帧，这里用 0.3s
+            self.device.sleep(0.3)
+        logger.warning('Bonus promo does not close')
+        return False
+
+    @staticmethod
+    def _strip_task_prefix(text: str) -> str:
+        """去掉列表里的「【跨服】」「[跨服]」「跨服-周六限时」之类前缀"""
+        text = re.sub(r'[\[【]?\s*跨服[^\]】]*[\]】]?', '', text or '')
+        return text.strip()
+
+    def _clean_task_text(self, text: str) -> str:
+        """
+        任务名归一化，供匹配用
+
+        真机踩过的坑：
+        - OCR 会读成繁体「黃」，和「黄」不相等（`?【跨服】黃金比例` 因此没认出来）；
+        - 行首/行尾常带「?」「·」之类的杂字符。
+        所以先去掉非汉字，再修常见异体字。
+        """
+        text = self._strip_task_prefix(text)
+        for wrong, right in self.TASK_TEXT_FIXES.items():
+            text = text.replace(wrong, right)
+        return re.sub(r'[^\u4e00-\u9fa5]', '', text).strip()
+
+    def task_name_match(self, ocr_text: str, name: str) -> bool:
+        """
+        列表里的任务名匹配
+
+        三处都不能省：
+        1. 先剥掉「【跨服】」前缀、去掉杂字符、修异体字（见 `_clean_task_text`）；
+        2. 只在 ACCEPT_TASKS 这 7 个已知任务名里挑最接近的来比 —— 「世界之巅/世界之心/
+           世界印记」前三个字一样，直接算相似度 世界之巅 vs 世界之心 = 0.75，会互相认错；
+        3. 相似度门槛 0.65：繁体「黃」只差一个字，相似度 0.667，再高就认不出来了。
+        """
+        text = self._clean_task_text(ocr_text)
+        expected = self._clean_task_text(name)
+        if not text or not expected:
+            return False
+        if expected in text or text in expected:
+            return True
+
+        best, best_score = None, 0.0
+        for candidate in self.ACCEPT_TASKS:
+            candidate = self._clean_task_text(candidate)
+            score = difflib.SequenceMatcher(None, text, candidate).ratio()
+            if score > best_score:
+                best, best_score = candidate, score
+        if best != expected or best_score < self.TASK_NAME_SIMILARITY:
+            return False
+        return True
+
+    def task_rows(self) -> list:
+        """
+        读跨服任务列表：[(任务名, 接取按钮中心x, 接取按钮中心y)]
+
+        接取按钮用 I_ACCEPT_LIST_PAGE 在按钮列里全匹配出来，任务名按每行的 y 单行识别（rec-only）。
+        实测：整块 detect_and_ocr 688ms，逐行 rec-only 34ms/行，5 行约 170ms。
+        同一帧只读一次（按帧缓存），重复调用不重复 OCR。
+        """
+        self.screenshot()
+        image = self.device.image
+        key = id(image) if image is not None else None
+        if key is not None and self._rows_cache[0] == key:
+            return list(self._rows_cache[1])
+
+        buttons = sorted(self.I_ACCEPT_LIST_PAGE.match_all_any(image, threshold=self.I_ACCEPT_LIST_PAGE.threshold),
+                         key=lambda m: m[2])
+        rows = []
+        for _score, x, y, w, h in buttons:
+            center_y = y + h // 2
+            crop = image[max(0, center_y - 22): center_y + 22, 100:1000]
+            text, _confidence = self._ocr.ocr_single_line(crop)
+            rows.append((text.strip(), x + w // 2, center_y))
+
+        if key is not None:
+            self._rows_cache = (key, rows)
+        return list(rows)
+
+    def wait_task_accepted(self, name: str, timeout: float = 8) -> bool:
+        """
+        接取之后确认真的接上了
+
+        游戏会把接过/完成的任务移到列表末尾，所以「可见列表里没有它了」就算接上；
+        期间还要顺手关掉可能又弹出来的加量推广弹窗。
+        """
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.close_bonus_promo()
+            rows = self.task_rows()
+            if rows and not any(self.task_name_match(text, name) for text, _, _ in rows):
+                return True
+            self.device.sleep(0.3)
+        return False
+
+    def accept_tasks(self, timeout: float = 30) -> list:
+        """
+        按顺序接 ACCEPT_TASKS 里的 7 个跨服任务
+
+        接过的任务会被移到列表末尾，所以正常情况下每次都是接第一行；
+        第一行对不上时再在可见行里按名字找（加 OCR 兜底，避免列表滚动后点错）。
+        :return: 成功接取的任务名（按接取顺序）
+        """
+        logger.hr('接取跨服任务')
+        want = self.bonus_multiplier()
+        if want != BonusMultiplier.NONE:
+            logger.attr('加量卡', f'{want.value}（run() 里已按需启用，接完会关掉）')
+
+        accepted = []
+        self.task_list_readable = False
+        for expected in self.ACCEPT_TASKS:
+            rows = self.task_rows()
+            if not rows:
+                logger.warning('跨服任务列表读不出来，停止接取')
+                break
+            self.task_list_readable = True
+
+            name, bx, by = rows[0]
+            if not self.task_name_match(name, expected):
+                # 兜底：第一行不是预期的，就在可见行里按名字找
+                found = next((row for row in rows if self.task_name_match(row[0], expected)), None)
+                if found is None:
+                    logger.warning(f'列表里没有 [{expected}]（可能今天已接过），跳过')
+                    continue
+                name, bx, by = found
+
+            logger.info(f'接取 [{name}] at ({bx},{by})')
+            self.device.click(x=bx, y=by, control_name=f'accept_{expected}')
+            self.device.click_record_clear()
+            # 不再固定 sleep：wait_task_accepted 里每次轮询都会截图，1.5s 的完成提示照样采得到
+            self.close_bonus_promo()
+
+            if self.wait_task_accepted(name):
+                accepted.append(expected)
+                logger.info(f'已接取 [{expected}]')
+            else:
+                logger.warning(f'接取 [{expected}] 后列表没变化，可能没点上')
+        logger.attr('本次接取', ', '.join(accepted) or 'none')
+        return accepted
+
+    def tab_items(self) -> list:
+        """当前可见的 tab 文字与可点中心 [(文本, x, y)]，按 x 排序（同一帧只 OCR 一次）"""
+        self.maybe_screenshot()
+        image = getattr(self.device, 'image', None)
+        key = id(image) if image is not None else None
+        if key is not None and self._tabs_cache[0] == key:
+            return list(self._tabs_cache[1])
+        items = self._ocr_items()
+        if key is not None:
+            self._tabs_cache = (key, items)
+        return list(items)
+
+    def find_tab(self, name: str):
+        """在当前 tab 条里找 name，返回可点中心 (x, y)；不在视野里返回 None"""
+        cached = getattr(self, '_tab_positions', {}).get(name)
+        if cached is not None:
+            return cached
+        for text, x, y in self.tab_items():
+            if self.ocr_name_match(text, name):
+                return x, y
+        return None
+
+    def swipe_tabs(self, forward: bool = True) -> bool:
+        """
+        滑 tab 条：forward=True 往右翻（露出右边的 tab），False 往左翻回来
+
+        :return: 这次滑动后已知 tab 的布局有没有变化；没变化说明已经到底
+        """
+        before = self.tab_signature()
+        x1, y1, x2, y2 = self.S_ACTIVITY_TAB_SWIPE.coord()
+        if not forward:
+            x1, y1, x2, y2 = x2, y2, x1, y1
+        logger.info(f'Swipe activity tabs {"right" if forward else "left"} '
+                    f'({x1},{y1}) -> ({x2},{y2})')
+        self.device.swipe(p1=(x1, y1), p2=(x2, y2), control_name=self.S_ACTIVITY_TAB_SWIPE.name)
+        self.device.click_record_clear()
+        self.device.sleep(0.6)
+        # 滑过之后 tab 位置全变了，缓存作废
+        if getattr(self, '_tab_positions', None) is not None:
+            self._tab_positions.clear()
+        after = self.tab_signature()
+        if before == after:
+            logger.info('Tab bar did not scroll')
+            return False
+        return True
+
+    def tab_signature(self) -> tuple:
+        """已知 tab 的 (文本, x)，用来判断 tab 条到底了没（OCR 噪声项不算）"""
+        known_tabs = self.activity_tab_order()
+        return tuple((text, x) for text, x, _ in self.tab_items()
+                     if any(self.ocr_name_match(text, tab) for tab in known_tabs))
+
+    def click_tab(self, name: str, coord=None) -> bool:
+        """点 tab：切过去之后等画面稳定"""
+        coord = coord or self.find_tab(name)
+        if not coord:
+            return False
+        logger.info(f'Click activity tab [{name}] at {coord}')
+        self.device.click(x=coord[0], y=coord[1], control_name=f'tab_{name}')
+        self.device.click_record_clear()
+        # 实测切 tab 0.4s 内就刷新完了，原来等 1s 纯属浪费
+        self.device.sleep(0.5)
+        # 切完立刻刷新一帧，否则调用方拿到的还是切换前那帧（appear 不会自己截图）
+        self.screenshot()
+        return True
+
+    def activity_tab_order(self) -> tuple:
+        """
+        当前 tab 条的真实顺序
+
+        周六/周日前两个 tab 会交换（周末限时 / 世界之巅），
+        其余 tab 顺序不变；按序号判断翻页方向时要用这份顺序。
+        """
+        if datetime.now().weekday() >= 5:
+            home = (self.ACTIVITY_WEEKEND_TAB, self.ACTIVITY_HOME_TAB)
+        else:
+            home = (self.ACTIVITY_HOME_TAB, self.ACTIVITY_WEEKEND_TAB)
+        return home + tuple(tab for tab in self.ACTIVITY_TABS if tab not in home)
+
+    def tab_index(self, name: str) -> int:
+        """tab 在当前 tab 条里的序号；认不出来返回 -1"""
+        for index, tab in enumerate(self.activity_tab_order()):
+            if self.ocr_name_match(name, tab):
+                return index
+        return -1
+
+    def visible_tabs(self) -> list:
+        """当前可见的已知 tab：[(文本, x, y, index)]，按 x 排序"""
+        items = []
+        for text, x, y in self.tab_items():
+            index = self.tab_index(text)
+            if index >= 0:
+                items.append((text, x, y, index))
+        return items
+
+    def tab_direction(self, name: str):
+        """
+        目标 tab 在该往哪边翻
+
+        tab 条顺序固定（世界之巅在最左），拿「目标序号」和「当前可见 tab 的序号范围」比：
+        目标在可见范围左边就往左翻，在右边就往右翻。
+
+        世界之巅最容易踩坑：弹窗停在后面的 tab（比如上次看的跨服任务又往右滑过）时，
+        它不在视野里，这时**必须往左翻**，继续往右翻永远翻不到。
+        :return: True=往右翻 / False=往左翻 / None=认不出现状（按往左翻回去处理）
+        """
+        target = self.tab_index(name)
+        visible = self.visible_tabs()
+        if target < 0 or not visible:
+            return None
+        first = min(index for _, _, _, index in visible)
+        last = max(index for _, _, _, index in visible)
+        if target < first:
+            return False
+        if target > last:
+            return True
+        return True
+
+    def switch_tab(self, name: str, max_swipe: int = 3) -> bool:
+        """
+        切到指定 tab：视野里直接点；不在就按 tab 顺序判断方向翻过去，翻不动了换方向
+
+        :return: 点到了返回 True（是否真的切过去由调用方用该 tab 的特征确认）
+        """
+        logger.hr(f'Switch activity tab [{name}]')
+        for _ in range(max_swipe + 1):
+            coord = self.find_tab(name)
+            if coord:
+                return self.click_tab(name, coord)
+            forward = self.tab_direction(name)
+            if forward is None:
+                # 认不出当前停在哪个 tab：先往左翻（世界之巅在最左，总能先回到第一页）
+                forward = False
+            if not self.swipe_tabs(forward=forward):
+                logger.info(f'Tab bar cannot scroll {"right" if forward else "left"}, '
+                            f'try the other way')
+                if not self.swipe_tabs(forward=not forward):
+                    logger.info('Tab bar does not scroll at all')
+                    break
+        logger.warning(f'Activity tab [{name}] not found')
+        return False
+
+    def ensure_activity_tab(self, name: str = None, max_swipe: int = 3) -> bool:
+        """
+        确保停在某个 tab 页面（默认当前日期的活动首页）
+
+        弹窗会记住上次停在哪个 tab，打开时不一定是活动首页，所以进弹窗后先归位。
+        :return: 已经在该 tab（或切过去了）返回 True
+        """
+        name = name or self.expected_activity_home_tab()
+        if not self.switch_tab(name, max_swipe=max_swipe):
+            return False
+        # 活动首页用「进入世界之巅」按钮模板确认（两个首页长得像，立绘特征不可靠）
+        if name in (self.ACTIVITY_HOME_TAB, self.ACTIVITY_WEEKEND_TAB):
+            timer = Timer(6).start()
+            while not timer.reached():
+                self.screenshot()
+                if self.enter_world_peak_visible(refresh=False):
+                    logger.info(f'Activity tab [{name}] is showing')
+                    return True
+                if self.find_tab(name) is None and self.activity_panel_open():
+                    break
+                self.device.sleep(0.3)
+            logger.warning(f'Activity tab [{name}] content does not appear')
+            return False
+        return True
+
+    def activity_panel_open(self, refresh: bool = True) -> bool:
+        """
+        世界之巅活动弹窗开着没有
+
+        先用便宜的特征（世界之巅 tab 的黄帝立绘 / 跨服任务 tab 的接取按钮，各 4ms），
+        都不到才去 OCR tab 条（那一步 700ms+），因为弹窗停在荣誉商店这类 tab 时没有上面两个特征。
+        """
+        if refresh:
+            self.maybe_screenshot()
+        if self.appear(self.I_ACTIVITY_PANEL) or self.appear(self.I_ACCEPT_LIST_PAGE):
+            return True
+        # 切过 tab 之后立绘就没了，改看顶部 tab 条：认出 2 个以上已知 tab 就算开着
+        known_tabs = self.activity_tab_order()
+        known = [text for text, _, _ in self.tab_items()
+                 if any(self.ocr_name_match(text, tab) for tab in known_tabs)]
+        return len(known) >= 2
+
+    def open_activity_panel(self, timeout: float = 12) -> bool:
+        """
+        在守门人对话里点「查看世界之巅活动」-> 等世界之巅活动弹窗
+
+        真机实测：点这个选项行弹窗就直接出来了（不需要再点「确定」）。
+        :return: 弹窗打开返回 True
+        """
+        logger.hr('打开世界之巅活动弹窗')
+        if self.activity_panel_open():
+            logger.info('Activity panel is already open')
+            self._tab_positions.clear()
+            return True
+
+        timer = Timer(timeout).start()
+        clicked = False
+        while not timer.reached():
+            self.screenshot()
+            # 轮询只查两个便宜特征（各 4ms）：黄帝立绘 / 接取按钮。
+            # tab 条 OCR 要 900ms，放在每轮里会把开弹窗拖成 4s+
+            if self.appear(self.I_ACTIVITY_PANEL) or self.appear(self.I_ACCEPT_LIST_PAGE):
+                logger.info('Activity panel opened')
+                self._tab_positions.clear()
+                return True
+            if not clicked and self.appear_then_click(self.I_NPC_GATE_OPTION, interval=1):
+                logger.info('Click 查看世界之巅活动')
+                clicked = True
+                self.device.click_record_clear()
+                continue
+            self.device.sleep(0.3)
+        # 兜底：可能停在别的 tab（既没有立绘也没有接取按钮），最后用 tab OCR 确认一次
+        if self.activity_panel_open():
+            logger.info('Activity panel opened (no cheap feature, tab OCR confirmed)')
+            self._tab_positions.clear()
+            return True
+        logger.warning('Activity panel does not open')
+        return False
+
+    # ---------------------------------------------------------------- NPC 识别
+    def npc_click(self, npc: str):
+        """NPC 名称 -> 小地图上的点位（录制的点击规则）"""
+        clicks = {
+            self.NPC_GATE: self.C_NPC_GATE_POINT,
+            self.NPC_DELIVER: self.C_NPC_DELIVER_POINT,
+        }
+        if npc not in clicks:
+            raise ValueError(f'Unknown npc [{npc}], expect {list(clicks)}')
+        return clicks[npc]
+
+    def npc_template(self, npc: str):
+        """NPC 名称 -> 对话框特征（模板匹配）"""
+        templates = {
+            self.NPC_GATE: self.I_NPC_GATE_DIALOG,
+            self.NPC_DELIVER: self.I_NPC_DELIVER_DIALOG,
+        }
+        if npc not in templates:
+            raise ValueError(f'Unknown npc [{npc}], expect {list(templates)}')
+        return templates[npc]
+
+    def npc_dialog(self):
+        """
+        当前屏幕上是哪个 NPC 的对话框
+
+        模板对面板位置敏感（同 `task_board_open`：同一个面板会因列表行数有 1~3px 位移，
+        `I_NPC_DELIVER_DIALOG` 实测会从 1.0 掉到 0.746），所以模板都不命中时再兜底：
+        守门人看对话里的「查看世界之巅活动」选项行，任务榜看标题 OCR「世界之巅任务榜」。
+        这块 OCR 只有 ~17ms（rec-only 小区域），不会拖慢等对话框的轮询。
+
+        :return: NPC 名称；都不是返回 None
+        """
+        self.maybe_screenshot()
+        image = self.device.image
+        for npc in (self.NPC_GATE, self.NPC_DELIVER):
+            if self.npc_template(npc).match(image):
+                return npc
+        if self.I_NPC_GATE_OPTION.match(image):
+            return self.NPC_GATE
+        title = self.O_DELIVER_TASK_TITLE.ocr_single_line(image)
+        if '任务榜' in (title or ''):
+            return self.NPC_DELIVER
+        return None
+
+    def minimap_top_right(self) -> bool:
+        """打开小地图并把视口拖到右上角（NPC 点位就是按这个视口录的）"""
+        logger.hr('小地图 -> 右上角')
+        if not self.map_open_minimap_tap():
+            logger.warning('小地图打不开')
+            return False
+        return self.map_pan_to_corner('top_right')
+
+    def close_minimap_if_open(self, timeout: float = 3) -> bool:
+        """
+        主动关小地图（点完点位不指望它自己关）
+
+        小地图开着会盖住屏幕中间，对话框弹出来了也看不见，只能白等到超时。
+        :return: 关掉（或本来就没开）返回 True
+        """
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.appear(self.I_MAP_MINIMAP_WORLD_MAP):
+                return True
+            logger.info('Close minimap')
+            self.map_close_minimap()
+            self.device.sleep(0.3)
+        logger.warning('Minimap does not close')
+        return False
+
+    def open_npc_dialog(self, npc: str, retry: int = None) -> bool:
+        """
+        开小地图到右上角 -> 点录像里的 NPC 点位 -> 主动关小地图 -> 等反应
+
+        「有没有反应」看两件事：对话框出来没有、主页面右上角的人物坐标动没动。
+        点不中（地图没拖到位、点在遮罩上）时坐标不会动，这种情况直接重试，
+        不要傻等对话框超时。
+        :return: 弹出的对话框是本 NPC 返回 True
+        """
+        retry = self.NPC_RETRY if retry is None else retry
+        click = self.npc_click(npc)
+        for attempt in range(1, retry + 1):
+            # 点之前先记一次坐标（主页面右上角）：点完拿它判断人物动没动
+            before = self.map_current_location()
+            if not self.minimap_top_right():
+                logger.warning(f'Minimap pan failed, attempt {attempt}/{retry}')
+                continue
+
+            x, y = click.coord()
+            logger.info(f'Click npc [{npc}] on minimap at ({x},{y}) '
+                        f'(attempt {attempt}/{retry})')
+            self.device.click(x=x, y=y, control_name=click.name)
+            self.device.click_record_clear()
+            # 必做：主动关小地图，不然对话框弹出来也被盖住
+            self.close_minimap_if_open()
+
+            if self.wait_npc_response(npc, before):
+                return True
+            logger.warning(f'NPC [{npc}] no response, attempt {attempt}/{retry} failed')
+        return False
+
+    def _location_moved(self, before, after) -> bool:
+        """比较两次读到的地图坐标（三点：地点名 / x / y）"""
+        if not before or not after:
+            return False
+        try:
+            return (abs(int(after[1]) - int(before[1])) > self.NPC_MOVE_TOLERANCE
+                    or abs(int(after[2]) - int(before[2])) > self.NPC_MOVE_TOLERANCE)
+        except (TypeError, ValueError, IndexError):
+            return False
+
+    @staticmethod
+    def _location_text(location) -> str:
+        if not location or len(location) < 3:
+            return 'none'
+        return f'{location[0]} {location[1]},{location[2]}'
+
+    def wait_npc_response(self, npc: str, before, timeout: float = None) -> bool:
+        """
+        点完 NPC 之后的判定
+
+        1. 对话框出现且是本 NPC -> 成功（有时点完立刻弹，人物不动）；
+        2. 坐标在变 -> 人物在走过去，继续等对话框（最多 NPC_DIALOG_TIMEOUT）；
+        3. 坐标一直不动、对话框也没有 -> 这一下没点中，交给上层重试；
+        4. 走着走着坐标停住还不出对话框 -> 卡住了，同样重试。
+        """
+        timeout = self.NPC_DIALOG_TIMEOUT if timeout is None else timeout
+        timer = Timer(timeout).start()
+        move_timer = Timer(self.NPC_MOVE_TIMEOUT).start()
+        stuck_timer = Timer(self.NPC_STUCK_TIMEOUT)
+        moved = False
+        last = before
+        while not timer.reached():
+            self.screenshot()
+            opened = self.npc_dialog()
+            if opened == npc:
+                logger.info(f'NPC dialog [{npc}] appeared')
+                return True
+            if opened is not None:
+                logger.warning(f'Expect dialog [{npc}] but got [{opened}]')
+                return False
+
+            location = self.map_current_location(image=self.device.image)
+            if location is not None:
+                if self._location_moved(last, location):
+                    if not moved:
+                        logger.attr('NPC move',
+                                    f'{self._location_text(before)} -> {self._location_text(location)}')
+                    moved = True
+                    last = location
+                    stuck_timer.reset()
+                elif moved and stuck_timer.reached():
+                    logger.warning(f'NPC [{npc}]: 坐标停在 {self._location_text(location)} '
+                                   f'不动、对话框也不出，按卡住重试')
+                    return False
+
+            if not moved and move_timer.reached():
+                logger.warning(f'NPC [{npc}]: 点完 {self.NPC_MOVE_TIMEOUT}s 坐标没变化，'
+                               f'按「没点中」重试（before={self._location_text(before)}）')
+                return False
+            self.device.sleep(0.5)
+
+        logger.warning(f'NPC dialog [{npc}] does not appear in {timeout}s')
+        return False
+
+    def close_npc_dialog(self, timeout: float = 6) -> bool:
+        """关掉 NPC 对话框（右上角绿 X），关掉返回 True"""
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if self.npc_dialog() is None:
+                return True
+            if self.appear_then_click(self.I_CLOSE_X_GREEN, interval=1):
+                self.device.click_record_clear()
+            self.device.sleep(0.4)
+        logger.warning('NPC dialog does not close')
+        return False
+
+    # ---------------------------------------------------------------- 地图与找 NPC
+    def read_location(self, retry: int = 3) -> tuple:
+        """
+        读当前地点（右上角名字 + 坐标）
+
+        OCR 偶尔会只认出坐标（真机 2026-11-05：读到 "J,29"），这种时候不能当成
+        「不在目标地图」—— 按乱码去传送既找不到目标点，还会白开一次世界地图列表。
+        """
+        for attempt in range(retry):
+            location = self.map_current_location()
+            if location is not None:
+                return location
+            if attempt + 1 < retry:
+                self.device.sleep(0.5)
+        return None
+
+    def ensure_location(self, name: str = None) -> bool:
+        """
+        判断当前所在地图：不在 NPC 所在地图就传送过去
+
+        NPC 固定在域外灵岛（`WORLD_TASK_MAP`），不做成配置项：游戏里就那一张图，
+        配错了只会白传送一趟、还是找不到 NPC。
+        :param name: 目标地图，默认 `WORLD_TASK_MAP`
+        :return: 已经在目标地图（或传送成功）返回 True
+        """
+        name = name or self.WORLD_TASK_MAP
+        location = self.read_location()
+        if location is None:
+            # 读不出来：按「大概率已经在」处理，继续往下走（找 NPC 失败会重试并暴露问题），
+            # 不按乱码去传送
+            logger.warning('读不出当前地点，跳过传送判断')
+            return True
+        if self.map_name_match(location[0], name):
+            logger.attr('Current location', f'{location[0]} {location[1]},{location[2]}')
+            return True
+        logger.info(f'Not at [{name}] (now {location}), teleport')
+        if not self.map_teleport(name):
+            logger.warning(f'Teleport to [{name}] failed')
+            return False
+        return True
+
+    def find_npc(self, npc: str, retry: int = 2) -> bool:
+        """
+        判断地图 -> 打开小地图拖到右上角 -> 点 NPC -> 关小地图 -> 确认对话框是这个 NPC
+
+        :param npc: NPC 名称（NPC_GATE / NPC_DELIVER）
+        :param retry: 整个流程最多试几轮（外层；单轮里 open_npc_dialog 自己还会重试点位）
+        :return: 该 NPC 的对话框已经打开返回 True
+        """
+        logger.hr(f'Find npc [{npc}]')
+        for attempt in range(1, retry + 1):
+            if not self.ensure_location():
+                return False
+            opened = self.npc_dialog()
+            if opened == npc:
+                logger.info(f'NPC dialog [{npc}] is already open')
+                return True
+            if opened is not None:
+                logger.info(f'Another npc dialog [{opened}] is open, close it')
+                self.close_npc_dialog()
+            if self.open_npc_dialog(npc):
+                return True
+            logger.warning(f'Find npc [{npc}] failed, attempt {attempt}/{retry}')
+        return False
+
+    # ---------------------------------------------------------------- 准备
+    def prepare_game(self) -> None:
+        """确保游戏在线并停留在主页面"""
+        logger.hr('准备游戏（在线 + 主页面）')
+        if not self.device.app_is_running():
+            logger.info('游戏未运行，重启游戏')
+            self.ui_restart_game()
+            logger.info('游戏已登录到主页面')
+            return
+        try:
+            from tasks.GameUi.pages.page import page_main
+            self.ui_reset_current_page()
+            if not self.ui_goto(page_main, timeout=60):
+                raise GameStuckError('Main page does not appear')
+            logger.info('游戏在线且在主页面')
+        except (GameNotRunningError, GamePageUnknownError, GameStuckError):
+            logger.warning('无法切回主页面，重启游戏')
+            self.ui_restart_game()
+
+    # ---------------------------------------------------------------- 排期
+    def schedule_next_run(self, success: bool = True) -> None:
+        """下次 = 现在 + 成功/失败间隔，再夹进开放世界时段"""
+        scheduler = self.config.model.world_task.scheduler
+        interval = scheduler.success_interval if success else scheduler.failure_interval
+        next_run = next_run_after(datetime.now(), interval,
+                                  float_seconds=self.float_seconds(scheduler))
+        self.apply_next_run(next_run)
+        logger.attr('WorldTask 排期', f'{next_run:%Y-%m-%d %H:%M:%S} (success={success})')
+
+    def schedule_wait_open_world(self) -> None:
+        """窗口没开：排到最近一次开门（当天 09:00，已经过了就次日 09:00）"""
+        scheduler = self.config.model.world_task.scheduler
+        next_run = clamp_to_open_world(datetime.now(),
+                                       float_seconds=self.float_seconds(scheduler))
+        self.apply_next_run(next_run)
+        logger.attr('WorldTask 排期', f'{next_run:%Y-%m-%d %H:%M:%S} (wait open world)')
+
+    def apply_next_run(self, next_run: datetime) -> None:
+        """写入下次运行时间：时间已经算好，不再走默认的服务器刷新逻辑（server=False）"""
+        self.set_next_run(task=self.TASK_NAME, target=next_run, success=None,
+                          finish=True, server=False)
+
+    @staticmethod
+    def float_seconds(scheduler) -> int:
+        """排期的浮动时间（秒）：被夹到 09:00 整时随机后移，避免所有任务同一秒启动"""
+        float_time = getattr(scheduler, 'float_time', None)
+        if float_time is None:
+            return 0
+        return float_time.hour * 3600 + float_time.minute * 60 + float_time.second
+
+
+if __name__ == '__main__':
+    from module.config.config import Config
+    from module.device.device import Device
+
+    config = Config('oas1')
+    device = Device(config)
+    try:
+       t= ScriptTask(config, device)
+       t.swipe(t.S_ACTIVITY_TAB_SWIPE)
+    except TaskEnd:
+        pass

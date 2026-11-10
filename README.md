@@ -29,7 +29,7 @@
 
 ## 致谢与来源 Acknowledgements
 
-本项目**复用自 [OnmyojiAutoScript（OAS）](https://github.com/runhey/OnmyojiAutoScript) 的整套框架**：任务调度系统、设备控制（ADB / uiautomator2 / minitouch / scrcpy / DroidCast / 后台截图…）、截图与找图找色、OCR、配置系统、桌面 GUI / WebUI、MCP 开发工具链等，均来自 OAS 及其上游项目。我们只替换了与游戏相关的内容（任务逻辑、素材、配置项），并在此基础上继续开发。
+本项目**复用自 [OnmyojiAutoScript（OAS）](https://github.com/runhey/OnmyojiAutoScript) 的整套框架**：任务调度系统、设备控制（ADB / uiautomator2 / minitouch / scrcpy / DroidCast / 后台截图…）、截图与找图找色、OCR、配置系统、桌面 GUI / WebUI 等，均来自 OAS 及其上游项目。我们只替换了与游戏相关的内容（任务逻辑、素材、配置项），并在此基础上继续开发。
 
 在此向原作者与社区致以诚挚的感谢：
 
@@ -94,9 +94,7 @@
 
 ## 开发 Development
 
-- 新任务开发指南: [docs/mcp/task_dev_guide.md](docs/mcp/task_dev_guide.md)
 - 任务实现状态与待补清单: [docs/task_status.md](docs/task_status.md)
-- AI 辅助开发（MCP）: [docs/mcp/README.md](docs/mcp/README.md)，让支持 MCP 的 AI 客户端（如 opencode）直接读写任务代码、截图取色、生成素材与规则、单任务直跑与日志调试
 
 ## 许可证 LICENSE
 

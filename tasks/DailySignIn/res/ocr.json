@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "reward_tab_bar",
+    "roiFront": "91,80,1040,80",
+    "roiBack": "91,80,1040,80",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "奖励弹窗-tab栏识别区域"
+  },
+  {
+    "itemName": "reward_sign_in_count",
+    "roiFront": "503,180,260,48",
+    "roiBack": "503,180,260,48",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "奖励弹窗-签到板本月已签到次数"
+  }
+]

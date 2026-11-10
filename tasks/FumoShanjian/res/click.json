@@ -1,0 +1,26 @@
+[
+  {
+    "itemName": "fumo_npc",
+    "roiFront": "465,403,28,24",
+    "roiBack": "465,403,28,24",
+    "description": "伏魔山涧-小地图上的伏魔大使NPC标记（小地图视口拖到右上角后点击）"
+  },
+  {
+    "itemName": "fumo_minimap_point_1",
+    "roiFront": "501,336,17,19",
+    "roiBack": "501,336,17,19",
+    "description": "伏魔山涧-小地图打怪点1（视口拖到左上角后点击，触发自动寻路）"
+  },
+  {
+    "itemName": "fumo_minimap_point_2",
+    "roiFront": "463,399,21,16",
+    "roiBack": "463,399,21,16",
+    "description": "伏魔山涧-小地图打怪点2（视口拖到左上角后点击，触发自动寻路）"
+  },
+  {
+    "itemName": "fumo_minimap_point_3",
+    "roiFront": "574,320,21,16",
+    "roiBack": "574,320,21,16",
+    "description": "伏魔山涧-小地图打怪点3（视口拖到左上角后点击，触发自动寻路）"
+  }
+]

@@ -12,7 +12,7 @@
 | POST | `/battle/preset?config=oas1` | 新建预设 `{name?, base?}`（基于某个预设复制） |
 | PUT | `/battle/preset?config=oas1` | 改预设 `{id, name?, order?, disabled?}`（默认预设拒绝） |
 | DELETE | `/battle/preset/{preset_id}?config=oas1` | 删除预设（默认预设拒绝） |
-| PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?, respect_cooldown?, cast_interval?}` |
+| PUT | `/battle/common?config=oas1` | 改通用设置 `{identify_threshold?}` |
 | PUT | `/battle/reset?config=oas1&preset=preset_1` | 预设顺序恢复默认 |
 | GET | `/battle/identify?config=oas1&preset=preset_1` | 连设备识别 7 个技能位并给出该预设的释放计划（预览） |
 
@@ -150,7 +150,11 @@ async def battle_update_preset(payload: dict = Body(...),
             battle, preset_id, catalog,
             name=payload.get('name'),
             order=payload.get('order'),
-            disabled=payload.get('disabled')))
+            disabled=payload.get('disabled'),
+            clicks=payload.get('clicks'),
+            click_interval=payload.get('click_interval'),
+            attempts=payload.get('attempts'),
+            cooldown_timeout=payload.get('cooldown_timeout')))
 
 
 @battle_app.delete('/preset/{preset_id}')
@@ -175,16 +179,12 @@ async def battle_reset(config: str = 'template', preset: str = ''):
 # --------------------------------------------------------------------- 通用设置
 @battle_app.put('/common')
 async def battle_set_common(payload: dict = Body(...), config: str = 'template'):
-    """改通用设置（识别阈值 / 是否只点冷却好的 / 点击间隔）"""
+    """改通用设置（目前只有识别阈值；释放节奏在预设里）"""
 
     def _apply(battle, catalog):
         common = battle.common
         if 'identify_threshold' in payload:
             common.identify_threshold = float(payload['identify_threshold'])
-        if 'respect_cooldown' in payload:
-            common.respect_cooldown = bool(payload['respect_cooldown'])
-        if 'cast_interval' in payload:
-            common.cast_interval = float(payload['cast_interval'])
 
     return await run_in_threadpool(_mutate, config, _apply)
 
@@ -223,7 +223,9 @@ def _identify_once(config_name: str, preset_id: str = '') -> dict:
     image = device.screenshot()
     recognizer = SkillRecognizer.from_catalog(catalog, threshold=threshold)
     matches = recognizer.identify(image, battle_slots.BATTLE_SKILL_CHECK_REGIONS)
-    plan = build_plan(matches, order, catalog, disabled=disabled)
+    plan = build_plan(matches, order, catalog, disabled=disabled,
+                      include_unknown=bool(getattr(battle.common, 'click_unknown_slot', True)),
+                      unknown_min_score=float(getattr(battle.common, 'unknown_slot_min_score', 0.6)))
 
     logger.info(f'[battle] 技能位识别：{format_matches(matches, catalog)}')
     logger.info(f'[battle] 预设 {preset["name"]} 的释放计划：{plan_summary(plan)}')

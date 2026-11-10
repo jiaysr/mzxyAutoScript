@@ -6,6 +6,28 @@ from tasks.Component.config_base import ConfigBase, Time
 from tasks.YuwaiMimang.config_scheduler import YuwaiMimangScheduler
 
 
+class YuwaiBattleConfig(BattleTaskConfig):
+    """
+    域外迷窟的战斗配置：共享的「战斗预设 + 普通攻击」+ 本任务专属的两项
+
+    - fast_relock：目标死后原地补锁（连打场景）。迷窟是「一个坐标周围持续刷怪、
+      刷新间隔约 3s、要求在时段内尽量多杀」，所以默认**开**：
+      一刀一只时每只都要重锁，完整重锁 ~1.1s、补锁 ~0.3s，不开会白白少杀一半；
+    - target_names：只打这份白名单里的怪，锁目标时逐个切换并 OCR 校验名字。
+
+    为什么放在这里而不是塞进共享的 BattleTaskConfig：
+    这些开关只对迷窟有意义（单 boss、刷怪间隔 5s+ 的场景用正常流程更合适），
+    塞进共享组会让所有任务的设置页都多出用不上的选项。
+
+    `use_normal_attack` 沿用共享默认（关）：本任务不点普通攻击，
+    技能全冷却时就等冷却，不做额外补刀。
+    """
+    # 目标死后原地补锁（连续刷怪场景。单 boss / 刷怪间隔长时关掉，走正常流程）
+    fast_relock: bool = Field(default=True, description='fast_relock_help')
+    # 战斗目标白名单：逗号分隔，空 = 不校验目标名
+    target_names: str = Field(default='小鬼,鬼王,鬼将', description='target_names_help')
+
+
 class YuwaiMimangConfig(BaseModel):
     # NPC 名：小地图右侧 NPC 列表里要点的守卫
     npc_name: str = Field(default='迷窟守卫', description='小地图 NPC 列表里要点击的 NPC 名')
@@ -23,14 +45,18 @@ class YuwaiMimangConfig(BaseModel):
     # 进入迷窟后等待地图加载的秒数
     enter_wait: int = Field(default=2, description='进入迷窟后等待地图加载（秒）')
 
+    # ---------------- 参与场次 ----------------
+    # monster_times 里可以配多场，这里选参加哪一场（只对前两场生效，更多场次视为参加）
+    join_first_window: bool = Field(default=True, description='join_first_window_help')
+    join_second_window: bool = Field(default=True, description='join_second_window_help')
+    # 上午 11:00 的世界首领：到点前先离场，别把它堵到过期
+    join_world_boss: bool = Field(default=True, description='join_world_boss_help')
+
     # ---------------- 打怪 ----------------
     # 打怪基准坐标：进图后先走到这里，被怪追踪跑偏后也要回到这里
     battle_coord: str = Field(default='304,76', description='打怪基准坐标 x,y（进图后站这里，被追踪跑偏后回来）')
     # 基准坐标容差（坐标点）
     battle_tolerance: int = Field(default=2, description='基准坐标容差（坐标点，最大容错 2）')
-    # 每轮点完「目标」和三个攻击按钮后的等待（秒）
-    # 秒杀账号下不需要等冷却：点目标 -> 普攻/技能1/技能3 各点一遍 -> 停一下 -> 下一轮
-    attack_interval: float = Field(default=0.1, description='每轮点「目标」后和三个攻击点完后的等待（秒）')
 
     # ---------------- 中途修理 ----------------
     # 打怪过程中是否定期修理装备（修理时角色站桩不动，修完原地继续打）
@@ -42,4 +68,4 @@ class YuwaiMimangConfig(BaseModel):
 class YuwaiMimang(ConfigBase):
     scheduler: YuwaiMimangScheduler = Field(default_factory=YuwaiMimangScheduler)
     yuwai_mimang_config: YuwaiMimangConfig = Field(default_factory=YuwaiMimangConfig)
-    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
+    battle_config: YuwaiBattleConfig = Field(default_factory=YuwaiBattleConfig)

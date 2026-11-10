@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "fumo_dialog_options",
+    "roiFront": "526,314,226,213",
+    "roiBack": "526,314,226,213",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "伏魔山涧-伏魔大使对话选项文字区（OCR 定位「进入伏魔涧」并点击）"
+  },
+  {
+    "itemName": "fumo_active_progress",
+    "roiFront": "600,595,242,39",
+    "roiBack": "598,589,247,49",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "伏魔山涧-活跃任务进度（0/250000，满 250000/250000 或显示已达上限表示活跃任务完成）"
+  }
+]

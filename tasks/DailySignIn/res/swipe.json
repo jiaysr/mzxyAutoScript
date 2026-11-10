@@ -1,0 +1,23 @@
+[
+  {
+    "itemName": "reward_tab_scroll_right",
+    "roiFront": "199,96,113,49",
+    "roiBack": "712,92,88,52",
+    "mode": "default",
+    "description": "奖励弹窗-tab栏向右滑（显示左侧tab）"
+  },
+  {
+    "itemName": "reward_tab_scroll_left",
+    "roiFront": "712,92,88,52",
+    "roiBack": "199,96,113,49",
+    "mode": "default",
+    "description": "奖励弹窗-tab栏向左滑（显示右侧tab）"
+  },
+  {
+    "itemName": "reward_sign_in_scroll_down",
+    "roiFront": "1092,464,40,12",
+    "roiBack": "1091,359,33,13",
+    "mode": "default",
+    "description": "签到板-向下滑动（显示下方签到物品）"
+  }
+]

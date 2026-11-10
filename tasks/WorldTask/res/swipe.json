@@ -1,0 +1,9 @@
+[
+  {
+    "itemName": "activity_tab_swipe",
+    "roiFront": "890,90,93,55",
+    "roiBack": "419,89,115,59",
+    "mode": "default",
+    "description": "活动弹窗 tab 条的滑动（从右往左滑，露出后面的 tab）"
+  }
+]

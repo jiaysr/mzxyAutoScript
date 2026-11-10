@@ -1,0 +1,128 @@
+[
+  {
+    "itemName": "shayu_multi_feature",
+    "imageName": "res_shayu_multi_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "沙狱[多人]-右侧选中特征"
+  },
+  {
+    "itemName": "shayu_solo_feature",
+    "imageName": "res_shayu_solo_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "沙狱[单人]-右侧选中特征"
+  },
+  {
+    "itemName": "diyuling_multi_feature",
+    "imageName": "res_diyuling_multi_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "帝玉岭[多人]-右侧选中特征"
+  },
+  {
+    "itemName": "diyuling_solo_feature",
+    "imageName": "res_diyuling_solo_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "帝玉岭[单人]-右侧选中特征"
+  },
+  {
+    "itemName": "liuli_feature",
+    "imageName": "res_liuli_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "琉璃幻境-右侧选中特征"
+  },
+  {
+    "itemName": "xianju_feature",
+    "imageName": "res_xianju_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙居福地-右侧选中特征"
+  },
+  {
+    "itemName": "tianyuan_feature",
+    "imageName": "res_tianyuan_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "天渊灵岛-右侧选中特征"
+  },
+  {
+    "itemName": "zhizun_feature",
+    "imageName": "res_zhizun_feature.png",
+    "roiFront": "584,191,199,118",
+    "roiBack": "570,179,228,153",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "至尊巅峰-右侧选中特征"
+  },
+  {
+    "itemName": "dungeon_reset_button",
+    "imageName": "res_dungeon_reset_button.png",
+    "roiFront": "897,355,80,40",
+    "roiBack": "864,331,134,88",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "副本页-重置按钮"
+  },
+  {
+    "itemName": "dungeon_healer_dialog",
+    "imageName": "res_dungeon_healer_dialog.png",
+    "roiFront": "601,111,145,79",
+    "roiBack": "569,94,206,137",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "万事通-npc对话框特征"
+  },
+  {
+    "itemName": "dungeon_heal_success",
+    "imageName": "res_dungeon_heal_success.png",
+    "roiFront": "462,333,360,53",
+    "roiBack": "420,300,436,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "治疗成功提示"
+  },
+  {
+    "itemName": "dungeon_heal_failure",
+    "imageName": "res_dungeon_heal_failure.png",
+    "roiFront": "428,317,360,53",
+    "roiBack": "420,300,436,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "治疗失败提示"
+  },
+  {
+    "itemName": "dungeon_finish_popup",
+    "imageName": "res_dungeon_finish_popup.png",
+    "roiFront": "440,322,400,44",
+    "roiBack": "300,290,680,120",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "副本完成-你将在1分钟以后被传出副本"
+  },
+  {
+    "itemName": "dungeon_finish_suffix",
+    "imageName": "res_dungeon_finish_suffix.png",
+    "roiFront": "670,322,138,44",
+    "roiBack": "430,300,440,90",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "副本完成弹窗-固定后缀（覆盖1分钟/30秒/15秒）"
+  }
+]

@@ -4,7 +4,7 @@
 
 **战斗执行（点技能/冷却/识别/按预设攻击）已经搬到 `tasks/Battle/attack.py`**，
 这里只保留「目标锁定」这类纯 UI 操作（依赖 GameUi 的 OCR/点击素材），
-然后把 `BattleAttack` 混进来，任务照旧 `self.battle_attack()` 就能用。
+然后把 `BattleAttack` 混进来，任务直接调用 `battle_skill_loop()` 等队列模式入口。
 
 - 目标锁定：`ui_lock_target()` 点右侧竖排「目标」按钮、`ui_target_name()` 读锁定目标名
 - 锁定目标把关（通用）：
@@ -13,23 +13,23 @@
   - `ui_target_attackable()` 动作按钮是否为「攻击」
   - `ui_ensure_target_locked(target_name=...)` 收起菜单 -> 锁目标 -> 校验按钮/名称，
     不符合就点「目标」切换，直到满足或超时（场景 1 单目标 / 场景 2 多目标指定名称）
-  - `battle_attack_until_target_lost()` 按预设一直打，目标丢失或按钮不再是「攻击」时停止
-  - `ui_lock_and_attack(target_name=...)` 上面两步的合并入口
 - 战斗执行（见 tasks/Battle/attack.py）：
   - 单次点击：`battle_click_once / battle_click_attack / battle_click_skill`（7 个技能位）
-  - 技能冷却：`battle_skill_state()`（ready / cooling / unknown）、`battle_skill_ready()`、
-    `battle_skills_ready()`、`battle_click_skill_if_ready()`
+  - 技能冷却：`battle_skill_state()`（ready / cooling / unknown）、
+    `battle_log_skill_states()`（校准用，一行打印 7 个位的状态与分数）
   - 技能位识别：`battle_slot_skills()` / `battle_log_slot_skills()`
   - 释放计划：`battle_plan()`（识别 + 预设优先级 + 禁用 -> 点击顺序）、
-    `battle_play_plan()`（按计划放一轮，可选只点冷却好的）
-  - **按预设攻击（对外只暴露这一个入口）**：`battle_attack(times=1, preset='')`
-  - 队列式释放（双击 + 目标/冷切校验）：`battle_skill_loop(slots, check_stop=..., target_check=...)`（仙府/战斗试打共用）
-  - 循环放技能：`battle_simple_loop()`
+    `battle_plan_slots()`（只要技能位下标，队列模式用）
+  - **唯一战斗模式（队列式）**：`battle_skill_loop(slots, check_stop=..., target_check=...)`
+    优先级最高且冷却好的先放，没进冷却会按「战斗设置」的 attempts / cooldown_timeout 重试 + 延后重排；
+    简写入口 `battle_queue_until(stop_check)`
 
 目标锁定是主页面通用能力：「目标」按钮在右侧竖排
 （要收起右上角菜单 `ui_close_menu` 后才露出），
 WorldBoss 与域外迷窟都用它，素材与规则统一放在 GameUi 里，任务只调方法。
 """
+from typing import Callable
+
 from module.base.timer import Timer
 from module.logger import logger
 from tasks.Battle.attack import BattleAttack
@@ -44,6 +44,9 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     # 目标名识别：灰度放大倍数与置信度下限（彩色描边字要整行放大才读得出来）
     TARGET_NAME_SCALES = (2, 3)
     TARGET_NAME_SCORE = 0.5
+    # 目标名读取先走「原图直接检测框识别」，读不到再退回彩色描边字路径。
+    # 真机实测直接识别更准（见 ui_target_name 的说明）；要退回老路径把它设 False。
+    TARGET_NAME_DIRECT = True
 
     # 锁定目标的切换节奏：每次点完「目标」停一下，等界面刷新
     TARGET_LOCK_SWITCH_INTERVAL = 0.5
@@ -52,18 +55,55 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     # 锁定目标的整体超时（秒）
     TARGET_LOCK_TIMEOUT = 30
 
-    def ui_target_name(self, scales: tuple = None, min_score: float = None) -> str:
+    def ui_target_name(self, scales: tuple = None, min_score: float = None,
+                       close_menu: bool = False) -> str:
         """
         读取当前锁定目标的名称，读不到返回空串
 
-        目标名是带描边的彩色字，规则默认的「检测框 + 拼串」在真机上经常一个框都检不出来
-        （WorldBoss 实测「妖化蟹将」读成空串，或拆成两段各读错一个字），
-        所以走 GameUi.ocr_color_name（ROI 转灰度 -> 放大 -> 整行识别，取置信度高的一份）。
+        两条路，先走 1、读不到再用 2：
+
+        1. `ui_target_name_direct()`：原图里直接检测文字框再拼串（**默认**）；
+        2. `ocr_color_name()`：ROI 转灰度 -> 放大 2x/3x -> 整行识别（彩色描边字的兜底）。
+
+        2026-11-05 真机 11 帧对照（帝玉岭/沙狱）：直接识别 11/11 全对，
+        彩色名路径错 2 帧（「沙王」->「沙主」/「沙玉」、「幽灵」->「幽灵7」）——
+        它把整块 ROI（右侧还带着怪物身体/血条）一起缩放后整行识别，插值会把细笔画糊掉。
+        彩色名路径保留作兜底：真正的彩色描边字（WorldBoss 的「妖化蟹将」）它更稳。
+
+        :param scales: 兜底路径的放大倍数
+        :param min_score: 兜底路径的置信度下限
+        :param close_menu: True 时先收起右上角菜单，避免菜单遮挡目标名；
+                           默认 False，由调用方保证菜单状态
         """
+        if close_menu:
+            self.ui_close_menu()
+        if self.TARGET_NAME_DIRECT:
+            text = self.ui_target_name_direct()
+            if text:
+                return text
         return self.ocr_color_name(self.O_TARGET_NAME,
                                    scales=scales or self.TARGET_NAME_SCALES,
                                    min_score=min_score if min_score is not None
                                    else self.TARGET_NAME_SCORE)
+
+    def ui_target_name_direct(self) -> str:
+        """
+        原图 ROI 里直接检测文字框并拼串（不缩放、不转灰度）
+
+        和 `ocr_color_name` 的区别：那个是「整块 ROI 缩放 -> 整行识别」，会把 ROI 里
+        的怪物身体、血条一起喂给模型；这里先检测出文字框、只认框里的字，且不插值，
+        小字号的细笔画（王/主/玉）不容易被糊掉。
+
+        :return: 识别到的文字，读不到返回空串
+        """
+        image = self.device.image if self.exist_image() else None
+        if image is None:
+            return ''
+        text = ''.join(item.ocr_text for item in
+                       self.O_TARGET_NAME.detect_and_ocr(image, logDisplay=False))
+        if text:
+            logger.attr('Target name', text)
+        return text
 
     def ui_lock_target(self, interval: float = None) -> bool:
         """
@@ -79,6 +119,63 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         return self.appear_then_click(self.I_TARGET_BUTTON,
                                       action=self.C_TARGET_BUTTON_CLICK,
                                       interval=interval)
+
+    # ---------------------------------------------------------------- 快速补锁
+    # 目标死后快速补锁：点「目标」后等界面刷新的时间（秒）。
+    # 通用流程是 TARGET_LOCK_SWITCH_INTERVAL=0.5s，实测迷窟里换目标几乎即时，0.15s 够。
+    RELOCK_SETTLE = 0.15
+    # 补锁最多切几次目标（切到可攻击 / 白名单里的活怪为止；第一下常锁到刚死的地尸）
+    RELOCK_MAX_SWITCH = 3
+
+    def battle_relock_target(self, names=None, max_switch: int = None) -> bool:
+        """
+        目标死后快速补锁（连续刷怪场景专用）
+
+        为什么不复用 `ui_ensure_target_locked`：它一次约 1.1s，而开销几乎不在 OCR 上
+        —— 目标名 OCR 实测只有 ~20ms，大头是 `ui_close_menu`、0.5s 的换目标间隔
+        和每次判定各截一次图。这里直接点固定坐标的「目标」按钮（战斗中它一直在），
+        换目标只等 RELOCK_SETTLE。
+
+        每切一次都判「已锁定 + 动作按钮是攻击」，并按需校验名字：
+        同一坐标周围可能路过玩家，只看「能攻击」会打错人。
+
+        :param names: 目标名白名单（None / 空 = 不校验名字）
+        :param max_switch: 最多切几次（默认 RELOCK_MAX_SWITCH）。
+                           「刷完这一波就没了」的场景（不周山一层 4~5 只）传 1：
+                           有怪一次就补上，没怪就立刻交回外层，别空切
+        :return: True = 已锁到可打的目标；False = 没锁到，交给调用方走完整流程
+        """
+        switches = self.RELOCK_MAX_SWITCH if max_switch is None else max(1, int(max_switch))
+        for _ in range(switches):
+            x, y = self.C_TARGET_BUTTON_CLICK.coord()
+            self.device.click(x=x, y=y, control_name='BATTLE_TARGET')
+            self.device.click_record_clear()
+            self.device.sleep(self.RELOCK_SETTLE)
+            image = self.screenshot()
+            if not self.ui_target_attackable(image=image):
+                continue
+            if not names:
+                return True
+            name = self.ui_target_name()
+            if name and any(self.ocr_name_match(name, expected) for expected in names):
+                return True
+            logger.info(f'补锁到 [{name or "?"}]，不在白名单 {list(names)}，继续切')
+        logger.info('快速补锁没锁到目标，交回完整流程')
+        return False
+
+    def battle_on_target_lost(self, names=None):
+        """
+        生成 `battle_skill_loop(on_target_lost=...)` 的回调
+
+        按任务「战斗配置」里的 `fast_relock` 决定：
+        - 开：目标丢了就原地补锁，返回 True 继续打（连续刷怪、限时多杀）；
+        - 关：返回 False，循环按原逻辑结束（单 boss / 刷怪间隔长，等刷新更划算）。
+        """
+        def _relock() -> bool:
+            if not self.battle_fast_relock():
+                return False
+            return self.battle_relock_target(names)
+        return _relock
 
     # ---------------------------------------------------------------- 锁定目标把关
     def ui_target_locked(self, image=None) -> bool:
@@ -125,7 +222,8 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     def ui_ensure_target_locked(self, target_name=None, action: str = ACTION_ATTACK,
                                 max_switch: int = None, timeout: float = None,
                                 name_scales: tuple = None, name_score: float = None,
-                                close_menu: bool = True) -> bool:
+                                close_menu: bool = True,
+                                abort_check: Callable[[], bool] = None) -> bool:
         """
         锁定目标并把关：确保「已锁定 + 动作按钮符合 +（可选）目标名匹配」
 
@@ -147,6 +245,10 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         :param name_scales: 目标名 OCR 放大倍数（默认 TARGET_NAME_SCALES）
         :param name_score: 目标名 OCR 置信度下限（默认 TARGET_NAME_SCORE）
         :param close_menu: 是否先收起右上角菜单（「目标」按钮会被菜单盖住）
+        :param abort_check: 中途放弃的检查（无参），返回 True 立刻收工返回 False。
+                            用于「等锁目标的时候外面弹了结算/提示」：弹窗把背景压暗后
+                            菜单特征也匹配不上，不收工会一路空转到超时（实测白等 6s）。
+                            **实现里每轮都会调一次，所以它不能截图**，只看最新一帧
         :return: 锁定成功 True
         """
         names = self._target_name_list(target_name)
@@ -156,11 +258,14 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
 
         logger.hr('Lock target', level=2)
         if close_menu:
-            self.ui_close_menu()
+            self.ui_close_menu(abort_check=abort_check)
 
         timer = Timer(timeout).start()
         switches = 0
         while True:
+            if abort_check is not None and abort_check():
+                logger.info('Abort target lock')
+                return False
             # 长时间轮询，清掉卡死/连点记录，避免被框架判成卡死
             self.device.stuck_record_clear()
             self.device.click_record_clear()
@@ -201,7 +306,7 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
 
     def ui_target_lost_check(self, action: str = ACTION_ATTACK):
         """
-        生成 battle_attack_loop 的 stop_check：目标丢失或动作按钮不再是期望动作 -> True
+        生成「目标丢失/动作变化」检查回调（战车等停止条件里用）
 
         用最近一张截图（self.device.image）判断，不额外截图：
         攻击循环每轮本来就会截图，最多晚一个循环（约 0.2~1s）发现目标消失。
@@ -225,35 +330,3 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
             return False
 
         return _check
-
-    def battle_attack_until_target_lost(self, action: str = ACTION_ATTACK, **kwargs) -> None:
-        """
-        锁定目标后按预设一直攻击，目标丢失 / 动作按钮不再是「攻击」时自动停止
-
-        用法（两个场景通用）：
-            if not self.ui_ensure_target_locked():
-                return False
-            self.battle_attack_until_target_lost()
-            return True
-
-        :param action: 期望持续的动作（默认 attack）
-        :param kwargs: 透传给 battle_attack_loop（preset / clicks_per_skill / include_attack ...）
-        """
-        kwargs.pop('stop_check', None)
-        self.battle_attack_loop(stop_check=self.ui_target_lost_check(action=action), **kwargs)
-
-    def ui_lock_and_attack(self, target_name=None, action: str = ACTION_ATTACK,
-                           attack_kwargs: dict = None, **lock_kwargs) -> bool:
-        """
-        锁定目标并攻击到目标丢失（场景 1/2 的统一入口）
-
-        :param target_name: 指定目标名，None = 不校验（单目标场景）
-        :param action: 期望动作，默认 attack
-        :param attack_kwargs: 透传给 battle_attack_loop 的参数
-        :param lock_kwargs: 透传给 ui_ensure_target_locked 的参数（max_switch / timeout ...）
-        :return: 锁定成功并完成攻击返回 True；没锁到目标返回 False
-        """
-        if not self.ui_ensure_target_locked(target_name=target_name, action=action, **lock_kwargs):
-            return False
-        self.battle_attack_until_target_lost(action=action, **(attack_kwargs or {}))
-        return True

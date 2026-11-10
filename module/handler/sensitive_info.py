@@ -8,7 +8,7 @@ class PasswordAccessFilter(logging.Filter):
         if isinstance(record.args, tuple) and len(record.args) == 5:
             address, method, target, version, status = record.args
             path, separator, _ = target.partition('?')
-            if separator and unquote(path).lower().rstrip('/').endswith('/password/value'):
+            if separator and unquote(path).lower().rstrip('/').endswith(('/password/value', '/account/value')):
                 record.args = (address, method, path + '?[REDACTED]', version, status)
         return True
 

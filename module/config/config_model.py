@@ -27,8 +27,12 @@ from tasks.XianfuJiuchongtian.config import XianfuJiuchongtian
 from tasks.YuwaiMimang.config import YuwaiMimang
 from tasks.DouXianGe.config import DouXianGe
 from tasks.SilverGiftBox.config import SilverGiftBox
+from tasks.DailySignIn.config import DailySignIn
 from tasks.AutoTask.config import AutoTask
+from tasks.Buzhoushan.config import Buzhoushan
+from tasks.FumoShanjian.config import FumoShanjian
 from tasks.Dungeon.config import Dungeon
+from tasks.WorldTask.config import WorldTask
 
 
 class ConfigModel(ConfigBase):
@@ -50,8 +54,12 @@ class ConfigModel(ConfigBase):
     dou_xian_ge: DouXianGe = Field(default_factory=DouXianGe)
     quiz: Quiz = Field(default_factory=Quiz)
     silver_gift_box: SilverGiftBox = Field(default_factory=SilverGiftBox)
+    daily_sign_in: DailySignIn = Field(default_factory=DailySignIn)
     auto_task: AutoTask = Field(default_factory=AutoTask)
+    buzhoushan: Buzhoushan = Field(default_factory=Buzhoushan)
+    fumo_shanjian: FumoShanjian = Field(default_factory=FumoShanjian)
     dungeon: Dungeon = Field(default_factory=Dungeon)
+    world_task: WorldTask = Field(default_factory=WorldTask)
 
     def __init__(self, config_name: str=None) -> None:
         """
@@ -236,9 +244,27 @@ class ConfigModel(ConfigBase):
                 item["default"] = value["default"]
                 item["value"] = jsons[key] if key in jsons else value["default"]
                 item["type"] = value["type"] if "type" in value else "enum"
+                # 数值范围（pydantic 的 ge/le），前端用它限制输入并提示范围
+                if "minimum" in value:
+                    item["minimum"] = value["minimum"]
+                if "maximum" in value:
+                    item["maximum"] = value["maximum"]
                 if '$ref' in value:  # list
                     enum_key = re.search(r"/([^/]+)$", value['$ref']).group(1)
                     item["enumEnum"] = definitions[enum_key]["enum"]
+                # 动态枚举：只保留「已勾选 + 次数=2」的副本（特权副本下拉框）
+                if value.get('enum_filter') == 'dungeon_privilege':
+                    allowed = {'none'}
+                    for enum_value in item.get("enumEnum", []):
+                        if enum_value == 'none':
+                            continue
+                        if (jsons.get(f'{enum_value}_enable') is True
+                                and jsons.get(f'{enum_value}_count') == 2):
+                            allowed.add(enum_value)
+                    item["enumEnum"] = [e for e in item.get("enumEnum", [])
+                                        if e in allowed]
+                    if item["value"] not in allowed:
+                        item["value"] = 'none'
                 # if 'allOf' in value:
                 #     enum_key = re.search(r"/([^/]+)$", value['allOf'][0]['$ref']).group(1)
                 #     item["enumEnum"] = definitions[enum_key]["enum"]
@@ -269,6 +295,7 @@ class ConfigModel(ConfigBase):
         is_credential = (task == 'restart' and group == 'login_official_config'
                          and argument in ('account', 'password'))
         is_password = argument == 'password'
+        is_account = argument == 'account'
 
         # pandtic验证
         if not is_credential:
@@ -292,7 +319,7 @@ class ConfigModel(ConfigBase):
                 value = True
             if isinstance(value, str) and value == 'false':
                 value = False
-        log_value = '[REDACTED]' if is_password else value
+        log_value = '[REDACTED]' if is_password or is_account else value
 
         task_object = getattr(self, task, None)
         group_object = getattr(task_object, group, None)
@@ -323,8 +350,8 @@ class ConfigModel(ConfigBase):
             self.save()  # 我是没有想到什么方法可以使得属性改变自动保存的
             return True
         except ValidationError as e:
-            # Pydantic 异常包含输入值，密码字段不能直接输出异常。
-            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password else e)
+            # Pydantic 异常包含输入值，凭据字段不能直接输出异常。
+            logger.error(f'Set arg {task}.{group}.{argument} validation failed [REDACTED]' if is_password or is_account else e)
             return False
 
     def copy_script_task(self, task_name: str, source_task: BaseModel) -> bool:

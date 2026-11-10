@@ -18,6 +18,18 @@ class WarChariotAssets:
 	# Image Rule Assets
 	# 仙盟战车-接受按钮（在 685,303,958,481 区域内寻找） 
 	I_CHARIOT_ACCEPT = RuleImage(roi_front=(757,368,138,43), roi_back=(685,303,273,178), threshold=0.8, method="Template matching", file="./tasks/WarChariot/res/res_chariot_accept.png")
+	# 战车结束-世界频道「系统战车战结束」提示（左下角聊天栏） 
+	I_CHARIOT_FINISH = RuleImage(roi_front=(4,680,264,31), roi_back=(0,601,373,119), threshold=0.9, method="Template matching", file="./tasks/WarChariot/res/res_chariot_finish.png")
+	# 战车结束-失败结算弹窗标题条（居中弹窗） 
+	I_CHARIOT_FAIL = RuleImage(roi_front=(164,95,513,104), roi_back=(147,81,568,142), threshold=0.95, method="Template matching", file="./tasks/WarChariot/res/res_chariot_fail.png")
+	# 战车结束-胜利结算弹窗标题条（居中弹窗） 
+	I_CHARIOT_WIN = RuleImage(roi_front=(164,95,513,104), roi_back=(147,81,568,142), threshold=0.95, method="Template matching", file="./tasks/WarChariot/res/res_chariot_win.png")
+	# 战车结算弹窗-确定按钮（搜索区在按钮四周各放宽 40px） 
+	I_CHARIOT_CONFIRM = RuleImage(roi_front=(946,558,175,55), roi_back=(906,518,255,135), threshold=0.8, method="Template matching", file="./tasks/WarChariot/res/res_chariot_confirm.png")
+	# 战车准备阶段完成-左下角聊天「准备阶段完成，开始战斗」提示（可移动） 
+	I_CHARIOT_MOVE = RuleImage(roi_front=(2,681,516,30), roi_back=(0,660,760,60), threshold=0.9, method="Template matching", file="./tasks/WarChariot/res/res_chariot_move.png")
+	# 战车轮空-左下角聊天「战车数量不足，无法开战」提示（本局轮空） 
+	I_CHARIOT_BYE = RuleImage(roi_front=(2,681,508,30), roi_back=(0,660,760,60), threshold=0.9, method="Template matching", file="./tasks/WarChariot/res/res_chariot_bye.png")
 
 
 	# Ocr Rule Assets

@@ -44,7 +44,7 @@ BANK_FILE = str(TASK_DIR / 'bank' / 'quiz_zh.json')
 UNKNOWN_FILE = str(TASK_DIR / 'bank' / 'quiz_unknown.jsonl')
 SHOT_DIR = './log/quiz'
 
-# 背包里的答题券名称（bag_find_item 走 OCR 名字匹配）
+# 背包里的答题券：模板名固定（GameUiAssets.I_BAG_QUIZ_TICKET），OCR 名字只在模板没命中时兜底
 BAG_ITEM_NAME = '趣味答题券'
 
 # 交给 AI 的弹窗区域 (x, y, w, h)：题号 + 题干 + 三个选项，不含右侧答题榜
@@ -159,7 +159,7 @@ class ScriptTask(GameUi, QuizAssets):
         :return: 答题界面是否出现
         """
         logger.hr('Use quiz ticket')
-        if not self.bag_use_item(BAG_ITEM_NAME):
+        if not self.bag_use_item(BAG_ITEM_NAME, rule=self.I_BAG_QUIZ_TICKET):
             logger.warning(f'背包里没有找到 [{BAG_ITEM_NAME}] 或没有点到立即使用')
             return False
         return self.wait_quiz_page(timeout=timeout)

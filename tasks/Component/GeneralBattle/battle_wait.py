@@ -222,10 +222,18 @@ class battle_wait_strategy:
     def __enter__(self):
         self._previous_plan = battle_wait_strategy.battle_wait_plan
         battle_wait_strategy.battle_wait_plan = self._battle_wait_plan
+        # 用 `with strategy.with_options(...)` 进来时，options 在 with_options() 里已经被临时改掉；
+        # 记下「改之前那一份」，退出 with 时还原（否则临时 options 会一直生效到最后）
+        self._enter_previous_options = getattr(self, '_previous_options', None)
         return self
 
     def __exit__(self, *exc):
         battle_wait_strategy.battle_wait_plan = self._previous_plan
+        options_before = getattr(self, '_enter_previous_options', None)
+        if options_before is not None:
+            battle_wait_strategy.options = options_before
+            self._previous_options = None
+        self._enter_previous_options = None
         self._options = None
         return False
 

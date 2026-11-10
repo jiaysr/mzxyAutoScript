@@ -4,8 +4,17 @@
 
 例子（组顺序 A2 > A1 > A3，A3 被禁用，技能位识别结果 1:A3 2:A1 3:A2）：
     计划 = [技能位3(A2), 技能位2(A1)]，A3 因为禁用不点，技能位1 直接跳过。
-没识别出技能的技能位排在最后（可配置是否点）：认不出来不等于不能用，
-默认照点，免得整场一个技能都不放。
+
+没识别出技能的技能位怎么处理
+--------------------------
+分两种情况，不能一视同仁：
+- **像技能但分不清是哪个**（目录里没收录的新技能、或两个技能长得太像）：
+  相似度不低（>= unknown_min_score），照点 —— 认不出来不等于不能用，
+  默认点，免得整场一个技能都不放；
+- **压根不像技能**（技能位上带的是物品、药品、脱离卡等）：相似度很低，
+  连点就是白白消耗道具，在战场里甚至会直接跳出战场 —— 这种一律不点。
+
+所以未识别的技能位能不能点，由 `unknown_min_score` 这个相似度下限决定。
 """
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence
@@ -46,7 +55,8 @@ def build_plan(slot_matches: Dict[int, SlotMatch],
                order: Sequence[str],
                catalog: SkillCatalog,
                disabled: Iterable[str] = (),
-               include_unknown: bool = True) -> List[PlanEntry]:
+               include_unknown: bool = True,
+               unknown_min_score: float = 0.0) -> List[PlanEntry]:
     """
     生成释放计划
 
@@ -55,6 +65,9 @@ def build_plan(slot_matches: Dict[int, SlotMatch],
     :param catalog: 技能目录
     :param disabled: 禁用的技能 id（即使混进了 order 也不会释放）
     :param include_unknown: 未识别的技能位是否也排进计划（排最后）
+    :param unknown_min_score: 未识别技能位的相似度下限：
+                              分数低于该值说明这个图标压根不像技能（例如技能位上带的是物品），
+                              直接跳过不点；分数够高但分不清是哪个技能（目录没收录的新技能）才照点
     :return: 点击顺序
     """
     disabled_set = {i for i in (disabled or []) if i}
@@ -74,6 +87,9 @@ def build_plan(slot_matches: Dict[int, SlotMatch],
             # 认出来了但这组里禁用了 / 不在顺序里：不点
             continue
         elif include_unknown:
+            if match.score < unknown_min_score:
+                # 压根不像技能（带的是物品之类）：点了会白耗道具，跳过
+                continue
             unknown.append(PlanEntry(slot=slot, skill_id=None, name='',
                                      score=match.score, priority=0,
                                      recognized=False))

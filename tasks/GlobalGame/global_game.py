@@ -17,7 +17,9 @@ if TYPE_CHECKING:
 
 class GlobalGame(CaptchaHandler, GlobalGameAssets):
     """
-    全局处理：所有任务的 screenshot 都会经过 handle_death / handle_captcha / handle_global_popup
+    全局处理：所有任务的 screenshot 都会经过 handle_disconnect / handle_death
+    / handle_captcha / handle_global_popup
+    - 人物掉线时直接重启游戏，上线后复用死亡复活后的续跑逻辑
     - 角色阵亡时点击「返回村子」复活，保留任务进度并立即重跑当前任务
     - 出现人机验证弹窗时算出答案并点中对应选项（见 captcha.py）
     - 出现已知弹窗时点击对应的关闭区域，避免弹窗挡住任务操作
@@ -34,6 +36,10 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
 
     # 任务重跑时需要保留的进度记录 {(config_name, command): record}
     _task_records: dict = {}
+
+    # 掉线重启进行中：重启流程里的截图再看到掉线弹窗时不再嵌套重启
+    # （用类属性共享，RestartTask 是另一个实例，实例标记挡不住）
+    _disconnect_restarting: bool = False
 
     # 是否已请求「死亡后立即重跑本任务」：置位后，任务在 finally 里再调 set_next_run
     # 会被忽略（见 BaseTask.set_next_run），保证 task_call 设的「立即重跑」不被覆盖。
@@ -98,16 +104,54 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
         logger.warning(f'Popup image missing: {check.file}')
         return False
 
+    def handle_disconnect(self) -> None:
+        """
+        检测到掉线弹窗时直接重启游戏，上线后复用死亡复活后的续跑逻辑
+
+        掉线不会弹死亡框，而是「您掉线了...」。重启并登录成功后调用
+        `handle_death_resume()`：默认重跑当前任务，任务可覆盖为「继续当前步骤」。
+        调用前 device.image 需为最新截图。
+        """
+        if GlobalGame._disconnect_restarting:
+            return
+        if not self.appear(self.I_DISCONNECT_DIALOG):
+            return
+
+        logger.warning('Character disconnected, restart game')
+        GlobalGame._disconnect_restarting = True
+        try:
+            self.restart_game_after_disconnect()
+            self.handle_death_resume()
+        finally:
+            GlobalGame._disconnect_restarting = False
+
+    def restart_game_after_disconnect(self) -> None:
+        """重启游戏并登录（复用 Restart 任务的流程）"""
+        from tasks.Restart.script_task import ScriptTask as RestartTask
+        RestartTask(self.config, self.device).app_restart()
+        # 混入 GameUi 的任务：重启后页面缓存必须作废
+        reset_page = getattr(self, 'ui_reset_current_page', None)
+        if callable(reset_page):
+            reset_page()
+
+    def handle_death_resume(self) -> None:
+        """
+        死亡复活 / 掉线重启后的续跑入口
+
+        默认把当前任务设为立即重跑；任务可覆盖成「继续当前步骤」。
+        """
+        self.rerun_task()
+
     def handle_death(self) -> None:
         """
-        检测到死亡弹窗时复活并重跑当前任务，调用前 device.image 需为最新截图
+        检测到死亡弹窗时复活，调用前 device.image 需为最新截图
         """
         if not self.appear(self.I_DEATH_DIALOG):
             return
 
         logger.warning('Character died')
         self.revive()
-        self.rerun_task()
+        self.handle_death_resume()
 
     # 「返回村子」按钮区域相对死亡弹窗特征块左上角的偏移
     # （弹窗会随提示文案行数上下移动，如多一行「击败者：xxx」时按钮整体下移约 20px）

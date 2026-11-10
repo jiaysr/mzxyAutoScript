@@ -48,15 +48,25 @@ class BattlePreset(BaseModel):
     order: List[str] = Field(default=list(_DEFAULT_ORDER),
                              description='释放顺序：技能 id 列表，越靠前优先级越高')
     disabled: List[str] = Field(default=[], description='本预设禁用的技能 id')
+    # ---- 释放节奏（每个预设各一份，跟着预设走）
+    clicks: int = Field(default=2, ge=1, le=4,
+                        description='每个技能连点次数（1-4，默认 2；单击不触发时调大）')
+    click_interval: float = Field(default=0.2, ge=0.05, le=1.0,
+                                  description='同一个技能两次点击之间的间隔（秒，默认 0.2）')
+    attempts: int = Field(default=3, ge=1, le=5,
+                          description='点了没进冷却时最多重试几次（1-5，默认 3；卡住一个技能最多耗时 = 次数 × 冷却超时）')
+    cooldown_timeout: float = Field(default=1.2, ge=0.2, le=2.0,
+                                    description='点完等它进入冷却的最长时间（秒，0.2-2.0，默认 1.2）')
 
 
 class BattleCommon(BaseModel):
     """战斗通用设置（不区分预设、全局唯一）"""
     identify_threshold: float = Field(default=0.78, ge=0.2, le=0.99,
                                       description='技能图标识别相似度下限，低于该值视为未识别')
-    respect_cooldown: bool = Field(default=True, description='只点冷却好的技能')
-    cast_interval: float = Field(default=0.2, ge=0.0, le=3.0,
-                                 description='两次技能点击之间的间隔（秒）')
+    click_unknown_slot: bool = Field(default=True,
+                                     description='点未识别的技能位：目录里没收录的新技能可能认不出来，仍然照点')
+    unknown_slot_min_score: float = Field(default=0.6, ge=0.0, le=1.0,
+                                           description='未识别技能位的相似度下限，低于该值认为是带的物品等图标，不点击')
 
 
 class Battle(ConfigBase):

@@ -1,0 +1,47 @@
+[
+  {
+    "itemName": "fumo_dialog",
+    "imageName": "res_fumo_dialog.png",
+    "roiFront": "616,108,170,84",
+    "roiBack": "607,96,304,131",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "伏魔山涧-伏魔大使对话弹窗（标题「伏魔大使」+首行「进入伏魔涧后」，用于确认NPC对话已打开）"
+  },
+  {
+    "itemName": "fumo_enter_popup",
+    "imageName": "res_fumo_enter_popup.png",
+    "roiFront": "341,320,286,42",
+    "roiBack": "331,309,338,87",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "伏魔山涧-进入副本提示弹窗（击败妖魔，战个痛快）"
+  },
+  {
+    "itemName": "fumo_enter_popup_close",
+    "imageName": "res_fumo_enter_popup_close.png",
+    "roiFront": "944,269,39,50",
+    "roiBack": "837,238,232,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "伏魔山涧-进入副本提示弹窗绿X关闭按钮"
+  },
+  {
+    "itemName": "fumo_finish_popup",
+    "imageName": "res_fumo_finish_popup.png",
+    "roiFront": "525,199,221,58",
+    "roiBack": "493,185,283,96",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "伏魔山涧-通关奖励结算弹窗（伏魔涧奖励结算，人物已自动离开副本）"
+  },
+  {
+    "itemName": "fumo_finish_popup_close",
+    "imageName": "res_fumo_finish_popup_close.png",
+    "roiFront": "940,155,40,46",
+    "roiBack": "875,140,143,94",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "伏魔山涧-通关奖励结算弹窗绿X关闭按钮"
+  }
+]

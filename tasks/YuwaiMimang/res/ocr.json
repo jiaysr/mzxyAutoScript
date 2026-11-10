@@ -25,5 +25,14 @@
     "method": "Default",
     "keyword": "剩余怪物数量",
     "description": "域外迷窟-剩余怪物数量文字（读剩余怪物数用）"
+  },
+  {
+    "itemName": "npc_dialog_options",
+    "roiFront": "492,319,279,207",
+    "roiBack": "492,319,279,207",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "NPC对话弹窗-选项区（可滚动，Full 模式按文字定位入口）"
   }
 ]

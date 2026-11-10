@@ -1,0 +1,47 @@
+[
+  {
+    "itemName": "buzhoushan_page",
+    "imageName": "res_buzhoushan_page.png",
+    "roiFront": "290,627,230,42",
+    "roiBack": "270,605,270,86",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "不周山-页面特征（左下角「今日剩余挑战次数」文案；文案固定，后面的次数会变，所以只截到「数」字）"
+  },
+  {
+    "itemName": "buzhoushan_confirm",
+    "imageName": "res_buzhoushan_confirm.png",
+    "roiFront": "424,293,218,40",
+    "roiBack": "394,263,300,100",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "不周山-挑战确认弹窗（固定文案「要挑战不周山的第」，层数会变所以只截到「第」）"
+  },
+  {
+    "itemName": "buzhoushan_no_attempt",
+    "imageName": "res_buzhoushan_no_attempt.png",
+    "roiFront": "339,318,330,46",
+    "roiBack": "309,288,390,106",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "不周山-次数用完提示弹窗（「您今天挑战次数已经用完，」，右上角绿X关闭）"
+  },
+  {
+    "itemName": "buzhoushan_teleport",
+    "imageName": "res_buzhoushan_teleport.png",
+    "roiFront": "1258,6,7,8",
+    "roiBack": "1196,2,84,84",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "不周山-小地图上的传送点标记（黄色菱形，出现=本层怪物清完；在小地图 1199,4,78,78 范围内搜索，位置随传送点变化。注意与黄色「!」任务标记区分：只用形状匹配，不做纯颜色判断）"
+  },
+  {
+    "itemName": "buzhoushan_settle",
+    "imageName": "res_buzhoushan_settle.png",
+    "roiFront": "556,578,160,46",
+    "roiBack": "516,548,240,110",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "不周山-通关/失败结算弹窗（固定按钮「返回不周山」，成功与失败共用；标题用 OCR 区分）"
+  }
+]

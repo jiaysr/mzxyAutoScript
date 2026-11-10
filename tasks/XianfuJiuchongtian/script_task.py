@@ -32,13 +32,10 @@ TODO: 更好的做法是先传送到「安全地图」（禁止 PK）再清仙�
 import re
 from datetime import datetime, timedelta
 
-import cv2
-
 from module.base.timer import Timer
 from module.exception import GamePageUnknownError, GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_item_bag
 from tasks.XianfuJiuchongtian.assets import XianfuJiuchongtianAssets
 from tasks.XianfuJiuchongtian.page import page_xianfu
 
@@ -75,8 +72,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
     _death_stage: str = 'read_stone'
     # 本次翻牌结果 (color, numeral)；每场战斗更新
     last_reward = None
-    # 读背包最多扫多少屏（整页滑动，一页 4 行）
-    BAG_SCAN_SCREENS = 12
 
     def run(self) -> None:
         stage, threshold, max_battles_cfg, fixed_daguan = self.load_config()
@@ -154,9 +149,13 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         death_stage = self._death_stage
         logger.warning(f'Character died during {death_stage}, revive and resume')
         self.revive()
+        self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """死亡复活 / 掉线重启后：抛阶段异常，重试当前阶段"""
         # 等复活/地图加载稳定，加载中点击会丢
         self.device.sleep(1)
-        raise XianfuDeath(death_stage)
+        raise XianfuDeath(self._death_stage)
 
     # ---------------------------------------------------------------- 准备
     def prepare(self, threshold: int, color: str, fixed_daguan: int) -> tuple:
@@ -260,35 +259,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
     # 物品详情面板的特征文案（面板打开会污染背包识别）
     BAG_PANEL_MARKS = ('立即使用', '全部使用', '永久丢弃', '设置快捷', '免费合成')
 
-    def bag_region_text(self, region) -> str:
-        """对指定区域做一次 OCR，返回按阅读顺序（先 y 后 x）拼接的文本"""
-        rule = self.O_BAG_GRID
-        old_roi = rule.roi
-        try:
-            rule.roi = region
-            results = rule.detect_and_ocr(self.device.image, logDisplay=False)
-        finally:
-            rule.roi = old_roi
-        boxes = []
-        for item in results:
-            box = item.box
-            xs = [point[0] for point in box]
-            ys = [point[1] for point in box]
-            boxes.append((item.ocr_text.strip(), (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2))
-        boxes.sort(key=lambda it: (round(it[2] / 20), it[1]))
-        return ''.join(text for text, _, _ in boxes)
-
-    # 背包物品格固定区域（1280x720，真机实测）：
-    # 文字区 = 图标中心x + 57，宽 125、高 93；数量区 = 图标中心x + 22，文字区上边 + 55，35x30
-    # 实测按给定尺寸会把「碎片一/二/三」的末字裁掉，这里各方向放宽一点（不会碰到隔壁格）
-    BAG_COLUMN_CENTERS = (304, 541, 778, 1015)
-    BAG_ROW_TOPS = (110, 228, 350, 471)
-    BAG_TEXT_DX = 48
-    BAG_TEXT_SIZE = (152, 118)
-    BAG_COUNT_DX = 22
-    BAG_COUNT_DY = 55
-    BAG_COUNT_SIZE = (35, 30)
-
     # 颜色 -> 该颜色碎片的模板规则（模板 = 图标 + 第一行「XX仙玉」）
     PICK_RULES = {
         '西极': 'I_BAG_PICK_WEST',
@@ -296,18 +266,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         '北极': 'I_BAG_PICK_NORTH',
         '南极': 'I_BAG_PICK_SOUTH',
     }
-    # 模板命中框 -> 格子图标中心的偏移（四张模板实测约 25px）
-    PICK_ICON_DX = 25
-    # 格子图标中心相对行顶的偏移（行高 120，图标约 50 高）
-    PICK_ICON_HALF = 25
-
-    def bag_cell_regions(self, col_x, row_top):
-        """返回该物品格的 (文字区域, 数量区域)，格式 x,y,w,h"""
-        text_region = (col_x + self.BAG_TEXT_DX, row_top,
-                       self.BAG_TEXT_SIZE[0], self.BAG_TEXT_SIZE[1])
-        count_region = (col_x + self.BAG_COUNT_DX, row_top + self.BAG_COUNT_DY,
-                        self.BAG_COUNT_SIZE[0], self.BAG_COUNT_SIZE[1])
-        return text_region, count_region
 
     # 碎片数字的 OCR 变体（「一」常被认成 —/－/1）
     NUMERAL_VARIANTS = {
@@ -325,60 +283,21 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
                 return numeral
         return None
 
-    def bag_cell_from_hit(self, x, y, w, h):
-        """
-        模板命中框 -> 所在格子的 (列图标 x, 行 top)
-
-        模板是「图标 + 第一行名字」：命中框左边约在图标中心 -PICK_ICON_DX，
-        框中心 y 约在图标中心，换算后吸附到最近的行列。
-        """
-        icon_x = x + self.PICK_ICON_DX
-        icon_y = y + h / 2
-        col = min(self.BAG_COLUMN_CENTERS, key=lambda c: abs(c - icon_x))
-        row_top = min(self.BAG_ROW_TOPS, key=lambda r: abs(r - (icon_y - self.PICK_ICON_HALF)))
-        return col, row_top
-
-    def bag_page_signature(self, image) -> bytes:
-        """背包页的粗粒度指纹：滑动后内容没变就说明到底了（比整页 OCR 便宜）"""
-        x, y, w, h = self.O_BAG_GRID.roi
-        gray = cv2.cvtColor(image[y:y + h, x:x + w], cv2.COLOR_RGB2GRAY)
-        return cv2.resize(gray, (64, 32), interpolation=cv2.INTER_AREA).tobytes()
-
-    def bag_region_digits(self, region) -> int:
-        """
-        读数量区域里的数字（小字，转灰度放大 2x/3x 再识别），读不到返回 0
-
-        数量为 1 时游戏不显示数字，调用方把 0 当 1 处理。
-        """
-        x, y, w, h = region
-        image = self.device.image[y:y + h, x:x + w]
-        if image is None or image.size == 0:
-            return 0
-        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        best = 0
-        for scale in (2, 3):
-            resized = cv2.resize(cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB), None,
-                                 fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-            result = self.O_BAG_GRID.model.ocr_single_line(resized)
-            if not result:
-                continue
-            text, _ = result
-            digits = re.sub(r'\D', '', str(text))
-            if digits:
-                best = max(best, int(digits))
-        return best
-
     def bag_piece_counts(self, color: str) -> dict:
         """
         读背包里该颜色仙玉碎片一二三四的数量（模板定位 + 只 OCR 命中格）
 
-        同色碎片在背包里连续排列：用该颜色的「图标 + XX仙玉」模板逐页找命中，
-        - 没命中：该颜色没有碎片，返回全 0（不再整包 OCR）；
-        - 命中：只对命中的格子 OCR「碎片X」和数量（数量为 1 时不显示数字，按 1 算）。
+        扫描外壳（进背包 / 关面板 / 整理 / 滚回顶部 / 逐屏匹配 / 滚动到底）在
+        公共层 `BagNavigation.bag_scan_rule`；这里只负责「命中格怎么读」：
+        同色碎片在背包里连续排列，模板命中格再 OCR「碎片X」和数量区数字
+        （数量为 1 时不显示数字，按 1 算）。
 
         :return: {1: 数量, 2: 数量, 3: 数量, 4: 数量}（不存在的碎片按 0）
         """
         logger.hr(f'读背包 {color}仙玉碎片数量（模板定位）')
+        # bag_scan_rule 只负责在当前页面逐屏扫描；这里必须先真正打开背包页，
+        # 否则会对着仙府页/主页面扫，永远命中不了模板（日志里只有「第 N 屏未命中」）。
+        self.bag_open_ready()
         rule_name = self.PICK_RULES.get(color)
         rule = getattr(self, rule_name, None) if rule_name else None
         result = {i: 0 for i in range(1, len(NUMERALS) + 1)}
@@ -386,59 +305,25 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             logger.warning(f'没有 {color} 的碎片模板（{rule_name}），视为没有碎片')
             return result
 
-        if not self.ui_goto(page_item_bag, timeout=40):
-            raise GameStuckError('Item bag page does not appear')
-        self.device.sleep(self.BAG_SETTLE)
-        self.bag_close_item_panel()
-        self.bag_sort()
+        def on_hit(cell, image, score, hit):
+            col_x, row_top = cell
+            text_region, count_region = self.bag_cell_regions(col_x, row_top)
+            text = self.bag_region_text(text_region)
+            numeral = self.parse_numeral(text)
+            if numeral is None:
+                # 「一」是一横，OCR 常整个丢掉；命中格有这个颜色就按「一」兜底
+                if f'{color}仙玉碎片' in text:
+                    numeral = '一'
+                else:
+                    logger.warning(f'命中格读不到碎片编号: {text!r} @ {cell}')
+                    return False
+            count = self.bag_region_digits(count_region) or 1
+            idx = NUMERALS.index(numeral) + 1
+            result[idx] = max(result[idx], count)
+            logger.info(f'命中 {color}仙玉碎片{numeral} x{count} @ {cell} score={score:.3f}')
+            return False
 
-        found_any = False
-        last_signature = None
-        for page in range(1, self.BAG_SCAN_SCREENS + 1):
-            self.screenshot()
-            image = self.device.image
-            hits = rule.match_all_any(image, threshold=rule.threshold)
-            page_cells = set()
-            page_hit = False
-            for score, x, y, w, h in sorted(hits, key=lambda hit: -hit[0]):
-                cell = self.bag_cell_from_hit(x, y, w, h)
-                if cell in page_cells:
-                    continue
-                page_cells.add(cell)
-                col_x, row_top = cell
-                text_region, count_region = self.bag_cell_regions(col_x, row_top)
-                text = self.bag_region_text(text_region)
-                numeral = self.parse_numeral(text)
-                if numeral is None:
-                    # 「一」是一横，OCR 常整个丢掉；命中格有这个颜色就按「一」兜底
-                    if f'{color}仙玉碎片' in text:
-                        numeral = '一'
-                    else:
-                        logger.warning(f'命中格读不到碎片编号: {text!r} @ ({x},{y})')
-                        continue
-                count = self.bag_region_digits(count_region) or 1
-                idx = NUMERALS.index(numeral) + 1
-                result[idx] = max(result[idx], count)
-                page_hit = found_any = True
-                logger.info(f'命中 {color}仙玉碎片{numeral} x{count} '
-                            f'@ ({x},{y}) score={score:.3f}')
-            if not page_hit:
-                logger.info(f'第{page}页未命中 {color} 碎片模板')
-
-            # 翻页停止：空物品格 / 内容不再变化 / 页数上限
-            if self.appear(self.I_BAG_EMPTY):
-                logger.info('本页出现空物品格，停止翻页')
-                break
-            signature = self.bag_page_signature(image)
-            if signature == last_signature:
-                logger.info('背包没有继续滚动，停止')
-                break
-            last_signature = signature
-            self.device.swipe(p1=(490, 570), p2=(490, 80))
-            self.device.click_record_clear()
-            self.device.sleep(1.2)
-
-        if not found_any:
+        if not self.bag_scan_rule(rule, on_hit=on_hit, empty_rule=self.I_BAG_EMPTY):
             logger.info(f'模板未命中，视为没有 {color} 仙玉碎片')
         logger.attr(f'{color}仙玉碎片数量', result)
         return result
@@ -572,7 +457,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         """
         本任务选的战斗预设（配置 -> battle_config.battle_preset）
 
-        共享的 BattleAttack.battle_task_preset() 取的是任务根节点的 battle_preset，
+        共享实现现在会读 battle_config 组；这里仍然自己取，是为了直跑脚本（没有任务上下文）时也能拿到，
         取不到嵌套在 battle_config 组里的字段，会静默回落到系统预设。
         先在仙府任务里覆盖，只影响本任务。
         """
@@ -632,10 +517,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         return 'failed'
 
     # ---------------------------------------------------------------- 战斗循环
-    # 每个技能最多尝试几次（含第一次）：每次 = 一次双击，没进冷却就重试，超过跳过换下一个技能
-    SKILL_MAX_ATTEMPTS = 3
-    # 点完技能等它进入冷却的最长时间 / 轮询间隔（秒）
-    SKILL_COOLDOWN_TIMEOUT = 1.2
+    # 每个技能的释放节奏（重试次数 / 冷却超时）统一走「战斗预设」，这里只留轮询间隔
     SKILL_COOLDOWN_POLL = 0.1
 
     def battle_loop(self) -> str:
@@ -649,20 +531,13 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'timeout' 超时/重排上限
         """
         self.screenshot()
-        plan = self.battle_plan()
-        if plan:
-            slots = [entry.slot for entry in plan]
-        else:
-            logger.warning('技能位识别失败，按 7 个技能位逐个尝试')
-            slots = list(range(len(self.BATTLE_SKILL_REGIONS)))
+        slots = self.battle_plan_slots()
 
         return self.battle_skill_loop(
             slots,
             check_stop=self.battle_stop_reason,
             target_check=lambda image: self.ui_target_attackable(image),
             timeout=BATTLE_TIMEOUT,
-            max_attempts=self.SKILL_MAX_ATTEMPTS,
-            cooldown_timeout=self.SKILL_COOLDOWN_TIMEOUT,
             poll_interval=self.SKILL_COOLDOWN_POLL,
             max_cycles=BATTLE_GROUPS_MAX,
         )
@@ -803,8 +678,19 @@ if __name__ == '__main__':
 
     config = Config('oas1')
     device = Device(config)
+    task = ScriptTask(config, device)
     try:
-        ScriptTask(config, device).run()
+        # 直接测试：按当前配置的阶段自动打开背包 -> 整理 -> 扫描对应颜色的仙玉碎片
+        stage = int(config.xianfu_jiuchongtian.xianfu_config.stage)
+        color = XIAOGUAN_COLORS[3]
+        logger.attr('测试阶段', f'{stage} -> {color}')
+        counts = task.bag_piece_counts(color)
+        logger.attr(f'测试结果：{color}仙玉碎片数量', counts)
+
+        # 只想测试「找单个物品」时，用下面这行（返回图标中心坐标，None = 没找到）
+        # rule = getattr(task, task.PICK_RULES[color])
+        # coord = task.bag_find_item(f'{color}仙玉碎片一', rule)
+        # logger.attr(f'{color}仙玉碎片一坐标', coord)
     except TaskEnd:
         pass
 

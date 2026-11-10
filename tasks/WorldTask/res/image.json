@@ -1,0 +1,83 @@
+[
+  {
+    "itemName": "npc_gate_dialog",
+    "imageName": "res_npc_gate_dialog.png",
+    "roiFront": "618,178,198,89",
+    "roiBack": "603,175,267,125",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "入口 NPC（世界之巅守门人）的对话框特征"
+  },
+  {
+    "itemName": "npc_deliver_dialog",
+    "imageName": "res_npc_deliver_dialog.png",
+    "roiFront": "616,113,198,89",
+    "roiBack": "599,105,267,125",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "交付 NPC（世界之巅任务榜）的对话框特征"
+  },
+  {
+    "itemName": "npc_gate_option",
+    "imageName": "res_npc_gate_option.png",
+    "roiFront": "512,399,247,44",
+    "roiBack": "498,356,267,125",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "入口 NPC 对话里的「查看世界之巅活动」选项（点它打开活动弹窗）"
+  },
+  {
+    "itemName": "activity_panel",
+    "imageName": "res_activity_panel.png",
+    "roiFront": "89,207,155,173",
+    "roiBack": "73,192,215,246",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界之巅活动弹窗特征（弹窗开着才认得到）"
+  },
+  {
+    "itemName": "accept_list_page",
+    "imageName": "res_accept_list_page.png",
+    "roiFront": "1039,190,104,49",
+    "roiBack": "985,169,203,440",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "跨服任务接取列表页特征（右侧带「接取」按钮）"
+  },
+  {
+    "itemName": "bonus_promo_close",
+    "imageName": "res_bonus_promo_close.png",
+    "roiFront": "943,218,34,37",
+    "roiBack": "900,200,140,110",
+    "method": "Template matching",
+    "threshold": 0.85,
+    "description": "加量推广弹窗右上角绿 X（搜索范围只给弹窗那一块，避免误点面板的 X）"
+  },
+  {
+    "itemName": "task_complete_prefix",
+    "imageName": "task_complete_prefix.png",
+    "roiFront": "0,679,97,27",
+    "roiBack": "0,679,638,37",
+    "method": "Template matching",
+    "threshold": 0.9,
+    "description": "左下角聊天栏「[系]任务」前缀（任务完成提示的第一级过滤）"
+  },
+  {
+    "itemName": "enter_world_peak",
+    "imageName": "res_enter_world_peak.png",
+    "roiFront": "529,556,226,47",
+    "roiBack": "513,525,253,104",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界之巅活动首页（世界之巅 / 周末限时）中央的「进入世界之巅」按钮"
+  },
+  {
+    "itemName": "activity_not_open",
+    "imageName": "res_activity_not_open.png",
+    "roiFront": "534,332,203,60",
+    "roiBack": "497,319,270,83",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "「活动暂未开启」弹窗（点击进入世界之巅前可能出现，需要先关闭）"
+  }
+]

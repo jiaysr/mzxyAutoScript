@@ -16,7 +16,12 @@ class RestartBase(BaseTask, RestartAssets):
     """
     重启任务的公共部分：启停游戏、登录重试、延迟待办
     游戏客户端相关的登录流程由 RestartX7 / RestartOfficial 实现
+
+    登录/启动阶段画面本来就可能是长时间黑屏（开屏、切服、读条），
+    这里关掉基类的黑屏检测，否则会被误判成「游戏崩了」再触发一次重启。
     """
+
+    CHECK_SCREEN_ALIVE = False
 
     login_retry = 2
     # 登录总时长上限默认值（秒），实际取配置 restart.login_config.login_timeout；

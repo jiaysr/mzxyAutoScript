@@ -9,17 +9,21 @@ class ConfigManual:
 
     SCHEDULER_PRIORITY = """
         Restart
-        > YuwaiMimang
+        > WorldBoss
         > WarChariot
         > Quiz
-        > WorldBoss
+        > YuwaiMimang
         > Arena
         > CrossArena
         > AncientHunt
         > XianfuJiuchongtian
+        > Buzhoushan
+        > FumoShanjian
         > DouXianGe
         > Dungeon
         > SilverGiftBox
+        > DailySignIn
+        > WorldTask
         > AutoTask
         """
 

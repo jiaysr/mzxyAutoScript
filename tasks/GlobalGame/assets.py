@@ -42,6 +42,8 @@ class GlobalGameAssets:
 
 
 	# Image Rule Assets
+	# 掉线弹窗-「您掉线了...」文字（出现=人物掉线，直接重启游戏） 
+	I_DISCONNECT_DIALOG = RuleImage(roi_front=(573,332,112,54), roi_back=(561,321,164,80), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/res/res_disconnect_dialog.png")
 	# 死亡弹窗-三个按钮区块（弹窗随提示文案行数上下移动，roiBack 上下放宽 ±20~40px） 
 	I_DEATH_DIALOG = RuleImage(roi_front=(486,255,310,260), roi_back=(486,235,310,300), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/res/res_death_dialog.png")
 	# 人机验证弹窗-标题红字「人机验证」（出现=需要答题） 
