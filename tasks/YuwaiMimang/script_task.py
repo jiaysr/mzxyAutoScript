@@ -586,6 +586,27 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         names = self.battle_target_names() if names is None else names
         return self.battle_relock_target(names)
 
+    def battle_target_ok(self, names: list, image=None) -> bool:
+        """
+        放技能前确认「锁着的就是白名单目标」，避免打到路过的玩家。
+
+        每次都现查名字（不缓存）：玩家可攻击，只判「可攻击」会在怪死后 /
+        游戏自动转锁到玩家时继续打偏（补锁只在目标不可攻击时才触发，玩家可攻击
+        就永远不补锁）。名字读不出来时按原目标处理，别因一次 OCR 抖动就停手。
+        白名单为空 = 配置不校验名字，只要能攻击就行。
+        """
+        if not self.ui_target_attackable(image=image):
+            return False
+        if not names:
+            return True
+        name = self.ui_target_name()
+        if not name:
+            return True
+        if any(self.ocr_name_match(name, expected) for expected in names):
+            return True
+        logger.warning(f'锁着的目标变成 [{name}]，不在白名单 {names}，停止放技能')
+        return False
+
     def recover_position(self, coord, tolerance: int, timeout: int = None) -> bool:
         """
         回到打怪基准坐标（被怪追踪会带着跑偏）
@@ -756,7 +777,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                 reason = self.battle_skill_loop(
                     slots,
                     check_stop=self.battle_stop_reason,
-                    target_check=lambda image: self.ui_target_attackable(image),
+                    target_check=lambda image: self.battle_target_ok(names, image),
                     include_attack=include_attack,
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
                     poll_interval=self.SKILL_COOLDOWN_POLL,
