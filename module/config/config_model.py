@@ -25,6 +25,7 @@ from tasks.WarChariot.config import WarChariot
 from tasks.AncientHunt.config import AncientHunt
 from tasks.XianfuJiuchongtian.config import XianfuJiuchongtian
 from tasks.YuwaiMimang.config import YuwaiMimang
+from tasks.MikuXianjing.config import MikuXianjing
 from tasks.DouXianGe.config import DouXianGe
 from tasks.SilverGiftBox.config import SilverGiftBox
 from tasks.DailySignIn.config import DailySignIn
@@ -53,6 +54,7 @@ class ConfigModel(ConfigBase):
     ancient_hunt: AncientHunt = Field(default_factory=AncientHunt)
     xianfu_jiuchongtian: XianfuJiuchongtian = Field(default_factory=XianfuJiuchongtian)
     yuwai_mimang: YuwaiMimang = Field(default_factory=YuwaiMimang)
+    miku_xianjing: MikuXianjing = Field(default_factory=MikuXianjing)
     dou_xian_ge: DouXianGe = Field(default_factory=DouXianGe)
     quiz: Quiz = Field(default_factory=Quiz)
     silver_gift_box: SilverGiftBox = Field(default_factory=SilverGiftBox)

@@ -47,4 +47,5 @@ def test_higher_priority_names_exclude_self():
     names = FakeWildSnowman.higher_priority_task_names()
     assert 'WildSnowman' not in names
     assert 'Restart' in names
-    assert names[-1] == 'AutoTask'
+    assert 'AutoTask' in names
+    assert names[-1] == 'MikuXianjing'

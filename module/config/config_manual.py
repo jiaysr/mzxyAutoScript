@@ -26,6 +26,7 @@ class ConfigManual:
         > ZhongZhi
         > WorldTask
         > AutoTask
+        > MikuXianjing
         > WildSnowman
         """
 

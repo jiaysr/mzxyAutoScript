@@ -24,7 +24,7 @@ class ConfigMenu:
         # 战斗的任务
         self.menu["Battle Task"] = ['WorldBoss', 'Arena', 'CrossArena', 'AncientHunt',
                                     'XianfuJiuchongtian', 'Buzhoushan', 'FumoShanjian',
-                                    'YuwaiMimang', 'DouXianGe']
+                                    'YuwaiMimang', 'MikuXianjing', 'DouXianGe']
         # 限时活动（组内任务按需启用）
         self.menu["限时活动"] = ['WildSnowman']
         # 副本玩法（单独分组）

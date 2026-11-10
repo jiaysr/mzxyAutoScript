@@ -1,0 +1,29 @@
+[
+  {
+    "itemName": "progress",
+    "roiFront": "562,572,69,46",
+    "roiBack": "562,572,69,46",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "迷窟仙境打怪进度（0%~100%，到 100% 收工）"
+  },
+  {
+    "itemName": "quest_action",
+    "roiFront": "930,490,200,100",
+    "roiBack": "930,490,200,100",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "任务详情弹窗右侧动作按钮（可接取=接受，完成待交付=完成）"
+  },
+  {
+    "itemName": "quest_return",
+    "roiFront": "150,490,210,100",
+    "roiBack": "150,490,210,100",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "任务详情弹窗左侧返回按钮（接取/交付后回 NPC 选项弹窗）"
+  }
+]

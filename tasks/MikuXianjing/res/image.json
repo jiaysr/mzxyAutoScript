@@ -1,0 +1,29 @@
+[
+  {
+    "itemName": "quest_available",
+    "imageName": "res_quest_available.png",
+    "roiFront": "0,0,6,13",
+    "roiBack": "0,0,6,13",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙心一体选项左侧标记-黄色感叹号（可接取；运行时 roi_back 设到该行文字左侧）"
+  },
+  {
+    "itemName": "quest_progress",
+    "imageName": "res_quest_progress.png",
+    "roiFront": "0,0,8,13",
+    "roiBack": "0,0,8,13",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙心一体选项左侧标记-灰色问号（进行中，不重复接取）"
+  },
+  {
+    "itemName": "quest_done",
+    "imageName": "res_quest_done.png",
+    "roiFront": "0,0,8,13",
+    "roiBack": "0,0,8,13",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "仙心一体选项左侧标记-黄色问号（完成待交付）"
+  }
+]
