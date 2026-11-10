@@ -45,7 +45,7 @@ class AutoTaskAssets:
 
 	# Ocr Rule Assets
 	# 任务特权页-左侧任务列表（任务名+进度，逐行分组解析） 
-	O_PRIVILEGE_TASK_LIST = RuleOcr(roi=(280,100,420,600), area=(280,100,420,600), mode="Full", method="Default", keyword="", name="privilege_task_list")
+	O_PRIVILEGE_TASK_LIST = RuleOcr(roi=(280,100,580,600), area=(280,100,580,600), mode="Full", method="Default", keyword="", name="privilege_task_list")
 	# 加量页-3倍卡拥有量（拥有：N） 
 	O_BONUS_3X_COUNT = RuleOcr(roi=(480,290,160,50), area=(480,290,160,50), mode="Full", method="Default", keyword="", name="bonus_3x_count")
 	# 加量页-5倍卡拥有量（拥有：N） 
