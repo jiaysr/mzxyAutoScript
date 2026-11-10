@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "one_key_plant",
+    "roiFront": "1100,150,155,65",
+    "roiBack": "1100,150,155,65",
+    "description": "种植页面-一键种植按钮"
+  },
+  {
+    "itemName": "seed_cancel",
+    "roiFront": "388,462,198,48",
+    "roiBack": "388,462,198,48",
+    "description": "选择种子弹窗-取消按钮"
+  },
+  {
+    "itemName": "seed_confirm",
+    "roiFront": "684,462,197,48",
+    "roiBack": "684,462,197,48",
+    "description": "选择种子弹窗-确定按钮"
+  }
+]

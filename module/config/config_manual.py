@@ -23,6 +23,7 @@ class ConfigManual:
         > Dungeon
         > SilverGiftBox
         > DailySignIn
+        > ZhongZhi
         > WorldTask
         > AutoTask
         """

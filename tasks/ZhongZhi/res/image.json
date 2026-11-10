@@ -1,0 +1,65 @@
+[
+  {
+    "itemName": "zhongzhi_page",
+    "imageName": "res_zhongzhi_page.png",
+    "roiFront": "1100,150,155,65",
+    "roiBack": "1080,135,200,95",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "辅助/种植页面特征（一键种植按钮）"
+  },
+  {
+    "itemName": "zhongzhi_help",
+    "imageName": "res_zhongzhi_help.png",
+    "roiFront": "815,152,97,59",
+    "roiBack": "800,140,130,85",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "辅助/种植页面特征（说明按钮）"
+  },
+  {
+    "itemName": "seed_popup",
+    "imageName": "res_seed_popup.png",
+    "roiFront": "582,193,120,31",
+    "roiBack": "560,180,170,55",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "种植-选择种子弹窗特征（请选择种子）"
+  },
+  {
+    "itemName": "seed_empty_slot",
+    "imageName": "res_seed_empty_slot.png",
+    "roiFront": "522,368,52,60",
+    "roiBack": "522,368,52,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "种植-选择种子弹窗-空种子格样式（用于判断8格是否全空）"
+  },
+  {
+    "itemName": "plant_success",
+    "imageName": "res_plant_success.png",
+    "roiFront": "377,350,527,30",
+    "roiBack": "360,335,560,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "种植-种植完成弹窗（收获成功，快去背包里看看吧）"
+  },
+  {
+    "itemName": "plant_unavailable",
+    "imageName": "res_plant_unavailable.png",
+    "roiFront": "462,349,358,32",
+    "roiBack": "440,335,400,60",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "种植-不可种植弹窗（您当前没有可种植新的土地）"
+  },
+  {
+    "itemName": "plant_popup_close",
+    "imageName": "res_plant_popup_close.png",
+    "roiFront": "936,276,61,61",
+    "roiBack": "915,255,100,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "种植-完成/不可种植弹窗-绿色X关闭按钮"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "itemName": "seed_name",
+    "roiFront": "390,245,520,275",
+    "roiBack": "390,245,520,275",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "选择种子弹窗-鼠标悬停/选中后的种子名称提示"
+  },
+  {
+    "itemName": "land_cooldown",
+    "roiFront": "380,170,560,410",
+    "roiBack": "380,170,560,410",
+    "mode": "Full",
+    "method": "Default",
+    "keyword": "",
+    "description": "种植页面-土地倒计时（时'分'秒）"
+  }
+]
