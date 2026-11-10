@@ -127,7 +127,8 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     # 补锁最多切几次目标（切到可攻击 / 白名单里的活怪为止；第一下常锁到刚死的地尸）
     RELOCK_MAX_SWITCH = 3
 
-    def battle_relock_target(self, names=None, max_switch: int = None) -> bool:
+    def battle_relock_target(self, names=None, max_switch: int = None,
+                             abort_check: Callable[[], bool] = None) -> bool:
         """
         目标死后快速补锁（连续刷怪场景专用）
 
@@ -143,10 +144,15 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         :param max_switch: 最多切几次（默认 RELOCK_MAX_SWITCH）。
                            「刷完这一波就没了」的场景（不周山一层 4~5 只）传 1：
                            有怪一次就补上，没怪就立刻交回外层，别空切
+        :param abort_check: 中途放弃的检查（无参），返回 True 立刻收工返回 False。
+                            用于死亡复活/掉线后置位重走：别在复活点原地空切目标
         :return: True = 已锁到可打的目标；False = 没锁到，交给调用方走完整流程
         """
         switches = self.RELOCK_MAX_SWITCH if max_switch is None else max(1, int(max_switch))
         for _ in range(switches):
+            if abort_check is not None and abort_check():
+                logger.info('补锁被中断，交回外层')
+                return False
             x, y = self.C_TARGET_BUTTON_CLICK.coord()
             self.device.click(x=x, y=y, control_name='BATTLE_TARGET')
             self.device.click_record_clear()
@@ -163,18 +169,23 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         logger.info('快速补锁没锁到目标，交回完整流程')
         return False
 
-    def battle_on_target_lost(self, names=None):
+    def battle_on_target_lost(self, names=None, abort_check: Callable[[], bool] = None):
         """
         生成 `battle_skill_loop(on_target_lost=...)` 的回调
 
         按任务「战斗配置」里的 `fast_relock` 决定：
         - 开：目标丢了就原地补锁，返回 True 继续打（连续刷怪、限时多杀）；
         - 关：返回 False，循环按原逻辑结束（单 boss / 刷怪间隔长，等刷新更划算）。
+
+        `abort_check` 返回 True 时（死亡复活/掉线要重走）直接返回 False，
+        不在复活点原地补锁，交回外层走位。
         """
         def _relock() -> bool:
+            if abort_check is not None and abort_check():
+                return False
             if not self.battle_fast_relock():
                 return False
-            return self.battle_relock_target(names)
+            return self.battle_relock_target(names, abort_check=abort_check)
         return _relock
 
     # ---------------------------------------------------------------- 锁定目标把关

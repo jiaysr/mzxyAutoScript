@@ -232,15 +232,16 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
                 reason = self.battle_skill_loop(
                     slots,
                     check_stop=self.battle_stop_reason,
-                    target_check=lambda image: self.ui_target_attackable(image),
+                    target_check=lambda image: self.battle_target_ok(names, image),
                     include_attack=self.battle_use_normal_attack(),
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
                     poll_interval=self.SKILL_COOLDOWN_POLL,
                     on_cast=self.on_cast,
-                    on_target_lost=self.battle_on_target_lost(names),
+                    on_target_lost=self.battle_on_target_lost(
+                        names, abort_check=lambda: self._resume_reposition),
                 )
             else:
-                reason = self.normal_attack_until_lost()
+                reason = self.normal_attack_until_lost(names)
 
             if reason == 'yield':
                 self._yielded = True
@@ -299,14 +300,37 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
                 target_name=names,
                 action=ACTION_ATTACK,
                 max_switch=self.TARGET_SWITCH_MAX,
-                timeout=self.TARGET_SWITCH_TIMEOUT):
+                timeout=self.TARGET_SWITCH_TIMEOUT,
+                abort_check=lambda: self._resume_reposition):
             self._target_fail_count = 0
             return True
+
+        if self._resume_reposition:
+            # 死亡复活/掉线已置位：不在复活点原地切目标，交回主循环立即走位
+            return False
 
         self._target_fail_count += 1
         if self._target_fail_count % self.TARGET_WARN_AFTER == 1:
             logger.warning(f'连续 {self._target_fail_count} 次没有锁到白名单目标 {names}，'
                            f'继续等待刷新')
+        return False
+
+    def battle_target_ok(self, names: list, image=None) -> bool:
+        """
+        放技能/普攻前确认「锁着的就是白名单目标」，避免打到路过的玩家。
+
+        每次都现查名字（不缓存）：玩家可攻击，只判「可攻击」会在雪人死后 /
+        游戏自动转锁到玩家时继续打偏。名字读不出来时按原目标处理，
+        别因一次 OCR 抖动就停手。
+        """
+        if not self.ui_target_attackable(image=image):
+            return False
+        name = self.ui_target_name()
+        if not name:
+            return True
+        if any(self.ocr_name_match(name, expected) for expected in names):
+            return True
+        logger.warning(f'锁着的目标变成 [{name}]，不在白名单 {names}，停止放技能')
         return False
 
     def recognize_skill_slots(self) -> list:
@@ -321,15 +345,15 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
             self.device.sleep(self.SLOT_RECOGNIZE_WAIT)
         return []
 
-    def normal_attack_until_lost(self) -> str:
-        """技能位识别失败时，只用普通攻击，直到目标丢失或需要让路/修理"""
+    def normal_attack_until_lost(self, names: list) -> str:
+        """技能位识别失败时，只用普通攻击，直到目标丢失/变玩家或需要让路/修理"""
         logger.warning('技能位未识别，使用普通攻击继续打怪')
         while True:
             reason = self.battle_stop_reason()
             if reason:
                 return reason
-            self.screenshot()
-            if not self.ui_target_attackable():
+            image = self.screenshot()
+            if not self.battle_target_ok(names, image):
                 return 'target_lost'
             self.battle_click_attack()
             self.device.sleep(self.NORMAL_ATTACK_INTERVAL)

@@ -89,6 +89,144 @@ def test_battle_stop_reason_repositions_when_flag_set():
     assert ScriptTask.battle_stop_reason(task) == 'reposition'
 
 
+def test_acquire_target_aborts_in_place_lock_on_reposition():
+    captured = {}
+
+    class FakeAcquire:
+        TARGET_SWITCH_MAX = 8
+        TARGET_SWITCH_TIMEOUT = 10
+        TARGET_WARN_AFTER = 10
+        _resume_reposition = True
+        _target_fail_count = 0
+
+        def ui_ensure_target_locked(self, **kwargs):
+            captured['abort_check'] = kwargs.get('abort_check')
+            # 模拟：外面已置位重走，abort_check 命中就立刻收工返回 False
+            return not kwargs['abort_check']()
+
+    task = FakeAcquire()
+    assert ScriptTask.acquire_target(task, ['可爱雪人']) is False
+    assert captured['abort_check']() is True
+    # 被复活中断，不算「锁不到目标」，不累加计数、不发等待刷新告警
+    assert task._target_fail_count == 0
+
+
+def test_acquire_target_counts_fail_when_not_repositioning():
+    class FakeAcquire:
+        TARGET_SWITCH_MAX = 8
+        TARGET_SWITCH_TIMEOUT = 10
+        TARGET_WARN_AFTER = 10
+        _resume_reposition = False
+        _target_fail_count = 0
+
+        def ui_ensure_target_locked(self, **kwargs):
+            return False
+
+    task = FakeAcquire()
+    assert ScriptTask.acquire_target(task, ['可爱雪人']) is False
+    assert task._target_fail_count == 1
+
+
+def test_on_target_lost_aborts_relock_on_reposition():
+    calls = []
+    task = SimpleNamespace(
+        battle_fast_relock=lambda: True,
+        battle_relock_target=lambda names, abort_check=None: calls.append('relock') or True,
+    )
+    callback = ScriptTask.battle_on_target_lost(
+        task, ['可爱雪人'], abort_check=lambda: True)
+    assert callback() is False
+    assert calls == []
+
+
+def test_on_target_lost_relocks_when_no_reposition():
+    calls = []
+    task = SimpleNamespace(
+        battle_fast_relock=lambda: True,
+        battle_relock_target=lambda names, abort_check=None: calls.append('relock') or True,
+    )
+    callback = ScriptTask.battle_on_target_lost(
+        task, ['可爱雪人'], abort_check=lambda: False)
+    assert callback() is True
+    assert calls == ['relock']
+
+
+def test_battle_relock_target_aborts_before_clicking():
+    clicks = []
+    task = SimpleNamespace(
+        RELOCK_MAX_SWITCH=3,
+        C_TARGET_BUTTON_CLICK=SimpleNamespace(
+            coord=lambda: clicks.append('click') or (1, 2)),
+    )
+    assert ScriptTask.battle_relock_target(task, ['x'], abort_check=lambda: True) is False
+    assert clicks == []
+
+
+def test_battle_target_ok_rejects_attackable_player():
+    task = SimpleNamespace(
+        ui_target_attackable=lambda image=None: True,
+        ui_target_name=lambda: '孤舟载雪渡寒江',
+        ocr_name_match=ScriptTask.ocr_name_match,
+    )
+    assert ScriptTask.battle_target_ok(task, ['可爱雪人', '陵鱼'], image=None) is False
+
+
+def test_battle_target_ok_accepts_whitelist():
+    task = SimpleNamespace(
+        ui_target_attackable=lambda image=None: True,
+        ui_target_name=lambda: '可愛雪人',
+        ocr_name_match=ScriptTask.ocr_name_match,
+    )
+    assert ScriptTask.battle_target_ok(task, ['可爱雪人', '可愛雪人'], image=None) is True
+
+
+def test_battle_target_ok_false_when_not_attackable():
+    task = SimpleNamespace(
+        ui_target_attackable=lambda image=None: False,
+        ui_target_name=lambda: '可愛雪人',
+        ocr_name_match=ScriptTask.ocr_name_match,
+    )
+    assert ScriptTask.battle_target_ok(task, ['可愛雪人']) is False
+
+
+def test_battle_target_ok_tolerates_empty_name():
+    task = SimpleNamespace(
+        ui_target_attackable=lambda image=None: True,
+        ui_target_name=lambda: '',
+        ocr_name_match=ScriptTask.ocr_name_match,
+    )
+    assert ScriptTask.battle_target_ok(task, ['可愛雪人']) is True
+
+
+def test_normal_attack_stops_on_player_without_hitting():
+    attacks = []
+    task = SimpleNamespace(
+        battle_stop_reason=lambda: None,
+        screenshot=lambda: 'img',
+        battle_target_ok=lambda names, image: False,
+        battle_click_attack=lambda: attacks.append('hit'),
+        device=SimpleNamespace(sleep=lambda seconds: None),
+        NORMAL_ATTACK_INTERVAL=1.0,
+    )
+    assert ScriptTask.normal_attack_until_lost(task, ['可愛雪人']) == 'target_lost'
+    assert attacks == []
+
+
+def test_normal_attack_hits_valid_then_stops_on_player():
+    attacks = []
+    results = iter([True, False])
+    task = SimpleNamespace(
+        battle_stop_reason=lambda: None,
+        screenshot=lambda: 'img',
+        battle_target_ok=lambda names, image: next(results),
+        battle_click_attack=lambda: attacks.append('hit'),
+        device=SimpleNamespace(sleep=lambda seconds: None),
+        NORMAL_ATTACK_INTERVAL=1.0,
+    )
+    assert ScriptTask.normal_attack_until_lost(task, ['可愛雪人']) == 'target_lost'
+    assert attacks == ['hit']
+
+
 def test_return_to_position_uses_autopath_when_joystick_fails():
     calls = []
 
