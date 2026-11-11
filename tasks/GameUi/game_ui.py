@@ -31,12 +31,14 @@ from tasks.GameUi.navigation.general import GeneralFunctions
 from tasks.GameUi.navigation.panel import PanelNavigation
 from tasks.GameUi.navigation.top_menu import TopMenuNavigation
 from tasks.GameUi.world.map import MapNavigation
+from tasks.GameUi.world.map_coordinate import MapCoordinateNavigation
 from tasks.GameUi.world.move import MapMove
 
 
 class GameUi(NavigationEngine, OcrHelpers, UiUtils,
              PanelNavigation, TopMenuNavigation, ActivityNavigation,
-             BagNavigation, GeneralFunctions, MapNavigation, MapMove, SimpleBattle):
+              BagNavigation, GeneralFunctions, MapNavigation, MapMove,
+              MapCoordinateNavigation, SimpleBattle):
     """页面寻路引擎门面：能力见顶部文档，各子包混入使用"""
 
     def __init__(self, config, device):
