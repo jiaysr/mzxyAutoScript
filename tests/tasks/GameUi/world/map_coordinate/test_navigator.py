@@ -93,8 +93,8 @@ def test_navigates_by_selected_view_and_returns_stable_actual_position():
     result = navigator.go_to_coordinate(296, 85, stable_time=1, poll_interval=1)
 
     assert result == ("沼泽", 296, 85)
-    assert host.calls.index(("pan", "top_left")) < host.calls.index(("tap", 664, 249))
-    assert host.calls.index(("tap", 664, 249)) < host.calls.index(("close_minimap",))
+    assert host.calls.index(("pan", "top_left")) < host.calls.index(("tap", 664, 250))
+    assert host.calls.index(("tap", 664, 250)) < host.calls.index(("close_minimap",))
 
 
 def test_no_progress_logs_unreachable_and_clicks_once():

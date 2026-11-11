@@ -98,7 +98,7 @@ def test_returns_none_when_frame_or_divider_is_ambiguous():
 
 - [x] **Step 1: 写样本拟合测试**
 
-样本格式为用户输入的整屏像素与到达坐标；运行时从样本屏幕坐标中扣除自动检测到的视口左上角。左上视图锚定 `(0,0)`；其他视图拟合本视口相对于地图坐标的平移偏移。每图共用 X/Y 比例，角视图分别保存偏移。
+样本格式为用户输入的整屏像素与到达坐标；运行时从样本屏幕坐标中扣除自动检测到的视口左上角。每图拟合带截距的 X/Y 比例，截距由样本自动求出而非强制为零；其他角视图在共享比例上拟合各自偏移。精确命中已有样本坐标时必须复用原始点击像素；其他目标则评估连续反算点邻域内的整数像素，选前向回投坐标误差最小者。
 
 ```python
 import pytest
@@ -121,7 +121,18 @@ def test_fits_swamp_top_left_samples_and_projects_target():
 
     assert calibration.scale_px_per_coord[0] == pytest.approx(1.70, abs=0.03)
     assert calibration.scale_px_per_coord[1] == pytest.approx(1.70, abs=0.03)
-    assert calibration.screen_for("top_left", (296, 85), viewport) == pytest.approx((664, 249), abs=2)
+    assert calibration.screen_for("top_left", (347, 79), viewport) == (750, 239)
+    assert calibration.screen_for("top_left", (296, 85), viewport) == pytest.approx((664, 250), abs=2)
+
+
+def test_neighbor_pixel_rounding_minimizes_forward_coordinate_error():
+    calibration = MapCalibration(
+        map_name="测试地图",
+        scale_px_per_coord=(2.0, 2.0),
+        views={"top_left": ViewTransform(0, 0)},
+    )
+    viewport = Viewport(100, 50, 300, 250, 1.0)
+    assert calibration.screen_for("top_left", (1.3, 2.2), viewport) == (103, 54)
 
 
 def test_view_with_too_few_samples_is_not_usable():
@@ -152,7 +163,7 @@ def test_view_with_high_residual_is_not_usable():
 
 - [x] **Step 3: 实现数据加载与拟合**
 
-定义 `MapSample(screen, coord)`、`ViewTransform(offset_x, offset_y)` 和 `MapCalibration(map_name, scale_px_per_coord, views)`。`ViewTransform` 的偏移单位为相对视口左上角的屏幕像素。左上视图至少 4 个样本，按每轴 `pixel_offset = pixels_per_coord × map_coord` 的最小二乘过原点拟合比例；右上/左下/右下使用同一比例，并由各自样本拟合视图偏移。对每个样本计算回投残差，均方根超过 2.5 格或任一方向坐标跨度不足 20 格时拒绝该标定。
+定义 `MapSample(screen, coord)`、`ViewTransform(offset_x, offset_y)` 和 `MapCalibration(map_name, scale_px_per_coord, views, samples)`。`ViewTransform` 的偏移单位为相对视口左上角的屏幕像素。左上视图至少 4 个样本，按每轴 `pixel_offset = pixels_per_coord × map_coord + intercept` 进行最小二乘拟合；截距自动由样本求出。右上/左下/右下使用同一比例，并由各自样本拟合偏移。保留归一化样本以便精确命中时复用原始点击像素；非样本目标在连续反算点附近评估整数像素候选，选坐标前向回投误差最小者。对每个样本计算回投残差，均方根超过 2.5 格或任一方向坐标跨度不足 20 格时拒绝该标定。
 
 - [x] **Step 4: 填入已有左上视图样本**
 

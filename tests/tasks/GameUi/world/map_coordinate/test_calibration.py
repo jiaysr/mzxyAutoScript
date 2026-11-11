@@ -30,6 +30,25 @@ def test_fits_swamp_top_left_samples_and_projects_target():
     assert calibration.screen_for("top_left", (296, 85), viewport) == pytest.approx((664, 249), abs=2)
 
 
+def test_exact_sample_coordinate_reuses_original_click_pixel():
+    calibration = MapCalibration.fit(
+        "沼泽", {"top_left": SWAMP_TOP_LEFT_SAMPLES}, Viewport(161, 105, 756, 510, 1.0)
+    )
+
+    assert calibration.screen_for("top_left", (347, 79), Viewport(161, 105, 756, 510, 1.0)) == (750, 239)
+
+
+def test_non_sample_target_rounds_to_best_neighboring_integer_pixel():
+    calibration = MapCalibration(
+        map_name="测试地图",
+        scale_px_per_coord=(2.0, 2.0),
+        views={"top_left": ViewTransform(0, 0)},
+    )
+    viewport = Viewport(100, 50, 300, 250, 1.0)
+
+    assert calibration.screen_for("top_left", (1.3, 2.2), viewport) == (103, 54)
+
+
 def test_fits_corner_offset_using_same_map_scale():
     viewport = Viewport(100, 50, 300, 250, 1.0)
     raw = {

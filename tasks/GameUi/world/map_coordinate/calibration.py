@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 from statistics import median
@@ -72,14 +72,15 @@ class MapCalibration:
     map_name: str
     scale_px_per_coord: tuple[float, float]
     views: dict[str, ViewTransform]
+    samples: dict[str, tuple[MapSample, ...]] = field(default_factory=dict)
 
     @classmethod
     def fit(cls, map_name: str, samples_by_view: Mapping[str, Sequence[Mapping]], viewport):
         """Fit per-map pixel scales and per-corner screen offsets.
 
-        The top-left viewport origin is the coordinate origin. Its scale is
-        fitted through (0, 0); other corner offsets are inferred from samples.
         JSON samples are full-screen pixels, normalized by the detected viewport.
+        The per-map scale and all view intercepts are fitted from samples; no
+        pixel origin is entered by the user.
         """
         unknown = set(samples_by_view) - set(VIEW_NAMES)
         if unknown:
@@ -89,50 +90,66 @@ class MapCalibration:
             raise ValueError(f"左上视图样本不足: 至少需要 {MIN_TOP_LEFT_SAMPLES} 个")
         top_left = [MapSample.from_dict(item) for item in top_left_raw]
 
-        px_x = np.asarray([sample.screen[0] - viewport.left for sample in top_left], dtype=float)
-        px_y = np.asarray([sample.screen[1] - viewport.top for sample in top_left], dtype=float)
+        normalized = {
+            view_name: tuple(
+                MapSample(
+                    screen=(sample.screen[0] - viewport.left,
+                            sample.screen[1] - viewport.top),
+                    coord=sample.coord,
+                )
+                for sample in (MapSample.from_dict(item) for item in raw_samples)
+            )
+            for view_name, raw_samples in samples_by_view.items()
+            if raw_samples
+        }
+        top_left = list(normalized["top_left"])
+        px_x = np.asarray([sample.screen[0] for sample in top_left], dtype=float)
+        px_y = np.asarray([sample.screen[1] for sample in top_left], dtype=float)
         coord_x = np.asarray([sample.coord[0] for sample in top_left], dtype=float)
         coord_y = np.asarray([sample.coord[1] for sample in top_left], dtype=float)
-        scale_x = cls._fit_scale(px_x, coord_x, "X")
-        scale_y = cls._fit_scale(px_y, coord_y, "Y")
+        scale_x, offset_top_left_x = cls._fit_line(coord_x, px_x, "X")
+        scale_y, offset_top_left_y = cls._fit_line(coord_y, px_y, "Y")
 
-        views = {"top_left": ViewTransform(0.0, 0.0)}
-        cls._validate_residuals(top_left, viewport, (scale_x, scale_y), views["top_left"])
+        views = {"top_left": ViewTransform(offset_top_left_x, offset_top_left_y)}
+        cls._validate_residuals(top_left, (scale_x, scale_y), views["top_left"])
         for view_name in VIEW_NAMES[1:]:
-            raw = list(samples_by_view.get(view_name) or ())
-            if not raw:
+            samples = list(normalized.get(view_name) or ())
+            if not samples:
                 continue
-            samples = [MapSample.from_dict(item) for item in raw]
-            offsets_x = [sample.screen[0] - viewport.left - scale_x * sample.coord[0]
+            offsets_x = [sample.screen[0] - scale_x * sample.coord[0]
                          for sample in samples]
-            offsets_y = [sample.screen[1] - viewport.top - scale_y * sample.coord[1]
+            offsets_y = [sample.screen[1] - scale_y * sample.coord[1]
                          for sample in samples]
             transform = ViewTransform(float(median(offsets_x)), float(median(offsets_y)))
-            cls._validate_residuals(samples, viewport, (scale_x, scale_y), transform)
+            cls._validate_residuals(samples, (scale_x, scale_y), transform)
             views[view_name] = transform
 
         return cls(map_name=map_name,
                    scale_px_per_coord=(scale_x, scale_y),
-                   views=views)
+                   views=views,
+                   samples=normalized)
 
     @staticmethod
-    def _fit_scale(pixel_offsets, coords, axis: str) -> float:
+    def _fit_line(coords, pixels, axis: str) -> tuple[float, float]:
         span = float(coords.max() - coords.min())
-        denom = float(np.dot(coords, coords))
+        centered_coords = coords - float(coords.mean())
+        centered_pixels = pixels - float(pixels.mean())
+        denom = float(np.dot(centered_coords, centered_coords))
         if span < MIN_COORD_SPAN or denom < 1e-9:
             raise ValueError(f"{axis} 坐标跨度不足: 至少需要 {MIN_COORD_SPAN:g} 格")
-        scale = float(np.dot(coords, pixel_offsets) / denom)
-        if not np.isfinite(scale) or scale <= 0:
+        scale = float(np.dot(centered_coords, centered_pixels) / denom)
+        offset = float(pixels.mean() - scale * coords.mean())
+        if not np.isfinite(scale) or scale <= 0 or not np.isfinite(offset):
             raise ValueError(f"{axis} 轴标定比例无效")
-        return scale
+        return scale, offset
 
     @staticmethod
-    def _validate_residuals(samples, viewport, scale, transform):
+    def _validate_residuals(samples, scale, transform):
         errors_x = []
         errors_y = []
         for sample in samples:
-            projected_x = ((sample.screen[0] - viewport.left - transform.offset_x) / scale[0])
-            projected_y = ((sample.screen[1] - viewport.top - transform.offset_y) / scale[1])
+            projected_x = ((sample.screen[0] - transform.offset_x) / scale[0])
+            projected_y = ((sample.screen[1] - transform.offset_y) / scale[1])
             errors_x.append(projected_x - sample.coord[0])
             errors_y.append(projected_y - sample.coord[1])
         rmse_x = float(np.sqrt(np.mean(np.square(errors_x))))
@@ -144,10 +161,30 @@ class MapCalibration:
         transform = self.views.get(view_name)
         if transform is None:
             raise ValueError(f"地图 {self.map_name} 未标定视口 {view_name}")
-        return (
-            viewport.left + self.scale_px_per_coord[0] * float(coord[0]) + transform.offset_x,
-            viewport.top + self.scale_px_per_coord[1] * float(coord[1]) + transform.offset_y,
-        )
+
+        # Preserve a user's exact successful sample. Integer tile boundaries
+        # can make a one-pixel rounding choice select a neighboring map cell.
+        for sample in self.samples.get(view_name, ()):
+            if (abs(sample.coord[0] - float(coord[0])) < 1e-9
+                    and abs(sample.coord[1] - float(coord[1])) < 1e-9):
+                return (round(viewport.left + sample.screen[0]),
+                        round(viewport.top + sample.screen[1]))
+
+        ideal_x = self.scale_px_per_coord[0] * float(coord[0]) + transform.offset_x
+        ideal_y = self.scale_px_per_coord[1] * float(coord[1]) + transform.offset_y
+        x_candidates = range(int(np.floor(ideal_x)) - 1, int(np.ceil(ideal_x)) + 2)
+        y_candidates = range(int(np.floor(ideal_y)) - 1, int(np.ceil(ideal_y)) + 2)
+        candidates = []
+        for local_x in x_candidates:
+            for local_y in y_candidates:
+                projected_x = (local_x - transform.offset_x) / self.scale_px_per_coord[0]
+                projected_y = (local_y - transform.offset_y) / self.scale_px_per_coord[1]
+                world_error = ((projected_x - coord[0]) ** 2
+                               + (projected_y - coord[1]) ** 2)
+                pixel_error = ((local_x - ideal_x) ** 2 + (local_y - ideal_y) ** 2)
+                candidates.append((world_error, pixel_error, local_x, local_y))
+        _, _, local_x, local_y = min(candidates)
+        return viewport.left + local_x, viewport.top + local_y
 
     def select_view(self, coord: tuple[float, float], viewport, margin: int = 8):
         candidates = []
