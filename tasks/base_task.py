@@ -157,7 +157,8 @@ class BaseTask(GlobalGame):
                           action: Union[RuleClick, RuleLongClick] = None,
                           interval: float = None,
                           threshold: float = None,
-                          duration: float = None):
+                          duration: float = None,
+                          log: bool = True):
         """
         出现了就点击，默认点击图片的位置，如果添加了click参数，就点击click的位置
         :param duration: 如果是长按，可以手动指定duration，不指定默认.单位是ms！！！！
@@ -165,12 +166,13 @@ class BaseTask(GlobalGame):
         :param target: 可以是RuleImage后续支持RuleOcr
         :param interval:
         :param threshold:
+        :param log: False 时本次点击只写 DEBUG（高频目标切换用）
         :return: True or False
         """
         appear = self.appear(target, interval=interval, threshold=threshold)
         if appear and not action:
             x, y = target.coord()
-            self.device.click(x, y, control_name=target.name)
+            self.device.click(x, y, control_name=target.name, log=log)
 
         elif appear and action:
             x, y = action.coord()
@@ -180,7 +182,7 @@ class BaseTask(GlobalGame):
                 else:
                     self.device.long_click(x, y, duration=duration / 1000, control_name=target.name)
             elif isinstance(action, RuleClick):
-                self.device.click(x, y, control_name=target.name)
+                self.device.click(x, y, control_name=target.name, log=log)
 
         return appear
 

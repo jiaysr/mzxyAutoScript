@@ -601,7 +601,8 @@ class ScriptTask(GameUi, WarChariotAssets):
             return True
         if not self.appear_then_click(self.I_TARGET_BUTTON,
                                       action=self.C_TARGET_BUTTON_CLICK,
-                                      interval=self.CHARIOT_MOVE_LOCK_INTERVAL):
+                                      interval=self.CHARIOT_MOVE_LOCK_INTERVAL,
+                                      log=False):
             return False
         self.device.click_record_clear()
         # 点完等目标/右下角动作按钮刷新

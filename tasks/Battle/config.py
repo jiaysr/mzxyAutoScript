@@ -13,6 +13,8 @@
 
 每个预设都描述**目录里的全部技能**：`order` 是完整顺序（含被禁用的，位置不丢），
 `disabled` 是本预设里不释放的技能。执行时 = order 去掉 disabled。
+每个预设还各自带释放节奏：`clicks`（每个技能连点次数）、`click_interval`（点击间隔）、
+`attempts`（没进冷却时重试次数）和 `cooldown_timeout`（等进冷却的超时）。
 """
 from typing import List, Optional
 

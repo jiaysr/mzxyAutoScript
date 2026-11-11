@@ -10,7 +10,8 @@
 - `planner.py`：按「识别结果 + 预设顺序 + 禁用」算出实际点击顺序
 - `cooldown.py`：技能冷却识别（亮度x彩度评分 + `SkillStateStabilizer` 2 帧防抖，不依赖设备）
 - `attack.py`：战斗执行（点技能/看冷却/按预设攻击，混入任务类用；冷却状态默认防抖 2 帧）
-  - `battle_skill_loop()` 队列式一直打（优先级最高且冷却好的先放，卡住会按战斗设置重试/延后）
+  - `battle_skill_loop()` 队列式一直打（每次都取优先级最高且冷却好的技能，失败后继续重试；
+    连点次数/间隔取战斗预设里的 clicks / click_interval）
   - `battle_queue_until()` 同上的简写入口（一直打到 stop_check 为真）
   - `battle_slot_matches()` / `battle_slot_cache_clear()`：技能位身份只认一次（缓存），
     换职业/切技能后调 clear；`BATTLE_SLOT_CACHE = False` 可退回每次重认

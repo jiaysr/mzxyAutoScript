@@ -15,7 +15,8 @@
     self.battle_queue_until(stop_check)                               # 同上的简写入口
 
 队列模式：每轮挑「优先级最高且冷却好」的技能，连点（次数/间隔取预设里的释放节奏），
-没进冷却会按 common 的 attempts / cooldown_timeout 重试 + 延后重排；每次点击后校验目标。
+没进冷却会按 common 的 attempts / cooldown_timeout 重试；失败后下一轮仍按优先级重试同一技能，
+直到它进入冷却；每次点击后校验目标。
 其余方法（battle_click_*、battle_plan、battle_skill_state ...）是配套底层能力。
 
 技能位只认一次（`battle_slot_matches`）：一次任务里技能栏不会变，认出哪个位带的是哪个
@@ -86,8 +87,9 @@ class BattleAttack:
     # 真要退回全对称防抖，把它设成 ()。
     BATTLE_SKILL_STABLE_IMMEDIATE = (SKILL_COOLING,)
 
-    # 队列式释放（battle_skill_loop）里每次点击的连击次数与间隔：
-    # 同一点快速点两次 = 双击（技能要双击才稳定触发）
+    # 连点次数与间隔的兜底默认值：
+    # 正常走「战斗预设」里的 clicks / click_interval（默认 2 次 / 0.2s），
+    # 这里只在没有预设或直接调用底层点击方法时使用。
     BATTLE_SKILL_CLICKS = 2
     BATTLE_SKILL_CLICK_INTERVAL = 0.1
     # 点了没进冷却时的重试次数 / 每次等它进冷却的上限（秒）
@@ -140,13 +142,17 @@ class BattleAttack:
     def battle_click_skill_multi(self, index: int = 0, clicks: int = None,
                                  interval: float = None) -> None:
         """
-        点技能：在按钮区域随机取一点，连点 clicks 次（默认双击）
+        点技能：在按钮区域随机取一点，连点 clicks 次
 
-        双击必须落在同一点、间隔很短，所以坐标只随机一次。
+        连点必须落在同一点，所以坐标只随机一次。
+        连点次数/间隔由战斗预设里的 clicks / click_interval 控制；
+        不传参数时使用 BATTLE_SKILL_CLICKS / BATTLE_SKILL_CLICK_INTERVAL 兜底。
 
         :param index: BATTLE_SKILL_REGIONS 的下标，0 = 技能1
-        :param clicks: 点击次数，默认 BATTLE_SKILL_CLICKS（2）
-        :param interval: 两次点击之间的间隔，默认 BATTLE_SKILL_CLICK_INTERVAL（0.1s）
+        :param clicks: 点击次数；None = 使用 BATTLE_SKILL_CLICKS（2），
+                       battle_skill_loop 会传预设里的值
+        :param interval: 两次点击之间的间隔；None = 使用 BATTLE_SKILL_CLICK_INTERVAL（0.1s），
+                         battle_skill_loop 会传预设里的值
         """
         skills = BATTLE_SKILL_REGIONS_ALL if self.BATTLE_CLICK_EMPTY_SKILLS \
             else self.BATTLE_SKILL_REGIONS
@@ -647,7 +653,7 @@ class BattleAttack:
                              poll_interval: float = 0.1, clicks: int = None,
                              click_interval: float = None) -> str:
         """
-        尝试释放一个技能：双击 -> 判断目标 -> 判断冷切；没进冷切就重试。
+        尝试释放一个技能：按预设连点 -> 判断目标 -> 判断冷切；没进冷切就重试。
 
         识别只做两次：
         - 点击前用调用方传入的 image 判断目标（不重复截图）；
@@ -659,15 +665,18 @@ class BattleAttack:
         :param max_attempts: 最多点几次（含第一次）
         :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）
         :param poll_interval: 冷却轮询间隔（秒）
-        :param clicks: 每个技能连点几次，默认 BATTLE_SKILL_CLICKS（2）
-        :param click_interval: 同一技能两次点击的间隔，默认 BATTLE_SKILL_CLICK_INTERVAL（0.1）
+        :param clicks: 每个技能连点几次；None = 使用 BATTLE_SKILL_CLICKS（2），
+                       battle_skill_loop 会传预设里的值
+        :param click_interval: 同一技能两次点击的间隔；None = 使用
+                               BATTLE_SKILL_CLICK_INTERVAL（0.1s），
+                               battle_skill_loop 会传预设里的值
         :return: 'cooled' 进入冷却；'failed' 多次尝试仍未进入；'target_lost' 目标丢失
         """
         for attempt in range(1, max_attempts + 1):
             if image is None:
                 image = self.screenshot()
             if target_check is not None and not target_check(image):
-                logger.warning('目标丢失，停止释放技能')
+                logger.debug('目标丢失，停止释放技能')
                 return 'target_lost'
             self.battle_click_skill_multi(slot, clicks=clicks, interval=click_interval)
             image = None
@@ -689,7 +698,7 @@ class BattleAttack:
         队列模式的兼容入口：一直打，直到 `stop_check()` 返回 True
 
         等价于旧「一直打到 stop_check 为真」的用法，但走队列模式
-        （优先级最高、冷却好的先放；没进冷却会重试 + 延后重排）。
+        （优先级最高、冷却好的先放；没进冷却会重试，下一轮继续按优先级取）。
 
         :param stop_check: 无参函数，返回 True 结束
         :param target_check: 接收截图、返回 False 表示目标丢失；默认不按目标丢失停
@@ -721,7 +730,6 @@ class BattleAttack:
                           max_attempts: int = None,
                           cooldown_timeout: float = None,
                           poll_interval: float = 0.1,
-                          max_cycles: int = None,
                           max_skills: int = None,
                           on_cast: Callable[[int], None] = None,
                           on_target_lost: Callable[[], bool] = None,
@@ -729,16 +737,12 @@ class BattleAttack:
                           clicks: int = None,
                           click_interval: float = None) -> str:
         """
-        队列式连续释放技能（不按轮）：
+        按优先级连续释放技能：
 
-        ⚠️ 兼容保留：这是队列式实现（优先级最高且冷却好的先放，没进冷却会重试 + 延后重排），
-        目前世界首领 / 仙府九重天 / 域外迷窟 / 战斗试打还在用，也是本项目的唯一战斗模式。
-
-        - **每次都在当前顺序里挑「最高优先级、未冷却、本轮未失败过」的技能释放**，
-          所以高优先级技能一冷却好就会被优先释放，不会排在别的技能后面；
-        - 技能双击后没进冷却 -> 放到「下一个技能」后面再试一次（同时只允许一个延后）；
-        - 下一个技能也没进冷却时不重排，本轮跳过它，继续释放之前延后的那个；
-        - 所有可释放技能都试过一遍后，恢复优先级顺序开始新一轮；
+        - 每次都取「当前顺序里第一个未冷却的技能」释放；
+        - 释放失败（点了 max_attempts 次仍没进入冷却）不做延后、不做本轮跳过，
+          下一次循环仍然从顺序开头找：若它仍是最高的未冷却技能，就继续点它；
+        - 高优先级技能正常释放后会进入较长冷却，下一次自然会轮到后面的技能；
         - **所有技能都在冷却时**才释放普通攻击（按 attack_interval 节流）。
 
         :param slots: 技能位下标列表（按优先级）
@@ -753,7 +757,6 @@ class BattleAttack:
         :param cooldown_timeout: 点完等它进入冷却的最长时间（秒）；
                                  None = 读预设的 cooldown_timeout（默认 1.2）
         :param poll_interval: 冷却轮询间隔（秒）
-        :param max_cycles: 最多重排几轮（一轮 = 所有可释放技能都尝试过一遍），None = 不限
         :param max_skills: 最多成功释放几个技能（进入冷却算 1 个），None = 不限
         :param on_cast: 每次成功释放技能后回调，参数为本次调用内已释放的技能数；
                         用于死亡重试等中途退出的场景在外部累计释放数
@@ -775,8 +778,6 @@ class BattleAttack:
                         else max(1, int(max_attempts)))
         cooldown_timeout = (release['cooldown_timeout'] if cooldown_timeout is None
                             else float(cooldown_timeout))
-        logger.attr('释放节奏', f'连点 {clicks} 次 / 间隔 {click_interval}s / '
-                                f'重试 {max_attempts} 次 / 冷却超时 {cooldown_timeout}s')
 
         order = list(slots)
         recheck = getattr(self, 'battle_recheck_pending', None) if recheck_pending else None
@@ -787,21 +788,20 @@ class BattleAttack:
                 return 'timeout'
             logger.info('当前没有可释放的技能位，等待冷却结束后重认')
 
-        base_order = list(order)
-        # 本轮已经失败过、暂时不再尝试的技能（新一轮开始时清空）
-        blocked = set()
-        # 当前被延后到「下一个技能」后面的技能（同时只允许一个）
-        deferred = None
         timer = Timer(timeout).start() if timeout else None
-        cycles = 0
         casts = 0
         next_attack = 0.0
         if include_attack is None:
             include_attack = self.battle_use_normal_attack()
 
-        logger.hr('队列式释放技能', level=2)
-        logger.info(f'技能顺序：{[slot + 1 for slot in base_order]}')
-        logger.attr('普通攻击', '开启' if include_attack else '关闭')
+        # 刷怪任务会反复进入本循环，技能配置只在本次任务实例里打印一次
+        if not getattr(self, '_battle_loop_config_logged', False):
+            logger.attr('释放节奏', f'连点 {clicks} 次 / 间隔 {click_interval}s / '
+                                    f'重试 {max_attempts} 次 / 冷却超时 {cooldown_timeout}s')
+            logger.hr('队列式释放技能', level=2)
+            logger.info(f'技能顺序：{[slot + 1 for slot in order]}')
+            logger.attr('普通攻击', '开启' if include_attack else '关闭')
+            self._battle_loop_config_logged = True
 
         while True:
             # 每轮一张截图：停止条件、目标/按钮、7 个技能位冷切都从这张图识别
@@ -819,9 +819,6 @@ class BattleAttack:
                 updated = recheck(image=image)
                 if updated is not None:
                     order = [entry.slot for entry in updated]
-                    base_order = list(order)
-                    blocked.clear()
-                    deferred = None
                     logger.info(f'技能位重认后更新队列：{[slot + 1 for slot in order]}')
                     if not order:
                         if has_pending is None or not has_pending():
@@ -839,19 +836,12 @@ class BattleAttack:
                 self.device.sleep(idle_interval)
                 continue
 
-            # 每轮现查状态：冷却好的高优先级技能会立刻成为候选，不用等队列排到它
-            slot = next((s for s in order
-                         if states.get(s) != SKILL_COOLING and s not in blocked), None)
+            # 每次现查状态：取当前顺序里第一个未冷却的技能。
+            # 释放失败不挪位置、不标记，下一次仍会先选它；只有它进入冷却后，
+            # 后面的技能才会成为最高优先级的可释放技能。
+            slot = next((s for s in order if states.get(s) != SKILL_COOLING), None)
             if slot is None:
-                # 没有可释放的技能：新一轮，恢复优先级顺序、清空本轮失败记录
-                order = list(base_order)
-                blocked.clear()
-                deferred = None
-                cycles += 1
-                if max_cycles is not None and cycles >= max_cycles:
-                    logger.warning(f'达到最大重排次数 {max_cycles}')
-                    return 'timeout'
-                logger.info(f'重新按优先级排序：{[s + 1 for s in order]}')
+                self.device.sleep(idle_interval)
                 continue
 
             result = self.battle_skill_release(
@@ -862,7 +852,7 @@ class BattleAttack:
                 # 目标死了/被拉走：允许调用方立刻补锁下一个目标，接着在同一轮里打
                 # （刷小怪时一刀一只，每只都退回外层重锁会白花 1s 以上）
                 if on_target_lost is not None and on_target_lost():
-                    logger.info('已补锁到下一个目标，继续释放技能')
+                    logger.debug('已补锁到下一个目标，继续释放技能')
                     continue
                 # 交给调用方再确认一次（比如等奖励面板），没有结论就按目标丢失结束
                 if check_stop is not None:
@@ -873,31 +863,13 @@ class BattleAttack:
                 if on_cast is not None:
                     # 计数可能因死亡抛异常中断本次调用，及时外传累计值
                     on_cast(casts)
-                blocked.discard(slot)
-                if deferred == slot:
-                    deferred = None
                 if max_skills is not None and casts >= max_skills:
                     logger.info(f'已成功释放 {casts} 个技能，达到上限 {max_skills}，结束')
                     return 'skill_limit'
                 continue
 
-            # 没进冷却
-            if deferred == slot:
-                # 延后的技能再次失败：本轮不再重试它
-                deferred = None
-                blocked.add(slot)
-                logger.info(f'技能{slot + 1} 仍未进入冷却，本轮不再重试')
-            elif deferred is None:
-                # 第一次失败：排到「下一个技能」后面，允许再试一次
-                deferred = slot
-                index = order.index(slot)
-                order.pop(index)
-                order.insert(min(index + 1, len(order)), slot)
-                logger.info(f'技能{slot + 1} 延后，排到下一个技能后面：{[s + 1 for s in order]}')
-            else:
-                # 已有延后技能：当前技能不重排，本轮不再尝试
-                blocked.add(slot)
-                logger.info(f'技能{slot + 1} 未进入冷却，已有延后技能，本轮不重排')
+            # 没进冷却：不延后、不跳过，下一轮仍按优先级从第一个未冷却技能取。
+            logger.debug(f'技能{slot + 1} 未进入冷却，继续按优先级重试')
     def battle_wait_cooldown_checked(self, slot: int,
                                      target_check: Callable[[np.ndarray], bool] = None,
                                      timeout: float = 2.0,
@@ -915,7 +887,7 @@ class BattleAttack:
         while True:
             image = self.screenshot()
             if target_check is not None and not target_check(image):
-                logger.warning('点击技能后目标丢失')
+                logger.debug('点击技能后目标丢失')
                 return 'target_lost'
             if self.battle_skill_state(slot, image=image) == SKILL_COOLING:
                 return 'cooled'

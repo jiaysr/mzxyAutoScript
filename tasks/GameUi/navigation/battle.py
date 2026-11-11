@@ -21,8 +21,8 @@
   - 释放计划：`battle_plan()`（识别 + 预设优先级 + 禁用 -> 点击顺序）、
     `battle_plan_slots()`（只要技能位下标，队列模式用）
   - **唯一战斗模式（队列式）**：`battle_skill_loop(slots, check_stop=..., target_check=...)`
-    优先级最高且冷却好的先放，没进冷却会按「战斗设置」的 attempts / cooldown_timeout 重试 + 延后重排；
-    简写入口 `battle_queue_until(stop_check)`
+    每次都取优先级最高且冷却好的技能；没进冷却会按「战斗设置」的 attempts / cooldown_timeout
+    重试，下一轮仍按优先级继续取；简写入口 `battle_queue_until(stop_check)`
 
 目标锁定是主页面通用能力：「目标」按钮在右侧竖排
 （要收起右上角菜单 `ui_close_menu` 后才露出），
@@ -102,7 +102,12 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         text = ''.join(item.ocr_text for item in
                        self.O_TARGET_NAME.detect_and_ocr(image, logDisplay=False))
         if text:
-            logger.attr('Target name', text)
+            # 同一目标会被反复 OCR，只在名字变化时写 INFO，其余留 DEBUG
+            if getattr(self, '_target_name_logged', None) != text:
+                logger.attr('Target name', text)
+                self._target_name_logged = text
+            else:
+                logger.debug('[Target name] %s', text)
         return text
 
     def ui_lock_target(self, interval: float = None) -> bool:
@@ -118,7 +123,7 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         # 点图标下方的「目标」文字比点图标稳（图标区域小，识别容易抖）
         return self.appear_then_click(self.I_TARGET_BUTTON,
                                       action=self.C_TARGET_BUTTON_CLICK,
-                                      interval=interval)
+                                      interval=interval, log=False)
 
     # ---------------------------------------------------------------- 快速补锁
     # 目标死后快速补锁：点「目标」后等界面刷新的时间（秒）。
@@ -154,7 +159,8 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
                 logger.info('补锁被中断，交回外层')
                 return False
             x, y = self.C_TARGET_BUTTON_CLICK.coord()
-            self.device.click(x=x, y=y, control_name='BATTLE_TARGET')
+            # 高频补锁点击不写 INFO，避免刷屏
+            self.device.click(x=x, y=y, control_name='BATTLE_TARGET', log=False)
             self.device.click_record_clear()
             self.device.sleep(self.RELOCK_SETTLE)
             image = self.screenshot()
@@ -165,8 +171,9 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
             name = self.ui_target_name()
             if name and any(self.ocr_name_match(name, expected) for expected in names):
                 return True
+            # 只保留「指定了白名单但锁到别的目标」这条关键信息
             logger.info(f'补锁到 [{name or "?"}]，不在白名单 {list(names)}，继续切')
-        logger.info('快速补锁没锁到目标，交回完整流程')
+        logger.debug('快速补锁没锁到目标，交回完整流程')
         return False
 
     def battle_on_target_lost(self, names=None, abort_check: Callable[[], bool] = None):
@@ -293,14 +300,15 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
                         return True
                     name = self.ui_target_name(scales=name_scales, min_score=name_score)
                     if any(OcrHelpers.ocr_name_match(name, expected) for expected in names):
-                        logger.info(f'Target locked and matched: {name}')
+                        logger.debug(f'Target locked and matched: {name}')
                         return True
+                    # 指定了白名单时只打印「锁到的不是目标名」，匹配成功不刷屏
                     logger.info(f'Target [{name or "?"}] not in {names}, switch target')
                 else:
                     logger.info(f'Target action is {ACTION_NAMES_ZH.get(current, current)}, '
                                 f'need {need_text}, switch target')
             else:
-                logger.info('No target locked, click target button')
+                logger.debug('No target locked, click target button')
 
             if switches >= max_switch:
                 logger.warning(f'Target lock failed after {max_switch} switches')
@@ -312,7 +320,8 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
             switches += 1
             # 用当前这张截图点按钮，不重复截图；间隔靠 sleep 保证
             self.appear_then_click(self.I_TARGET_BUTTON,
-                                   action=self.C_TARGET_BUTTON_CLICK)
+                                   action=self.C_TARGET_BUTTON_CLICK,
+                                   log=False)
             self.device.sleep(self.TARGET_LOCK_SWITCH_INTERVAL)
 
     def ui_target_lost_check(self, action: str = ACTION_ATTACK):
@@ -329,7 +338,7 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
             if image is None:
                 return False
             if not self.ui_target_locked(image=image):
-                logger.info('Target lost, stop attacking')
+                logger.debug('Target lost, stop attacking')
                 return True
             if action is None:
                 return False

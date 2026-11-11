@@ -482,7 +482,8 @@ class ScriptTask(GameUi, WorldBossAssets):
                                    f'it may already be finished; '
                                    f'still trying until {lock_deadline:%H:%M:%S}')
 
-            self.appear_then_click(self.I_TARGET_BUTTON, action=self.C_TARGET_BUTTON_CLICK)
+            self.appear_then_click(self.I_TARGET_BUTTON, action=self.C_TARGET_BUTTON_CLICK,
+                                   log=False)
             self.device.sleep(self.TARGET_LOCK_SWITCH_INTERVAL)
 
         self.screenshot()
@@ -991,7 +992,8 @@ class ScriptTask(GameUi, WorldBossAssets):
                                    f'it may already be finished; '
                                    f'still trying until {deadline:%H:%M:%S}')
 
-            self.appear_then_click(self.I_TARGET_BUTTON, action=self.C_TARGET_BUTTON_CLICK)
+            self.appear_then_click(self.I_TARGET_BUTTON, action=self.C_TARGET_BUTTON_CLICK,
+                                   log=False)
             self.device.sleep(self.TARGET_LOCK_SWITCH_INTERVAL)
 
         self.screenshot()

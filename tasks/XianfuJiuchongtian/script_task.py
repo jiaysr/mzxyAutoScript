@@ -24,8 +24,8 @@ TODO: 更好的做法是先传送到「安全地图」（禁止 PK）再清仙�
 流程：挑战-仙府九重天页 -> 选大关 -> 选小关 -> 开始挑战
       -> 进图后打开小地图，点战斗点让角色自动寻路到怪物，然后关闭小地图
       -> 收菜单锁定怪物（右下角按钮必须是「攻击」）；15s 内没进入战斗就重新点小地图移动
-      -> 打怪：按优先级队列释放技能，每个技能双击；
-         没进冷切就排到下一个技能后面（同时只允许一个延后），全部技能冷却时才普攻
+      -> 打怪：按优先级队列释放技能，每个技能按预设连点（clicks / click_interval）；
+         没进冷切就按配置重试，下一轮仍取优先级最高的可释放技能，全部技能冷却时才普攻
       -> 目标丢失/奖励面板出现即停 -> 翻牌领奖 -> 关面板，循环直到仙石不够。
       若目标丢失后回到仙府页面仍没有奖励面板，按本关未通过处理：推送通知并继续下一轮。
 """
@@ -49,7 +49,6 @@ STONE_COST = 4          # 每次挑战消耗
 
 MAP_NAME = '仙府九重天'
 BATTLE_TIMEOUT = 150
-BATTLE_GROUPS_MAX = 20
 # 目标消失后等奖励面板弹出的时间（秒）：怪物死亡 -> 面板弹出有一点延迟
 REWARD_PANEL_GRACE = 3.0
 # 目标丢失后等「奖励面板 / 回到仙府页面」的时间（秒）：没打过时会被传回仙府页面
@@ -509,7 +508,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             # max_switch 放大，让 15s 超时而不是切换次数先到
             if self.ui_ensure_target_locked(timeout=self.BATTLE_ENTER_TIMEOUT, max_switch=30):
                 logger.info('已锁定可攻击目标，开始释放技能'
-                            '（队列式：双击 -> 校验目标/冷切；全部冷却才普攻）')
+                            '（队列式：按预设连点 -> 校验目标/冷切；全部冷却才普攻）')
                 return self.battle_loop()
             logger.warning(f'{self.BATTLE_ENTER_TIMEOUT}s 内没有进入战斗，重新打开小地图移动')
 
@@ -522,13 +521,13 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
 
     def battle_loop(self) -> str:
         """
-        队列式连续释放技能，直到奖励面板出现 / 目标丢失 / 超时 / 重排次数上限
+        队列式连续释放技能，直到奖励面板出现 / 目标丢失 / 超时
 
-        - 按优先级顺序释放；没进冷却的技能排到下一个技能后面（同时只允许一个延后）；
-        - 下一个技能也没进冷却时不重排，继续释放之前延后的那个；
+        - 每次都取优先级最高且冷却好的技能；
+        - 没进冷却时按配置重试，仍失败则下一轮继续取同一个技能；
         - 所有技能都在冷却时才释放普通攻击。
 
-        :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'timeout' 超时/重排上限
+        :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'timeout' 超时
         """
         self.screenshot()
         slots = self.battle_plan_slots()
@@ -539,7 +538,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             target_check=lambda image: self.ui_target_attackable(image),
             timeout=BATTLE_TIMEOUT,
             poll_interval=self.SKILL_COOLDOWN_POLL,
-            max_cycles=BATTLE_GROUPS_MAX,
         )
 
     def battle_stop_reason(self, image=None) -> str | None:

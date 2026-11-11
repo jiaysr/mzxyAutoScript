@@ -754,7 +754,7 @@ class ScriptTask(GameUi, BuzhoushanAssets):
         """
         队列模式打到目标丢失（本任务统一的战斗模式）
 
-        - 每次挑「优先级最高且冷却好」的技能释放，没进冷却会延后重排（队列模式自带）；
+        - 每次挑「优先级最高且冷却好」的技能释放，没进冷却会按配置重试（队列模式自带）；
         - 每次点击后校验目标，目标丢失返回 'target_lost'；
         - 目标死了先原地补锁（配置 battle_config.fast_relock，见 battle_relock_after_kill），
           补到就留在同一轮里接着打，省掉退回外层重锁的 ~0.6s/只；
