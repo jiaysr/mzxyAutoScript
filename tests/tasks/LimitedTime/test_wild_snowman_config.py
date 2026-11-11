@@ -4,12 +4,13 @@ from module.config.config_manual import ConfigManual
 from module.config.config_menu import ConfigMenu
 from module.config.config_model import ConfigModel
 from tasks.GameUi.core.utils import UiUtils
-from tasks.LimitedTime.WildSnowman.config import WildSnowman
+from tasks.LimitedTime.WildSnowman.config import WildSnowman, WildSnowmanMap
 
 
 def test_default_config():
     cfg = WildSnowman()
     snowman = cfg.wild_snowman_config
+    assert snowman.map_name == WildSnowmanMap.LINGDAO
     assert snowman.battle_coord == '251,175'
     assert snowman.battle_tolerance == 5
     assert snowman.heal_repair_interval_minutes == 40
@@ -20,6 +21,11 @@ def test_default_config():
     assert cfg.battle_config.fast_relock is True
     assert cfg.scheduler.enable is False
     assert cfg.scheduler.priority == 100
+
+
+def test_only_lingdao_map_is_supported_for_now():
+    # 沼泽暂不开放：万事通定点未录入，无法完成治疗/修理
+    assert [item.value for item in WildSnowmanMap] == ['域外灵岛']
 
 
 def test_config_model_registers_wild_snowman():

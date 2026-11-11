@@ -3,20 +3,23 @@
 限时活动-野外雪人（WildSnowman）
 
 流程：
-    主页面 -> 传送到域外灵岛 -> 小地图视口移到右上角 -> 点击 644,401
-    -> 人物自动寻路到 251,175 附近 -> 只打「陵鱼 / 陵魚 / 可爱雪人 / 可愛雪人」
+    主页面 -> 传送到配置的地图（当前只支持域外灵岛）
+    -> 用小地图坐标寻路模块走到配置的打怪坐标（默认 251,175）
+    -> 只打「陵鱼 / 陵魚 / 可爱雪人 / 可愛雪人」
     -> 每 N 分钟（默认 40）找万事通治疗并修理装备，然后回打怪点
     -> 任务优先级最低：启用后一直打，检测到更高优先级任务到期时让路，
        立即重排自己，等正常任务跑完再继续
-    -> 死亡复活后重新前往 251,175，并重置治疗/修理计时
-    -> 掉线重启后同样重新前往 251,175，但不重置治疗/修理计时
+    -> 死亡复活后重新前往打怪坐标，并重置治疗/修理计时
+    -> 掉线重启后同样重新前往打怪坐标，但不重置治疗/修理计时
+
+沼泽暂不开放：万事通点位还没录入，治疗/修理无法完成。
 """
 import math
 import re
 from datetime import datetime, timedelta
 
 from module.base.timer import Timer
-from module.exception import GameStuckError, TaskEnd
+from module.exception import GameStuckError, TaskEnd, TaskFailed
 from module.logger import logger
 from tasks.Battle.target_action import ACTION_ATTACK
 from tasks.Dungeon.common import DungeonBase
@@ -28,10 +31,13 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     SCHEDULER_NAME = 'WildSnowman'
     name = '野外雪人'
 
+    # 默认打怪地图；实际使用任务配置里的 map_name
     MAP_NAME = '域外灵岛'
-    # 小地图视口要平移到的角落；打怪点和万事通都在右上角
+    # 万事通定点目前只录了域外灵岛；其它地图走通用 NPC 列表
+    HEALER_MAP = '域外灵岛'
+    # 万事通在小地图右上角；打怪点已改用地图坐标寻路
     MINIMAP_CORNER = 'top_right'
-    # 点击后等待自动寻路到打怪点的超时
+    # 小地图坐标寻路到打怪点的超时
     MAP_WALK_TIMEOUT = 120
 
     # 检查其他任务/配置/修理计时的间隔（秒）
@@ -100,6 +106,11 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     def current_config(self):
         return self.config.wild_snowman.wild_snowman_config
 
+    def map_name(self) -> str:
+        """配置的打怪地图名（枚举值转字符串，旧配置缺字段时回退默认地图）"""
+        value = getattr(self.current_config(), 'map_name', self.MAP_NAME)
+        return str(getattr(value, 'value', value) or self.MAP_NAME)
+
     def battle_position(self) -> tuple[int, int]:
         text = str(self.current_config().battle_coord or '251,175')
         try:
@@ -120,9 +131,17 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
 
     # ---------------------------------------------------------------- 进入地图 / 打怪点
     def ensure_in_map_and_position(self, reset_recover: bool = False) -> bool:
-        """确保在域外灵岛，并走到 251,175 附近的打怪点（路上死亡会自动重试）"""
+        """确保在配置地图，并走到打怪坐标附近（路上死亡会自动重试）"""
         logger.hr('前往野外雪人打怪点')
+        map_name = self.map_name()
+        logger.attr('打怪地图', map_name)
         for attempt in range(1, 4):
+            if self._resume_reposition:
+                # 走位过程中死亡/掉线：清掉标记，下一轮从复活点重新传送
+                reset_recover = reset_recover or self._reset_recover_after_resume
+                self._resume_reposition = False
+                self._reset_recover_after_resume = False
+                logger.warning('走位过程中死亡/掉线，重新前往打怪点')
             if self._ensure_in_map_and_position_once(reset_recover=reset_recover):
                 self._resume_reposition = False
                 self._reset_recover_after_resume = False
@@ -132,6 +151,7 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         return False
 
     def _ensure_in_map_and_position_once(self, reset_recover: bool = False) -> bool:
+        map_name = self.map_name()
         self.ui_reset_current_page()
         if not self.ui_goto(page_main, timeout=60):
             logger.warning('Main page does not appear')
@@ -139,10 +159,10 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         self.map_close_main_popup()
 
         location = self.map_current_location()
-        if location is None or not self.map_name_match(location[0], self.MAP_NAME):
-            logger.info(f'当前不在[{self.MAP_NAME}]，先传送')
-            if not self.map_teleport(self.MAP_NAME):
-                logger.warning(f'Teleport to [{self.MAP_NAME}] failed')
+        if location is None or not self.map_name_match(location[0], map_name):
+            logger.info(f'当前不在[{map_name}]，先传送')
+            if not self.map_teleport(map_name):
+                logger.warning(f'Teleport to [{map_name}] failed')
                 return False
             self.device.sleep(1)
 
@@ -150,10 +170,10 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
             if self._resume_reposition:
                 # 路上死亡/掉线：直接交给外层重试，不再在错误的地图里用摇杆
                 return False
-            # 自动寻路偶尔会被地形卡住，用摇杆闭环再兜底走一次
-            logger.warning('Minimap walk failed, fallback to map_move_to')
+            # 小地图坐标寻路偶尔会被地形卡住，用摇杆闭环再兜底走一次
+            logger.warning('Minimap coordinate walk failed, fallback to map_move_to')
             position = self.battle_position()
-            if not self.map_move_to(position[0], position[1], map_name=self.MAP_NAME,
+            if not self.map_move_to(position[0], position[1], map_name=map_name,
                                     tolerance=self.battle_tolerance(), timeout=60,
                                     ensure_main=False):
                 logger.warning('Cannot reach battle position')
@@ -167,34 +187,35 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         return True
 
     def walk_to_battle_position(self) -> bool:
-        """点小地图打怪点并等待自动寻路；中途死亡会提前退出"""
+        """按打怪坐标用小地图坐标导航自动寻路；中途死亡会提前退出"""
+        map_name = self.map_name()
         position = self.battle_position()
         tolerance = self.battle_tolerance()
+
+        if self._resume_reposition:
+            logger.warning('Death/disconnect pending, skip auto-walk')
+            return False
+
         location = self.map_current_location()
-        if (location and self.map_name_match(location[0], self.MAP_NAME)
+        if (location and self.map_name_match(location[0], map_name)
                 and abs(location[1] - position[0]) <= tolerance
                 and abs(location[2] - position[1]) <= tolerance):
             logger.info('Already at battle position')
             return True
 
-        if not self.dungeon_click_minimap_target(self.MINIMAP_CORNER,
-                                                 self.C_LINGDAO_SPAWN):
+        try:
+            actual = self.map_go_to_coordinate(
+                position[0], position[1], map_name=map_name,
+                timeout=self.MAP_WALK_TIMEOUT, tolerance=tolerance)
+        except TaskFailed as error:
+            logger.warning(f'Minimap coordinate navigation failed: {error}')
             return False
 
-        timer = Timer(self.MAP_WALK_TIMEOUT).start()
-        while not timer.reached():
-            if self._resume_reposition:
-                logger.warning('Auto-walk interrupted by death/disconnect')
-                return False
-            location = self.map_current_location()
-            if location and self.map_name_match(location[0], self.MAP_NAME):
-                if (abs(location[1] - position[0]) <= tolerance
-                        and abs(location[2] - position[1]) <= tolerance):
-                    logger.info(f'Arrived at battle position {location[1]},{location[2]}')
-                    return True
-            self.device.sleep(1)
-        logger.warning('Auto-walk to battle position timeout')
-        return False
+        if self._resume_reposition:
+            logger.warning('Auto-walk interrupted by death/disconnect')
+            return False
+        logger.info(f'Arrived at battle position {actual[0]} {actual[1]},{actual[2]}')
+        return True
 
     # ---------------------------------------------------------------- 打怪主循环
     def battle_loop(self) -> None:
@@ -368,11 +389,12 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         logger.attr('打怪进度', f'casts={self._casts}')
 
     def return_to_battle_position(self) -> bool:
-        """战斗中回到基准坐标（不重新传送，只摇杆微调）"""
+        """战斗中回到基准坐标（先摇杆微调，失败再用小地图坐标寻路兜底）"""
+        map_name = self.map_name()
         location = self.map_move_read_pos()
         if location is None:
             return False
-        if not self.map_name_match(location[0], self.MAP_NAME):
+        if not self.map_name_match(location[0], map_name):
             return False
         x, y = self.battle_position()
         tolerance = self.battle_tolerance()
@@ -381,12 +403,12 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
             return True
         logger.info(f'位置漂移到 {location[0]}{location[1]},{location[2]}'
                     f'（距离 {distance:.1f}），先用摇杆回打怪点')
-        if self.map_move_to(x, y, map_name=self.MAP_NAME,
+        if self.map_move_to(x, y, map_name=map_name,
                             tolerance=tolerance, timeout=30,
                             ensure_main=False, calibrate=False):
             return True
-        # 摇杆可能被地形/碰撞卡住，自动寻路不会被卡；改用小地图点击自动寻路
-        logger.warning('摇杆回位失败，改用自动寻路回打怪点')
+        # 摇杆可能被地形/碰撞卡住，自动寻路不会被卡；改用小地图坐标寻路
+        logger.warning('摇杆回位失败，改用小地图坐标寻路回打怪点')
         return self.walk_to_battle_position()
 
     # ---------------------------------------------------------------- 修理 / 治疗
@@ -425,7 +447,7 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
             return False
         self.map_close_main_popup()
         location = self.map_current_location()
-        if location and self.map_name_match(location[0], self.MAP_NAME):
+        if location and self.map_name_match(location[0], self.HEALER_MAP):
             return self.find_healer_in_lingdao()
         return super().dungeon_find_healer()
 
@@ -489,7 +511,7 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     # ---------------------------------------------------------------- 死亡 / 掉线
     def handle_death_resume(self) -> None:
         """
-        死亡复活：重新前往 251,175，并重置修理/治疗计时
+        死亡复活：重新前往配置的打怪坐标，并重置修理/治疗计时
 
         全局 handle_death 已负责点「返回村子」复活，这里只记录需要重新出发。
         """
@@ -500,7 +522,7 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
 
     def handle_disconnect_resume(self) -> None:
         """
-        掉线重启：重新前往 251,175，但不重置修理/治疗计时
+        掉线重启：重新前往配置的打怪坐标，但不重置修理/治疗计时
         """
         logger.warning('野外雪人掉线重启，重新前往打怪点（保留修理计时）')
         self.device.sleep(1)

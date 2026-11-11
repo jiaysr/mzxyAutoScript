@@ -2,6 +2,8 @@
 """
 限时活动-野外雪人 配置（WildSnowman）
 """
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 from tasks.Component.battle_config import BattleTaskConfig
@@ -14,12 +16,27 @@ class WildSnowmanScheduler(Scheduler):
     priority: int = Field(default=100, description='priority_help')
 
 
+class WildSnowmanMap(str, Enum):
+    """
+    野外雪人打怪地图。
+
+    沼泽暂不开放：万事通定点还没录入，治疗/修理无法在小地图上完成。
+    补录后在这里加 `SWAMP = '沼泽'` 即可。
+    """
+    LINGDAO = '域外灵岛'
+
+
 class WildSnowmanBattleConfig(BattleTaskConfig):
     # 连续刷怪场景：目标死后原地快速补锁，减少重新走完整锁敌流程的耗时
     fast_relock: bool = Field(default=True, description='fast_relock_help')
 
 
 class WildSnowmanConfig(BaseModel):
+    # 打怪地图：目前只开放域外灵岛（沼泽万事通点位未录入）
+    map_name: WildSnowmanMap = Field(
+        default=WildSnowmanMap.LINGDAO,
+        title='打怪地图',
+        description='野外雪人打怪地图（暂只支持域外灵岛；沼泽万事通点位未录入）')
     # 打怪基准坐标：进图/复活后先走到这里
     battle_coord: str = Field(default='251,175', description='打怪基准坐标 x,y（角色站这里循环打怪）')
     # 基准坐标容差

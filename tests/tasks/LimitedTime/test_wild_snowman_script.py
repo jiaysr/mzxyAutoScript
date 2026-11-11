@@ -5,19 +5,23 @@ from types import SimpleNamespace
 
 import pytest
 
-from module.exception import TaskEnd
+from module.exception import TaskEnd, TaskFailed
+from tasks.LimitedTime.WildSnowman.config import WildSnowmanMap
 from tasks.LimitedTime.WildSnowman.script_task import ScriptTask
 
 
 def _task_with_config(**kwargs):
     values = {
+        'map_name': WildSnowmanMap.LINGDAO,
         'battle_coord': '251,175',
         'battle_tolerance': 5,
         'heal_repair_interval_minutes': 40,
         'target_names': '陵鱼,可爱雪人,可愛雪人',
     }
     values.update(kwargs)
-    return SimpleNamespace(current_config=lambda: SimpleNamespace(**values))
+    inner = SimpleNamespace(**values)
+    task = SimpleNamespace(current_config=lambda: inner, MAP_NAME='域外灵岛')
+    return task
 
 
 def test_battle_preset_reads_own_battle_config_not_dungeon():
@@ -31,6 +35,18 @@ def test_battle_preset_reads_own_battle_config_not_dungeon():
     )
     assert ScriptTask.battle_task_battle_config(task) is own
     assert ScriptTask.battle_task_preset(task) == 'snowman_preset'
+
+
+def test_map_name_reads_configured_enum():
+    assert ScriptTask.map_name(_task_with_config()) == '域外灵岛'
+
+
+def test_map_name_falls_back_for_legacy_config():
+    task = SimpleNamespace(
+        MAP_NAME='域外灵岛',
+        current_config=lambda: SimpleNamespace(),
+    )
+    assert ScriptTask.map_name(task) == '域外灵岛'
 
 
 def test_battle_position_parses_default():
@@ -239,7 +255,7 @@ def test_return_to_position_uses_autopath_when_joystick_fails():
         return True
 
     task = SimpleNamespace(
-        MAP_NAME='域外灵岛',
+        map_name=lambda: '域外灵岛',
         map_move_read_pos=lambda: ('域外灵岛', 300, 300),
         battle_position=lambda: (251, 175),
         battle_tolerance=lambda: 5,
@@ -249,6 +265,97 @@ def test_return_to_position_uses_autopath_when_joystick_fails():
     )
     assert ScriptTask.return_to_battle_position(task) is True
     assert calls == ['joystick', 'autopath']
+
+
+def test_walk_to_battle_position_uses_coordinate_navigation():
+    calls = []
+
+    def fake_nav(x, y, **kwargs):
+        calls.append((x, y, kwargs))
+        return ('域外灵岛', 251, 175)
+
+    task = SimpleNamespace(
+        map_name=lambda: '域外灵岛',
+        battle_position=lambda: (251, 175),
+        battle_tolerance=lambda: 5,
+        _resume_reposition=False,
+        map_current_location=lambda: ('域外灵岛', 120, 80),
+        map_name_match=lambda text, name: text == name,
+        map_go_to_coordinate=fake_nav,
+        MAP_WALK_TIMEOUT=120,
+    )
+    assert ScriptTask.walk_to_battle_position(task) is True
+    assert calls == [(251, 175, {
+        'map_name': '域外灵岛',
+        'timeout': 120,
+        'tolerance': 5,
+    })]
+
+
+def test_walk_to_battle_position_skips_when_already_there():
+    calls = []
+    task = SimpleNamespace(
+        map_name=lambda: '域外灵岛',
+        battle_position=lambda: (251, 175),
+        battle_tolerance=lambda: 5,
+        _resume_reposition=False,
+        map_current_location=lambda: ('域外灵岛', 253, 173),
+        map_name_match=lambda text, name: text == name,
+        map_go_to_coordinate=lambda *args, **kwargs: calls.append(args),
+    )
+    assert ScriptTask.walk_to_battle_position(task) is True
+    assert calls == []
+
+
+def test_walk_to_battle_position_returns_false_on_task_failed():
+    def fake_nav(*args, **kwargs):
+        raise TaskFailed('坐标不可达')
+
+    task = SimpleNamespace(
+        map_name=lambda: '域外灵岛',
+        battle_position=lambda: (251, 175),
+        battle_tolerance=lambda: 5,
+        _resume_reposition=False,
+        map_current_location=lambda: ('域外灵岛', 120, 80),
+        map_name_match=lambda text, name: text == name,
+        map_go_to_coordinate=fake_nav,
+        MAP_WALK_TIMEOUT=120,
+    )
+    assert ScriptTask.walk_to_battle_position(task) is False
+
+
+def test_walk_to_battle_position_aborts_after_death():
+    def fake_nav(*args, **kwargs):
+        task._resume_reposition = True
+        return ('域外灵岛', 251, 175)
+
+    task = SimpleNamespace(
+        map_name=lambda: '域外灵岛',
+        battle_position=lambda: (251, 175),
+        battle_tolerance=lambda: 5,
+        _resume_reposition=False,
+        map_current_location=lambda: ('域外灵岛', 120, 80),
+        map_name_match=lambda text, name: text == name,
+        map_go_to_coordinate=fake_nav,
+        MAP_WALK_TIMEOUT=120,
+    )
+    assert ScriptTask.walk_to_battle_position(task) is False
+
+
+def test_ensure_clears_death_flag_and_keeps_recover_reset():
+    calls = []
+    task = SimpleNamespace(
+        map_name=lambda: '域外灵岛',
+        _resume_reposition=True,
+        _reset_recover_after_resume=True,
+        _ensure_in_map_and_position_once=lambda reset_recover: (
+            calls.append(reset_recover) or True),
+        device=SimpleNamespace(sleep=lambda seconds: None),
+    )
+    assert ScriptTask.ensure_in_map_and_position(task, reset_recover=False) is True
+    assert calls == [True]
+    assert task._resume_reposition is False
+    assert task._reset_recover_after_resume is False
 
 
 def test_stop_for_others_checks_higher_priority():
