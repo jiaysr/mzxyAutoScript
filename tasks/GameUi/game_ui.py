@@ -37,8 +37,8 @@ from tasks.GameUi.world.move import MapMove
 
 class GameUi(NavigationEngine, OcrHelpers, UiUtils,
              PanelNavigation, TopMenuNavigation, ActivityNavigation,
-              BagNavigation, GeneralFunctions, MapNavigation, MapMove,
-              MapCoordinateNavigation, SimpleBattle):
+             BagNavigation, GeneralFunctions, MapNavigation, MapMove,
+             MapCoordinateNavigation, SimpleBattle):
     """页面寻路引擎门面：能力见顶部文档，各子包混入使用"""
 
     def __init__(self, config, device):
