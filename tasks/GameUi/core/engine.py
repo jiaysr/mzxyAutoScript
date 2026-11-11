@@ -60,7 +60,15 @@ class NavigationEngine(BaseTask, GameUiAssets):
             spec = importlib.util.spec_from_file_location(module_name, page_file)
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
+                # 动态加载的页面也要写回 sys.modules：否则别的 page.py
+                # 再 import 同一个模块时会重新执行一遍，创建同名 Page，
+                # 导致 PageRegistry 出现两个 page_xxx，连线只加在其中一个上。
+                sys.modules[module_name] = module
+                try:
+                    spec.loader.exec_module(module)
+                except Exception:
+                    sys.modules.pop(module_name, None)
+                    raise
 
     @property
     def ui_pages(self) -> list[Page]:
