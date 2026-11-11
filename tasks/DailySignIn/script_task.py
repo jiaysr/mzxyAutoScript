@@ -551,6 +551,6 @@ if __name__ == '__main__':
     device = Device(config)
     try:
         t=ScriptTask(config, device)
-        t.do_daily_sign_in()
+        t.device.click(552, 593)
     except TaskEnd:
         pass
