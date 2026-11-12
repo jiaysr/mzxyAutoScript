@@ -7,11 +7,16 @@ from typing import Mapping, Sequence
 import numpy as np
 
 
-MIN_TOP_LEFT_SAMPLES = 4
+MIN_PRIMARY_SAMPLES = 4
 MIN_COORD_SPAN = 20.0
 MAX_FIT_RMSE = 2.5
 VIEW_NAMES = ("top_left", "top_right", "bottom_left", "bottom_right")
 MAPS_FILE = Path(__file__).with_name("maps.json")
+# 未标定地图的估算比例：由 maps.json 中沼泽、域外灵岛的左上样本拟合值取均值
+# （X≈1.688、Y≈1.695 像素/格）。只用于完全没有标定数据的地图，
+# 视为「视口左上角 = 地图 (0,0)」，误差随离原点的距离增大。
+DEFAULT_SCALE_PX_PER_COORD = (1.69, 1.69)
+DEFAULT_VIEW = "top_left"
 
 
 class TargetNotCoveredError(ValueError):
@@ -73,6 +78,27 @@ class MapCalibration:
     scale_px_per_coord: tuple[float, float]
     views: dict[str, ViewTransform]
     samples: dict[str, tuple[MapSample, ...]] = field(default_factory=dict)
+    # True 表示该地图没有样本，按视口左上角 (0,0) + 默认比例估算
+    estimated: bool = False
+
+    @classmethod
+    def estimate(cls, map_name: str,
+                 scale: tuple[float, float] = DEFAULT_SCALE_PX_PER_COORD
+                 ) -> "MapCalibration":
+        """Build a top-left-only calibration for a map without samples.
+
+        No offset data exists for the other three corners, so only the
+        top-left view can be used. The caller still applies the viewport
+        bounds check, so targets outside that view fail instead of being
+        clamped to an edge.
+        """
+        scale_x, scale_y = (float(value) for value in scale)
+        if not np.isfinite([scale_x, scale_y]).all() or scale_x <= 0 or scale_y <= 0:
+            raise ValueError("估算比例必须是正数")
+        return cls(map_name=map_name,
+                   scale_px_per_coord=(scale_x, scale_y),
+                   views={DEFAULT_VIEW: ViewTransform(0.0, 0.0)},
+                   estimated=True)
 
     @classmethod
     def fit(cls, map_name: str, samples_by_view: Mapping[str, Sequence[Mapping]], viewport):
@@ -85,10 +111,6 @@ class MapCalibration:
         unknown = set(samples_by_view) - set(VIEW_NAMES)
         if unknown:
             raise ValueError(f"未知视口角落: {sorted(unknown)}")
-        top_left_raw = list(samples_by_view.get("top_left") or ())
-        if len(top_left_raw) < MIN_TOP_LEFT_SAMPLES:
-            raise ValueError(f"左上视图样本不足: 至少需要 {MIN_TOP_LEFT_SAMPLES} 个")
-        top_left = [MapSample.from_dict(item) for item in top_left_raw]
 
         normalized = {
             view_name: tuple(
@@ -102,17 +124,28 @@ class MapCalibration:
             for view_name, raw_samples in samples_by_view.items()
             if raw_samples
         }
-        top_left = list(normalized["top_left"])
-        px_x = np.asarray([sample.screen[0] for sample in top_left], dtype=float)
-        px_y = np.asarray([sample.screen[1] for sample in top_left], dtype=float)
-        coord_x = np.asarray([sample.coord[0] for sample in top_left], dtype=float)
-        coord_y = np.asarray([sample.coord[1] for sample in top_left], dtype=float)
-        scale_x, offset_top_left_x = cls._fit_line(coord_x, px_x, "X")
-        scale_y, offset_top_left_y = cls._fit_line(coord_y, px_y, "Y")
 
-        views = {"top_left": ViewTransform(offset_top_left_x, offset_top_left_y)}
-        cls._validate_residuals(top_left, (scale_x, scale_y), views["top_left"])
-        for view_name in VIEW_NAMES[1:]:
+        # 主视图提供整张地图共用的像素比例：优先 top_left（兼容已有数据），
+        # 否则取样本最多的视图，支持只录了任意两个角（甚至单角）的地图。
+        primary = "top_left" if len(normalized.get("top_left") or ()) >= MIN_PRIMARY_SAMPLES else None
+        if primary is None:
+            primary = max(normalized, key=lambda name: len(normalized[name]), default=None)
+        if primary is None or len(normalized[primary]) < MIN_PRIMARY_SAMPLES:
+            raise ValueError(f"主视图样本不足: 至少需要一个视图有 {MIN_PRIMARY_SAMPLES} 个样本")
+
+        primary_samples = list(normalized[primary])
+        px_x = np.asarray([sample.screen[0] for sample in primary_samples], dtype=float)
+        px_y = np.asarray([sample.screen[1] for sample in primary_samples], dtype=float)
+        coord_x = np.asarray([sample.coord[0] for sample in primary_samples], dtype=float)
+        coord_y = np.asarray([sample.coord[1] for sample in primary_samples], dtype=float)
+        scale_x, offset_x = cls._fit_line(coord_x, px_x, "X")
+        scale_y, offset_y = cls._fit_line(coord_y, px_y, "Y")
+
+        views = {primary: ViewTransform(offset_x, offset_y)}
+        cls._validate_residuals(primary_samples, (scale_x, scale_y), views[primary])
+        for view_name in VIEW_NAMES:
+            if view_name == primary:
+                continue
             samples = list(normalized.get(view_name) or ())
             if not samples:
                 continue

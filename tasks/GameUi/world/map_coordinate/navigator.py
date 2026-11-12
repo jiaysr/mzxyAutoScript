@@ -4,6 +4,8 @@ from typing import Callable
 from module.exception import TaskFailed
 from module.logger import logger
 from tasks.GameUi.world.map_coordinate.calibration import (
+    DEFAULT_SCALE_PX_PER_COORD,
+    DEFAULT_VIEW,
     MapCalibration,
     TargetNotCoveredError,
     load_map_database,
@@ -45,6 +47,10 @@ class MapCoordinateNavigator:
         return (abs(int(position[1]) - target[0]) <= tolerance
                 and abs(int(position[2]) - target[1]) <= tolerance)
 
+    @staticmethod
+    def _estimate_hint(estimated: bool) -> str:
+        return "（地图未标定，估算比例可能造成偏移）" if estimated else ""
+
     def _read_viewport(self):
         image = self.host.screenshot()
         viewport = self.viewport_detector(image)
@@ -84,28 +90,45 @@ class MapCoordinateNavigator:
             logger.info(f"已经在目标坐标 {map_name} {target[0]},{target[1]}")
             return start
 
+        map_data = None
+        estimated = False
         try:
             maps = self._database()
             map_data = maps.get(map_name)
             if not isinstance(map_data, dict) or not isinstance(map_data.get("views"), dict):
-                self._fail(f"地图 {map_name} 没有坐标标定数据")
+                map_data = None
         except TaskFailed:
             raise
         except Exception as error:
             self._fail(f"读取地图坐标标定失败: {error}")
+
+        if map_data is None:
+            # 没有 JSON 数据的地图走估算：视口左上角当作 (0,0)，
+            # 比例取已标定地图的均值；只能覆盖左上视图，越界仍然失败。
+            estimated = True
+            scale_x, scale_y = DEFAULT_SCALE_PX_PER_COORD
+            logger.warning(f"地图 {map_name} 没有坐标标定数据，"
+                           f"按视口左上角 (0,0)、{scale_x:.2f}/{scale_y:.2f} 像素/格估算")
 
         if not self.host.map_open_minimap_tap():
             self._fail("打开小地图失败")
         minimap_open = True
         try:
             viewport = self._read_viewport()
-            calibration = MapCalibration.fit(map_name, map_data["views"], viewport)
-            view_name, _ = calibration.select_view(target, viewport)
+            if estimated:
+                calibration = MapCalibration.estimate(map_name)
+                view_name = DEFAULT_VIEW
+            else:
+                calibration = MapCalibration.fit(map_name, map_data["views"], viewport)
+                view_name, _ = calibration.select_view(target, viewport)
             if not self.host.map_pan_to_corner(view_name):
                 self._fail(f"小地图无法平移到 {view_name} 视图")
 
             viewport = self._read_viewport()
-            calibration = MapCalibration.fit(map_name, map_data["views"], viewport)
+            if estimated:
+                calibration = MapCalibration.estimate(map_name)
+            else:
+                calibration = MapCalibration.fit(map_name, map_data["views"], viewport)
             point = calibration.screen_for(view_name, target, viewport)
             if not (viewport.left + 8 <= point[0] < viewport.right - 8
                     and viewport.top + 8 <= point[1] < viewport.bottom - 8):
@@ -113,7 +136,8 @@ class MapCoordinateNavigator:
             point = (round(point[0]), round(point[1]))
 
             logger.info(f"小地图寻路 [{map_name}] -> ({target[0]},{target[1]})，"
-                        f"视图={view_name}，点击像素=({point[0]},{point[1]})")
+                        f"视图={view_name}{'（估算）' if estimated else ''}，"
+                        f"点击像素=({point[0]},{point[1]})")
             self.host.device.click_adb(int(point[0]), int(point[1]))
             self.host.device.click_record_clear()
             self.host.device.sleep(0.2)
@@ -121,7 +145,8 @@ class MapCoordinateNavigator:
                 self._fail(f"小地图点选后无法关闭，目标 {map_name} {target[0]},{target[1]}")
             minimap_open = False
         except TargetNotCoveredError as error:
-            self._fail(f"地图 {map_name} 的四角视口未覆盖目标 {target}: {error}")
+            hint = "（未标定地图仅按左上视图估算）" if estimated else ""
+            self._fail(f"地图 {map_name} 的四角视口未覆盖目标 {target}{hint}: {error}")
         except TaskFailed:
             raise
         except Exception as error:  # noqa: BLE001 - 转换为任务业务失败
@@ -156,17 +181,20 @@ class MapCoordinateNavigator:
                     has_progress = True
                 elif has_progress and now - last_progress_at >= stable_time:
                     self._fail(f"坐标不可达: 目标 {map_name} {target[0]},{target[1]}，"
-                               f"实际停在 {position[1]},{position[2]}")
+                               f"实际停在 {position[1]},{position[2]}"
+                               f"{self._estimate_hint(estimated)}")
 
             if not has_progress and now - clicked_at >= no_progress_timeout:
                 actual = (position[1], position[2]) if position is not None else ("?", "?")
                 self._fail(f"坐标不可达: 目标 {map_name} {target[0]},{target[1]}，"
-                           f"人物未移动，当前 {actual[0]},{actual[1]}")
+                           f"人物未移动，当前 {actual[0]},{actual[1]}"
+                           f"{self._estimate_hint(estimated)}")
             self.host.device.sleep(poll_interval)
 
         actual = self.host.map_move_read_pos()
         actual_text = (f"{actual[1]},{actual[2]}" if actual else "未知")
-        self._fail(f"地图寻路超时: 目标 {map_name} {target[0]},{target[1]}，实际 {actual_text}")
+        self._fail(f"地图寻路超时: 目标 {map_name} {target[0]},{target[1]}，实际 {actual_text}"
+                   f"{self._estimate_hint(estimated)}")
 
 
 class MapCoordinateNavigation:

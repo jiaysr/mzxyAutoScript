@@ -79,6 +79,65 @@ def test_view_with_too_few_samples_is_not_usable():
         MapCalibration.fit("沼泽", raw, viewport)
 
 
+def test_fits_single_axis_two_corner_map():
+    viewport = Viewport(161, 105, 756, 510, 1.0)
+    raw = {
+        "top_left": [
+            {"screen": [200, 150], "coord": [20, 20]},
+            {"screen": [400, 150], "coord": [140, 20]},
+            {"screen": [200, 300], "coord": [20, 110]},
+            {"screen": [400, 300], "coord": [140, 110]},
+        ],
+        "bottom_left": [
+            {"screen": [200, 500], "coord": [20, 230]},
+        ],
+    }
+
+    calibration = MapCalibration.fit("纵向单轴地图", raw, viewport)
+
+    assert calibration.estimated is False
+    assert set(calibration.views) == {"top_left", "bottom_left"}
+    assert calibration.screen_for("bottom_left", (20, 230), viewport) == (200, 500)
+
+
+def test_fits_fixed_small_map_with_only_one_view():
+    viewport = Viewport(161, 105, 756, 510, 1.0)
+    raw = {
+        "top_left": [
+            {"screen": [200, 150], "coord": [20, 20]},
+            {"screen": [400, 150], "coord": [140, 20]},
+            {"screen": [200, 300], "coord": [20, 110]},
+            {"screen": [400, 300], "coord": [140, 110]},
+        ],
+    }
+
+    calibration = MapCalibration.fit("小地图", raw, viewport)
+
+    assert set(calibration.views) == {"top_left"}
+    assert calibration.select_view((80, 60), viewport)[0] == "top_left"
+
+
+def test_fits_scale_from_the_only_calibrated_corner():
+    viewport = Viewport(200, 100, 600, 400, 1.0)
+    raw = {
+        "top_right": [
+            {"screen": [500, 200], "coord": [100, 50]},
+            {"screen": [700, 200], "coord": [220, 50]},
+            {"screen": [500, 400], "coord": [100, 170]},
+            {"screen": [700, 400], "coord": [220, 170]},
+        ],
+        "bottom_left": [
+            {"screen": [300, 500], "coord": [30, 230]},
+        ],
+    }
+
+    calibration = MapCalibration.fit("右上+左下", raw, viewport)
+
+    assert calibration.scale_px_per_coord == pytest.approx((200 / 120, 200 / 120))
+    assert set(calibration.views) == {"top_right", "bottom_left"}
+    assert calibration.screen_for("bottom_left", (30, 230), viewport) == (300, 500)
+
+
 def test_view_with_high_residual_is_not_usable():
     raw = {
         "top_left": [
@@ -123,6 +182,29 @@ def test_target_outside_all_views_is_rejected():
 
     with pytest.raises(TargetNotCoveredError, match="未覆盖"):
         calibration.select_view((900, 900), viewport, margin=8)
+
+
+def test_estimate_uses_viewport_origin_as_map_zero():
+    calibration = MapCalibration.estimate("建木城外")
+    viewport = Viewport(161, 105, 756, 510, 1.0)
+
+    assert calibration.estimated is True
+    assert calibration.views == {"top_left": ViewTransform(0, 0)}
+    assert calibration.scale_px_per_coord == pytest.approx((1.69, 1.69))
+    assert calibration.screen_for("top_left", (296, 85), viewport) == (661, 249)
+
+
+def test_estimate_rejects_target_outside_top_left_view():
+    calibration = MapCalibration.estimate("建木城外")
+    viewport = Viewport(161, 105, 756, 510, 1.0)
+
+    with pytest.raises(TargetNotCoveredError, match="未覆盖"):
+        calibration.select_view((900, 900), viewport)
+
+
+def test_estimate_rejects_invalid_scale():
+    with pytest.raises(ValueError, match="正数"):
+        MapCalibration.estimate("建木城外", scale=(0, 1.69))
 
 
 def test_load_map_database_returns_named_absolute_samples(tmp_path):

@@ -131,7 +131,27 @@ def test_viewport_detection_failure_closes_minimap_and_fails():
     assert not any(call[0] == "tap" for call in host.calls)
 
 
-def test_missing_map_data_fails_before_opening_minimap():
+def test_missing_map_data_uses_top_left_estimate():
+    clock = FakeClock()
+    host = FakeGameUi(
+        [("建木城外", 100, 100), ("建木城外", 296, 85), ("建木城外", 296, 85)], clock
+    )
+    navigator = MapCoordinateNavigator(
+        host=host,
+        map_database={},
+        viewport_detector=lambda image: Viewport(161, 105, 756, 510, 1.0),
+        clock=clock,
+    )
+
+    result = navigator.go_to_coordinate(296, 85, stable_time=1, poll_interval=1)
+
+    assert result == ("建木城外", 296, 85)
+    assert ("pan", "top_left") in host.calls
+    # 视口左上角 (161,105) + 1.69 像素/格
+    assert ("tap", 661, 249) in host.calls
+
+
+def test_missing_map_data_outside_top_left_view_fails_without_tapping():
     clock = FakeClock()
     host = FakeGameUi([("建木城外", 100, 100)], clock)
     navigator = MapCoordinateNavigator(
@@ -141,10 +161,10 @@ def test_missing_map_data_fails_before_opening_minimap():
         clock=clock,
     )
 
-    with pytest.raises(TaskFailed, match="没有坐标标定数据"):
-        navigator.go_to_coordinate(296, 85)
+    with pytest.raises(TaskFailed, match="视口未覆盖"):
+        navigator.go_to_coordinate(900, 900)
 
-    assert ("open_minimap",) not in host.calls
+    assert not any(call[0] == "tap" for call in host.calls)
 
 
 def test_stopping_outside_tolerance_fails_with_actual_position():
