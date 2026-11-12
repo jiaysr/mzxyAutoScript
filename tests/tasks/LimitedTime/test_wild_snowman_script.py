@@ -342,6 +342,51 @@ def test_walk_to_battle_position_aborts_after_death():
     assert ScriptTask.walk_to_battle_position(task) is False
 
 
+class _StopBattleLoop(Exception):
+    pass
+
+
+def test_battle_loop_recognizes_skill_slots_only_once():
+    recognized = []
+    acquired = []
+
+    def acquire_target(names):
+        acquired.append(names)
+        if len(acquired) > 2:
+            raise _StopBattleLoop
+        return True
+
+    task = SimpleNamespace(
+        target_names=lambda: ['可爱雪人'],
+        stop_for_others=lambda: False,
+        stop_because_disabled=lambda: False,
+        _resume_reposition=False,
+        need_recover=lambda: False,
+        acquire_target=acquire_target,
+        recognize_skill_slots=lambda: recognized.append('slots') or [0, 1],
+        battle_current_slots=lambda: [0, 1],
+        battle_skill_loop=lambda *args, **kwargs: 'target_lost',
+        battle_stop_reason=lambda image=None: None,
+        battle_target_ok=lambda names, image=None: True,
+        battle_use_normal_attack=lambda: False,
+        battle_on_target_lost=lambda names, abort_check=None: (lambda: False),
+        on_cast=lambda casts: None,
+        normal_attack_until_lost=lambda names: 'target_lost',
+        NORMAL_ATTACK_INTERVAL=1.0,
+        SKILL_COOLDOWN_POLL=0.1,
+        device=SimpleNamespace(sleep=lambda seconds: None),
+        _target_fail_count=0,
+        TARGET_WARN_AFTER=10,
+        return_to_battle_position=lambda: True,
+    )
+
+    with pytest.raises(_StopBattleLoop):
+        ScriptTask.battle_loop(task)
+
+    assert len(acquired) == 3
+    assert len(recognized) == 1
+
+
 def test_ensure_clears_death_flag_and_keeps_recover_reset():
     calls = []
     task = SimpleNamespace(

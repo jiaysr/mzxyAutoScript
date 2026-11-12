@@ -531,7 +531,7 @@ class ScriptTask(GameUi, WorldBossAssets):
 
         self.screenshot()
         slots = self.battle_plan_slots()
-        logger.info(f'技能顺序：{[slot + 1 for slot in slots]}')
+        # 技能顺序由 battle_skill_loop 在首次进入时统一打印，这里不再按目标重复打印
         if max_skills:
             logger.attr('先攻击技能数', f'{max_skills}（已用 {used}，本轮最多 {skill_left}）')
 
@@ -1167,7 +1167,7 @@ class ScriptTask(GameUi, WorldBossAssets):
 
         self.screenshot()
         slots = self.battle_plan_slots()
-        logger.info(f'技能顺序：{[slot + 1 for slot in slots]}')
+        # 技能顺序由 battle_skill_loop 在首次进入时统一打印，这里不再按目标重复打印
 
         result = self.battle_skill_loop(
             slots,

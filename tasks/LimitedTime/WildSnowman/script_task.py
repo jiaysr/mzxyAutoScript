@@ -221,6 +221,9 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     def battle_loop(self) -> None:
         logger.hr('野外雪人循环打怪')
         names = self.target_names()
+        # 技能位只在本场任务第一次锁到目标时识别一次，之后目标丢失/换怪都复用。
+        # battle_skill_loop 内部会在冷却结束后重认 pending 技能位，这里取回更新后的顺序。
+        slots = []
         while True:
             if self.stop_for_others():
                 self._yielded = True
@@ -248,7 +251,10 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
                         self._resume_reposition = True
                 continue
 
-            slots = self.recognize_skill_slots()
+            if not slots:
+                slots = self.recognize_skill_slots()
+            # 重认 pending 技能位后使用最新顺序；没有更新时保留上一次的缓存
+            slots = self.battle_current_slots() or slots
             if slots:
                 reason = self.battle_skill_loop(
                     slots,
