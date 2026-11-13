@@ -18,6 +18,11 @@
       不整任务重跑，已统计好的背包碎片数量不会重扫（tests/test_xianfu_death.py）。
       仙府九重天地图内死亡不弹死亡框（直接退出到仙府页面），不会走到这条路径。
 
+副本内续跑：副本 HUD 和主页面一模一样（侧栏没有、右上角只有地点、左上角多一个倒计时），
+      页面引擎会把副本画面当成主页面，于是“导航到仙府页 / 读仙石”全都会乱点。
+      所以 `run()` 一开始先看右上角地点；人还在副本里就直接把这场打完再走正常流程，
+      进图判定同时看地点文字和左上角倒计时（地点 OCR 偶尔读不出来）。
+
 TODO: 更好的做法是先传送到「安全地图」（禁止 PK）再清仙石，从源头避开被玩家击杀。
       但传送/跑图本身仍在野外进行，中途照样可能死，所以复活重试必须保留。
 
@@ -81,6 +86,11 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
 
         if fixed_daguan:
             logger.info(f'已指定大关 {fixed_daguan}（{DAGUAN_NAMES[fixed_daguan]}），跳过背包统计')
+
+        # 上次运行被中断（战斗流程失败/手动停）时人可能还蹲在副本里。
+        # 副本内页面引擎把它当主页面，先打完这场再走正常流程，否则导航全都是错的
+        self.finish_pending_battle()
+
         stone, counts = self.prepare(threshold, color, fixed_daguan)
 
         self.repair_before_battle()
@@ -462,11 +472,69 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         """
         return str(self.config.xianfu_jiuchongtian.battle_config.battle_preset or '')
 
-    def in_xianfu_map(self):
-        location = self.map_current_location()
+    def in_xianfu_map(self, image=None):
+        """
+        当前是否在仙府九重天副本里（看右上角地点文字）
+
+        :param image: 可选，传入当前帧则不再重复截图
+        """
+        location = self.map_current_location(image)
         if location is None:
             return None
         return self.map_name_match(location[0], MAP_NAME)
+
+    # 副本加载等待时间（秒）和「开始挑战」重试次数
+    DUNGEON_LOAD_TIMEOUT = 25
+    DUNGEON_LOAD_RETRY = 2
+
+    def wait_dungeon_loaded(self, timeout: float = None) -> bool:
+        """
+        等副本加载完成
+
+        两个信号任一命中就算进图：
+        - 右上角地点文字是「仙府九重天」（正常情况）
+        - 左上角出现「倒计时」HUD（副本一定在倒计时，而地点 OCR 偶尔会读成旁边的黄字）
+        只看地点文字的话，OCR 一旦没读出来就会误判「副本未加载」而丢弃这场（还白花一次仙石）。
+        """
+        timeout = self.DUNGEON_LOAD_TIMEOUT if timeout is None else timeout
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.reset_records()
+            image = self.screenshot()
+            if self.appear(self.I_DUNGEON_COUNTDOWN):
+                logger.info('副本内倒计时出现，已进图')
+                return True
+            if self.in_xianfu_map(image):
+                logger.info('地点识别为仙府九重天，已进图')
+                return True
+            self.device.sleep(0.5)
+        return False
+
+    def finish_pending_battle(self) -> bool:
+        """
+        角色还在仙府副本里（上次运行没打完）时，先把这一场收拾掉
+
+        副本画面会被 `ui_get_current_page()` 判成 page_main（HUD 一样、没侧栏），
+        所以正常情况下再跑任务只会乱点导航然后超时，人一直留在副本里。
+
+        :return: 是否处理过副本（True 时调用方需重新读仙石）
+        """
+        if not self.in_xianfu_map():
+            return False
+        logger.warning('角色还在仙府九重天副本里（上次运行没打完），先把这场打完')
+        self._death_stage = 'battle'
+        if self.appear(self.I_REWARD_PANEL):
+            logger.info('副本里已经有翻牌面板，直接领奖')
+            self.claim_reward()
+            return True
+        result = self.battle()
+        if result not in ('reward', 'target_lost'):
+            logger.warning('副本内战斗流程失败')
+            return True
+        if result == 'target_lost':
+            self.wait_stage_result()
+        self.claim_reward()
+        return True
 
     # 关闭小地图后，多少秒内没进入战斗就重新打开小地图移动
     BATTLE_ENTER_TIMEOUT = 15
@@ -484,15 +552,21 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'failed' 副本未加载/移动失败/超时
         """
         logger.hr('战斗')
-        timer = Timer(25).start()
-        while not timer.reached():
-            self.reset_records()
-            if self.in_xianfu_map():
-                break
-            self.device.sleep(0.5)
-        else:
-            logger.warning('副本未加载')
-            return 'failed'
+        if not self.wait_dungeon_loaded():
+            # 有时「开始挑战」那一下被弹窗吃掉，人还停在仙府页面：再点一次
+            for attempt in range(1, self.DUNGEON_LOAD_RETRY + 1):
+                self.screenshot()
+                if not self.appear(self.I_XIANFU_PAGE):
+                    logger.warning('副本未加载，而且已经不在仙府页面')
+                    return 'failed'
+                logger.warning(f'副本没加载出来，重点开始挑战（{attempt}/{self.DUNGEON_LOAD_RETRY}）')
+                if not self.start_challenge():
+                    return 'failed'
+                if self.wait_dungeon_loaded():
+                    break
+            else:
+                logger.warning('副本未加载')
+                return 'failed'
 
         for attempt in range(1, self.BATTLE_MOVE_RETRY + 1):
             logger.info(f'打开小地图，点击战斗点（第{attempt}次）')

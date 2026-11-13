@@ -78,6 +78,8 @@ class XianfuJiuchongtianAssets:
 	I_DAGUAN_3 = RuleImage(roi_front=(548,206,143,129), roi_back=(548,206,143,129), threshold=0.8, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_daguan_3.png")
 	# 大关4-广目天特征(太极黑白) 
 	I_DAGUAN_4 = RuleImage(roi_front=(554,402,157,121), roi_back=(554,402,157,121), threshold=0.8, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_daguan_4.png")
+	# 副本内-左上角倒计时HUD（进图兜底判定：地点文字OCR读不出来时靠它确认已进图） 
+	I_DUNGEON_COUNTDOWN = RuleImage(roi_front=(254,102,102,34), roi_back=(180,80,300,100), threshold=0.8, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_dungeon_countdown.png")
 	# 背包-空物品格特征（整页出现说明下面没物品了） 
 	I_BAG_EMPTY = RuleImage(roi_front=(266,115,76,81), roi_back=(255,105,925,450), threshold=0.8, method="Template matching", file="./tasks/XianfuJiuchongtian/res/res_bag_empty.png")
 	# 背包-西极仙玉碎片（图标+第一行名字；同色碎片连续排列，搜索区覆盖最右列） 

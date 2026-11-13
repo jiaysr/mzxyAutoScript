@@ -81,6 +81,15 @@
     "description": "大关4-广目天特征(太极黑白)"
   },
   {
+    "itemName": "dungeon_countdown",
+    "imageName": "res_dungeon_countdown.png",
+    "roiFront": "254,102,102,34",
+    "roiBack": "180,80,300,100",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "副本内-左上角倒计时HUD（进图兜底判定：地点文字OCR读不出来时靠它确认已进图）"
+  },
+  {
     "itemName": "bag_empty",
     "imageName": "res_bag_empty.png",
     "roiFront": "266,115,76,81",
