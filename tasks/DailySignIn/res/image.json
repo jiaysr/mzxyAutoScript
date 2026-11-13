@@ -204,7 +204,7 @@
     "roiBack": "269,579,256,70",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "仙盟/信息-不可领取俸禄按钮"
+    "description": "仙盟/信息-俸禄灰色样式（仅供对照：模板匹配对明暗不敏感，判断已领取请用 script_task.salary_button_lit 的饱和度）"
   },
   {
     "itemName": "zodiac_gift_success",

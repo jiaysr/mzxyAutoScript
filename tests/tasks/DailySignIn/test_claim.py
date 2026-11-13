@@ -2,6 +2,8 @@
 """每日签到-生肖福利礼包/俸禄流程测试（不连设备）"""
 from types import SimpleNamespace
 
+import numpy as np
+
 from tasks.DailySignIn.script_task import ScriptTask
 
 
@@ -138,20 +140,23 @@ def test_vip_gift_skips_when_already_claimed():
     assert task.clicked == []
     assert task.closed == 1
 
-
 class FakeSalaryTask:
     SALARY_MAX_CLICKS = 3
-    I_SALARY_UNAVAILABLE = 'unavailable'
+    SALARY_LIT_SATURATION = 120
     I_XIANMENG_INFO_PAGE = 'info_page'
     I_XIANMENG_NONE = 'no_guild'
     C_CLAIM_SALARY = object()
 
-    def __init__(self, unavailable_after_screens, no_guild=False):
-        self.unavailable_after_screens = unavailable_after_screens
+    def __init__(self, lit=True, grays_after_clicks=1, no_guild=False,
+                 info_page_visible=True, popup_visible=False):
+        self.lit = lit
+        self.grays_after_clicks = grays_after_clicks
         self.no_guild = no_guild
-        self.screens = 0
+        self.info_page_visible = info_page_visible
+        # 是否有挡在信息页上的弹窗（能在 close_salary_popup 里关掉）
+        self.popup_visible = popup_visible
         self.clicks = 0
-        self.unknown_closed = 0
+        self.popups_closed = 0
         self.closed = 0
         self.pages = []
         self.device = SimpleNamespace(sleep=lambda seconds: None,
@@ -168,53 +173,99 @@ class FakeSalaryTask:
         pass
 
     def screenshot(self):
-        self.screens += 1
+        pass
 
     def appear(self, target, interval=None):
-        if target == self.I_SALARY_UNAVAILABLE:
-            return self.screens >= self.unavailable_after_screens
         if target == self.I_XIANMENG_INFO_PAGE:
-            return True
+            return self.info_page_visible
         if target == self.I_XIANMENG_NONE:
             return self.no_guild
         return False
 
     def click(self, target, interval=None):
         self.clicks += 1
+        if self.clicks >= self.grays_after_clicks:
+            self.lit = False
         return True
 
-    def try_close_unknown_page(self, skip_screenshot=True):
-        self.unknown_closed += 1
-        return True
+    def salary_button_lit(self):
+        return self.lit
+
+    def wait_salary_claimed(self, timeout=4):
+        return not self.lit
+
+    def close_salary_popup(self):
+        self.popups_closed += 1
+        return self.popup_visible
 
     def ensure_back_to_main(self):
         self.closed += 1
 
 
+class FakeImageTask:
+    """只测 salary_button_lit 用：给一张合成画面"""
+
+    SALARY_LIT_SATURATION = 120
+    salary_saturation = ScriptTask.salary_saturation
+
+    def __init__(self, image, roi_front=(10, 10, 20, 20)):
+        self.device = SimpleNamespace(image=image, sleep=lambda seconds: None)
+        self.C_CLAIM_SALARY = SimpleNamespace(roi_front=roi_front)
+
+
 def test_salary_skips_when_not_in_guild():
     from tasks.DailySignIn.page import page_xianmeng_member
-    task = FakeSalaryTask(unavailable_after_screens=1, no_guild=True)
+    task = FakeSalaryTask(no_guild=True)
     ScriptTask.do_claim_salary(task)
     assert task.clicks == 0
     assert task.pages == [page_xianmeng_member.name]
 
 
-def test_salary_skips_click_when_unavailable():
-    task = FakeSalaryTask(unavailable_after_screens=1)
+def test_salary_skips_click_when_already_gray():
+    from tasks.DailySignIn.page import page_xianmeng_info
+    task = FakeSalaryTask(lit=False)
     ScriptTask.do_claim_salary(task)
     assert task.clicks == 0
+    assert task.pages[-1] == page_xianmeng_info.name
 
 
-def test_salary_clicks_until_unavailable():
-    # 多了一次「未加入仙盟」检查的截图，所以第 2 次循环截图时已经变成不可领取
-    task = FakeSalaryTask(unavailable_after_screens=3)
+def test_salary_clicks_once_when_button_turns_gray():
+    task = FakeSalaryTask(lit=True)
     ScriptTask.do_claim_salary(task)
     assert task.clicks == 1
-    assert task.unknown_closed == 1
 
 
 def test_salary_stops_after_max_clicks():
-    task = FakeSalaryTask(unavailable_after_screens=999)
+    task = FakeSalaryTask(lit=True, grays_after_clicks=999)
     ScriptTask.do_claim_salary(task)
     assert task.clicks == task.SALARY_MAX_CLICKS
-    assert task.unknown_closed == task.SALARY_MAX_CLICKS
+
+
+def test_salary_reenters_info_page_when_panel_closed():
+    from tasks.DailySignIn.page import page_xianmeng_info
+    task = FakeSalaryTask(lit=True, info_page_visible=False)
+    ScriptTask.do_claim_salary(task)
+    assert task.pages.count(page_xianmeng_info.name) >= task.SALARY_MAX_CLICKS
+    assert task.clicks == 0
+
+
+def test_salary_closes_popup_instead_of_reentering():
+    from tasks.DailySignIn.page import page_xianmeng_info
+    task = FakeSalaryTask(lit=True, info_page_visible=False, popup_visible=True)
+    ScriptTask.do_claim_salary(task)
+    # 弹窗能关就一直关，不必反复重新导航
+    assert task.popups_closed >= 1
+    assert task.pages.count(page_xianmeng_info.name) == 1
+    assert task.clicks == 0
+
+
+def test_salary_button_lit_uses_saturation_not_template():
+    """点亮按钮是蓝色（高饱和），已领取是灰色 —— 只有颜色能区分两种状态"""
+    lit = np.zeros((40, 40, 3), dtype=np.uint8)
+    lit[10:30, 10:30] = (20, 55, 110)          # 蓝色按钮
+    gray = np.zeros((40, 40, 3), dtype=np.uint8)
+    gray[10:30, 10:30] = (62, 64, 62)          # 灰色按钮
+
+    assert ScriptTask.salary_button_lit(FakeImageTask(lit)) is True
+    assert ScriptTask.salary_button_lit(FakeImageTask(gray)) is False
+    assert ScriptTask.salary_button_lit(FakeImageTask(None)) is False

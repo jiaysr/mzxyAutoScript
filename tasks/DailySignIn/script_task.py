@@ -8,7 +8,7 @@
   次数不可用时回退到「已签到物品边框」模板判断
 - 修心：角色-详情 -> 修心，点击按钮直到今日次数用尽
 - 生肖福利礼包：辅助-生肖 -> 商店，领取每日免费福利礼包
-- 俸禄：仙盟-信息，领取俸禄直到按钮变为不可领取
+- 俸禄：仙盟-信息，按钮点亮（蓝色）就点，点完变灰说明今天已领
 - VIP 每日礼包：主页面 VIP 入口 -> VIP 页 -> 每日福利，无 VIP 时跳过
 
 执行顺序按勾选动态生成：先做主页面级（VIP/签到），再进一次角色面板，
@@ -25,6 +25,7 @@ from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd
 from module.logger import logger
 from tasks.DailySignIn.assets import DailySignInAssets
+from tasks.GameUi.assets import GameUiAssets as G
 from tasks.DailySignIn.page import (REWARD_TABS, RewardTabTarget,
                                     page_reward_sign_in, page_shengxiao,
                                     page_shengxiao_shop, page_vip,
@@ -47,8 +48,15 @@ class ScriptTask(GameUi, DailySignInAssets):
     SIGN_IN_REOPEN_MAX = 1
     # 修心按钮最多点击次数
     XIUXIN_MAX_CLICKS = 10
-    # 俸禄最多点击次数
-    SALARY_MAX_CLICKS = 10
+    # 俸禄最多点击次数（每天只能领一次，多留几次应对点击没生效）
+    SALARY_MAX_CLICKS = 3
+    # 领取俸禄按钮「点亮」的饱和度分界
+    # 点亮是蓝色按钮（实测 ≈220），已领取会变灰（实测 ≈15），取中间值
+    SALARY_LIT_SATURATION = 120
+    # 领取俸禄后的奖励弹窗关闭按钮：只用绿X/紫X
+    # 仙盟面板右上角就是公共「返回」(I_CLOSE_RETURN)，走 try_close_unknown_page
+    # 会把整个仙盟面板一起关掉
+    SALARY_POPUP_CLOSE = (G.I_CLOSE_X_GREEN_SMALL, G.I_CLOSE_X_GREEN, G.I_CLOSE_X_PURPLE)
 
     def run(self) -> None:
         logger.hr('每日签到')
@@ -464,12 +472,60 @@ class ScriptTask(GameUi, DailySignInAssets):
             logger.warning('无法关闭VIP每日福利页面')
         self.ensure_back_to_main()
 
+    def salary_saturation(self) -> float | None:
+        """读「领取俸禄」按钮的平均饱和度；没有画面时返回 None"""
+        image = self.device.image
+        if image is None:
+            return None
+        x, y, w, h = self.C_CLAIM_SALARY.roi_front
+        crop = image[y:y + h, x:x + w]
+        if crop.size == 0:
+            return None
+        return float(cv2.cvtColor(crop, cv2.COLOR_RGB2HSV)[:, :, 1].mean())
+
+    def salary_button_lit(self) -> bool:
+        """
+        俸禄按钮是否还亮着（= 今天还没领）
+
+        不能拿 `I_SALARY_UNAVAILABLE` 反着判断：那张模板只是灰掉的文字，
+        TM_CCOEFF_NORMED 对亮度/对比度不敏感，按钮点亮（蓝色）时同样命中
+        0.955（实测），会一直被当成「已领取」而跳过。
+        这里改看颜色：点亮是蓝色（饱和度 ≈220），已领取是灰色（≈15）。
+        """
+        saturation = self.salary_saturation()
+        if saturation is None:
+            logger.warning('读不到画面，无法判断俸禄按钮状态')
+            return False
+        logger.attr('俸禄按钮饱和度', round(saturation, 1))
+        return saturation >= self.SALARY_LIT_SATURATION
+
+    def close_salary_popup(self) -> bool:
+        """关掉领取俸禄后的奖励弹窗（只点绿X/紫X，绝不点「返回」）"""
+        for close in self.SALARY_POPUP_CLOSE:
+            if self.appear_then_click(close, interval=1.5):
+                logger.info(f'关闭领取俸禄弹窗（{close.name}）')
+                self.device.click_record_clear()
+                self.device.sleep(0.5)
+                return True
+        return False
+
+    def wait_salary_claimed(self, timeout: float = 4) -> bool:
+        """点击后等按钮变灰（= 领取成功），期间顺手关掉奖励弹窗"""
+        timer = Timer(timeout).start()
+        while not timer.reached():
+            self.screenshot()
+            if not self.salary_button_lit():
+                return True
+            if not self.close_salary_popup():
+                self.device.sleep(0.3)
+        return False
+
     def do_claim_salary(self) -> None:
         """
         仙盟-信息页领取俸禄
 
-        素材只有「不可领取」状态按钮：匹配就一直停；不匹配说明还能领，
-        点击领取区域，成功后用通用「关闭未知页面」关掉弹窗，最多点 10 次。
+        俸禄每天只能领一次：按钮还亮着（蓝色）就点，点完等它变灰；
+        变灰说明今天已领，直接结束。
         """
         logger.hr('领取俸禄')
         self.ui_reset_current_page()
@@ -489,29 +545,29 @@ class ScriptTask(GameUi, DailySignInAssets):
         for attempt in range(1, self.SALARY_MAX_CLICKS + 1):
             self.reset_records()
             self.screenshot()
-            if self.appear(self.I_SALARY_UNAVAILABLE):
-                logger.info('俸禄已领取（不可领取状态）')
-                break
             if not self.appear(self.I_XIANMENG_INFO_PAGE):
-                # 通用关闭弹窗时可能把仙盟面板也关掉了，重新进信息页
+                # 被弹窗挡住或面板被关掉：先试关弹窗，不行再重新进信息页
+                if self.close_salary_popup():
+                    logger.info('关闭挡在仙盟信息页上的弹窗')
+                    continue
                 logger.warning('已离开仙盟信息页，重新进入')
                 self.ui_reset_current_page()
                 if not self.ui_goto(page_xianmeng_info, timeout=60):
                     raise GameStuckError('Xianmeng info page does not appear')
                 continue
+            if not self.salary_button_lit():
+                logger.info('俸禄已领取（按钮已变灰）')
+                return
             logger.info(f'点击领取俸禄（{attempt}/{self.SALARY_MAX_CLICKS}）')
             self.click(self.C_CLAIM_SALARY)
             self.device.click_record_clear()
             self.device.sleep(0.8)
-            # 领取成功弹窗使用通用的未知页面关闭逻辑
-            self.try_close_unknown_page(skip_screenshot=False)
-            self.device.sleep(0.5)
-        else:
-            self.screenshot()
-            if self.appear(self.I_SALARY_UNAVAILABLE):
-                logger.info('俸禄已领取（不可领取状态）')
-            else:
-                logger.info(f'已点击 {self.SALARY_MAX_CLICKS} 次，停止领取俸禄')
+            if self.wait_salary_claimed():
+                logger.info('俸禄领取成功（按钮已变灰）')
+                return
+            logger.warning('点击后俸禄按钮仍然亮着，重试')
+
+        logger.info(f'已点击 {self.SALARY_MAX_CLICKS} 次俸禄仍未见变灰，停止领取')
         # 留在仙盟信息页，任务收尾统一回主页面
 
     def do_claim_zodiac_gift(self) -> None:

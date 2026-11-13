@@ -64,7 +64,7 @@ class DailySignInAssets:
 	I_XIANMENG_MEMBER_PAGE = RuleImage(roi_front=(818,640,148,43), roi_back=(767,629,256,70), threshold=0.8, method="Template matching", file="./tasks/DailySignIn/res/res_xianmeng_member_page.png")
 	# 仙盟/信息页面特征（仙盟捐献按钮） 
 	I_XIANMENG_INFO_PAGE = RuleImage(roi_front=(574,591,148,43), roi_back=(519,576,256,70), threshold=0.8, method="Template matching", file="./tasks/DailySignIn/res/res_xianmeng_info_page.png")
-	# 仙盟/信息-不可领取俸禄按钮 
+	# 仙盟/信息-俸禄灰色样式（仅供对照，判断已领取请用 salary_button_lit 的饱和度，不要用模板匹配） 
 	I_SALARY_UNAVAILABLE = RuleImage(roi_front=(329,588,148,43), roi_back=(269,579,256,70), threshold=0.8, method="Template matching", file="./tasks/DailySignIn/res/res_salary_unavailable.png")
 	# 生肖福利礼包-领取成功弹窗 
 	I_ZODIAC_GIFT_SUCCESS = RuleImage(roi_front=(547,341,180,39), roi_back=(505,325,256,70), threshold=0.8, method="Template matching", file="./tasks/DailySignIn/res/res_zodiac_gift_success.png")
