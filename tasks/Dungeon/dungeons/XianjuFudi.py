@@ -20,6 +20,8 @@
 - 进房间沿用通用操作：`dungeon_minimap_walk()`（点小地图房间入口 -> 等走到落点坐标）；
 - 房间里没有可点的 Boss 图标，改用 `dungeon_go_to_position()`
   （底层是 `GameUi.map_go_to_coordinate`，按坐标点地面自动寻路）；
+  走位时**同时尝试锁敌**（`lock_targets`，轮询回调），一锁到就停下开打 ——
+  游戏里锁定目标后点攻击会自动走到目标脚下，不需要非得走到坐标点上；
 - 打完一只 Boss **能直接点下一个房间门**（不用先走出房间），所以每个房间都是
   「点门 -> 等落点 -> 走位 -> 打」四步循环；
 - 出口：小地图视口左上角 (812,198,28,23)，回到骨牢。
@@ -106,10 +108,12 @@ class XianjuFudi(DungeonBase):
                 if self.dungeon_left_for_death():
                     return self.finish_run_after_death()
                 return False
-            # 房间内没有小地图 Boss 图标：按坐标点地面自动寻路到 Boss 脚下
+            # 房间内没有小地图 Boss 图标：按坐标点地面自动寻路，
+            # 走位途中就尝试锁敌（锁到就停下开打，游戏会自己走到目标脚下）
             if not self.dungeon_go_to_position(boss_name, boss_position,
                                                map_name=self.MAP_CALIBRATION_NAME,
-                                               tolerance=self.BOSS_POSITION_TOLERANCE):
+                                               tolerance=self.BOSS_POSITION_TOLERANCE,
+                                               lock_targets=self._dungeon_target_names(boss_name)):
                 if self.dungeon_left_for_death():
                     return self.finish_run_after_death()
                 logger.warning(f'Unable to walk to boss [{boss_name}] in room')

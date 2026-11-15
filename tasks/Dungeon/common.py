@@ -551,7 +551,7 @@ class DungeonBase(GameUi, DungeonAssets):
 
     def dungeon_go_to_position(self, label: str, position: tuple,
                                map_name: str = None, timeout: int = 90,
-                               tolerance: int = 3) -> bool:
+                               tolerance: int = 3, lock_targets: list = None) -> bool:
         """
         按坐标走到目标点（小地图坐标寻路，`GameUi.map_go_to_coordinate`）
 
@@ -563,13 +563,21 @@ class DungeonBase(GameUi, DungeonAssets):
         :param map_name: 目标地图名（传 OCR 读到那个不带括号的；None = 不校验）
         :param timeout: 寻路超时（秒）
         :param tolerance: 允许容差（格）
+        :param lock_targets: 途中尝试锁定的目标名；锁到就提前结束寻路并返回 True
+                             （游戏里锁定目标后点攻击会自动走到目标脚下，
+                             不用非得走到坐标点）
         :return: 是否走到；`map_go_to_coordinate` 抛 TaskFailed 时返回 False
         """
         logger.hr(f'[{self.name}] 走到 [{label}] {position}')
+        on_poll = None
+        if lock_targets:
+            def on_poll(_position=None):
+                return self.dungeon_try_lock_target(lock_targets)
+
         try:
             reached = self.map_go_to_coordinate(int(position[0]), int(position[1]),
                                                 map_name=map_name, timeout=timeout,
-                                                tolerance=tolerance)
+                                                tolerance=tolerance, on_poll=on_poll)
         except TaskFailed as e:
             logger.warning(f'走到 [{label}] {position} 失败：{e}')
             return False

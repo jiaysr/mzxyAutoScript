@@ -207,3 +207,26 @@ def test_map_name_tolerates_brackets_between_task_and_database():
     assert result == ("仙居福地副本", 223, 61)
     # 用上了标定数据：目标恰好是样本点，直接复用录的那一像素（估算模式算不出 542,208）
     assert ("tap", 542, 208) in host.calls
+
+
+def test_on_poll_stops_walking_when_callback_hits():
+    """副本里走位时靠 on_poll 尝试锁敌：锁到就提前结束寻路，
+    不校验坐标、也不报「坐标不可达」（锁定后点攻击游戏会自己走过去）"""
+    clock = FakeClock()
+    host, navigator = _navigator(
+        [("沼泽", 100, 100), ("沼泽", 120, 100), ("沼泽", 140, 100)], clock
+    )
+    polls = []
+
+    def on_poll(position):
+        polls.append(position)
+        return position is not None and position[1] >= 140
+
+    result = navigator.go_to_coordinate(296, 85, stable_time=1, poll_interval=1,
+                                       on_poll=on_poll)
+
+    assert result == ("沼泽", 140, 100)
+    # 开头的 map_move_read_pos 已经读过一次起点，回调从第二轮开始
+    assert polls == [("沼泽", 120, 100), ("沼泽", 140, 100)]
+    # 回调命中后就不再等走到 296,85
+    assert ("tap", 664, 250) in host.calls

@@ -163,8 +163,9 @@ class FakeInsideDungeon(XianjuFudi):
         return self.room_entry_ok
 
     def dungeon_go_to_position(self, label, position, map_name=None, timeout=90,
-                               tolerance=3):
-        self.calls.append(('go_to_position', label, position, map_name, tolerance))
+                               tolerance=3, lock_targets=None):
+        self.calls.append(('go_to_position', label, position, map_name, tolerance,
+                           tuple(lock_targets or ())))
         if self.dead_after == 'go_to':
             self.dead = True
             return False
@@ -204,8 +205,9 @@ def test_run_from_inside_visits_all_five_rooms_then_exits():
     assert orders[:6] == ['minimap_walk', 'go_to_position', 'fight',
                           'minimap_walk', 'go_to_position', 'fight']
     go_to = [call for call in fake.calls if call[0] == 'go_to_position']
+    # 走位时带上锁敌白名单（含生僻字别名）
     assert go_to[0] == ('go_to_position', '焱', (63, 190), '仙居福地副本',
-                        XianjuFudi.BOSS_POSITION_TOLERANCE)
+                        XianjuFudi.BOSS_POSITION_TOLERANCE, ('焱', '炎'))
     assert [call[1] for call in go_to] == ['焱', '垚', '森', '淼', '鑫']
     assert [call[2] for call in go_to] == [(63, 190), (331, 373), (163, 89),
                                            (440, 273), (419, 85)]
@@ -243,7 +245,29 @@ def test_dungeon_go_to_position_returns_true_on_success():
     assert DungeonBase.dungeon_go_to_position(
         fake, '焱', (63, 190), map_name='仙居福地副本', tolerance=3) is True
     assert fake.calls == [(63, 190, {'map_name': '仙居福地副本',
-                                     'timeout': 90, 'tolerance': 3})]
+                                     'timeout': 90, 'tolerance': 3,
+                                     'on_poll': None})]
+
+
+def test_dungeon_go_to_position_passes_lock_callback():
+    """走位时传 on_poll：途中锁到目标就提前结束寻路"""
+    fake = FakeGoToPosition()
+    fake.locked = False
+
+    def try_lock(targets):
+        fake.calls.append(('try_lock', tuple(targets)))
+        return fake.locked
+
+    fake.dungeon_try_lock_target = try_lock
+    assert DungeonBase.dungeon_go_to_position(
+        fake, '焱', (63, 190), map_name='仙居福地副本',
+        lock_targets=['焱', '炎']) is True
+    on_poll = fake.calls[0][2]['on_poll']
+    assert callable(on_poll)
+    assert on_poll(('仙居福地副本', 100, 100)) is False
+    fake.locked = True
+    assert on_poll(('仙居福地副本', 110, 100)) is True
+    assert ('try_lock', ('焱', '炎')) in fake.calls
 
 
 def test_dungeon_go_to_position_returns_false_on_task_failed():

@@ -9,6 +9,7 @@ OCR 通用能力（OcrHelpers）：
 由 GameUi 混入本类使用。
 """
 import difflib
+import re
 
 import cv2
 from module.atom.ocr import RuleOcr
@@ -26,11 +27,17 @@ class OcrHelpers(BaseTask, GameUiAssets):
         """
         OCR 名称匹配：完全包含，或「前两字一致 + 相似度达标」（容忍 OCR 形近字误识）
         前两字必须一致，避免同服竞技/跨服竞技 这类只差一字的名称互相误判
+
+        单字名称（仙居福地的 炎/垚/森/淼/鑫）要求**整体相等**：
+        「包含」那个分支会把「水夹」「水灵」这类带该字的其它怪当成 Boss，
+        真机 2026-11-15 就是这样锁着「水夹」一直放技能、无法攻击而卡住。
         """
         if not ocr_text or not name:
             return False
         if name in ocr_text:
-            return True
+            if len(name) > 1:
+                return True
+            return re.sub(r'[^\u4e00-\u9fa5]', '', ocr_text) == name
         if len(name) < 3 or len(ocr_text) < len(name) - 1:
             return False
         if ocr_text[:2] != name[:2]:

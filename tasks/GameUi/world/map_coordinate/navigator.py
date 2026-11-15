@@ -101,8 +101,14 @@ class MapCoordinateNavigator:
                          timeout: float = 60, tolerance: int = 1,
                          no_progress_timeout: float = 5,
                          stable_time: float = 3,
-                         poll_interval: float = 1) -> tuple:
-        """Navigate to a map coordinate or raise TaskFailed on business failure."""
+                         poll_interval: float = 1,
+                         on_poll: Callable = None) -> tuple:
+        """Navigate to a map coordinate or raise TaskFailed on business failure.
+
+        :param on_poll: 每轮轮询坐标前调一次的回调 `on_poll(position)`；
+                        返回 True 表示已到达目的（例如途中锁到了敌人），
+                        不再校验坐标、也不再报「坐标不可达」，直接返回当前位置。
+        """
         target = (int(x), int(y))
         tolerance = max(0, int(tolerance))
         timeout = max(0.1, float(timeout))
@@ -193,6 +199,11 @@ class MapCoordinateNavigator:
         while self.clock() - clicked_at <= timeout:
             now = self.clock()
             position = self.host.map_move_read_pos()
+            if on_poll is not None and on_poll(position):
+                logger.info(f"寻路途中到达目的（回调命中），当前位置 "
+                            f"{position[0] if position else map_name}"
+                            f"{f' {position[1]},{position[2]}' if position else ''}")
+                return position if position is not None else (map_name, target[0], target[1])
             if position is not None:
                 if not self._same_map(position[0], map_name):
                     self._fail(f"寻路期间地图改变: {position[0]} (目标地图 {map_name})")
