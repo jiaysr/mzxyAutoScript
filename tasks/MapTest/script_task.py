@@ -10,14 +10,30 @@ ACTION:
 - move     走到 MOVE_TARGET（为 None 时走到「当前位置 + MOVE_OFFSET」的就近点）
 - path     依次走到 MOVE_PATH 里的每个坐标点
 - bounds   朝四个方向各长按 BOUNDS_HOLD 秒，测量当前地图的范围（用于决定绘图网格）
+- record   按 RECORD_PLAN / RECORD_FILE 在各视口方向依次点击，记录稳定后到达的坐标
 """
+import json
+import os
+import sys
 import time
+from datetime import datetime
+from pathlib import Path
+
+# 支持直接运行本文件（IDE / python tasks\MapTest\script_task.py），
+# 而不仅 python -m tasks.MapTest.script_task
+if __package__ in (None, ''):
+    _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    if str(_PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(_PROJECT_ROOT))
+    os.chdir(_PROJECT_ROOT)
 
 from module.exception import TaskEnd
 from module.logger import logger
 from tasks.GameUi.game_ui import GameUi
+from tasks.GameUi.world.map_coordinate.calibration import MapCalibration
+from tasks.GameUi.world.map_coordinate.recorder import MapSampleRecorder
 
-ACTION = 'path'
+ACTION = 'record'
 TELEPORT_TARGET = '牧野'
 # sweep 只测这些地点（空列表 = 全部地点）；SWEEP_RETURN 是 sweep 结束后要回到的地点（空 = 回到开始时所在地点）
 SWEEP_ONLY = []
@@ -36,6 +52,49 @@ MOVE_TIMEOUT = 30
 MOVE_PATH = [(340, 120), (280, 60), (303, 79)]
 # bounds: 每个方向长按的时间（秒）
 BOUNDS_HOLD = 8
+# record: 本次要跑的测试数据（直接运行 python -m tasks.MapTest.script_task 即可）
+RECORD_PLAN = {
+    'top_left': [(424, 383), (684, 422), (683, 558), (525, 264)],
+    'top_right': [(431, 253), (321, 453), (748, 419)],
+    'bottom_left': [(519, 473), (269, 378), (473, 242)],
+    'bottom_right': [(840, 466), (468, 454), (493, 322)],
+}
+RECORD_FILE = ''
+# record: 结果输出目录（log 已在 .gitignore 中）
+RECORD_OUTPUT_DIR = 'log/map_samples'
+# record: 坐标稳定判定（秒）、单点超时、点击后多久仍不动判定为失败
+RECORD_STABLE_TIME = 2.0
+RECORD_TIMEOUT = 60.0
+RECORD_NO_PROGRESS_TIMEOUT = 8.0
+RECORD_POLL_INTERVAL = 0.5
+
+
+def dumps_record_json(data, indent: int = 2, inline_limit: int = 100) -> str:
+    """Serialize JSON with short arrays/dicts kept on one line.
+
+    `json.dumps(indent=2)` puts every array element on its own line, which
+    makes `screen`/`coord` pairs hard to read. This formatter keeps any
+    dict/list whose inline form is short enough on one line, matching the
+    style of `maps.json`.
+    """
+    def inline(value):
+        return json.dumps(value, ensure_ascii=False, separators=(', ', ': '))
+
+    def render(value, level):
+        text = inline(value)
+        if not isinstance(value, (dict, list)) or len(text) <= inline_limit:
+            return text
+        pad = ' ' * (indent * (level + 1))
+        end_pad = ' ' * (indent * level)
+        if isinstance(value, dict):
+            lines = [f'{pad}{json.dumps(str(key), ensure_ascii=False)}: '
+                     f'{render(item, level + 1)}'
+                     for key, item in value.items()]
+            return '{\n' + ',\n'.join(lines) + '\n' + end_pad + '}'
+        lines = [f'{pad}{render(item, level + 1)}' for item in value]
+        return '[\n' + ',\n'.join(lines) + '\n' + end_pad + ']'
+
+    return render(data, 0) + '\n'
 
 
 class ScriptTask(GameUi):
@@ -54,6 +113,8 @@ class ScriptTask(GameUi):
             self.map_move_path_check()
         elif ACTION == 'bounds':
             self.map_bounds_check()
+        elif ACTION == 'record':
+            self.map_record_samples()
         raise TaskEnd('MapTest')
 
     # ------------------------------------------------------------------ 校验
@@ -205,10 +266,94 @@ class ScriptTask(GameUi):
             logger.info(f'MAPTEST bounds {key}: {pos} -> {after}')
         logger.info(f'MAPTEST BOUNDS RESULT: {extremes}')
 
+    # ------------------------------------------------------------------ 小地图样本录制
+    def map_record_load_plan(self):
+        if RECORD_FILE:
+            payload = json.loads(Path(RECORD_FILE).read_text(encoding='utf-8'))
+            if isinstance(payload, dict) and isinstance(payload.get('views'), dict):
+                payload = payload['views']
+            logger.info(f'从 {RECORD_FILE} 读取录制计划')
+            return payload
+        return RECORD_PLAN
+
+    def map_record_samples(self) -> None:
+        logger.hr('Map sample record')
+        plan = self.map_record_load_plan()
+        try:
+            recorder = MapSampleRecorder(
+                self, plan,
+                stable_time=RECORD_STABLE_TIME,
+                timeout=RECORD_TIMEOUT,
+                no_progress_timeout=RECORD_NO_PROGRESS_TIMEOUT,
+                poll_interval=RECORD_POLL_INTERVAL,
+            )
+            result = recorder.record()
+        except (ValueError, RuntimeError) as error:
+            logger.error(f'录制中止: {error}')
+            return
+        self.map_record_save(result)
+
+    def map_record_save(self, result) -> None:
+        """只写独立结果文件；不改动 maps.json。"""
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        safe_name = result.map_name or 'unknown_map'
+        for char in '\\/:*?"<>|':
+            safe_name = safe_name.replace(char, '_')
+        out_dir = Path(RECORD_OUTPUT_DIR)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f'{safe_name}_{timestamp}.json'
+        payload = {
+            'map': result.map_name,
+            'recorded_at': timestamp,
+            'plan': {view: [list(point) for point in points]
+                     for view, points in result.plan.items()},
+            'viewport': list(result.viewport.rect) if result.viewport else None,
+            'views': result.views,
+            'failed': result.failed,
+        }
+        if result.fatal_error:
+            payload['fatal_error'] = result.fatal_error
+        # 直接可复制到 maps.json 的片段（地图名 -> views）
+        if result.views:
+            payload['maps_json'] = {result.map_name: {'views': result.views}}
+        text = dumps_record_json(payload)
+        path.write_text(text, encoding='utf-8')
+
+        logger.info(f'录制结果已保存: {path}')
+        logger.info('录制结果 JSON（未修改 maps.json）：')
+        for line in text.splitlines():
+            logger.info(line)
+        if 'maps_json' in payload:
+            snippet = json.dumps(payload['maps_json'], ensure_ascii=False, indent=2)
+            logger.info('可并入 maps.json 的片段：')
+            for line in snippet.splitlines():
+                logger.info(line)
+        if result.failed:
+            logger.warning(f'失败 {len(result.failed)} 个点，见 failed 字段')
+        if result.fatal_error:
+            logger.error(result.fatal_error)
+        if result.viewport is not None and result.views:
+            try:
+                calibration = MapCalibration.fit(
+                    result.map_name, result.views, result.viewport)
+                logger.info(f'标定校验通过: scale={calibration.scale_px_per_coord}，'
+                            f'views={list(calibration.views)}')
+            except Exception as error:  # noqa: BLE001
+                logger.warning(f'标定校验未通过（数据已保存，可补录后重试）: {error}')
+
 
 if __name__ == '__main__':
     from module.config.config import Config
     from module.device.device import Device
+
+    # 本次测试数据（直接写死，方便直接运行）
+    ACTION = 'record'
+    RECORD_PLAN = {
+        'top_left': [(460,504), (548,457),(666,478),(517,560)],
+        'top_right': [(376,494),(550,379),(553,487)],
+        'bottom_left': [(499,369), (506,249),(682,212)],
+        'bottom_right': [(575,224),(438,234),(416,351)],
+    }
 
     c = Config('oas1')
     d = Device(c)

@@ -11,6 +11,8 @@ MAP_BORDER_RGB = (0, 12, 24)
 MAP_BORDER_TOLERANCE = 2
 MIN_PANEL_SIZE = (700, 480)
 MIN_VIEWPORT_SIZE = (400, 300)
+# 视口检测置信度低于该值时不点击（边框/分隔线不完整）
+MIN_VIEWPORT_CONFIDENCE = 0.72
 
 
 @dataclass(frozen=True)
@@ -123,7 +125,7 @@ def _viewport_from_component(mask: np.ndarray,
     divider_strength = float(col_support[divider_start:divider_end + 1].max()) / height
     confidence = max(0.0, min(1.0, min(top_strength, bottom_strength,
                                        left_strength, divider_strength)))
-    if confidence < 0.72:
+    if confidence < MIN_VIEWPORT_CONFIDENCE:
         return None
     return Viewport(content_left, content_top, view_width, view_height, confidence)
 

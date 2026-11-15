@@ -1,3 +1,4 @@
+import re
 import time
 from typing import Callable
 
@@ -10,7 +11,10 @@ from tasks.GameUi.world.map_coordinate.calibration import (
     TargetNotCoveredError,
     load_map_database,
 )
-from tasks.GameUi.world.map_coordinate.viewport import detect_map_viewport
+from tasks.GameUi.world.map_coordinate.viewport import (
+    MIN_VIEWPORT_CONFIDENCE,
+    detect_map_viewport,
+)
 
 
 class MapCoordinateNavigator:
@@ -48,13 +52,41 @@ class MapCoordinateNavigator:
                 and abs(int(position[2]) - target[1]) <= tolerance)
 
     @staticmethod
+    def _normalize_map_name(name) -> str:
+        """地图名归一：地点 OCR 不带括号，JSON 里可能写了「[副本]」，两种当同一张图"""
+        return re.sub(r"[^\u4e00-\u9fa5]", "", str(name or ""))
+
+    def _same_map(self, current_name, expected_name) -> bool:
+        """优先用宿主的容错匹配（GameUi.map_name_match），测试宿主退回归一化比较"""
+        match = getattr(self.host, "map_name_match", None)
+        if callable(match):
+            return bool(match(str(current_name), str(expected_name)))
+        return (self._normalize_map_name(current_name)
+                == self._normalize_map_name(expected_name))
+
+    def _map_data(self, maps: dict, map_name: str):
+        """取该地图的标定数据：先精确名，再按归一化名找（JSON 的键可能带「[副本]」）"""
+        data = maps.get(map_name)
+        if isinstance(data, dict) and isinstance(data.get("views"), dict):
+            return data
+        key = self._normalize_map_name(map_name)
+        if not key:
+            return None
+        for name, candidate in maps.items():
+            if (self._normalize_map_name(name) == key
+                    and isinstance(candidate, dict)
+                    and isinstance(candidate.get("views"), dict)):
+                return candidate
+        return None
+
+    @staticmethod
     def _estimate_hint(estimated: bool) -> str:
         return "（地图未标定，估算比例可能造成偏移）" if estimated else ""
 
     def _read_viewport(self):
         image = self.host.screenshot()
         viewport = self.viewport_detector(image)
-        if viewport is None or viewport.confidence < 0.72:
+        if viewport is None or viewport.confidence < MIN_VIEWPORT_CONFIDENCE:
             self._fail("无法可靠识别小地图视口边界")
         return viewport
 
@@ -83,7 +115,7 @@ class MapCoordinateNavigator:
         if start is None:
             self._fail("无法读取当前地图坐标，无法执行小地图寻路")
         current_map = str(start[0])
-        if map_name and map_name != current_map:
+        if map_name and not self._same_map(map_name, current_map):
             self._fail(f"当前地图是 {current_map}，目标地图是 {map_name}")
         map_name = map_name or current_map
         if self._is_at(start, target, tolerance):
@@ -94,9 +126,7 @@ class MapCoordinateNavigator:
         estimated = False
         try:
             maps = self._database()
-            map_data = maps.get(map_name)
-            if not isinstance(map_data, dict) or not isinstance(map_data.get("views"), dict):
-                map_data = None
+            map_data = self._map_data(maps, map_name)
         except TaskFailed:
             raise
         except Exception as error:
@@ -164,7 +194,7 @@ class MapCoordinateNavigator:
             now = self.clock()
             position = self.host.map_move_read_pos()
             if position is not None:
-                if str(position[0]) != map_name:
+                if not self._same_map(position[0], map_name):
                     self._fail(f"寻路期间地图改变: {position[0]} (目标地图 {map_name})")
                 if self._is_at(position, target, tolerance):
                     if stable_since is None:

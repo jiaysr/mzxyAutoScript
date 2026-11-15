@@ -544,6 +544,6 @@ if __name__ == '__main__':
     device = Device(config)
     try:
         t = ScriptTask(config, device)
-        t.run()
+        t.map_go_to_coordinate(172,220,map_name='忘川')
     except TaskEnd:
         pass

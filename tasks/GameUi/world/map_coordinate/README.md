@@ -54,6 +54,71 @@
 
 运行时 `MapCalibration.fit` 会校验：主视图样本不足 4 个、任一轴坐标跨度 <20 格、或回投残差 >2.5 格时直接拒绝该地图的标定并报错。
 
+### 辅助录制工具（MapTest record）
+
+`tasks/MapTest/script_task.py` 提供 `record` 动作：按给定顺序在每个视口方向下点击像素，等角色坐标稳定后记录地图名和到达坐标。它**只写独立结果文件，不修改 `maps.json`**。
+
+1. 配置 `ACTION = 'record'`，然后填 `RECORD_PLAN`：
+
+```python
+RECORD_PLAN = {
+    'top_left': [(542, 208), (750, 239), (286, 154), (608, 433)],
+    'top_right': [(900, 220)],
+}
+```
+
+也可以把同样的数据存成 JSON 文件，设 `RECORD_FILE = 'log/my_plan.json'`：
+
+```json
+{"top_left": [[542, 208], [750, 239]], "top_right": [[900, 220]]}
+```
+
+JSON 还兼容 `{"views": {...}}` 外层和 `{"screen": [x, y]}` 对象形式。
+
+也可以不修改代码，直接用命令行（默认读取 `oas1` 配置，第三个参数可指定其他配置名）：
+
+```bash
+python -m tasks.MapTest.script_task record log/my_plan.json
+```
+
+或者在 IDE 里直接运行 `tasks/MapTest/script_task.py`：无参数时使用文件顶部的 `ACTION` 和 `RECORD_PLAN`，本次已填好测试数据。
+
+2. 运行 MapTest。工具会自动：回到主页面 -> 读取当前地图名 -> 逐点打开小地图、平移到对应角、校验点击像素在视口内 -> 点击 -> 关闭小地图 -> 等待坐标稳定。
+
+3. 点击后 8 秒内角色没有移动、坐标读不到、或地图中途改变时，该点记为失败并继续下一个；已成功的点会保留。
+
+输出：
+
+- 文件：`log/map_samples/<地图名>_<时间戳>.json`
+- 日志：同时打印完整 JSON；成功时还会跑一次 `MapCalibration.fit`，报告拟合比例和残差是否通过。
+- 文件中的 `plan` 字段保存本次使用的完整 `RECORD_PLAN`，方便复现和按失败点补录。
+
+输出文件结构：
+
+```json
+{
+  "map": "沼泽",
+  "recorded_at": "20261112_170000",
+  "plan": {
+    "top_left": [[542, 208], [750, 239]]
+  },
+  "viewport": [161, 105, 756, 510],
+  "views": {
+    "top_left": [{"screen": [542, 208], "coord": [223, 61]}]
+  },
+  "failed": [],
+  "maps_json": {
+    "沼泽": {
+      "views": {
+        "top_left": [{"screen": [542, 208], "coord": [223, 61]}]
+      }
+    }
+  }
+}
+```
+
+可调参数：`RECORD_STABLE_TIME`（稳定判定，默认 2 秒）、`RECORD_TIMEOUT`（单点超时，默认 60 秒）、`RECORD_NO_PROGRESS_TIMEOUT`（点击后无位移判定，默认 8 秒）、`RECORD_POLL_INTERVAL`（轮询间隔，默认 0.5 秒）。
+
 自动检测依据取色工具值 `0x180C00`（在 RGB 截图中的通道值为 `(0,12,24)`），并利用地图与 NPC 列表间的分隔线裁出地图内容区。设备分辨率需保持 1280×720。
 
 ## 未标定地图（估算）

@@ -185,3 +185,25 @@ def test_game_ui_facade_exposes_coordinate_navigation():
     from tasks.GameUi.game_ui import GameUi
 
     assert callable(getattr(GameUi, "map_go_to_coordinate", None))
+
+
+def test_map_name_tolerates_brackets_between_task_and_database():
+    """任务里写「仙居福地[副本]」、maps.json 按「仙居福地副本」录、地点 OCR 也不带括号：
+    三者要能对上，否则会静默退回左上角估算（点错像素）"""
+    clock = FakeClock()
+    host = FakeGameUi([("仙居福地副本", 100, 100),
+                       ("仙居福地副本", 223, 61),
+                       ("仙居福地副本", 223, 61)], clock)
+    navigator = MapCoordinateNavigator(
+        host=host,
+        map_database={"仙居福地副本": {"views": {"top_left": SWAMP_SAMPLES}}},
+        viewport_detector=lambda image: Viewport(161, 105, 756, 510, 1.0),
+        clock=clock,
+    )
+
+    result = navigator.go_to_coordinate(223, 61, map_name="仙居福地[副本]",
+                                       stable_time=1, poll_interval=1)
+
+    assert result == ("仙居福地副本", 223, 61)
+    # 用上了标定数据：目标恰好是样本点，直接复用录的那一像素（估算模式算不出 542,208）
+    assert ("tap", 542, 208) in host.calls

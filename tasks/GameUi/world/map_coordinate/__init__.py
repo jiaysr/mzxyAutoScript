@@ -11,13 +11,19 @@ from tasks.GameUi.world.map_coordinate.navigator import (
     MapCoordinateNavigation,
     MapCoordinateNavigator,
 )
+from tasks.GameUi.world.map_coordinate.recorder import (
+    MapSampleRecorder,
+    RecordResult,
+)
 from tasks.GameUi.world.map_coordinate.viewport import Viewport, detect_map_viewport
 
 __all__ = [
     "MapCalibration",
     "MapCoordinateNavigation",
     "MapCoordinateNavigator",
+    "MapSampleRecorder",
     "MapSample",
+    "RecordResult",
     "TargetNotCoveredError",
     "ViewTransform",
     "Viewport",
