@@ -29,12 +29,10 @@ class DiyulingBase(DungeonBase):
 
     def run_once(self) -> bool:
         logger.hr(f'[{self.name}] 完成一次')
-        if not self.dungeon_enter_outer(self.FIELD):
+        # 副本前准备（进外地图 -> 修理装备 -> 万事通治疗），顺序统一在
+        # DungeonBase.dungeon_prepare_run() 里维护
+        if not self.dungeon_prepare_run(self.FIELD):
             return False
-        if not self.dungeon_heal():
-            logger.warning('Heal failed, continue this run')
-        if not self.dungeon_repair_equipment():
-            logger.warning('Repair failed, continue this run')
 
         entry_rule = getattr(self, f'C_{self.ENTRY_CLICK_NAME.upper()}')
         if not self.dungeon_minimap_walk('bottom_left', entry_rule,

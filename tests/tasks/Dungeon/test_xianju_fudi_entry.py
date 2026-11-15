@@ -319,3 +319,39 @@ def test_handle_death_revives_and_resumes():
     fake = FakeDeathDialog()
     XianjuFudi.handle_death(fake)
     assert fake.calls == ['revive', 'resume']
+
+
+# ---------------------------------------------------------------- 副本前准备顺序
+class FakePrepareOrder(XianjuFudi):
+    """只测 run_once 的准备顺序：先进骨牢 -> 修理装备 -> 万事通治疗 -> 进副本"""
+
+    def __init__(self):
+        self.calls = []
+
+    def dungeon_enter_outer(self, field):
+        self.calls.append('enter_outer')
+        return True
+
+    def dungeon_repair_equipment(self):
+        self.calls.append('repair')
+        return True
+
+    def dungeon_heal(self):
+        self.calls.append('heal')
+        return True
+
+    def dungeon_minimap_walk(self, corner, click_rule, target_map, position=None,
+                             tolerance=None, timeout=None, abort_on_leave=False,
+                             retries=1):
+        self.calls.append('enter_dungeon')
+        return True
+
+    def run_from_inside(self):
+        self.calls.append('inside')
+        return True
+
+
+def test_run_once_repairs_before_healing():
+    task = FakePrepareOrder()
+    assert XianjuFudi.run_once(task) is True
+    assert task.calls == ['enter_outer', 'repair', 'heal', 'enter_dungeon', 'inside']

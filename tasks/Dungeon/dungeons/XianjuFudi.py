@@ -20,7 +20,10 @@
 - 进房间沿用通用操作：`dungeon_minimap_walk()`（点小地图房间入口 -> 等走到落点坐标）；
 - 房间里没有可点的 Boss 图标，改用 `dungeon_go_to_position()`
   （底层是 `GameUi.map_go_to_coordinate`，按坐标点地面自动寻路）；
+- 打完一只 Boss **能直接点下一个房间门**（不用先走出房间），所以每个房间都是
+  「点门 -> 等落点 -> 走位 -> 打」四步循环；
 - 出口：小地图视口左上角 (812,198,28,23)，回到骨牢。
+- 副本前准备顺序：骨牢 -> **修理装备 -> 万事通治疗**（先修后治）。
 
 死亡：**副本内会弹死亡框**（沙狱/帝玉岭是直接退出副本），复活后人物回到骨牢。
       这一局按「完成一次」收尾（不推「未通关」、不跳过剩余次数），详见
@@ -73,13 +76,10 @@ class XianjuFudi(DungeonBase):
 
     def run_once(self) -> bool:
         logger.hr(f'[{self.name}] 完成一次')
-        # 副本前准备：骨牢 + 万事通治疗 + 修理装备
-        if not self.dungeon_enter_outer(self.FIELD):
+        # 副本前准备（进外地图 -> 修理装备 -> 万事通治疗），顺序统一在
+        # DungeonBase.dungeon_prepare_run() 里维护
+        if not self.dungeon_prepare_run(self.FIELD):
             return False
-        if not self.dungeon_heal():
-            logger.warning('Heal failed, continue this run')
-        if not self.dungeon_repair_equipment():
-            logger.warning('Repair failed, continue this run')
 
         entry_rule = getattr(self, f'C_{self.ENTRY_CLICK_NAME.upper()}')
         if not self.dungeon_minimap_walk(self.ENTRY_CORNER, entry_rule,

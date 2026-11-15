@@ -297,6 +297,26 @@ class DungeonBase(GameUi, DungeonAssets):
         logger.hr(f'[{self.name}] 修理装备')
         return self.bag_repair_equipment()
 
+    def dungeon_prepare_run(self, field: str) -> bool:
+        """
+        副本前准备：进外地图 -> 修理装备 -> 万事通治疗（先修后治）
+
+        所有副本都走这一个入口，保证顺序一致（真机 2026-11-15 调整：
+        原来先治疗再修理，现在先修后治）。
+        修/治失败只记日志、不影响这一局：任一失败都不该直接放弃剩余次数。
+
+        :param field: 配置字段（决定进哪张外地图）
+        :return: 外地图是否到位（False 时调用方直接放弃这一局）
+        """
+        logger.hr(f'[{self.name}] 副本前准备')
+        if not self.dungeon_enter_outer(field):
+            return False
+        if not self.dungeon_repair_equipment():
+            logger.warning('Repair failed, continue this run')
+        if not self.dungeon_heal():
+            logger.warning('Heal failed, continue this run')
+        return True
+
     def dungeon_find_healer(self) -> bool:
         """走到万事通身边并打开对话"""
         logger.info(f'Find healer [{self.DUNGEON_HEALER_NAME}]')
