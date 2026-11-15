@@ -582,7 +582,7 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             # max_switch 放大，让 15s 超时而不是切换次数先到
             if self.ui_ensure_target_locked(timeout=self.BATTLE_ENTER_TIMEOUT, max_switch=30):
                 logger.info('已锁定可攻击目标，开始释放技能'
-                            '（队列式：按预设连点 -> 校验目标/冷切；全部冷却才普攻）')
+                            '（节奏式：每轮截图 -> 校验目标/冷切 -> 点最高优先级；全部冷却才普攻）')
                 return self.battle_loop()
             logger.warning(f'{self.BATTLE_ENTER_TIMEOUT}s 内没有进入战斗，重新打开小地图移动')
 
@@ -590,15 +590,15 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
         return 'failed'
 
     # ---------------------------------------------------------------- 战斗循环
-    # 每个技能的释放节奏（重试次数 / 冷却超时）统一走「战斗预设」，这里只留轮询间隔
-    SKILL_COOLDOWN_POLL = 0.1
+    # 连点次数 / 连点间隔 / 技能间隔统一走「战斗预设」
 
     def battle_loop(self) -> str:
         """
-        队列式连续释放技能，直到奖励面板出现 / 目标丢失 / 超时
+        节奏式连续释放技能，直到奖励面板出现 / 目标丢失 / 超时
 
-        - 每次都取优先级最高且冷却好的技能；
-        - 没进冷却时按配置重试，仍失败则下一轮继续取同一个技能；
+        - 每轮截图：判停止 -> 判目标 -> 算 7 位冷却；
+        - 取优先级最高且冷却好的技能，按预设连点；
+        - 等技能间隔后进入下一轮（不阻塞等冷却确认、不重试）；
         - 所有技能都在冷却时才释放普通攻击。
 
         :return: 'reward' 奖励面板出现；'target_lost' 目标丢失；'timeout' 超时
@@ -611,7 +611,6 @@ class ScriptTask(GameUi, XianfuJiuchongtianAssets):
             check_stop=self.battle_stop_reason,
             target_check=lambda image: self.ui_target_attackable(image),
             timeout=BATTLE_TIMEOUT,
-            poll_interval=self.SKILL_COOLDOWN_POLL,
         )
 
     def battle_stop_reason(self, image=None) -> str | None:

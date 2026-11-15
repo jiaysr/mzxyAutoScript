@@ -1,19 +1,18 @@
 # This Python file uses the following encoding: utf-8
 """
-战斗试打任务：锁定目标 -> 识别技能栏 -> 按预设优先级「点一次 + 校验」循环
+战斗试打任务：锁定目标 -> 识别技能栏 -> 按预设优先级「点一次 + 等技能间隔」循环
 
 行为（与仙府九重天任务一致，实现在 BattleAttack.battle_skill_loop）：
 1. 收起右上角菜单，锁定目标：先模板匹配确认已锁定，没锁到就点「目标」切换；
    右下角动作按钮必须是「攻击」（可攻击目标）。
 2. 截一帧识别 7 个技能位分别装的是什么技能，按预设算优先级。
-3. 循环（队列式，不按轮）：
-   - 每次都取当前优先级最高且冷却好的技能；
-   - 每个技能按预设连点（clicks / click_interval）-> 判断目标 -> 判断是否进入冷却；
-     没进冷切就按 attempts 重试；仍没进冷却则下一轮继续取同一个技能，
-     直到它进入冷却后才轮到后面的技能；
+3. 循环（节奏式）：
+   - 每轮一张截图：判停止条件 -> 判目标 -> 算 7 个技能位冷却；
+   - 取当前优先级最高且冷却好的技能，按预设连点（clicks / click_interval）；
+   - 等 skill_interval 秒，再截图进入下一轮；
+   - **不阻塞等冷却确认、不重试**：没放出来下一轮看到它还是 ready，会自然再点一次；
    - 所有技能都在冷却时才释放普通攻击；
    - 目标丢失 / 不可攻击时自动结束。
-4. 目标丢失 / 不可攻击时自动结束（不会无限连点）。
 
 目标：
 - `TARGET_NAME = ''`：不校验目标名，适用于「地图里只有一个可锁定目标」的场景（先测这个）；
@@ -46,8 +45,7 @@ class ScriptTask(GameUi):
     PRESET = 'preset_1'
     # 目标名：'' = 不校验（单目标场景）；多个目标时填名字，支持逗号分隔
     TARGET_NAME = ''
-    # 每个技能的释放节奏（连点/间隔/重试/冷却超时）统一走「战斗预设」，这里只留轮询间隔
-    COOLDOWN_POLL = 0.1
+    # 释放节奏（连点/间隔/技能间隔）统一走「战斗预设」
     # 全部技能冷却时是否点普通攻击（试打脚本没有任务配置，默认关闭）
     USE_NORMAL_ATTACK = False
 
@@ -78,7 +76,6 @@ class ScriptTask(GameUi):
                 timeout=None,
                 attack_interval=1.0,
                 include_attack=self.USE_NORMAL_ATTACK,
-                poll_interval=self.COOLDOWN_POLL,
             )
             logger.info(f'试打结束：{status}')
         finally:

@@ -15,14 +15,15 @@
     不符合就点「目标」切换，直到满足或超时（场景 1 单目标 / 场景 2 多目标指定名称）
 - 战斗执行（见 tasks/Battle/attack.py）：
   - 单次点击：`battle_click_once / battle_click_attack / battle_click_skill`（7 个技能位）
-  - 技能冷却：`battle_skill_state()`（ready / cooling / unknown）、
+  - 技能冷却：`battle_skill_state()`（ready / cooling / unknown，防抖后，调试用）、
+    `battle_states_raw()`（战斗循环用的原始状态）、
     `battle_log_skill_states()`（校准用，一行打印 7 个位的状态与分数）
   - 技能位识别：`battle_slot_skills()` / `battle_log_slot_skills()`
   - 释放计划：`battle_plan()`（识别 + 预设优先级 + 禁用 -> 点击顺序）、
-    `battle_plan_slots()`（只要技能位下标，队列模式用）
-  - **唯一战斗模式（队列式）**：`battle_skill_loop(slots, check_stop=..., target_check=...)`
-    每次都取优先级最高且冷却好的技能；没进冷却会按「战斗设置」的 attempts / cooldown_timeout
-    重试，下一轮仍按优先级继续取；简写入口 `battle_queue_until(stop_check)`
+    `battle_plan_slots()`（只要技能位下标，节奏模式用）
+  - **唯一战斗模式（节奏式）**：`battle_skill_loop(slots, check_stop=..., target_check=...)`
+    每轮一张截图 -> 停止/目标/7 位冷却 -> 点优先级最高且冷却好的技能 -> 等 `skill_interval`，
+    不阻塞等冷却确认、不重试；简写入口 `battle_queue_until(stop_check)`
 
 目标锁定是主页面通用能力：「目标」按钮在右侧竖排
 （要收起右上角菜单 `ui_close_menu` 后才露出），

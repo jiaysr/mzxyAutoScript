@@ -153,8 +153,7 @@ async def battle_update_preset(payload: dict = Body(...),
             disabled=payload.get('disabled'),
             clicks=payload.get('clicks'),
             click_interval=payload.get('click_interval'),
-            attempts=payload.get('attempts'),
-            cooldown_timeout=payload.get('cooldown_timeout')))
+            skill_interval=payload.get('skill_interval')))
 
 
 @battle_app.delete('/preset/{preset_id}')

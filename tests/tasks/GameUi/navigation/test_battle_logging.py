@@ -91,8 +91,7 @@ def test_battle_skill_loop_config_logs_only_once(monkeypatch):
 
     task = SimpleNamespace(
         battle_release_config=lambda: {
-            'clicks': 2, 'click_interval': 0.1,
-            'attempts': 3, 'cooldown_timeout': 1.2,
+            'clicks': 2, 'click_interval': 0.1, 'skill_interval': 0.1,
         },
         battle_use_normal_attack=lambda: False,
         screenshot=lambda: 'image',
@@ -106,5 +105,6 @@ def test_battle_skill_loop_config_logs_only_once(monkeypatch):
 
     assert [name for name, _ in attrs].count('释放节奏') == 1
     assert [name for name, _ in attrs].count('普通攻击') == 1
-    assert rules.count('队列式释放技能') == 1
+    assert rules.count('节奏式释放技能') == 1
     assert sum('技能顺序' in message for message in infos) == 1
+    assert any('技能间隔' in text for name, text in attrs if name == '释放节奏')

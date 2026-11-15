@@ -36,8 +36,7 @@ def default_preset(catalog: SkillCatalog = None) -> Dict:
         'disabled': [],
         'clicks': 2,
         'click_interval': 0.2,
-        'attempts': 3,
-        'cooldown_timeout': 1.2,
+        'skill_interval': 0.3,
         'builtin': True,
     }
 
@@ -52,8 +51,7 @@ def preset_to_dict(preset: BattlePreset, catalog: SkillCatalog = None) -> Dict:
         'disabled': catalog.normalize_disabled(preset.disabled),
         'clicks': preset.clicks,
         'click_interval': preset.click_interval,
-        'attempts': preset.attempts,
-        'cooldown_timeout': preset.cooldown_timeout,
+        'skill_interval': preset.skill_interval,
         'builtin': False,
     }
 
@@ -119,8 +117,7 @@ def create_preset(battle: Battle, catalog: SkillCatalog = None,
         disabled=catalog.normalize_disabled(source.get('disabled')),
         clicks=int(source.get('clicks') or 2),
         click_interval=float(source.get('click_interval') or 0.2),
-        attempts=int(source.get('attempts') or 3),
-        cooldown_timeout=float(source.get('cooldown_timeout') or 1.2),
+        skill_interval=float(source.get('skill_interval') or 0.3),
     )
     battle.presets.append(preset)
     logger.info(f'新建战斗预设 {preset.id}（{preset.name}），基于 {base}')
@@ -132,8 +129,7 @@ def update_preset(battle: Battle, preset_id: str, catalog: SkillCatalog = None,
                   disabled: Optional[List[str]] = None,
                   clicks: Optional[int] = None,
                   click_interval: Optional[float] = None,
-                  attempts: Optional[int] = None,
-                  cooldown_timeout: Optional[float] = None) -> BattlePreset:
+                  skill_interval: Optional[float] = None) -> BattlePreset:
     """
     修改用户预设（默认预设不可改）
 
@@ -141,8 +137,7 @@ def update_preset(battle: Battle, preset_id: str, catalog: SkillCatalog = None,
     :param disabled: 传了就整体替换
     :param clicks: 每个技能连点次数，超出 1~4 会被夹到边界
     :param click_interval: 同一技能两次点击的间隔（秒），超出 0.05~1.0 会被夹到边界
-    :param attempts: 没进冷却时最多重试几次，超出 1~5 会被夹到边界
-    :param cooldown_timeout: 点完等进入冷却的最长时间（秒），超出 0.2~2.0 会被夹到边界
+    :param skill_interval: 两次技能之间的等待（秒），超出 0.1~1.0 会被夹到边界
     """
     catalog = catalog or load_catalog()
     if preset_id == DEFAULT_PRESET_ID:
@@ -161,10 +156,8 @@ def update_preset(battle: Battle, preset_id: str, catalog: SkillCatalog = None,
         preset.clicks = max(1, min(4, int(clicks)))
     if click_interval is not None:
         preset.click_interval = max(0.05, min(1.0, float(click_interval)))
-    if attempts is not None:
-        preset.attempts = max(1, min(5, int(attempts)))
-    if cooldown_timeout is not None:
-        preset.cooldown_timeout = max(0.2, min(2.0, float(cooldown_timeout)))
+    if skill_interval is not None:
+        preset.skill_interval = max(0.1, min(1.0, float(skill_interval)))
     return preset
 
 

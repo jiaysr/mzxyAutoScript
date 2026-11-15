@@ -8,11 +8,12 @@
 - `presets.py`：预设的读/建/改/删，默认预设只读、用户预设可基于其他预设复制
 - `recognizer.py`：开战前识别 7 个技能位分别带了哪个技能
 - `planner.py`：按「识别结果 + 预设顺序 + 禁用」算出实际点击顺序
-- `cooldown.py`：技能冷却识别（亮度x彩度评分 + `SkillStateStabilizer` 2 帧防抖，不依赖设备）
-- `attack.py`：战斗执行（点技能/看冷却/按预设攻击，混入任务类用；冷却状态默认防抖 2 帧）
-  - `battle_skill_loop()` 队列式一直打（每次都取优先级最高且冷却好的技能，失败后继续重试；
-    连点次数/间隔取战斗预设里的 clicks / click_interval）
+- `cooldown.py`：技能冷却识别（亮度x彩度评分，不依赖设备；`SkillStateStabilizer` 仅调试/校准用）
+- `attack.py`：战斗执行（点技能/看冷却/按预设攻击，混入任务类用）
+  - `battle_skill_loop()` 节奏式一直打：每轮一张截图，判停止/目标/冷却，
+    点优先级最高且冷却好的技能，然后等 `skill_interval` 再进下一轮（不阻塞等冷却、不重试）
   - `battle_queue_until()` 同上的简写入口（一直打到 stop_check 为真）
+  - 连点次数 / 连点间隔 / 技能间隔取战斗预设里的 clicks / click_interval / skill_interval
   - `battle_slot_matches()` / `battle_slot_cache_clear()`：技能位身份只认一次（缓存），
     换职业/切技能后调 clear；`BATTLE_SLOT_CACHE = False` 可退回每次重认
 - `script_task.py`：可直跑的试打任务（`python tasks/Battle/script_task.py`）

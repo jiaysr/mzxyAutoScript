@@ -110,9 +110,7 @@ class ScriptTask(GameUi, WorldBossAssets):
     TARGET_LOCK_SWITCH_INTERVAL = 1.0
     # 同一时段两个 boss：锁定某个 boss 最多尝试多久，超时后按流程切换到另一个
     PAIR_LOCK_TIMEOUT = 30
-    # 每个技能的释放节奏（重试次数 / 冷却超时）统一走「战斗预设」；
-    # 这里只留循环里的冷却轮询间隔
-    SKILL_COOLDOWN_POLL = 0.1
+    # 每个技能的释放节奏（连点次数 / 连点间隔 / 技能间隔）统一走「战斗预设」
     # 锁定阶段连续没有目标多久，提示「首领可能已被击败」（秒）
     NO_TARGET_HINT = 20
     # 目标丢失后等结束模板出现的时间/轮询间隔（秒）
@@ -503,7 +501,7 @@ class ScriptTask(GameUi, WorldBossAssets):
                          cast_counter: dict = None) -> str:
         """
         双 boss 攻击：每轮同时轮询双方结束模板
-        - max_skills=N：成功释放 N 个技能后返回 skill_limit；
+        - max_skills=N：点击 N 个技能后返回 skill_limit；
         - max_skills=None：打到当前 boss 结束/目标丢失/超时。
 
         cast_counter 跨死亡重试累计「先攻击的技能数」：
@@ -549,7 +547,6 @@ class ScriptTask(GameUi, WorldBossAssets):
             check_stop=stop_check,
             target_check=lambda image: self.ui_target_attackable(image=image),
             timeout=remaining,
-            poll_interval=self.SKILL_COOLDOWN_POLL,
             max_skills=skill_left,
             on_cast=record_cast if cast_counter is not None else None,
         )
@@ -1174,7 +1171,6 @@ class ScriptTask(GameUi, WorldBossAssets):
             check_stop=lambda image: self.battle_stop_reason(image, boss, finish_rule),
             target_check=lambda image: self.ui_target_attackable(image=image),
             timeout=remaining,
-            poll_interval=self.SKILL_COOLDOWN_POLL,
         )
         remaining = max(0.0, (deadline - datetime.now()).total_seconds())
         if result == 'target_lost':

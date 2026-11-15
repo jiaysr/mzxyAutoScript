@@ -275,7 +275,6 @@ class ScriptTask(MimangBase, MikuXianjingAssets):
                     target_check=lambda image: self.battle_target_ok(names, image),
                     include_attack=include_attack,
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
-                    poll_interval=self.SKILL_COOLDOWN_POLL,
                     on_cast=on_cast,
                     on_target_lost=self.battle_on_target_lost(names))
                 if reason in ('complete', 'yield', 'disabled'):

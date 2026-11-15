@@ -46,12 +46,10 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     # 让路后稍等几秒再重排，保证 FIFO 模式下其它到期任务排在前面
     YIELD_RESUME_SECONDS = 5
 
-    # 每成功释放这么多次技能回一次基准点
+    # 每点击这么多次技能回一次基准点
     RECOVER_EVERY_CASTS = 6
     # 预设模式：普通攻击最小间隔
     NORMAL_ATTACK_INTERVAL = 1.0
-    # 预设模式：技能冷却轮询间隔
-    SKILL_COOLDOWN_POLL = 0.1
     # 技能位识别重试
     SLOT_RECOGNIZE_ATTEMPTS = 3
     SLOT_RECOGNIZE_WAIT = 1.0
@@ -262,7 +260,6 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
                     target_check=lambda image: self.battle_target_ok(names, image),
                     include_attack=self.battle_use_normal_attack(),
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
-                    poll_interval=self.SKILL_COOLDOWN_POLL,
                     on_cast=self.on_cast,
                     on_target_lost=self.battle_on_target_lost(
                         names, abort_check=lambda: self._resume_reposition),

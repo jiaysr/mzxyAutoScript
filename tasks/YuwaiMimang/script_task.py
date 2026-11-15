@@ -636,13 +636,11 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     # 进去也打不了多久，还把时段尾部白白占住）
     MIN_WINDOW_REMAIN = 60
 
-    # 每成功释放这么多次技能做一次位置检查 / 中途修理
-    # （一次释放 = 一次「按预设连点 + 等进冷却」）
+    # 每点击这么多次技能做一次位置检查 / 中途修理
+    # （一次点击 = 一次「按预设连点 + 等技能间隔」）
     RECOVER_EVERY_CASTS = 6
     # 预设模式：所有技能都在冷却时，普攻的最小间隔（秒）
     NORMAL_ATTACK_INTERVAL = 1.0
-    # 预设模式：每个技能的释放节奏（重试次数 / 冷却超时）统一走「战斗预设」，这里只留轮询间隔
-    SKILL_COOLDOWN_POLL = 0.1
     # 清怪检查已移除：怪物在整个时段内会一直刷新，「剩余怪物数量」读到 0 只是
     # 当下的瞬间（马上又刷），所以一律打满时段（11:30 / 16:30 到点才收工）。
     # 本场打怪的截止时间（battle_stop_reason 用；由 reset_battle_progress 设置）
@@ -719,7 +717,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
     def preset_battle_loop(self, coord, tolerance: int, end: datetime,
                            names: list = None, cfg=None) -> None:
         """
-        按战斗预设打怪（队列式释放）
+        按战斗预设打怪（节奏式释放）
 
         循环体：锁一只白名单里的怪 -> 按预设优先级连续放技能，直到目标丢失
         （怪死了 / 被拉走）-> 回头锁下一只。
@@ -744,7 +742,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         progress = {'casts': 0, 'last_repair': datetime.now()}
 
         def on_cast(_casts: int) -> None:
-            """每成功释放一次技能：按累计次数做位置检查 / 中途修理"""
+            """每点击一次技能：按累计次数做位置检查 / 中途修理"""
             progress['casts'] += 1
             if progress['casts'] % self.RECOVER_EVERY_CASTS:
                 return
@@ -780,7 +778,6 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                     target_check=lambda image: self.battle_target_ok(names, image),
                     include_attack=include_attack,
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
-                    poll_interval=self.SKILL_COOLDOWN_POLL,
                     on_cast=on_cast,
                     on_target_lost=self.battle_on_target_lost(names))
 

@@ -14,7 +14,7 @@
 每个预设都描述**目录里的全部技能**：`order` 是完整顺序（含被禁用的，位置不丢），
 `disabled` 是本预设里不释放的技能。执行时 = order 去掉 disabled。
 每个预设还各自带释放节奏：`clicks`（每个技能连点次数）、`click_interval`（点击间隔）、
-`attempts`（没进冷却时重试次数）和 `cooldown_timeout`（等进冷却的超时）。
+`skill_interval`（两次技能之间的等待）。
 """
 from typing import List, Optional
 
@@ -55,10 +55,8 @@ class BattlePreset(BaseModel):
                         description='每个技能连点次数（1-4，默认 2；单击不触发时调大）')
     click_interval: float = Field(default=0.2, ge=0.05, le=1.0,
                                   description='同一个技能两次点击之间的间隔（秒，默认 0.2）')
-    attempts: int = Field(default=3, ge=1, le=5,
-                          description='点了没进冷却时最多重试几次（1-5，默认 3；卡住一个技能最多耗时 = 次数 × 冷却超时）')
-    cooldown_timeout: float = Field(default=1.2, ge=0.2, le=2.0,
-                                    description='点完等它进入冷却的最长时间（秒，0.2-2.0，默认 1.2）')
+    skill_interval: float = Field(default=0.3, ge=0.1, le=1.0,
+                                  description='两次技能之间的等待（秒，默认 0.3；等完再截图判断目标/冷却）')
 
 
 class BattleCommon(BaseModel):

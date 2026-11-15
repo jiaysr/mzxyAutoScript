@@ -7,8 +7,9 @@
 - `use_normal_attack`：技能全冷却时是否点普通攻击。
 
 任务执行时 `SimpleBattle.battle_preset()` 会读它。
-每个战斗预设里还可以配置每个技能的连点次数（`clicks`）和点击间隔（`click_interval`），
-这两个值由 `BattleAttack.battle_release_config()` 读取，任务不用再单独配。
+每个战斗预设里还可以配置每个技能的连点次数（`clicks`）、点击间隔（`click_interval`）
+和技能间隔（`skill_interval`），这些值由 `BattleAttack.battle_release_config()` 读取，
+任务不用再单独配。
 
 用法（任务的 config.py）：
 
@@ -20,7 +21,7 @@
         ...
 
 这样 arg 页面会多出一个「战斗配置」卡片：任务选预设 + 是否普通攻击；
-连点次数/间隔在「战斗预设」里配置。
+连点次数/间隔/技能间隔在「战斗预设」里配置。
 """
 from pydantic import BaseModel, Field
 
