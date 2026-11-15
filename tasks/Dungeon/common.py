@@ -18,7 +18,8 @@ from module.atom.click import RuleClick
 from module.base.timer import Timer
 from module.exception import (GameNotRunningError,
                               GamePageUnknownError,
-                              GameStuckError)
+                              GameStuckError,
+                              TaskFailed)
 from module.logger import logger
 from tasks.Battle.target_action import ACTION_ATTACK
 from tasks.Dungeon.assets import DungeonAssets
@@ -137,8 +138,8 @@ class DungeonBase(GameUi, DungeonAssets):
         return self.appear(self.I_PAGE_ACTIVITY_DUNGEON)
 
     # ---------------------------------------------------------------- 外地图入口
-    # 入口点位来自真机实测；outer/entry 为 None 表示还没录入，暂不进入。
-    # 琉璃幻境入口在忘川；仙居福地暂不实现。天渊灵岛/至尊巅峰暂不实现。
+    # 入口点位来自真机实测；outer/entry 为 None 表示入口就在 base 主地图上（不用先进外地图）。
+    # 琉璃幻境入口在忘川；仙居福地入口在骨牢。天渊灵岛/至尊巅峰暂不实现。
     DUNGEON_OUTER_ENTRIES = {
         'shayu_multi': {'base': '牧野', 'corner': 'top_right',
                         'entry': 'shayu_outer_entry', 'outer': '沙狱外'},
@@ -150,6 +151,8 @@ class DungeonBase(GameUi, DungeonAssets):
                           'entry': 'diyuling_outer_entry', 'outer': '帝玉岭外'},
         'liuli_huanjing': {'base': '忘川', 'corner': None,
                            'entry': None, 'outer': None},
+        'xianju_fudi': {'base': '骨牢', 'corner': None,
+                        'entry': None, 'outer': None},
     }
     DUNGEON_ENTER_TIMEOUT = 60
 
@@ -168,7 +171,7 @@ class DungeonBase(GameUi, DungeonAssets):
             logger.warning(f'No outer map recorded for dungeon [{field}]')
             return False
         if not info.get('outer'):
-            # 入口直接在主地图：琉璃幻境在忘川
+            # 入口直接在主地图：琉璃幻境在忘川，仙居福地在骨牢
             logger.hr(f'[{self.name}] 准备主地图 {info["base"]}')
             self.ui_reset_current_page()
             if not self.ui_goto(page_main, timeout=60):
@@ -252,6 +255,25 @@ class DungeonBase(GameUi, DungeonAssets):
     # 副本外地图的小地图窗口比 Yuwai/SilverGiftBox 窄：NPC 列表文字在 x≈850~990，
     # 公共默认区域 (950,180,170,420) 会切掉名字前半截
     DUNGEON_NPC_LIST_REGION = (845, 165, 170, 480)
+    # 已录点位的万事通位置：地图名 -> (点击规则名, 小地图视口要移到的角落)
+    # 注意角落不一定是左下：骨牢的万事通在视口右上角
+    DUNGEON_HEALER_MAPS = (
+        ('沙狱外', 'shayu_healer_npc', 'bottom_left'),
+        ('帝玉岭外', 'diyuling_healer_npc', 'bottom_left'),
+        ('忘川', 'liuli_healer_npc', 'bottom_left'),
+        ('骨牢', 'xianju_fudi_healer_npc', 'top_right'),
+    )
+
+    def dungeon_healer_target(self, map_name: str) -> tuple:
+        """
+        按当前地图取万事通点位
+
+        :return: (点击规则 | None, 小地图视口角落 | None)；没录录过该地图返回 (None, None)
+        """
+        for name, rule_name, corner in self.DUNGEON_HEALER_MAPS:
+            if self.map_name_match(map_name, name):
+                return getattr(self, f'C_{rule_name.upper()}'), corner
+        return None, None
 
     def dungeon_heal(self, retries: int = 1) -> bool:
         """
@@ -285,27 +307,19 @@ class DungeonBase(GameUi, DungeonAssets):
         self.map_close_main_popup()
         location = self.map_current_location()
 
-        # 已录点位的副本外地图：小地图视口左下角直接点万事通
-        healer_rules = (
-            ('沙狱外', self.C_SHAYU_HEALER_NPC),
-            ('帝玉岭外', self.C_DIYULING_HEALER_NPC),
-            ('忘川', self.C_LIULI_HEALER_NPC),
-        )
-        click_rule = None
+        # 已录点位的副本地图：拖到对应角落直接点万事通
+        click_rule, corner = (None, None)
         if location:
-            for map_name, rule in healer_rules:
-                if self.map_name_match(location[0], map_name):
-                    click_rule = rule
-                    break
+            click_rule, corner = self.dungeon_healer_target(location[0])
 
         if click_rule is not None:
             if not self.map_open_minimap():
                 return False
             try:
-                if not self.map_pan_to_corner('bottom_left',
+                if not self.map_pan_to_corner(corner,
                                               max_drags=self.DUNGEON_PAN_MAX_DRAGS):
                     # 忘川这种大地图箭头判断不可靠，视口可能已经正确，继续点击
-                    logger.warning('Minimap pan to bottom_left failed, click healer anyway')
+                    logger.warning(f'Minimap pan to {corner} failed, click healer anyway')
                 logger.info(f'Click healer position {click_rule.roi_front}')
                 self.click(click_rule)
                 self.device.click_record_clear()
@@ -514,6 +528,34 @@ class DungeonBase(GameUi, DungeonAssets):
                 logger.warning(f'Walk to [{target_map}] failed, retry {attempt + 1}/{retries}')
                 self.device.sleep(0.5)
         return False
+
+    def dungeon_go_to_position(self, label: str, position: tuple,
+                               map_name: str = None, timeout: int = 90,
+                               tolerance: int = 3) -> bool:
+        """
+        按坐标走到目标点（小地图坐标寻路，`GameUi.map_go_to_coordinate`）
+
+        房间 / 室内没有可点的小地图 Boss 图标时用这个：直接点那片地面，
+        由游戏自动寻路过去。
+
+        :param label: 日志用（例如 Boss 名）
+        :param position: 目标坐标 (x, y)
+        :param map_name: 目标地图名（传 OCR 读到那个不带括号的；None = 不校验）
+        :param timeout: 寻路超时（秒）
+        :param tolerance: 允许容差（格）
+        :return: 是否走到；`map_go_to_coordinate` 抛 TaskFailed 时返回 False
+        """
+        logger.hr(f'[{self.name}] 走到 [{label}] {position}')
+        try:
+            reached = self.map_go_to_coordinate(int(position[0]), int(position[1]),
+                                                map_name=map_name, timeout=timeout,
+                                                tolerance=tolerance)
+        except TaskFailed as e:
+            logger.warning(f'走到 [{label}] {position} 失败：{e}')
+            return False
+        logger.info(f'已到 [{label}] {reached[1]},{reached[2]}'
+                    f'（目标 {position[0]},{position[1]}）')
+        return True
 
     def _dungeon_target_names(self, target_name) -> list:
         """展开任务级目标别名：梦魇兽 -> [梦魇兽, 梦魔兽]"""

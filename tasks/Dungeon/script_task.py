@@ -20,6 +20,7 @@ from tasks.Dungeon.dungeons.DiyulingSolo import DiyulingSolo
 from tasks.Dungeon.dungeons.LiuliHuanjing import LiuliHuanjing
 from tasks.Dungeon.dungeons.ShayuMulti import ShayuMulti
 from tasks.Dungeon.dungeons.ShayuSolo import ShayuSolo
+from tasks.Dungeon.dungeons.XianjuFudi import XianjuFudi
 
 # 副本登记表：DungeonConfig 里的开关字段名 -> 副本实现类
 DUNGEONS: dict = {
@@ -28,6 +29,7 @@ DUNGEONS: dict = {
     'diyuling_multi_enable': DiyulingMulti,
     'diyuling_solo_enable': DiyulingSolo,
     'liuli_huanjing_enable': LiuliHuanjing,
+    'xianju_fudi_enable': XianjuFudi,
 }
 
 

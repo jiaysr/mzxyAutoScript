@@ -69,6 +69,22 @@ class DungeonAssets:
 	C_DUNGEON_RESET_CONFIRM = RuleClick(roi_front=(740,400,172,56), roi_back=(740,400,172,56), name="dungeon_reset_confirm")
 	# 重置结果浮层（重置成功/无法重置）-关闭X 
 	C_DUNGEON_RESET_PROMPT_CLOSE = RuleClick(roi_front=(944,293,38,41), roi_back=(944,293,38,41), name="dungeon_reset_prompt_close")
+	# 骨牢小地图（视口移到右上角）-万事通位置 
+	C_XIANJU_FUDI_HEALER_NPC = RuleClick(roi_front=(851,172,24,22), roi_back=(851,172,24,22), name="xianju_fudi_healer_npc")
+	# 骨牢小地图（视口移到右上角）-仙居福地副本入口 
+	C_XIANJU_FUDI_ENTRY = RuleClick(roi_front=(797,145,24,22), roi_back=(797,145,24,22), name="xianju_fudi_entry")
+	# 仙居福地[副本]小地图（视口移到左上角）-第1个Boss房间入口（焱） 
+	C_XIANJU_FUDI_ROOM_1 = RuleClick(roi_front=(388,508,30,27), roi_back=(388,508,30,27), name="xianju_fudi_room_1")
+	# 仙居福地[副本]小地图（视口移到左上角）-第2个Boss房间入口（垚） 
+	C_XIANJU_FUDI_ROOM_2 = RuleClick(roi_front=(574,573,30,27), roi_back=(574,573,30,27), name="xianju_fudi_room_2")
+	# 仙居福地[副本]小地图（视口移到左上角）-第3个Boss房间入口（森） 
+	C_XIANJU_FUDI_ROOM_3 = RuleClick(roi_front=(553,364,30,27), roi_back=(553,364,30,27), name="xianju_fudi_room_3")
+	# 仙居福地[副本]小地图（视口移到左上角）-第4个Boss房间入口（淼） 
+	C_XIANJU_FUDI_ROOM_4 = RuleClick(roi_front=(720,476,28,23), roi_back=(720,476,28,23), name="xianju_fudi_room_4")
+	# 仙居福地[副本]小地图（视口移到左上角）-第5个Boss房间入口（鑫） 
+	C_XIANJU_FUDI_ROOM_5 = RuleClick(roi_front=(709,363,28,23), roi_back=(709,363,28,23), name="xianju_fudi_room_5")
+	# 仙居福地[副本]小地图（视口移到左上角）-离开副本入口 
+	C_XIANJU_FUDI_EXIT = RuleClick(roi_front=(812,198,28,23), roi_back=(812,198,28,23), name="xianju_fudi_exit")
 
 
 	# Image Rule Assets

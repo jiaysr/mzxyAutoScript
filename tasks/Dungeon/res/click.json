@@ -172,5 +172,53 @@
     "roiFront": "944,293,38,41",
     "roiBack": "944,293,38,41",
     "description": "重置结果浮层（重置成功/无法重置）-关闭X"
+  },
+  {
+    "itemName": "xianju_fudi_healer_npc",
+    "roiFront": "851,172,24,22",
+    "roiBack": "851,172,24,22",
+    "description": "骨牢小地图（视口移到右上角）-万事通位置"
+  },
+  {
+    "itemName": "xianju_fudi_entry",
+    "roiFront": "797,145,24,22",
+    "roiBack": "797,145,24,22",
+    "description": "骨牢小地图（视口移到右上角）-仙居福地副本入口"
+  },
+  {
+    "itemName": "xianju_fudi_room_1",
+    "roiFront": "388,508,30,27",
+    "roiBack": "388,508,30,27",
+    "description": "仙居福地[副本]小地图（视口移到左上角）-第1个Boss房间入口（焱）"
+  },
+  {
+    "itemName": "xianju_fudi_room_2",
+    "roiFront": "574,573,30,27",
+    "roiBack": "574,573,30,27",
+    "description": "仙居福地[副本]小地图（视口移到左上角）-第2个Boss房间入口（垚）"
+  },
+  {
+    "itemName": "xianju_fudi_room_3",
+    "roiFront": "553,364,30,27",
+    "roiBack": "553,364,30,27",
+    "description": "仙居福地[副本]小地图（视口移到左上角）-第3个Boss房间入口（森）"
+  },
+  {
+    "itemName": "xianju_fudi_room_4",
+    "roiFront": "720,476,28,23",
+    "roiBack": "720,476,28,23",
+    "description": "仙居福地[副本]小地图（视口移到左上角）-第4个Boss房间入口（淼）"
+  },
+  {
+    "itemName": "xianju_fudi_room_5",
+    "roiFront": "709,363,28,23",
+    "roiBack": "709,363,28,23",
+    "description": "仙居福地[副本]小地图（视口移到左上角）-第5个Boss房间入口（鑫）"
+  },
+  {
+    "itemName": "xianju_fudi_exit",
+    "roiFront": "812,198,28,23",
+    "roiBack": "812,198,28,23",
+    "description": "仙居福地[副本]小地图（视口移到左上角）-离开副本入口"
   }
 ]

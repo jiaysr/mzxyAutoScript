@@ -22,6 +22,7 @@ class PrivilegeDungeon(str, Enum):
     DIYULING_MULTI = 'diyuling_multi'
     DIYULING_SOLO = 'diyuling_solo'
     LIULI_HUANJING = 'liuli_huanjing'
+    XIANJU_FUDI = 'xianju_fudi'
 
 
 class DungeonConfig(ConfigBase):
@@ -62,6 +63,10 @@ class DungeonConfig(ConfigBase):
     # 琉璃幻境
     liuli_huanjing_enable: bool = Field(default=False, description='是否挑战琉璃幻境')
     liuli_huanjing_count: int = Field(default=2, ge=1, le=2, description='琉璃幻境每天挑战次数（游戏内最多 2 次）')
+
+    # 仙居福地（入口在骨牢；副本内流程待录入，见 dungeons/XianjuFudi.py）
+    xianju_fudi_enable: bool = Field(default=False, description='是否挑战仙居福地')
+    xianju_fudi_count: int = Field(default=2, ge=1, le=2, description='仙居福地每天挑战次数（游戏内最多 2 次）')
 
 
 class Dungeon(ConfigBase):

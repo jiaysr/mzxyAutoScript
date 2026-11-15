@@ -44,6 +44,7 @@ CONFIG_FIELDS = {
     '帝玉岭[多人]': 'diyuling_multi',
     '帝玉岭[单人]': 'diyuling_solo',
     '琉璃幻境': 'liuli_huanjing',
+    '仙居福地': 'xianju_fudi',
 }
 # 反向：字段前缀 -> 列表里的副本名
 FIELD_NAMES = {field: name for name, field in CONFIG_FIELDS.items()}
