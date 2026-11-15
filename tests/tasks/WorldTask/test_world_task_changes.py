@@ -2,6 +2,7 @@
 """世界任务回归测试（不连设备）：阵营探测 / 任务榜关闭 / 世界之心刷怪点配置"""
 from types import SimpleNamespace
 
+from tasks.GameUi.core.ocr import OcrHelpers
 from tasks.WorldTask.config import DropFarmTask, WorldTask
 from tasks.WorldTask.script_task import ScriptTask
 
@@ -95,12 +96,7 @@ def test_close_task_board_gives_up_when_never_closed():
 
 # ---------------------------------------------------------------- 世界之心刷怪点
 class FakeFarm(ScriptTask):
-    """只测 farm_for_drop 的分派，不碰设备"""
-
-    FIGHT_TASKS = (
-        ('兽毛之争', '野兽', (226, 375), 'bottom_right'),
-        ('黄金比例', '黄金鼠', (220, 156), 'top_left'),
-    )
+    """只测 farm_for_drop 的分派，不碰设备（FIGHT_TASKS 直接用真实表）"""
 
     def __init__(self, task):  # 不调父类 __init__（会连设备/OCR）
         self.task = task
@@ -133,7 +129,7 @@ def test_farm_for_drop_fight_task_uses_its_own_point():
     fake.farm_for_drop(seconds=30)
     assert fake.calls == [
         ('goto', '黄金比例', (220, 156), 'top_left', None),
-        ('fight', '世界之心', '黄金鼠', (220, 156), 'top_left', '黄金比例', 30),
+        ('fight', '世界之心', ('黄金鼠', '蚩尤使者'), (220, 156), 'top_left', '黄金比例', 30),
     ]
 
 
@@ -141,3 +137,142 @@ def test_farm_for_drop_unknown_task_does_nothing():
     fake = FakeFarm('不存在')
     fake.farm_for_drop(seconds=30)
     assert fake.calls == []
+
+
+# ---------------------------------------------------------------- 打怪目标（多目标）
+class FakeTargetTask:
+    """只测 fight_target_ok：锁定状态一律「可攻击」，名字由构造传入"""
+
+    TARGET_NAME_CHECK_INTERVAL = 0
+    ocr_name_match = OcrHelpers.ocr_name_match
+    fight_target_names = staticmethod(ScriptTask.fight_target_names)
+    fight_target_text = ScriptTask.fight_target_text
+    fight_target_name_ok = ScriptTask.fight_target_name_ok
+
+    def __init__(self, name):
+        self.name = name
+        self._target_name_cache = None
+
+    def ui_target_attackable(self, image=None):
+        return True
+
+    def ui_target_name(self, scales=None, min_score=None):
+        return self.name
+
+
+def test_fight_tasks_include_sunday_extra_target():
+    """周日才刷的蚩尤使者挂在两个打怪任务的额外目标上"""
+    rows = {row[0]: row for row in ScriptTask.FIGHT_TASKS}
+    for name in ('兽毛之争', '黄金比例'):
+        targets = ScriptTask.fight_target_names(rows[name][1])
+        assert '蚩尤使者' in targets
+        assert len(targets) == 2
+
+
+def test_fight_target_names_accepts_str_list_and_comma():
+    assert ScriptTask.fight_target_names('野兽') == ('野兽',)
+    assert ScriptTask.fight_target_names('野兽, 蚩尤使者') == ('野兽', '蚩尤使者')
+    assert ScriptTask.fight_target_names(['野兽', '蚩尤使者']) == ('野兽', '蚩尤使者')
+    assert ScriptTask.fight_target_names(None) == ()
+    assert ScriptTask.fight_target_text(('野兽', '蚩尤使者')) == '野兽/蚩尤使者'
+
+
+def test_fight_target_ok_accepts_any_target_of_the_list():
+    targets = ('野兽', '蚩尤使者')
+    assert ScriptTask.fight_target_ok(FakeTargetTask('野兽'), targets) is True
+    assert ScriptTask.fight_target_ok(FakeTargetTask('蚩尤使者'), targets) is True
+    # 逗号分隔的老写法也要认
+    assert ScriptTask.fight_target_ok(FakeTargetTask('蚩尤使者'), '野兽,蚩尤使者') is True
+
+
+def test_fight_target_ok_rejects_other_targets():
+    targets = ('野兽', '蚩尤使者')
+    # 敌对玩家 / 无关 NPC 都不算
+    assert ScriptTask.fight_target_ok(FakeTargetTask('素问(8区)'), targets) is False
+    assert ScriptTask.fight_target_ok(FakeTargetTask('黄金鼠'), targets) is False
+    # 名字读不出来时按原目标处理（别因为一次 OCR 抖动就停手）
+    assert ScriptTask.fight_target_ok(FakeTargetTask(''), targets) is True
+
+
+# ---------------------------------------------------------------- 界面被遮挡时脱困
+class FakeBlindTask:
+    BLIND_ROUNDS = 2
+    BLIND_ESCAPE_LIMIT = 3
+    BLIND_OK = 'ok'
+    BLIND_ESCAPED = 'escaped'
+    BLIND_GIVE_UP = 'give_up'
+
+    def __init__(self, hud_readable=False, close_works=False, reenter_works=False):
+        self.hud = hud_readable
+        self.close_works = close_works
+        self.reenter_works = reenter_works
+        self.close_calls = 0
+        self.reset_calls = 0
+        self.reenter_calls = 0
+        self._blind_rounds = 0
+        self._blind_escapes = 0
+
+    def hud_readable(self):
+        return self.hud
+
+    def try_close_unknown_page(self, skip_screenshot=True):
+        self.close_calls += 1
+        if self.close_works:
+            self.hud = True        # 弹窗关掉后 HUD 回得来
+        return self.close_works
+
+    def ui_reset_current_page(self):
+        self.reset_calls += 1
+
+    def ensure_world_peak_map(self, timeout=40):
+        self.reenter_calls += 1
+        if self.reenter_works:
+            self.hud = True        # 重新进图后 HUD 回得来
+        return self.reenter_works
+
+
+def test_blind_check_does_nothing_when_hud_visible():
+    fake = FakeBlindTask(hud_readable=True)
+    assert ScriptTask.fight_blind_check(fake) == ScriptTask.BLIND_OK
+    assert fake.close_calls == 0
+    assert fake.reenter_calls == 0
+
+
+def test_blind_check_needs_consecutive_rounds_then_closes_popup():
+    fake = FakeBlindTask(hud_readable=False, close_works=True)
+    assert ScriptTask.fight_blind_check(fake) == ScriptTask.BLIND_OK   # 第 1 轮：先只记一笔
+    assert fake.close_calls == 0
+    assert ScriptTask.fight_blind_check(fake) == ScriptTask.BLIND_ESCAPED  # 第 2 轮：关弹窗
+    assert fake.close_calls == 1
+    assert fake.reset_calls == 0                                        # 关掉了就不用重新进图
+
+
+def test_blind_check_reenters_map_when_popup_cannot_be_closed():
+    fake = FakeBlindTask(hud_readable=False, close_works=False, reenter_works=True)
+    ScriptTask.fight_blind_check(fake)
+    assert ScriptTask.fight_blind_check(fake) == ScriptTask.BLIND_ESCAPED
+    assert fake.close_calls == 1
+    assert fake.reset_calls == 1
+    assert fake.reenter_calls == 1
+
+
+def test_blind_check_gives_up_after_escape_limit():
+    fake = FakeBlindTask(hud_readable=False, close_works=False, reenter_works=False)
+    results = []
+    for _ in range(ScriptTask.BLIND_ESCAPE_LIMIT * 2):
+        results.append(ScriptTask.fight_blind_check(fake))
+    # 每两次「看不见」才尝试一次脱困，第 BLIND_ESCAPE_LIMIT 次后放弃
+    assert results.count(ScriptTask.BLIND_GIVE_UP) == 1
+    assert results[-1] == ScriptTask.BLIND_GIVE_UP
+    assert fake.reenter_calls == ScriptTask.BLIND_ESCAPE_LIMIT
+
+
+def test_blind_check_counter_resets_when_hud_comes_back():
+    fake = FakeBlindTask(hud_readable=False, close_works=True)
+    assert ScriptTask.fight_blind_check(fake) == ScriptTask.BLIND_OK
+    fake.hud = True
+    assert ScriptTask.fight_blind_check(fake) == ScriptTask.BLIND_OK
+    assert fake._blind_rounds == 0
+    assert fake._blind_escapes == 0
+    fake.hud = False
+    assert ScriptTask.fight_blind_check(fake) == ScriptTask.BLIND_OK   # 重新从第 1 轮数

@@ -123,15 +123,27 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
     # 世界之巅里的「打怪类」任务：小地图拖到某个角落 -> 点刷新点 -> 走到打架位 -> 打指定怪
     # 玩法都一样，只有「锚点角 / 刷新点 / 打架位 / 目标名」不同
+    # 目标名可以是多个（list / 逗号分隔）：锁到其中任意一只都算对
+    # 周日才刷的「蚩尤使者」数量多、掉率按普通怪，挂到打怪任务的额外目标上，
+    # 抢不到本任务那只时能打它也不亏
+    FIGHT_EXTRA_TARGETS = ('蚩尤使者',)
     FIGHT_TASKS = (
         # 任务名, 目标名, 打架位, 小地图锚点角, 小地图点位规则
-        ('兽毛之争', '野兽', (226, 375), 'bottom_right'),
-        ('黄金比例', '黄金鼠', (220, 156), 'top_left'),
+        ('兽毛之争', ('野兽',) + FIGHT_EXTRA_TARGETS, (226, 375), 'bottom_right'),
+        ('黄金比例', ('黄金鼠',) + FIGHT_EXTRA_TARGETS, (220, 156), 'top_left'),
     )
     FIGHT_DRIFT_CHECK = 5.0          # 打怪时每隔几秒查一次坐标
     FIGHT_DRIFT_TOLERANCE = 12       # 偏离打架位超过这个格数就回点位
     FIGHT_TRAVEL_TIMEOUT = 90        # 走过去 / 回点位的超时
     FIGHT_TIMEOUT = 600              # 单个任务打怪阶段的超时
+    # 打怪时「右上角 HUD 看不见」连续这么多轮就判定被遮挡，主动脱困
+    # （真机 2026-11-15：被打死但死亡弹窗没识别到，界面被压暗，机器人空转到 FIGHT_TIMEOUT）
+    BLIND_ROUNDS = 2
+    # 连续几次脱困都没把界面救回来就放弃这个任务（别再空转）
+    BLIND_ESCAPE_LIMIT = 3
+    BLIND_OK = 'ok'
+    BLIND_ESCAPED = 'escaped'
+    BLIND_GIVE_UP = 'give_up'
     # 判定「走到目标点」的坐标容差
     WOOD_POS_TOLERANCE = 15
 
@@ -843,7 +855,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
             logger.warning(f'世界之心刷怪点配置的 [{task}] 不是打怪任务，跳过本轮')
             return
         _name, target, position, corner = row
-        logger.hr(f'刷 {self.DROP_TASK}：{task} 的点，打 {seconds:.0f}s 的 [{target}]', level=2)
+        logger.hr(f'刷 {self.DROP_TASK}：{task} 的点，'
+                  f'打 {seconds:.0f}s 的 [{self.fight_target_text(target)}]', level=2)
         if not self.fight_goto_point(task, position, corner):
             logger.warning(f'去 [{task}] 的刷新点失败')
             return
@@ -1301,9 +1314,96 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         return not self.map_pos_match(location[1], location[2], position,
                                       self.FIGHT_DRIFT_TOLERANCE)
 
+    # ---------------------------------------------------------------- 界面被遮挡时脱困
+    def hud_readable(self) -> bool:
+        """
+        右上角 HUD 还看得见吗（菜单开关 / 地点文字任认识一个）
+
+        被弹窗、遮罩或死亡界面压暗时，这两个都认不出来 —— 这时锁目标、查坐标全是瞎猜，
+        继续「等刷新」只会空转到超时。
+        """
+        image = self.screenshot()
+        if self.appear(self.I_MENU_COLLAPSED) or self.appear(self.I_MENU_EXPANDED):
+            return True
+        return self.map_current_location(image) is not None
+
+    def fight_blind_check(self) -> str:
+        """
+        锁不到目标时先确认「界面还看得见」，看不见就主动脱困
+
+        真机 2026-11-15（世界之巅 兽毛之争）：角色再次阵亡但这次死亡弹窗没被
+        `I_DEATH_DIALOG` 认出来，屏幕被压暗 —— 地点 OCR 读空、菜单开关认不到、
+        锁定图标也认不到。当时 `lock_timeout=None` 的「等刷新」永不过期，
+        机器人就这样空转 7 分半，直到 `FIGHT_TIMEOUT` 才收工，当天其它世界任务一起垮。
+
+        连续 `BLIND_ROUNDS` 轮看不见就：
+        1. 点通用关闭按钮（返回/绿X/紫X）把遮挡关掉；
+        2. 还不行就回主页面重新进世界之巅（人可能已经被杀回村子了）。
+
+        :return: `BLIND_OK` / `BLIND_ESCAPED`（调用方 continue 重来一轮）/
+                 `BLIND_GIVE_UP`（连续 `BLIND_ESCAPE_LIMIT` 次都救不回来）
+        """
+        if self.hud_readable():
+            self._blind_rounds = 0
+            self._blind_escapes = 0
+            return self.BLIND_OK
+
+        self._blind_rounds = getattr(self, '_blind_rounds', 0) + 1
+        logger.warning(f'右上角 HUD 看不见（{self._blind_rounds}/{self.BLIND_ROUNDS}），'
+                       f'疑似被弹窗/遮罩盖住')
+        if self._blind_rounds < self.BLIND_ROUNDS:
+            return self.BLIND_OK
+        self._blind_rounds = 0
+
+        self._blind_escapes = getattr(self, '_blind_escapes', 0) + 1
+        logger.warning(f'主动脱困（第 {self._blind_escapes}/{self.BLIND_ESCAPE_LIMIT} 次）：'
+                       f'先试着关掉遮挡界面')
+        if self.try_close_unknown_page(skip_screenshot=False) and self.hud_readable():
+            logger.info('遮挡界面已关掉，继续打')
+            self._blind_escapes = 0
+            return self.BLIND_ESCAPED
+
+        logger.warning('遮挡关不掉，回主页面重新进世界之巅')
+        self.ui_reset_current_page()
+        if self.ensure_world_peak_map() and self.hud_readable():
+            logger.info('重新进世界之巅成功，继续打')
+            self._blind_escapes = 0
+            return self.BLIND_ESCAPED
+
+        if self._blind_escapes >= self.BLIND_ESCAPE_LIMIT:
+            logger.warning(f'连续 {self._blind_escapes} 次脱困都没把界面救回来，'
+                           f'放弃这个任务，别再空转到超时')
+            return self.BLIND_GIVE_UP
+        return self.BLIND_ESCAPED
+
     TARGET_NAME_CHECK_INTERVAL = 0.5   # 目标名校验节流（验名字要 OCR，0.1s 一次太费）
 
-    def fight_target_ok(self, target: str, image=None) -> bool:
+    @staticmethod
+    def fight_target_names(target) -> tuple:
+        """目标名规整成元组：兼容 str / 逗号分隔 / list|tuple（多个目标任选其一）"""
+        if not target:
+            return ()
+        names = target.split(',') if isinstance(target, str) else target
+        return tuple(str(name).strip() for name in names if str(name).strip())
+
+    @classmethod
+    def fight_target_text(cls, target) -> str:
+        """日志用的目标名文本（多个目标用 / 分隔）"""
+        return '/'.join(cls.fight_target_names(target)) or '?'
+
+    def fight_target_name_ok(self, ocr_name: str, target) -> bool:
+        """
+        目标名是不是要打的那只（支持多个目标）
+
+        用 `ocr_name_match` 而不是 `task_name_match`：前者就是锁目标时用的规则
+        （`ui_ensure_target_locked`），两边一致才不会被「锁得到但打不了」卡住。
+        """
+        names = self.fight_target_names(target)
+        if not names:
+            return True
+        return any(self.ocr_name_match(ocr_name, name) for name in names)
+
+    def fight_target_ok(self, target, image=None) -> bool:
         """
         放技能前确认「锁着的目标就是要打的那只」
 
@@ -1311,6 +1411,8 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         （日志里的「烬火使者」），技能就打偏了。这里每次都比名字，
         但名字要 OCR，所以按 `TARGET_NAME_CHECK_INTERVAL` 节流；名字读不出来时按原目标处理
         （别因为一次 OCR 抖动就停手）。
+
+        :param target: 目标名，可以是多个（list / 逗号分隔）
         """
         if not self.ui_target_attackable(image=image):
             return False
@@ -1325,8 +1427,9 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
         if not name:
             return True
-        if not self.task_name_match(name, target):
-            logger.warning(f'锁着的目标变成 [{name}]（要打 [{target}]），停止放技能')
+        if not self.fight_target_name_ok(name, target):
+            logger.warning(f'锁着的目标变成 [{name}]'
+                           f'（要打 [{self.fight_target_text(target)}]），停止放技能')
             return False
         return True
 
@@ -1347,7 +1450,7 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
                 return 'drift'
         return None
 
-    def fight_until_complete(self, task_name: str, target: str,
+    def fight_until_complete(self, task_name: str, target,
                              position: tuple, corner: str,
                              rule_key: str = None, lock_timeout: float = None,
                              timeout: float = None) -> bool:
@@ -1357,11 +1460,13 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
         真机玩法（兽毛之争）：刷新点附近 3 只怪、打死 4~5 秒重新刷新，
         所以目标死了不用补锁、直接重新锁下一只；技能按任务「战斗配置」里的预设放。
 
+        :param target: 目标名，可以是多个（list / 逗号分隔，锁到任意一只都算）
         :param lock_timeout: 多久一直锁不到目标就放弃（None = 一定要打到达成/超时）
         :param timeout: 这一段最多打多久（None = FIGHT_TIMEOUT）；刷掉落时传短时段
         :return: 任务完成返回 True
         """
-        logger.hr(f'打 [{target}]', level=2)
+        target_text = self.fight_target_text(target)
+        logger.hr(f'打 [{target_text}]', level=2)
         rule_key = rule_key or task_name
         preset = self.battle_preset()
         slots = self.battle_plan_slots(preset=preset)
@@ -1378,24 +1483,30 @@ class ScriptTask(GameUi, WorldTaskAssets, AutoTaskAssets):
 
             self._target_name_cache = None
             if not self.ui_ensure_target_locked(target_name=target):
+                # 界面看不见（死亡界面没识别/弹窗盖屏）时「等刷新」会一直空转到超时
+                blind = self.fight_blind_check()
+                if blind == self.BLIND_GIVE_UP:
+                    return False
+                if blind == self.BLIND_ESCAPED:
+                    continue
                 # 锁不到目标也可能是「人被打退了，够不着怪」：这时也要回点位，
                 # 否则会站在 12 格外死等（真机实测干等了 2 分半，最后被怪打死）
                 if self.fight_drift_timer.reached():
                     self.fight_drift_timer.reset()
                     if self.fight_drifted(position):
-                        logger.warning(f'锁不到 [{target}] 且人已偏离打架位 {position}，回点位')
+                        logger.warning(f'锁不到 [{target_text}] 且人已偏离打架位 {position}，回点位')
                         if not self.fight_goto_point(task_name, position, corner,
                                                      rule_key=rule_key):
                             return False
                         continue
                 if lock_timeout is None:
-                    logger.info(f'没锁到 [{target}]，等刷新')
+                    logger.info(f'没锁到 [{target_text}]，等刷新')
                     self.device.sleep(1.0)
                     continue
                 # 阵营未知时用来「探一探这个点位对不对」：锁不到就换另一个
                 lock_timer = lock_timer or Timer(lock_timeout).start()
                 if lock_timer.reached():
-                    logger.warning(f'{lock_timeout}s 都没锁到 [{target}]，换另一个点位')
+                    logger.warning(f'{lock_timeout}s 都没锁到 [{target_text}]，换另一个点位')
                     return False
                 self.device.sleep(1.0)
                 continue
