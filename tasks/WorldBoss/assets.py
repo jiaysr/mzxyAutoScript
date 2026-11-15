@@ -26,8 +26,6 @@ class WorldBossAssets:
 	I_BOSS_FUWANG = RuleImage(roi_front=(435,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_fuwang.png")
 	# 世界首领-蝎王名称 
 	I_BOSS_XIEWANG = RuleImage(roi_front=(738,198,68,40), roi_back=(90,190,800,50), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_xiewang.png")
-	# 世界首领-首领归属奖弹窗 
-	I_BOSS_REWARD = RuleImage(roi_front=(230,188,89,38), roi_back=(221,158,152,103), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_reward.png")
 	# 世界首领-斧王结束判定（[世界]系统消息，模板近似用高阈值区分） 
 	I_FINISH_FUWANG = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_fuwang.png")
 	# 世界首领-无情结束判定（[世界]系统消息，模板近似用高阈值区分） 
@@ -38,6 +36,10 @@ class WorldBossAssets:
 	I_FINISH_XIEWANG = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_xiewang.png")
 	# 世界首领-蛮锤结束判定（[世界]系统消息，模板近似用高阈值区分） 
 	I_FINISH_MANCHUI = RuleImage(roi_front=(1,641,241,36), roi_back=(0,582,305,138), threshold=0.95, method="Template matching", file="./tasks/WorldBoss/res/res_finish_manchui.png")
+	# 世界首领-首领归属奖弹窗 
+	I_BOSS_REWARD = RuleImage(roi_front=(230,188,89,38), roi_back=(221,158,152,103), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_boss_reward.png")
+	# 世界首领-天师的幻影结束判定（[世界]系统消息；模板带首领名，比其它结束模板更好区分） 
+	I_FINISH_TIANSHI = RuleImage(roi_front=(1,641,327,31), roi_back=(0,587,381,133), threshold=0.8, method="Template matching", file="./tasks/WorldBoss/res/res_finish_tianshi.png")
 
 
 	# Swipe Rule Assets

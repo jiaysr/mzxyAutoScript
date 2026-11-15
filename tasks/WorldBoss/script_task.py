@@ -8,7 +8,8 @@ from module.base.timer import Timer
 from module.exception import (GameNotRunningError,
                               GamePageUnknownError,
                               GameStuckError,
-                              TaskEnd)
+                              TaskEnd,
+                              TaskFailed)
 from module.logger import logger
 from tasks.Battle.target_action import ACTION_ATTACK
 from tasks.GameUi.game_ui import GameUi
@@ -16,8 +17,6 @@ from tasks.GameUi.pages.page import page_activity_world_boss
 from tasks.WorldBoss.assets import WorldBossAssets
 
 # 世界首领：目标地图与坐标来自游戏内「寻」的自动寻路终点（实测值）
-# TODO: 天师的幻影（全服 boss，12:00/22:00）尚未接入；它是全服地图的特殊 boss，
-#       需要确认专属地图/机制后再加入 BOSS_LIST 和配置时间。
 BOSS_LIST = [
     {
         'key': 'manchui',
@@ -54,6 +53,17 @@ BOSS_LIST = [
         'target_coord': (259, 345),
         'times': [('time_21', time(21, 0))],
     },
+    # 天师的幻影：不在活动页的首领列表里（没有「寻」），直接前往世界之巅地图。
+    # 世界之巅没有传送出口：进图靠「进入世界之巅」活动按钮，离开只能重启游戏。
+    # 它和 12:00 的无情 / 22:00 的斧王同时刷新，攻击顺序写死为「天师先打」（见 pair_order）。
+    {
+        'key': 'tianshi',
+        'name': '天师的幻影',
+        'target_map': '世界之巅',
+        'target_coord': (252, 241),
+        'times': [('time_12', time(12, 0)), ('time_22', time(22, 0))],
+        'reach': 'world_peak',
+    },
 ]
 
 # 首领名称素材宽度 68，名称中心相对素材左边缘为 34
@@ -63,6 +73,15 @@ SEEK_OFFSET_Y = 576
 ARRIVE_TOLERANCE = 20
 # 自动寻路卡住判定：坐标连续多少秒没变化就重新点「寻」重启寻路
 ARRIVE_STALL_SECONDS = 10
+# 不在活动页里的首领（目前只有天师的幻影）：直接进世界之巅地图走过去
+REACH_WORLD_PEAK = 'world_peak'
+WORLD_PEAK_MAP = '世界之巅'
+# 走过去时允许的坐标容差（格）：站在首领附近就能锁到就行
+WALK_TO_BOSS_TOLERANCE = 5
+# 前往首领失败（含死亡复活后被送回初始位置）时的重试次数
+NAVIGATE_RETRY = 2
+# 复活/读条期间地点会短暂读不出来：多读几次再判断是否离开了世界之巅
+MAP_READ_RETRY = 3
 
 
 class WorldBossDeath(Exception):
@@ -95,7 +114,6 @@ class ScriptTask(GameUi, WorldBossAssets):
       都会抛 WorldBossFinished —— 锁定、攻击、复活、重新寻路都不会漏掉这条聊天消息。
 
     TODO:
-      - 天师的幻影（全服 boss，12:00/22:00）尚未接入，见 BOSS_LIST 顶部说明。
       - 双 boss 期间被其他玩家攻击，可能打断回主页面/地图传送/「寻」的自动寻路；
         目前未处理，后续需要检测受击/战斗状态并重试地图移动与切换。
     """
@@ -222,6 +240,16 @@ class ScriptTask(GameUi, WorldBossAssets):
                 logger.warning(f'Unhandled death during {e.stage}, rerun task')
                 self.rerun_task()
 
+            # 世界之巅没有传送出口：这一组里打过天师的幻影（或人还在图里）就要重启离开，
+            # 否则下一时段的首领连地图都去不了
+            if any(self.boss_direct_reach(boss) for boss in group):
+                try:
+                    self.leave_world_peak_if_needed(f'事件 {event_time:%H:%M} 收尾')
+                except WorldBossDeath:
+                    # 离开前被打死：复活已在村庄，人不在图里了，重启没必要
+                    logger.warning('离开世界之巅前阵亡，跳过重启（复活后已离开该地图）')
+                    self.watch_finish_stop()
+
         self.watch_finish_stop()
         self.clear_task_record()
         self.schedule_next_event()
@@ -285,18 +313,12 @@ class ScriptTask(GameUi, WorldBossAssets):
                 return
             try:
                 self._death_stage = 'navigate'
-                self.prepare_boss_map(boss)
-                self.enter_world_boss_page()
-                if not self.seek_boss(boss):
-                    logger.warning(f"Unable to seek {boss['name']}")
-                    return
-
-                remaining = max(1, int((deadline - datetime.now()).total_seconds()))
-                arrive = self.wait_until_arrive(boss, timeout=min(180, remaining),
-                                                finish_rule=finish_rule)
+                arrive = self.navigate_to_boss(boss, finish_rule, deadline)
                 if arrive == 'finished':
                     self.mark_event_done(boss, event_time)
                     self.handle_finish(boss)
+                    return
+                if arrive == 'failed':
                     return
                 if arrive != 'arrived':
                     logger.warning(f"Did not arrive at {boss['target_map']}{boss['target_coord']}")
@@ -345,8 +367,17 @@ class ScriptTask(GameUi, WorldBossAssets):
     # ---------------------------------------------------------------- 双 boss
     def pair_order(self, pair: list) -> tuple:
         """
-        返回 (先打, 后打)。配置里选中的 boss 在 pair 中就用它，否则按事件顺序。
+        返回 (先打, 后打)
+
+        天师的幻影顺序**写死**：它在世界之巅、离开只能重启游戏，所以总是先打它、
+        打够配置的技能数就重启离开，再打同时段的另一个首领（不看 first_boss 配置）。
+        其余情况按配置里选中的 boss，没选就用事件顺序。
         """
+        for boss in pair:
+            if self.boss_direct_reach(boss):
+                other = next((item for item in pair if item is not boss), None)
+                if other is not None:
+                    return boss, other
         selected = self.config.world_boss.world_boss_config.first_boss
         selected = getattr(selected, 'value', selected)
         for boss in pair:
@@ -596,20 +627,21 @@ class ScriptTask(GameUi, WorldBossAssets):
                 if self.pair_all_done(state):
                     return 'all_done'
 
-                self.prepare_boss_map(boss)
                 try:
-                    self.enter_world_boss_page()
-                    if not self.seek_boss(boss):
-                        logger.warning(f"Unable to seek {boss['name']}")
-                        return 'navigate_failed'
-                    remaining = max(1, int((deadline - datetime.now()).total_seconds()))
-                    arrive = self.wait_until_arrive(boss, timeout=min(180, remaining),
-                                                    finish_rule=self.finish_rule(boss))
-                    if arrive == 'timeout':
-                        logger.warning(f"Did not arrive at {boss['target_map']}{boss['target_coord']}")
+                    arrive = self.navigate_to_boss(boss, self.finish_rule(boss), deadline)
                 except (GameStuckError, GamePageUnknownError, GameNotRunningError) as e:
                     logger.warning(f"Navigate {boss['name']} failed: {e}")
                     return 'navigate_failed'
+                if arrive == 'finished':
+                    self.watch_finish_stop()
+                    state[boss['key']] = True
+                    self.mark_event_done(boss, event_time)
+                    self.handle_finish(boss)
+                    return 'finished'
+                if arrive == 'failed':
+                    return 'navigate_failed'
+                if arrive == 'timeout':
+                    logger.warning(f"Did not arrive at {boss['target_map']}{boss['target_coord']}")
 
                 self.screenshot()
                 newly = self.pair_update_finish(self.device.image, pair, state, event_time)
@@ -686,6 +718,16 @@ class ScriptTask(GameUi, WorldBossAssets):
                                       cast_counter=cast_counter)
         logger.attr('First boss result', f'{result}（已释放 {cast_counter["casts"]}/{skills}）')
 
+        # 1.5 第一个是天师的幻影：它在世界之巅，打够技能数（或它已结束）后只能重启离开。
+        #     重启后人已回域外灵岛，不再回世界之巅 —— 所以直接按已结束收尾，进第二个。
+        if self.boss_direct_reach(first):
+            logger.info(f'{first["name"]} 攻击阶段结束（{result}），重启游戏离开世界之巅')
+            self.leave_world_peak_if_needed(f'{first["name"]} 打够技能数')
+            if not state.get(first['key']):
+                logger.info(f'{first["name"]} 离开世界之巅后回不去，按已结束处理')
+                state[first['key']] = True
+                self.mark_event_done(first, event_time)
+
         # 2. 第二个 boss：打到它结束
         while (not state[second['key']] and not self.pair_all_done(state)
                and datetime.now() < deadline):
@@ -704,7 +746,9 @@ class ScriptTask(GameUi, WorldBossAssets):
             break
 
         # 3. 第二个结束后，第一个还没结束 -> 回第一个打到它的结束模板
-        while (not state[first['key']] and not self.pair_all_done(state)
+        #    （天师的幻影离开世界之巅后回不去，不参与这一步）
+        while (not self.boss_direct_reach(first)
+               and not state[first['key']] and not self.pair_all_done(state)
                and datetime.now() < deadline):
             result = self.pair_fight_boss(first, pair, state, event_time, deadline,
                                           max_skills=None,
@@ -809,6 +853,143 @@ class ScriptTask(GameUi, WorldBossAssets):
         target = min(candidates)
         logger.attr('Next world boss start', target)
         self.set_next_run(task='WorldBoss', target=target, success=None, finish=True, server=False)
+
+    # ---------------------------------------------------------------- 天师的幻影（直接前往）
+    def boss_direct_reach(self, boss: dict) -> bool:
+        """
+        这个首领是不是「不在活动页里、需要直接走去」的类型
+
+        目前只有天师的幻影（`reach: 'world_peak'`）：活动页首领列表里没有它，
+        得先进世界之巅地图，再按坐标走到它脚下。
+        """
+        return boss.get('reach') == REACH_WORLD_PEAK
+
+    def world_peak_task(self):
+        """
+        世界之巅地图的进出复用世界任务（WorldTask）的实现
+
+        无传送出口：进图靠「守门人 -> 活动弹窗 -> 进入世界之巅」，出图只能重启游戏。
+        这套流程在 WorldTask 里已经跑通（含「活动暂未开启」弹窗、工作日/周末首页 tab、
+        重启后等回主页面），这里复用一个实例，不在两处各写一套。
+        """
+        task = getattr(self, '_world_peak_task', None)
+        if task is None:
+            from tasks.WorldTask.script_task import ScriptTask as WorldTaskScriptTask
+            task = WorldTaskScriptTask(config=self.config, device=self.device)
+            self._world_peak_task = task
+        return task
+
+    def enter_world_peak_map(self) -> bool:
+        """进入世界之巅地图（已在图里直接返回 True）"""
+        logger.hr('进入世界之巅')
+        return self.world_peak_task().ensure_world_peak_map()
+
+    def leave_world_peak_if_needed(self, reason: str = '') -> bool:
+        """
+        人在世界之巅就只能靠重启离开（没有传送出口）
+
+        重启上线后人物自动回到域外灵岛（世界任务交付也是这么做的）。
+        :return: 已经不在图里 / 重启后回到主页面 都算成功
+        """
+        suffix = f'（{reason}）' if reason else ''
+        if not self.map_in_location(WORLD_PEAK_MAP):
+            logger.info(f'不在世界之巅，不需要重启离开{suffix}')
+            return True
+        logger.hr(f'重启游戏离开世界之巅{suffix}')
+        if not self.world_peak_task().restart_and_wait():
+            logger.warning('重启后没回到主页面')
+            return False
+        return True
+
+    def ensure_world_peak_in_map(self) -> bool:
+        """
+        确认人在世界之巅地图（不在就重新进图）
+
+        在 世界之巅 里死亡复活会被送回**该地图的初始位置**（不是村庄），所以复活后
+        只需要重新走回 Boss 坐标；而复活/读条期间右上角地点会短暂读不出来 ——
+        这时不能当成「已经离开地图」（那会去域外灵岛找守门人、把人送出图），
+        先多读几次再决定。
+        """
+        for attempt in range(MAP_READ_RETRY):
+            if self.map_in_location(WORLD_PEAK_MAP):
+                return True
+            logger.info(f'读不到/不在世界之巅（{attempt + 1}/{MAP_READ_RETRY}），稍后重读')
+            self.device.sleep(1)
+        return self.enter_world_peak_map()
+
+    def navigate_to_boss(self, boss: dict, finish_rule, deadline: datetime) -> str:
+        """
+        前往首领位置（失败会重试）
+
+        - 普通首领：传送到目标地图 -> 活动页点「寻」-> 等自动寻路到 `target_coord`；
+        - 天师的幻影：不在活动页里，直接进世界之巅地图，再按坐标（maps.json 已标定）走过去。
+
+        死亡复活后本方法会被外层重新调用：天师在 世界之巅 死亡会被送回该地图的
+        初始位置，所以这里会重新沿地图坐标走回 Boss 坐标（继续等待刷新/继续攻击）。
+
+        :return: 'arrived' / 'finished'（途中到到结束消息）/ 'timeout' / 'failed'
+        """
+        result = 'timeout'
+        for attempt in range(NAVIGATE_RETRY + 1):
+            result = self._navigate_to_boss_once(boss, finish_rule, deadline)
+            if result in ('arrived', 'finished'):
+                return result
+            if datetime.now() >= deadline:
+                return result
+            if attempt < NAVIGATE_RETRY:
+                logger.warning(f'前往 {boss["name"]} 失败（{result}），'
+                               f'重试 {attempt + 1}/{NAVIGATE_RETRY}')
+                self.device.sleep(2)
+        return result
+
+    def _navigate_to_boss_once(self, boss: dict, finish_rule, deadline: datetime) -> str:
+        """走一次：普通首领走活动页，天师直接进图按坐标走"""
+        remaining = max(1, int((deadline - datetime.now()).total_seconds()))
+        if self.boss_direct_reach(boss):
+            if not self.ensure_world_peak_in_map():
+                logger.warning(f'进不去世界之巅地图，无法前往 {boss["name"]}')
+                return 'failed'
+            return self.walk_to_direct_boss(boss, finish_rule, timeout=min(180, remaining))
+
+        self.prepare_boss_map(boss)
+        self.enter_world_boss_page()
+        if not self.seek_boss(boss):
+            logger.warning(f"Unable to seek {boss['name']}")
+            return 'failed'
+        return self.wait_until_arrive(boss, timeout=min(180, remaining),
+                                      finish_rule=finish_rule)
+
+    def walk_to_direct_boss(self, boss: dict, finish_rule,
+                            timeout: int = 180) -> str:
+        """
+        按坐标走到首领脚下（小地图坐标寻路，边走边查结束模板）
+
+        走到位后的锁定/攻击仍交给 lock_boss/attack_boss（它们会先 wait_until_spawn）。
+        """
+        logger.hr(f'前往 {boss["name"]} {boss["target_coord"]}')
+        state = {'finished': False}
+
+        def on_poll(_position=None):
+            # 走的路上可能已经被别人打死了：结束消息不能漏
+            if finish_rule is None or not self.exist_image():
+                return False
+            if self.finish_confirmed(boss, finish_rule, self.device.image):
+                state['finished'] = True
+                return True
+            return False
+
+        try:
+            self.map_go_to_coordinate(boss['target_coord'][0], boss['target_coord'][1],
+                                      map_name=boss['target_map'], timeout=timeout,
+                                      tolerance=WALK_TO_BOSS_TOLERANCE,
+                                      on_poll=on_poll)
+        except TaskFailed as e:
+            logger.warning(f'走到 {boss["name"]} {boss["target_coord"]} 失败：{e}')
+            return 'finished' if state['finished'] else 'timeout'
+        if state['finished']:
+            logger.info(f'{boss["name"]} 途中已结束')
+            return 'finished'
+        return 'arrived'
 
     # ---------------------------------------------------------------- 页面
     def prepare_boss_map(self, boss: dict) -> bool:

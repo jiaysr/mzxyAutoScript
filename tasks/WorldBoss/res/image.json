@@ -97,5 +97,14 @@
     "method": "Template matching",
     "threshold": 0.8,
     "description": "世界首领-首领归属奖弹窗"
+  },
+  {
+    "itemName": "finish_tianshi",
+    "imageName": "res_finish_tianshi.png",
+    "roiFront": "1,641,327,31",
+    "roiBack": "0,587,381,133",
+    "method": "Template matching",
+    "threshold": 0.8,
+    "description": "世界首领-天师的幻影结束判定（[世界]系统消息；模板带首领名，比其它结束模板更好区分）"
   }
 ]

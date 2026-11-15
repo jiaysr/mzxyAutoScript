@@ -66,6 +66,12 @@ class XiewangConfig(BaseModel):
     time_21: bool = Field(default=False, title='21:00', description='world_boss_xiewang_21_help')
 
 
+class TianshiConfig(BaseModel):
+    """天师的幻影：不在活动页里，直接前往世界之巅（12:00 / 22:00）"""
+    time_12: bool = Field(default=False, title='12:00', description='world_boss_tianshi_12_help')
+    time_22: bool = Field(default=False, title='22:00', description='world_boss_tianshi_22_help')
+
+
 class WorldBoss(ConfigBase):
     scheduler: WorldBossScheduler = Field(default_factory=WorldBossScheduler)
     world_boss_config: WorldBossConfig = Field(default_factory=WorldBossConfig)
@@ -74,4 +80,5 @@ class WorldBoss(ConfigBase):
     julian: JulianConfig = Field(default_factory=JulianConfig)
     fuwang: FuwangConfig = Field(default_factory=FuwangConfig)
     xiewang: XiewangConfig = Field(default_factory=XiewangConfig)
+    tianshi: TianshiConfig = Field(default_factory=TianshiConfig)
     battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
