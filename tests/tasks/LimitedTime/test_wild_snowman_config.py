@@ -18,7 +18,9 @@ def test_default_config():
     assert '陵魚' in snowman.target_names
     assert '可爱雪人' in snowman.target_names
     assert '可愛雪人' in snowman.target_names
-    assert cfg.battle_config.fast_relock is True
+    assert cfg.battle_config.battle_preset == 'default'
+    assert cfg.battle_config.use_normal_attack is False
+    assert not hasattr(cfg.battle_config, 'fast_relock')
     assert cfg.scheduler.enable is False
     assert cfg.scheduler.priority == 100
 

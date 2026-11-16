@@ -26,11 +26,6 @@ class WildSnowmanMap(str, Enum):
     LINGDAO = '域外灵岛'
 
 
-class WildSnowmanBattleConfig(BattleTaskConfig):
-    # 连续刷怪场景：目标死后原地快速补锁，减少重新走完整锁敌流程的耗时
-    fast_relock: bool = Field(default=True, description='fast_relock_help')
-
-
 class WildSnowmanConfig(BaseModel):
     # 打怪地图：目前只开放域外灵岛（沼泽万事通点位未录入）
     map_name: WildSnowmanMap = Field(
@@ -54,4 +49,4 @@ class WildSnowmanConfig(BaseModel):
 class WildSnowman(ConfigBase):
     scheduler: WildSnowmanScheduler = Field(default_factory=WildSnowmanScheduler)
     wild_snowman_config: WildSnowmanConfig = Field(default_factory=WildSnowmanConfig)
-    battle_config: WildSnowmanBattleConfig = Field(default_factory=WildSnowmanBattleConfig)
+    battle_config: BattleTaskConfig = Field(default_factory=BattleTaskConfig)
