@@ -22,7 +22,6 @@ from datetime import datetime, timedelta
 from module.base.timer import Timer
 from module.exception import GameStuckError, TaskEnd, TaskFailed
 from module.logger import logger
-from tasks.Battle.target_action import ACTION_ATTACK
 from tasks.Dungeon.common import DungeonBase
 from tasks.GameUi.pages.page import page_main
 from tasks.LimitedTime.WildSnowman.assets import WildSnowmanAssets
@@ -55,10 +54,6 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     SLOT_RECOGNIZE_ATTEMPTS = 3
     SLOT_RECOGNIZE_WAIT = 1.0
 
-    # 目标切换次数/超时
-    TARGET_SWITCH_MAX = 8
-    TARGET_SWITCH_TIMEOUT = 10
-    TARGET_WARN_AFTER = 10
     # 无目标时点目标的频率很高，位置检查按时间节流，避免每几秒读一次地图坐标
     RELOCK_POSITION_CHECK_SECONDS = 60
 
@@ -223,7 +218,7 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     def battle_loop(self) -> None:
         logger.hr('野外雪人循环打怪')
         names = self.target_names()
-        # 技能位只在本场任务第一次锁到目标时识别一次，之后目标丢失/换怪都复用。
+        # 技能位只在本场任务第一次进入循环时识别一次，之后目标丢失/换怪都复用。
         # battle_skill_loop 内部会在冷却结束后重认 pending 技能位，这里取回更新后的顺序。
         slots = []
         while True:
@@ -244,13 +239,6 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
 
             if self.need_recover():
                 self.do_heal_and_repair()
-                continue
-
-            if not self.acquire_target(names):
-                self.device.sleep(1)
-                if self._target_fail_count % self.TARGET_WARN_AFTER == 0:
-                    if not self.return_to_battle_position():
-                        self._resume_reposition = True
                 continue
 
             if not slots:
@@ -321,27 +309,6 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         return False
 
     # ---------------------------------------------------------------- 锁目标 / 技能
-    def acquire_target(self, names: list) -> bool:
-        """锁一个白名单目标（陵鱼 / 陵魚 / 可爱雪人 / 可愛雪人）"""
-        if self.ui_ensure_target_locked(
-                target_name=names,
-                action=ACTION_ATTACK,
-                max_switch=self.TARGET_SWITCH_MAX,
-                timeout=self.TARGET_SWITCH_TIMEOUT,
-                abort_check=lambda: self._resume_reposition):
-            self._target_fail_count = 0
-            return True
-
-        if self._resume_reposition:
-            # 死亡复活/掉线已置位：不在复活点原地切目标，交回主循环立即走位
-            return False
-
-        self._target_fail_count += 1
-        if self._target_fail_count % self.TARGET_WARN_AFTER == 1:
-            logger.warning(f'连续 {self._target_fail_count} 次没有锁到白名单目标 {names}，'
-                           f'继续等待刷新')
-        return False
-
     def battle_target_ok(self, names: list, image=None) -> bool:
         """
         放技能/普攻前确认「锁着的就是白名单目标」，避免打到路过的玩家。
@@ -408,7 +375,9 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
                 return reason
             image = self.screenshot()
             if not self.battle_target_ok(names, image):
-                return 'target_lost'
+                if not self.battle_relock_once():
+                    return 'target_lost'
+                continue
             self.battle_click_attack()
             self.device.sleep(self.NORMAL_ATTACK_INTERVAL)
 

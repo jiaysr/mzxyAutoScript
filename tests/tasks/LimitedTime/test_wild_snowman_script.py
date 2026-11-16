@@ -105,44 +105,6 @@ def test_battle_stop_reason_repositions_when_flag_set():
     assert ScriptTask.battle_stop_reason(task) == 'reposition'
 
 
-def test_acquire_target_aborts_in_place_lock_on_reposition():
-    captured = {}
-
-    class FakeAcquire:
-        TARGET_SWITCH_MAX = 8
-        TARGET_SWITCH_TIMEOUT = 10
-        TARGET_WARN_AFTER = 10
-        _resume_reposition = True
-        _target_fail_count = 0
-
-        def ui_ensure_target_locked(self, **kwargs):
-            captured['abort_check'] = kwargs.get('abort_check')
-            # 模拟：外面已置位重走，abort_check 命中就立刻收工返回 False
-            return not kwargs['abort_check']()
-
-    task = FakeAcquire()
-    assert ScriptTask.acquire_target(task, ['可爱雪人']) is False
-    assert captured['abort_check']() is True
-    # 被复活中断，不算「锁不到目标」，不累加计数、不发等待刷新告警
-    assert task._target_fail_count == 0
-
-
-def test_acquire_target_counts_fail_when_not_repositioning():
-    class FakeAcquire:
-        TARGET_SWITCH_MAX = 8
-        TARGET_SWITCH_TIMEOUT = 10
-        TARGET_WARN_AFTER = 10
-        _resume_reposition = False
-        _target_fail_count = 0
-
-        def ui_ensure_target_locked(self, **kwargs):
-            return False
-
-    task = FakeAcquire()
-    assert ScriptTask.acquire_target(task, ['可爱雪人']) is False
-    assert task._target_fail_count == 1
-
-
 def test_on_target_lost_aborts_relock_on_reposition():
     calls = []
     task = SimpleNamespace(
@@ -325,6 +287,7 @@ def test_normal_attack_stops_on_player_without_hitting():
         battle_stop_reason=lambda: None,
         screenshot=lambda: 'img',
         battle_target_ok=lambda names, image: False,
+        battle_relock_once=lambda: False,
         battle_click_attack=lambda: attacks.append('hit'),
         device=SimpleNamespace(sleep=lambda seconds: None),
         NORMAL_ATTACK_INTERVAL=1.0,
@@ -340,11 +303,31 @@ def test_normal_attack_hits_valid_then_stops_on_player():
         battle_stop_reason=lambda: None,
         screenshot=lambda: 'img',
         battle_target_ok=lambda names, image: next(results),
+        battle_relock_once=lambda: False,
         battle_click_attack=lambda: attacks.append('hit'),
         device=SimpleNamespace(sleep=lambda seconds: None),
         NORMAL_ATTACK_INTERVAL=1.0,
     )
     assert ScriptTask.normal_attack_until_lost(task, ['可愛雪人']) == 'target_lost'
+    assert attacks == ['hit']
+
+
+def test_normal_attack_relocks_then_attacks():
+    attacks = []
+    relocks = []
+    results = iter([False, True])
+    reasons = iter([None, None, 'recover'])
+    task = SimpleNamespace(
+        battle_stop_reason=lambda: next(reasons),
+        screenshot=lambda: 'img',
+        battle_target_ok=lambda names, image: next(results),
+        battle_relock_once=lambda: relocks.append('relock') or True,
+        battle_click_attack=lambda: attacks.append('hit'),
+        device=SimpleNamespace(sleep=lambda seconds: None),
+        NORMAL_ATTACK_INTERVAL=1.0,
+    )
+    assert ScriptTask.normal_attack_until_lost(task, ['可愛雪人']) == 'recover'
+    assert relocks == ['relock']
     assert attacks == ['hit']
 
 
@@ -453,13 +436,13 @@ class _StopBattleLoop(Exception):
 
 def test_battle_loop_recognizes_skill_slots_only_once():
     recognized = []
-    acquired = []
+    loops = []
 
-    def acquire_target(names):
-        acquired.append(names)
-        if len(acquired) > 2:
+    def battle_skill_loop(*args, **kwargs):
+        loops.append(kwargs)
+        if len(loops) > 2:
             raise _StopBattleLoop
-        return True
+        return 'target_lost'
 
     task = SimpleNamespace(
         target_names=lambda: ['可爱雪人'],
@@ -467,10 +450,9 @@ def test_battle_loop_recognizes_skill_slots_only_once():
         stop_because_disabled=lambda: False,
         _resume_reposition=False,
         need_recover=lambda: False,
-        acquire_target=acquire_target,
         recognize_skill_slots=lambda: recognized.append('slots') or [0, 1],
         battle_current_slots=lambda: [0, 1],
-        battle_skill_loop=lambda *args, **kwargs: 'target_lost',
+        battle_skill_loop=battle_skill_loop,
         battle_stop_reason=lambda image=None: None,
         battle_target_ok=lambda names, image=None: True,
         battle_use_normal_attack=lambda: False,
@@ -478,18 +460,15 @@ def test_battle_loop_recognizes_skill_slots_only_once():
         on_cast=lambda casts: None,
         normal_attack_until_lost=lambda names: 'target_lost',
         NORMAL_ATTACK_INTERVAL=1.0,
-        SKILL_COOLDOWN_POLL=0.1,
         device=SimpleNamespace(sleep=lambda seconds: None),
-        _target_fail_count=0,
-        TARGET_WARN_AFTER=10,
-        return_to_battle_position=lambda: True,
     )
 
     with pytest.raises(_StopBattleLoop):
         ScriptTask.battle_loop(task)
 
-    assert len(acquired) == 3
     assert len(recognized) == 1
+    assert len(loops) == 3
+    assert loops[0]['on_target_lost'] is task.battle_relock_once
 
 
 def test_ensure_clears_death_flag_and_keeps_recover_reset():
