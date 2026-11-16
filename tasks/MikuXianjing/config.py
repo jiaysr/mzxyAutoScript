@@ -16,8 +16,6 @@ from tasks.MikuXianjing.config_scheduler import MikuXianjingScheduler
 
 
 class MikuXianjingBattleConfig(BattleTaskConfig):
-    # 连续刷怪场景：目标死后原地快速补锁，减少重新走完整锁敌流程的耗时
-    fast_relock: bool = Field(default=True, description='fast_relock_help')
     # 战斗目标白名单：逗号分隔，空 = 不校验目标名
     target_names: str = Field(default='修仙小妖,修仙刀手', description='target_names_help')
 

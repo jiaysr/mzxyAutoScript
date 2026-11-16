@@ -10,7 +10,7 @@ from tasks.MikuXianjing.script_task import ScriptTask
 def test_config_defaults():
     cfg = MikuXianjing()
     assert cfg.battle_config.target_names == '修仙小妖,修仙刀手'
-    assert cfg.battle_config.fast_relock is True
+    assert not hasattr(cfg.battle_config, 'fast_relock')
     inner = cfg.miku_xianjing_config
     assert inner.battle_coord == '308,81'
     assert inner.enter_text == '进入迷窟仙境'

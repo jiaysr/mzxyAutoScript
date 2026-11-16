@@ -258,3 +258,50 @@ def test_quest_non_selected_opens_detail_on_second_click():
     )
     ScriptTask.handle_xianxin_quest(task)
     assert len(option_clicks) == 2
+
+
+class _StopBattleLoop(Exception):
+    pass
+
+
+def test_progress_battle_loop_no_acquire_and_uses_relock():
+    loops = []
+    recognized = []
+
+    def battle_skill_loop(*args, **kwargs):
+        loops.append(kwargs)
+        if len(loops) > 1:
+            raise _StopBattleLoop
+        return 'timeout'
+
+    task = SimpleNamespace(
+        parse_coord=lambda text: (308, 81),
+        battle_target_names=lambda: ['修仙小妖'],
+        battle_use_normal_attack=lambda: False,
+        battle_preset=lambda: {'name': '默认预设'},
+        recover_position=lambda coord, tolerance, timeout=None: True,
+        ui_close_menu=lambda: None,
+        screenshot=lambda: 'img',
+        reset_records=lambda: None,
+        battle_stop_reason=lambda image=None: None,
+        recognize_skill_slots=lambda: recognized.append('slots') or [0, 1],
+        battle_current_slots=lambda: [0, 1],
+        battle_skill_loop=battle_skill_loop,
+        battle_target_ok=lambda names, image=None: True,
+        battle_relock_once=lambda: False,
+        NORMAL_ATTACK_INTERVAL=1.0,
+        RECOVER_EVERY_CASTS=6,
+        recover_in_battle=lambda coord, tolerance: True,
+        need_repair=lambda cfg, last_repair, end: False,
+        device=SimpleNamespace(image='img', sleep=lambda seconds: None),
+    )
+    cfg = SimpleNamespace(battle_coord='308,81', battle_tolerance=2)
+
+    with pytest.raises(_StopBattleLoop):
+        ScriptTask.progress_battle_loop(task, cfg)
+
+    assert len(recognized) == 1
+    assert len(loops) == 2
+    assert loops[0]['on_target_lost'] is task.battle_relock_once
+    assert task._battle_coord == (308, 81)
+    assert task._battle_tolerance == 2

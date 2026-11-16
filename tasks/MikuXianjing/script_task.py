@@ -232,6 +232,9 @@ class ScriptTask(MimangBase, MikuXianjingAssets):
             logger.warning(f'Cannot reach battle position {coord}, continue anyway')
         self.ui_close_menu()
         self.device.sleep(0.5)
+        self._battle_coord = coord
+        self._battle_tolerance = tolerance
+        self._target_fail_count = 0
 
         slots = []
         progress = {'casts': 0, 'last_repair': datetime.now()}
@@ -255,9 +258,6 @@ class ScriptTask(MimangBase, MikuXianjingAssets):
                 stop = self.battle_stop_reason(self.device.image)
                 if stop:
                     return stop
-                if not self.acquire_target(names):
-                    self.device.sleep(1)
-                    continue
 
                 if not slots:
                     slots = self.recognize_skill_slots()
@@ -276,7 +276,7 @@ class ScriptTask(MimangBase, MikuXianjingAssets):
                     include_attack=include_attack,
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
                     on_cast=on_cast,
-                    on_target_lost=self.battle_on_target_lost(names))
+                    on_target_lost=self.battle_relock_once)
                 if reason in ('complete', 'yield', 'disabled'):
                     return reason
                 self.device.sleep(0.2)
