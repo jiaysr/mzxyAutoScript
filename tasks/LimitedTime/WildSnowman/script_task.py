@@ -261,8 +261,7 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
                     include_attack=self.battle_use_normal_attack(),
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
                     on_cast=self.on_cast,
-                    on_target_lost=self.battle_on_target_lost(
-                        names, abort_check=lambda: self._resume_reposition),
+                    on_target_lost=self.battle_relock_once,
                 )
             else:
                 reason = self.normal_attack_until_lost(names)
@@ -350,12 +349,36 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         if not self.ui_target_attackable(image=image):
             return False
         name = self.ui_target_name()
-        if not name:
-            return True
-        if any(self.ocr_name_match(name, expected) for expected in names):
-            return True
-        logger.warning(f'锁着的目标变成 [{name}]，不在白名单 {names}，停止放技能')
-        return False
+        if name and not any(self.ocr_name_match(name, expected) for expected in names):
+            logger.warning(f'锁着的目标变成 [{name}]，不在白名单 {names}，停止放技能')
+            return False
+        self._target_fail_count = 0
+        return True
+
+    def battle_relock_once(self) -> bool:
+        """
+        目标丢失：点一次「目标」按钮切换，然后立刻回战斗循环的截图开头
+
+        和 `battle_on_target_lost` 的区别：补锁内部不等待、不截图、不校验，
+        把「是不是可攻击 + 名字对不对」留给下一轮 `battle_target_ok`。
+        雪人场景一个点持续刷怪，少一次截图/一轮识别，切换更快。
+
+        连续 `TARGET_WARN_AFTER` 次都切不到白名单目标时，尝试回打怪点；
+        回不去就置 `_resume_reposition`，让下一轮停止条件走 'reposition'。
+        """
+        if self._resume_reposition:
+            return False
+        if not self.battle_fast_relock():
+            return False
+        self.battle_switch_target_once()
+        self._target_fail_count += 1
+        if self._target_fail_count % self.TARGET_WARN_AFTER == 0:
+            logger.warning(f'连续 {self._target_fail_count} 次没有切到白名单目标，'
+                           f'尝试回到打怪点')
+            if not self.return_to_battle_position():
+                self._resume_reposition = True
+                return False
+        return True
 
     def recognize_skill_slots(self) -> list:
         """识别技能位；认不出来就不盲点技能位，退回普通攻击"""

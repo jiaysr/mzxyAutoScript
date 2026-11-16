@@ -178,6 +178,88 @@ def test_battle_relock_target_aborts_before_clicking():
     assert clicks == []
 
 
+def test_battle_relock_once_clicks_once_without_waiting():
+    clicks = []
+    task = SimpleNamespace(
+        _resume_reposition=False,
+        _target_fail_count=0,
+        TARGET_WARN_AFTER=10,
+        battle_fast_relock=lambda: True,
+        battle_switch_target_once=lambda: clicks.append('click') or True,
+        return_to_battle_position=lambda: True,
+    )
+    assert ScriptTask.battle_relock_once(task) is True
+    assert clicks == ['click']
+    assert task._target_fail_count == 1
+
+
+def test_battle_relock_once_aborts_on_reposition():
+    clicks = []
+    task = SimpleNamespace(
+        _resume_reposition=True,
+        _target_fail_count=0,
+        TARGET_WARN_AFTER=10,
+        battle_fast_relock=lambda: True,
+        battle_switch_target_once=lambda: clicks.append('click') or True,
+        return_to_battle_position=lambda: True,
+    )
+    assert ScriptTask.battle_relock_once(task) is False
+    assert clicks == []
+
+
+def test_battle_relock_once_respects_fast_relock_off():
+    clicks = []
+    task = SimpleNamespace(
+        _resume_reposition=False,
+        _target_fail_count=0,
+        TARGET_WARN_AFTER=10,
+        battle_fast_relock=lambda: False,
+        battle_switch_target_once=lambda: clicks.append('click') or True,
+        return_to_battle_position=lambda: True,
+    )
+    assert ScriptTask.battle_relock_once(task) is False
+    assert clicks == []
+
+
+def test_battle_relock_once_repositions_after_warn_count():
+    repositions = []
+    task = SimpleNamespace(
+        _resume_reposition=False,
+        _target_fail_count=9,
+        TARGET_WARN_AFTER=10,
+        battle_fast_relock=lambda: True,
+        battle_switch_target_once=lambda: True,
+        return_to_battle_position=lambda: repositions.append('back') or True,
+    )
+    assert ScriptTask.battle_relock_once(task) is True
+    assert repositions == ['back']
+    assert task._resume_reposition is False
+
+
+def test_battle_relock_once_stops_when_reposition_fails():
+    task = SimpleNamespace(
+        _resume_reposition=False,
+        _target_fail_count=9,
+        TARGET_WARN_AFTER=10,
+        battle_fast_relock=lambda: True,
+        battle_switch_target_once=lambda: True,
+        return_to_battle_position=lambda: False,
+    )
+    assert ScriptTask.battle_relock_once(task) is False
+    assert task._resume_reposition is True
+
+
+def test_battle_target_ok_resets_fail_count():
+    task = SimpleNamespace(
+        _target_fail_count=7,
+        ui_target_attackable=lambda image=None: True,
+        ui_target_name=lambda: '可愛雪人',
+        ocr_name_match=ScriptTask.ocr_name_match,
+    )
+    assert ScriptTask.battle_target_ok(task, ['可愛雪人']) is True
+    assert task._target_fail_count == 0
+
+
 def test_battle_target_ok_rejects_attackable_player():
     task = SimpleNamespace(
         ui_target_attackable=lambda image=None: True,
@@ -369,7 +451,7 @@ def test_battle_loop_recognizes_skill_slots_only_once():
         battle_stop_reason=lambda image=None: None,
         battle_target_ok=lambda names, image=None: True,
         battle_use_normal_attack=lambda: False,
-        battle_on_target_lost=lambda names, abort_check=None: (lambda: False),
+        battle_relock_once=lambda: False,
         on_cast=lambda casts: None,
         normal_attack_until_lost=lambda names: 'target_lost',
         NORMAL_ATTACK_INTERVAL=1.0,
