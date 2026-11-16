@@ -16,6 +16,7 @@
 """
 import math
 import re
+import time
 from datetime import datetime, timedelta
 
 from module.base.timer import Timer
@@ -58,6 +59,8 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     TARGET_SWITCH_MAX = 8
     TARGET_SWITCH_TIMEOUT = 10
     TARGET_WARN_AFTER = 10
+    # 无目标时点目标的频率很高，位置检查按时间节流，避免每几秒读一次地图坐标
+    RELOCK_POSITION_CHECK_SECONDS = 60
 
     def run(self) -> None:
         logger.hr('野外雪人')
@@ -69,6 +72,7 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         self._last_recover = datetime.now()
         self._casts = 0
         self._target_fail_count = 0
+        self._next_relock_position_check = 0.0
         self._yield_timer = Timer(self.YIELD_CHECK_INTERVAL).start()
         self._config_timer = Timer(self.CONFIG_CHECK_INTERVAL).start()
         # ConfigWatcher：运行中检测 UI 里是否把任务关掉
@@ -359,22 +363,25 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         """
         目标丢失：点一次「目标」按钮切换，然后立刻回战斗循环的截图开头
 
-        和 `battle_on_target_lost` 的区别：补锁内部不等待、不截图、不校验，
-        把「是不是可攻击 + 名字对不对」留给下一轮 `battle_target_ok`。
-        雪人场景一个点持续刷怪，少一次截图/一轮识别，切换更快。
+        补锁内部不等待、不截图、不校验，把「是不是可攻击 + 名字对不对」
+        留给下一轮 `battle_target_ok`。菜单展开时目标按钮会被盖住，先收起菜单，
+        本轮不点目标。
 
-        连续 `TARGET_WARN_AFTER` 次都切不到白名单目标时，尝试回打怪点；
-        回不去就置 `_resume_reposition`，让下一轮停止条件走 'reposition'。
+        无目标时会连续点很多次，位置检查按 `RELOCK_POSITION_CHECK_SECONDS`
+        节流：每 60s 读一次地图坐标，回不去就置 `_resume_reposition`。
         """
         if self._resume_reposition:
             return False
-        if not self.battle_fast_relock():
-            return False
+        if self.menu_icons_visible():
+            self.ui_close_menu(abort_check=lambda: self._resume_reposition)
+            return True
         self.battle_switch_target_once()
         self._target_fail_count += 1
-        if self._target_fail_count % self.TARGET_WARN_AFTER == 0:
+        now = time.time()
+        if now >= getattr(self, '_next_relock_position_check', 0.0):
+            self._next_relock_position_check = now + self.RELOCK_POSITION_CHECK_SECONDS
             logger.warning(f'连续 {self._target_fail_count} 次没有切到白名单目标，'
-                           f'尝试回到打怪点')
+                           f'检查打怪点位置')
             if not self.return_to_battle_position():
                 self._resume_reposition = True
                 return False

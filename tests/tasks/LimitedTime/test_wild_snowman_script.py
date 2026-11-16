@@ -183,8 +183,9 @@ def test_battle_relock_once_clicks_once_without_waiting():
     task = SimpleNamespace(
         _resume_reposition=False,
         _target_fail_count=0,
-        TARGET_WARN_AFTER=10,
-        battle_fast_relock=lambda: True,
+        _next_relock_position_check=float('inf'),
+        RELOCK_POSITION_CHECK_SECONDS=60,
+        menu_icons_visible=lambda: False,
         battle_switch_target_once=lambda: clicks.append('click') or True,
         return_to_battle_position=lambda: True,
     )
@@ -198,8 +199,9 @@ def test_battle_relock_once_aborts_on_reposition():
     task = SimpleNamespace(
         _resume_reposition=True,
         _target_fail_count=0,
-        TARGET_WARN_AFTER=10,
-        battle_fast_relock=lambda: True,
+        _next_relock_position_check=float('inf'),
+        RELOCK_POSITION_CHECK_SECONDS=60,
+        menu_icons_visible=lambda: False,
         battle_switch_target_once=lambda: clicks.append('click') or True,
         return_to_battle_position=lambda: True,
     )
@@ -207,41 +209,62 @@ def test_battle_relock_once_aborts_on_reposition():
     assert clicks == []
 
 
-def test_battle_relock_once_respects_fast_relock_off():
+def test_battle_relock_once_closes_menu_before_switching():
+    menu = []
     clicks = []
     task = SimpleNamespace(
         _resume_reposition=False,
         _target_fail_count=0,
-        TARGET_WARN_AFTER=10,
-        battle_fast_relock=lambda: False,
+        _next_relock_position_check=float('inf'),
+        RELOCK_POSITION_CHECK_SECONDS=60,
+        menu_icons_visible=lambda: True,
+        ui_close_menu=lambda abort_check=None: menu.append('close') or True,
         battle_switch_target_once=lambda: clicks.append('click') or True,
         return_to_battle_position=lambda: True,
     )
-    assert ScriptTask.battle_relock_once(task) is False
+    assert ScriptTask.battle_relock_once(task) is True
+    assert menu == ['close']
     assert clicks == []
 
 
-def test_battle_relock_once_repositions_after_warn_count():
+def test_battle_relock_once_checks_position_after_interval():
     repositions = []
     task = SimpleNamespace(
         _resume_reposition=False,
-        _target_fail_count=9,
-        TARGET_WARN_AFTER=10,
-        battle_fast_relock=lambda: True,
+        _target_fail_count=0,
+        _next_relock_position_check=0.0,
+        RELOCK_POSITION_CHECK_SECONDS=60,
+        menu_icons_visible=lambda: False,
         battle_switch_target_once=lambda: True,
         return_to_battle_position=lambda: repositions.append('back') or True,
     )
     assert ScriptTask.battle_relock_once(task) is True
     assert repositions == ['back']
-    assert task._resume_reposition is False
+    assert task._next_relock_position_check > 0
+
+
+def test_battle_relock_once_skips_position_check_within_interval():
+    repositions = []
+    task = SimpleNamespace(
+        _resume_reposition=False,
+        _target_fail_count=0,
+        _next_relock_position_check=float('inf'),
+        RELOCK_POSITION_CHECK_SECONDS=60,
+        menu_icons_visible=lambda: False,
+        battle_switch_target_once=lambda: True,
+        return_to_battle_position=lambda: repositions.append('back') or True,
+    )
+    assert ScriptTask.battle_relock_once(task) is True
+    assert repositions == []
 
 
 def test_battle_relock_once_stops_when_reposition_fails():
     task = SimpleNamespace(
         _resume_reposition=False,
-        _target_fail_count=9,
-        TARGET_WARN_AFTER=10,
-        battle_fast_relock=lambda: True,
+        _target_fail_count=0,
+        _next_relock_position_check=0.0,
+        RELOCK_POSITION_CHECK_SECONDS=60,
+        menu_icons_visible=lambda: False,
         battle_switch_target_once=lambda: True,
         return_to_battle_position=lambda: False,
     )
