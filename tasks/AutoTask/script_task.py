@@ -120,6 +120,9 @@ class ScriptTask(GameUi, AutoTaskAssets):
                 stall_key = key
                 if stall_count >= 3:
                     logger.error(f'[{task_name}]连续3轮进度不动（{done}/{total}），请检查')
+                    # 先存现场再看不清：这种失败是主动 raise TaskFailed，
+                    # 框架的 save_error_log 不会触发，不存就完全没法复查
+                    self.save_auto_debug_frames(f'auto_stall_{task_name}')
                     self.config.notifier.push(title='自动任务AutoTask',
                                               content=f'<{self.config.config_name}> [{task_name}]连续3轮进度不动，请检查')
                     raise TaskFailed(f'[{task_name}]连续3轮进度不动，请检查')
@@ -656,12 +659,33 @@ class ScriptTask(GameUi, AutoTaskAssets):
                     unknown += 1
                     if unknown >= self.AUTO_UNKNOWN_LIMIT:
                         logger.warning(f'连续 {unknown} 次未检测到「自动任务中」，重启游戏后回特权页复查进度')
+                        # 「点了全部自动但游戏没什么可跑」的关键现场（含点完后那个弹窗）
+                        self.save_auto_debug_frames('auto_no_running')
                         self.restart_game_for_recover()
                         return 'unknown'
                 self.device.sleep(interval)
             raise GameStuckError('自动任务执行超时')
         finally:
             self._waiting_auto = False
+
+    # 本次运行最多保存几次现场（「全部自动」反复失败时不要刷一堆目录）
+    DEBUG_FRAME_SAVE_LIMIT = 3
+
+    def save_auto_debug_frames(self, tag: str) -> None:
+        """
+        保存放弃前的现场（最近几帧截图 + 日志尾部），便于复查
+
+        自动任务有两处「主动失败」不会触发框架的 save_error_log：
+        1. 等自动任务时连续检测不到「自动任务中」（点了全部自动但游戏没跑）；
+        2. 同一任务连续 3 轮进度不动 -> TaskFailed。
+        这两处都存一帧关键画面（特权页进度表 / 点完全部自动后的弹窗），
+        下次真机出问题能直接看图而不是只有日志。
+        """
+        saved = getattr(self, '_debug_saves', 0)
+        if saved >= self.DEBUG_FRAME_SAVE_LIMIT:
+            return
+        if self.save_debug_frames(tag):
+            self._debug_saves = saved + 1
 
     def restart_game_for_recover(self) -> None:
         """

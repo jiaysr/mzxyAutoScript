@@ -6,6 +6,7 @@ from time import sleep, time
 
 import random
 from datetime import datetime, timedelta
+from pathlib import Path
 from module.atom.animate import RuleAnimate
 from module.atom.click import RuleClick
 from module.atom.gif import RuleGif
@@ -631,6 +632,54 @@ class BaseTask(GlobalGame):
             self.interval_timer[target.name].reset()
             return True
         return False
+
+    def save_debug_frames(self, tag: str = '', max_frames: int = 8) -> str:
+        """
+        把最近几帧截图 + 本次日志尾部存到 `./log/error/<时间戳>-<tag>/`，返回目录
+
+        框架自带的 `ScriptTask.save_error_log()` 只在**未捕获异常**时触发；任务主动
+        `raise TaskFailed(...)`（比如「连续 3 轮进度不动」）走的是另一条路，
+        不会保存任何现场，下次真机出问题就只能干看日志。这里给任务一个可以自己调的手。
+
+        存的帧来自 `device.screenshot_deque`（框架一直留着最近 N 张），
+        所以能看到放弃前发生的事（弹窗、卡住的界面），多于只看当前一帧。
+        保存失败只告警，不影响任务本身。
+
+        :param tag: 目录后缀，方便一眼看出是什么原因（如 auto_no_running）
+        :param max_frames: 最多存几帧（新的在后）
+        :return: 保存目录；失败/未启用返回空字符串
+        """
+        try:
+            error_cfg = getattr(getattr(self.config, 'script', None), 'error', None)
+            if error_cfg is not None and not getattr(error_cfg, 'save_error', True):
+                logger.info('save_error 已关闭，不保存现场')
+                return ''
+            from module.base.utils import save_image
+
+            folder_name = f'{int(time() * 1000)}'
+            if tag:
+                folder_name = f'{folder_name}-{tag}'
+            folder = Path('log') / 'error' / folder_name
+            folder.mkdir(parents=True, exist_ok=True)
+
+            frames = list(getattr(self.device, 'screenshot_deque', []) or [])[-max_frames:]
+            for data in frames:
+                shot_time = datetime.strftime(data['time'], '%Y-%m-%d_%H-%M-%S-%f')
+                save_image(data['image'], str(folder / f'{shot_time}.png'))
+
+            try:
+                with open(logger.log_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()[-500:]
+                with open(folder / 'log_tail.txt', 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
+            except Exception as e:  # noqa: BLE001 - 日志尾部存不下也不影响截图
+                logger.warning(f'保存日志尾部失败：{e}')
+
+            logger.warning(f'已保存现场（{len(frames)} 帧截图 + 日志尾部）：{folder}')
+            return str(folder)
+        except Exception as e:  # noqa: BLE001 - 保存现场不能把任务带崩
+            logger.warning(f'保存现场失败：{e}')
+            return ''
 
     def set_next_run(self, task: str, finish: bool = False,
                      success: bool = None, server: bool = True, target: datetime = None) -> None:
