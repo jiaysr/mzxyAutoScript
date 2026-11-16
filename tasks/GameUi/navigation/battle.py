@@ -177,6 +177,18 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         logger.debug('快速补锁没锁到目标，交回完整流程')
         return False
 
+    def battle_switch_target_once(self) -> bool:
+        """
+        点一次「目标」按钮切换目标（不等待、不截图、不校验）
+
+        给「丢失后只切一次、下一轮截图再判」的节奏式流程用（野外雪人）：
+        补锁的校验交给下一轮 `target_check`，省掉补锁内部的一次截图和一轮识别。
+        """
+        x, y = self.C_TARGET_BUTTON_CLICK.coord()
+        self.device.click(x=x, y=y, control_name='BATTLE_TARGET', log=False)
+        self.device.click_record_clear()
+        return True
+
     def battle_on_target_lost(self, names=None, abort_check: Callable[[], bool] = None):
         """
         生成 `battle_skill_loop(on_target_lost=...)` 的回调

@@ -108,3 +108,31 @@ def test_battle_skill_loop_config_logs_only_once(monkeypatch):
     assert rules.count('节奏式释放技能') == 1
     assert sum('技能顺序' in message for message in infos) == 1
     assert any('技能间隔' in text for name, text in attrs if name == '释放节奏')
+
+
+def test_switch_target_once_clicks_without_waiting():
+    class FakeDevice:
+        def __init__(self):
+            self.clicks = []
+            self.cleared = 0
+
+        def click(self, **kwargs):
+            self.clicks.append(kwargs)
+
+        def click_record_clear(self):
+            self.cleared += 1
+
+        def sleep(self, seconds):
+            raise AssertionError('battle_switch_target_once 不应该等待')
+
+    device = FakeDevice()
+    task = SimpleNamespace(
+        C_TARGET_BUTTON_CLICK=SimpleNamespace(coord=lambda: (11, 22)),
+        device=device,
+    )
+
+    assert SimpleBattle.battle_switch_target_once(task) is True
+    assert device.clicks == [{
+        'x': 11, 'y': 22, 'control_name': 'BATTLE_TARGET', 'log': False,
+    }]
+    assert device.cleared == 1
