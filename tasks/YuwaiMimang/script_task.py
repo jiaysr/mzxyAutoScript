@@ -11,9 +11,9 @@
 - 进图后识别 7 个技能位分别是什么技能，按任务选的战斗预设排队释放
   （按预设连点 -> 校验进冷却 -> 冷却好的高优先级技能立刻插队）；
   默认不点普通攻击（任务「战斗配置」里可以打开），技能全冷却时等冷却；
-- 只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪：锁目标时逐个切换并
-  OCR 名字校验，列表外的怪（例如路过的玩家）不碰（见 acquire_target）；
-- 一刀一只时目标死了就地快速补锁（`fast_relock`，默认开），单只重锁 ~1.1s -> ~0.3s。
+- 只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪：每轮现查目标名，
+  列表外的怪（例如路过的玩家）不碰（见 `battle_target_ok`）；
+- 目标丢失点一次「目标」切换，下一轮截图继续判断；连续切不到时每 60s 回一次打怪点。
 
 怪物在 10:30-11:30、15:30-16:30 两个时段内**一直刷新**（不会打完），
 所以打怪不判「清完了」，只在时段到点（11:30 / 16:30）时收工离场。
@@ -37,7 +37,6 @@ from module.exception import (GameNotRunningError,
                               GameStuckError,
                               TaskEnd)
 from module.logger import logger
-from tasks.Battle.target_action import ACTION_ATTACK
 from tasks.GameUi.game_ui import GameUi
 from tasks.YuwaiMimang.assets import YuwaiMimangAssets
 
@@ -532,80 +531,10 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         text = str(getattr(self.yuwai_battle_config(), 'target_names', '') or '')
         return [name for name in re.split(r'[,，;；\s]+', text) if name]
 
-    # 锁目标：最多点几次「目标」按钮 / 整体超时（秒）
-    # 迷窟里怪多，切几次就能命中；等太久会把打怪节奏拖没
-    TARGET_SWITCH_MAX = 8
-    TARGET_SWITCH_TIMEOUT = 8
-    # 连续这么多次锁不到白名单目标：告警一次（不要退回「打任意目标」——
-    # 迷窟里有玩家，名字对不上时宁可继续切，也不能打错人）
-    TARGET_WARN_AFTER = 10
-    _target_fail_count = 0
-
-    def acquire_target(self, names: list = None) -> bool:
-        """
-        锁一个「可攻击 + 名字在白名单里」的目标（完整流程）
-
-        靠 GameUi 的 `ui_ensure_target_locked`：收起菜单 -> 判断是否已锁定且动作按钮为「攻击」
-        -> 不满足就点「目标」切换 -> 命中白名单名字才返回。
-
-        它一次约 1.1s，开销几乎都不在 OCR 上（名字 OCR 只有 ~20ms）：
-        `ui_close_menu`、通用换目标间隔 0.5s、以及每次判定各截一次图。
-        所以每杀一只走这条路太贵，常规补锁走下面的 `relock_target`，
-        这里只在开打、补锁失败、或需要从菜单/死亡状态里恢复时用。
-
-        连续 `TARGET_WARN_AFTER` 次都锁不到只告警、继续尝试：
-        **绝不退回「打任意可攻击目标」**，避免锁到路过的敌对玩家。
-
-        :param names: 白名单（None = 读配置）；传空列表 / 配置为空 = 不校验名字
-        :return: 锁到目标返回 True；超时或切满了还没命中返回 False
-        """
-        names = self.battle_target_names() if names is None else names
-        if self.ui_ensure_target_locked(
-                target_name=names or None,
-                action=ACTION_ATTACK,
-                max_switch=self.TARGET_SWITCH_MAX,
-                timeout=self.TARGET_SWITCH_TIMEOUT):
-            self._target_fail_count = 0
-            return True
-
-        self._target_fail_count += 1
-        if self._target_fail_count % self.TARGET_WARN_AFTER == 1:
-            logger.warning(f'连续 {self._target_fail_count} 次没锁到白名单目标 {names}，'
-                           f'继续等待（不会打白名单外的目标）')
-        return False
-
-    def relock_target(self, names: list = None) -> bool:
-        """
-        目标死后快速补锁（实现见 SimpleBattle.battle_relock_target）
-
-        迷窟属于「一个坐标周围持续刷怪、刷新间隔约 3s、要求在时段内尽量多杀」的场景：
-        一刀一只时每只都要重锁，完整重锁 ~1.1s、补锁 ~0.3s，所以默认开启
-        （配置 -> 战斗配置 -> fast_relock）。关掉后退回正常流程：
-        目标丢失 -> 结束本次释放循环 -> 外层用完整 acquire_target 重锁。
-        """
-        names = self.battle_target_names() if names is None else names
-        return self.battle_relock_target(names)
-
-    def battle_target_ok(self, names: list, image=None) -> bool:
-        """
-        放技能前确认「锁着的就是白名单目标」，避免打到路过的玩家。
-
-        每次都现查名字（不缓存）：玩家可攻击，只判「可攻击」会在怪死后 /
-        游戏自动转锁到玩家时继续打偏（补锁只在目标不可攻击时才触发，玩家可攻击
-        就永远不补锁）。名字读不出来时按原目标处理，别因一次 OCR 抖动就停手。
-        白名单为空 = 配置不校验名字，只要能攻击就行。
-        """
-        if not self.ui_target_attackable(image=image):
-            return False
-        if not names:
-            return True
-        name = self.ui_target_name()
-        if not name:
-            return True
-        if any(self.ocr_name_match(name, expected) for expected in names):
-            return True
-        logger.warning(f'锁着的目标变成 [{name}]，不在白名单 {names}，停止放技能')
-        return False
+    def battle_relock_recover_position(self) -> bool:
+        """连续切不到目标时回打怪点（失败也不阻塞继续刷怪）"""
+        self.recover_in_battle(self._battle_coord, self._battle_tolerance)
+        return True
 
     def recover_position(self, coord, tolerance: int, timeout: int = None) -> bool:
         """
@@ -653,7 +582,7 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
 
         - 进图后先走到基准坐标（304,76），容差 2
         - 收起菜单（收起后右侧竖排才露出「目标」按钮）
-        - 只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪（见 acquire_target）
+        - 只打「战斗目标」白名单（默认 小鬼,鬼王,鬼将）里的怪（见 battle_target_ok）
         - 每打若干次回一次基准坐标（见 recover_in_battle），并按 repair_interval_minutes
           中途修理装备（时段剩余不足 REPAIR_MIN_REMAIN 秒时跳过）
 
@@ -719,13 +648,11 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         """
         按战斗预设打怪（节奏式释放）
 
-        循环体：锁一只白名单里的怪 -> 按预设优先级连续放技能，直到目标丢失
-        （怪死了 / 被拉走）-> 回头锁下一只。
+        不再先锁目标：直接识别技能位进入 `battle_skill_loop`。目标丢失时
+        `battle_relock_once` 点一次「目标」，下一轮截图继续判断；
+        连续切不到时每 60s 回一次打怪点。
 
-        与旧版的区别：**打不死的怪不会被每轮切掉**，技能一直往它身上放；
-        只有目标丢失才换（鬼王这种要多打的怪能正常磨死）。
-
-        - 技能位只在第一次锁到目标后识别一次（一场里技能栏不会变），认不出来就多试几次；
+        - 技能位只在第一次进入循环时识别一次（一场里技能栏不会变），认不出来就多试几次；
         - 一直认不出来时**不盲点技能位**（可能是物品/药品），本时段收工；
         - 位置检查 / 中途修理按累计释放次数触发（见 on_cast）；
         - **不判「清完了」**：时段内怪物一直刷新，读到 0 也只是瞬间，一律打满时段
@@ -737,6 +664,9 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         logger.hr(f'开始按预设打怪（{preset["name"]}）')
         logger.attr('普通攻击', '开启' if include_attack else '关闭（技能全冷却时只能干等）')
         self.reset_battle_progress(end)
+        self._battle_coord = coord
+        self._battle_tolerance = tolerance
+        self._target_fail_count = 0
 
         slots = []
         progress = {'casts': 0, 'last_repair': datetime.now()}
@@ -755,10 +685,6 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
         with suppress_control_input_log():
             while datetime.now() < end:
                 self.reset_records()
-                if not self.acquire_target(names):
-                    logger.info('附近没有白名单里的可攻击目标，等 1s 再找')
-                    self.device.sleep(1)
-                    continue
 
                 if not slots:
                     slots = self.recognize_skill_slots()
@@ -779,13 +705,12 @@ class ScriptTask(GameUi, YuwaiMimangAssets):
                     include_attack=include_attack,
                     attack_interval=self.NORMAL_ATTACK_INTERVAL,
                     on_cast=on_cast,
-                    on_target_lost=self.battle_on_target_lost(names))
+                    on_target_lost=self.battle_relock_once)
 
                 if reason == 'window_end':
                     break
                 if reason == 'timeout':
-                    logger.warning('技能循环超时，重新锁目标继续')
-                # 'target_lost'：怪死了 / 被拉走，回去锁下一只；给一点间隔别空转
+                    logger.warning('技能循环超时，重新判断目标')
                 self.device.sleep(0.2)
 
         logger.attr('打怪结束', f'共释放 {progress["casts"]} 次技能')
