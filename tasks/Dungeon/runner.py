@@ -52,13 +52,24 @@ class DungeonRunner:
     def run(self) -> tuple:
         counts, privilege = self._read_status()
         for target in self.targets:
-            counts, privilege = self._run_normal(target, counts, privilege)
-            if target['field'] in self._aborted:
-                continue
-            if target['field'] == self.privilege_field:
-                counts, privilege = self._run_privilege(target, counts, privilege)
+            try:
+                counts, privilege = self._run_normal(target, counts, privilege)
+                if target['field'] in self._aborted:
+                    continue
+                if target['field'] == self.privilege_field:
+                    counts, privilege = self._run_privilege(target, counts, privilege)
+            except DungeonAborted as e:
+                logger.warning(f'副本 [{target["name"]}] 跳过剩余次数：{e}')
+                self._aborted.add(target['field'])
+            except Exception as e:  # noqa: BLE001 - 单个副本出问题不该打死整个任务
+                # 旧行为：直接抛 RuntimeError 让整个「副本玩法」失败，当天剩下的副本
+                # （含特权次数）全部白丢（真机 2026-11-16 02:01 / 02:54 两次）。
+                logger.warning(f'副本 [{target["name"]}] 处理失败，跳过它剩余的次数：{e}')
+                self._aborted.add(target['field'])
         logger.attr('Dungeon final counts', counts)
         logger.attr('Dungeon final privilege', privilege)
+        if self._aborted:
+            logger.warning(f'以下副本本次未打完：{sorted(self._aborted)}')
         return counts, privilege
 
     # ---------------------------------------------------------------- 内部
@@ -105,7 +116,10 @@ class DungeonRunner:
                 self._aborted.add(field)
                 return counts, privilege
             if not ok:
-                raise RuntimeError(f"Run failed for dungeon [{target['name']}]")
+                logger.warning(f'副本 [{target["name"]}] 这一局没打成（原因看上面日志），'
+                               f'跳过它剩余的次数')
+                self._aborted.add(field)
+                return counts, privilege
             counts, privilege = self._read_field(field, counts, privilege)
             after = counts.get(field, 0)
 
@@ -171,7 +185,10 @@ class DungeonRunner:
                 self._aborted.add(field)
                 return counts, privilege
             if not ok:
-                raise RuntimeError(f"Privilege run failed for dungeon [{target['name']}]")
+                logger.warning(f'副本 [{target["name"]}] 特权这一局没打成（原因看上面日志），'
+                               f'跳过它剩余的次数')
+                self._aborted.add(field)
+                return counts, privilege
             counts, privilege = self._read_field(field, counts, privilege)
             if privilege is None:
                 logger.warning('Privilege count unreadable after run, stop')

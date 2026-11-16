@@ -32,6 +32,18 @@ from tasks.GameUi.pages.page import page_activity_dungeon, page_main
 from tasks.WorldBoss.assets import WorldBossAssets
 
 
+class DungeonRetry(Exception):
+    """在副本地图**外**阵亡（传送 / 寻路 / 治疗 / 修理途中）：复活后重试当前这一局
+
+    跟 `DungeonAborted` 的区别：
+    - `DungeonAborted`：副本内死亡/被传出 = 这一局没通关，跳过该副本剩余次数；
+    - `DungeonRetry`：连副本都没进去就被打死，次数并没消耗，重试当前这一局。
+    例：真机 2026-11-16 02:01 传送途中被玩家打死，复活在域外灵岛，
+    而 `map_teleport` 还在等「到牧野」——只能干等 60s 超时后整轮失败。
+    """
+    pass
+
+
 class DungeonBase(GameUi, DungeonAssets):
     """副本通用基类：具体副本继承它并实现 run_once()"""
 
@@ -81,19 +93,26 @@ class DungeonBase(GameUi, DungeonAssets):
     # ---------------------------------------------------------------- 死亡处理
     def handle_death(self) -> None:
         """
-        非副本地图死亡：复活后继续当前流程，不整任务重跑。
+        非副本地图死亡：复活后抛 `DungeonRetry`，由 `dungeon_run_once` 重试这一局
 
         副本地图里不会弹死亡框，角色死亡会自动离开副本，由
         dungeon_check_in_map / wait_location 检测后跳过该副本。
         """
         if not self.appear(self.I_DEATH_DIALOG):
             return
-        logger.warning(f'[{self.name}] Character died outside dungeon, revive and continue')
+        logger.warning(f'[{self.name}] 副本外阵亡（传送/寻路途中），复活后重试这一局')
         self.revive()
         self.handle_death_resume()
 
     def handle_death_resume(self) -> None:
-        """死亡复活 / 掉线重启后：继续当前副本流程（页面状态由各流程自行校验）"""
+        """
+        死亡复活 / 掉线重启后：退出当前这次尝试，交给 `dungeon_run_once` 重试
+
+        不能「继续当前流程」：复活会把人送到城庄/复活点，而正在跑的
+        `map_teleport` / `map_wait_arrive` 还在等上一个目标，只能干等到超时。
+        """
+        self.device.sleep(1.0)
+        raise DungeonRetry(self.name)
 
     def dungeon_notify_uncleared(self) -> None:
         """副本内死亡/自动离开：推送「<副本名>未通关」，然后跳过该副本剩余次数"""
@@ -455,7 +474,11 @@ class DungeonBase(GameUi, DungeonAssets):
     DUNGEON_AUTO_LEAVE_TIMEOUT = 70
     # 指定目标连续几次没锁到就判定被击杀（用户规则）
     DUNGEON_FIGHT_LOCK_SWITCH = 5
-    DUNGEON_FIGHT_TIMEOUT = 180
+    # 单只 Boss 的**兜底放弃**时间（秒），不是战斗时长目标：
+    # 目标一直锁着且可攻击、但一直不出完成/奖励弹窗时，靠它退出战斗循环，
+    # 否则 `battle_queue_until` 会无限循环（没有其它上限）。
+    # 默认 20 分钟：仙居福地的鑫实测要 3 分钟以上，180s 会误判超时。
+    DUNGEON_FIGHT_TIMEOUT = 20 * 60
     # 战斗期间轮询地图名，离开副本地图即死亡
     DUNGEON_MAP_CHECK_INTERVAL = 3
 

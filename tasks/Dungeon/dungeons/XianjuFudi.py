@@ -32,7 +32,7 @@
       `dungeon_left_for_death()` / `finish_run_after_death()`。
 """
 from module.logger import logger
-from tasks.Dungeon.common import DungeonBase
+from tasks.Dungeon.common import DungeonBase, DungeonRetry
 
 
 class XianjuFudi(DungeonBase):
@@ -88,6 +88,7 @@ class XianjuFudi(DungeonBase):
                                          self.MAP_NAME, self.ENTRY_POSITION):
             logger.warning('Unable to enter dungeon map')
             return False
+        self._entered_dungeon = True
         return self.run_from_inside()
 
     def run_from_inside(self) -> bool:
@@ -152,6 +153,9 @@ class XianjuFudi(DungeonBase):
         return True
 
     # ---------------------------------------------------------------- 死亡
+    # 一次尝试里是否已经进过副本：死亡时用来区分「副本内死亡算完成」和「外面死亡重试」
+    _entered_dungeon = False
+
     def handle_death(self) -> None:
         """
         阵亡：复活后回骨牢，这局按完成一次（`dungeon_left_for_death` 收尾）
@@ -164,6 +168,22 @@ class XianjuFudi(DungeonBase):
         logger.warning(f'[{self.name}] 角色死亡，复活后回 {self.EXIT_MAP}')
         self.revive()
         self.handle_death_resume()
+
+    def handle_death_resume(self) -> None:
+        """
+        阵亡复活后：
+
+        - **已经进过副本**（大厅/房间里死的）：不抛异常，只等画面稳定，
+          由 `dungeon_left_for_death()` 发现「已回骨牢」，按完成一次收尾（用户规则）；
+        - **还没进图**（骨牢治疗/传送途中被打死）：抛 `DungeonRetry` 重试这一局，
+          否则复活在城庄后 `map_teleport` 会干等到超时（真机 2026-11-16 02:01）。
+        """
+        self.device.sleep(1.0)
+        if self._entered_dungeon:
+            logger.info(f'[{self.name}] 副本内阵亡，复活后已回 {self.EXIT_MAP}，'
+                        f'这一局按完成一次处理')
+            return
+        raise DungeonRetry(self.name)
 
     def dungeon_left_for_death(self) -> bool:
         """

@@ -14,13 +14,14 @@
 """
 from module.exception import TaskEnd
 from module.logger import logger
-from tasks.Dungeon.common import DungeonBase
+from tasks.Dungeon.common import DungeonBase, DungeonRetry
 from tasks.Dungeon.dungeons.DiyulingMulti import DiyulingMulti
 from tasks.Dungeon.dungeons.DiyulingSolo import DiyulingSolo
 from tasks.Dungeon.dungeons.LiuliHuanjing import LiuliHuanjing
 from tasks.Dungeon.dungeons.ShayuMulti import ShayuMulti
 from tasks.Dungeon.dungeons.ShayuSolo import ShayuSolo
 from tasks.Dungeon.dungeons.XianjuFudi import XianjuFudi
+from tasks.Dungeon.runner import DungeonAborted
 
 # 副本登记表：DungeonConfig 里的开关字段名 -> 副本实现类
 DUNGEONS: dict = {
@@ -37,6 +38,8 @@ class ScriptTask(DungeonBase):
     """副本玩法入口：按配置挑出启用的副本逐个执行"""
 
     name = '副本玩法'
+    # 副本外阵亡（传送/寻路途中）重试当前这一局的次数
+    DEATH_RETRY = 3
 
     def run(self) -> None:
         logger.hr('副本玩法')
@@ -79,15 +82,30 @@ class ScriptTask(DungeonBase):
         runner.run()
 
     def dungeon_run_once(self, field: str) -> bool:
-        """派发到具体副本类完成一次挑战"""
+        """
+        派发到具体副本类完成一次挑战
+
+        副本**外**阵亡（传送/寻路/治疗/修理途中）复活后重试当前这一局，
+        连续 `DEATH_RETRY` 次都站不住脚才跳过这个副本的剩余次数（不影响其它副本）。
+        """
         cfg = self.config.dungeon.dungeon_config
         dungeon_cls = dict(self.enabled_dungeons(cfg)).get(field)
         if dungeon_cls is None:
             raise RuntimeError(f'Dungeon class for [{field}] is not registered')
-        logger.hr(f'副本：{getattr(dungeon_cls, "name", field)}')
-        result = bool(dungeon_cls(self.config, self.device).run_once())
-        self.device.sleep(int(cfg.dungeon_interval))
-        return result
+        name = getattr(dungeon_cls, 'name', field)
+        for attempt in range(1, self.DEATH_RETRY + 1):
+            try:
+                logger.hr(f'副本：{name}')
+                result = bool(dungeon_cls(self.config, self.device).run_once())
+                self.device.sleep(int(cfg.dungeon_interval))
+                return result
+            except DungeonRetry as e:
+                logger.warning(f'[{name}] 副本外阵亡，重试当前这一局 '
+                               f'（{attempt}/{self.DEATH_RETRY}）：{e}')
+                self.device.sleep(2)
+        logger.warning(f'[{name}] 连续 {self.DEATH_RETRY} 次在副本外阵亡，'
+                       f'跳过它剩余的次数，继续其它副本')
+        raise DungeonAborted(f'{name}: died outside dungeon {self.DEATH_RETRY} times')
 
     def enabled_dungeons(self, cfg) -> list:
         """
