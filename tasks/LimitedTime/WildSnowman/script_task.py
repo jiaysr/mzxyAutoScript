@@ -16,7 +16,6 @@
 """
 import math
 import re
-import time
 from datetime import datetime, timedelta
 
 from module.base.timer import Timer
@@ -53,9 +52,6 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     # 技能位识别重试
     SLOT_RECOGNIZE_ATTEMPTS = 3
     SLOT_RECOGNIZE_WAIT = 1.0
-
-    # 无目标时点目标的频率很高，位置检查按时间节流，避免每几秒读一次地图坐标
-    RELOCK_POSITION_CHECK_SECONDS = 60
 
     def run(self) -> None:
         logger.hr('野外雪人')
@@ -309,50 +305,16 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         return False
 
     # ---------------------------------------------------------------- 锁目标 / 技能
-    def battle_target_ok(self, names: list, image=None) -> bool:
-        """
-        放技能/普攻前确认「锁着的就是白名单目标」，避免打到路过的玩家。
+    def battle_relock_abort(self) -> bool:
+        """死亡 / 掉线 / 回位中不补锁"""
+        return self._resume_reposition
 
-        每次都现查名字（不缓存）：玩家可攻击，只判「可攻击」会在雪人死后 /
-        游戏自动转锁到玩家时继续打偏。名字读不出来时按原目标处理，
-        别因一次 OCR 抖动就停手。
-        """
-        if not self.ui_target_attackable(image=image):
-            return False
-        name = self.ui_target_name()
-        if name and not any(self.ocr_name_match(name, expected) for expected in names):
-            logger.warning(f'锁着的目标变成 [{name}]，不在白名单 {names}，停止放技能')
-            return False
-        self._target_fail_count = 0
-        return True
-
-    def battle_relock_once(self) -> bool:
-        """
-        目标丢失：点一次「目标」按钮切换，然后立刻回战斗循环的截图开头
-
-        补锁内部不等待、不截图、不校验，把「是不是可攻击 + 名字对不对」
-        留给下一轮 `battle_target_ok`。菜单展开时目标按钮会被盖住，先收起菜单，
-        本轮不点目标。
-
-        无目标时会连续点很多次，位置检查按 `RELOCK_POSITION_CHECK_SECONDS`
-        节流：每 60s 读一次地图坐标，回不去就置 `_resume_reposition`。
-        """
-        if self._resume_reposition:
-            return False
-        if self.menu_icons_visible():
-            self.ui_close_menu(abort_check=lambda: self._resume_reposition)
+    def battle_relock_recover_position(self) -> bool:
+        """连续切不到目标时回打怪点；回不去让停止条件走 'reposition'"""
+        if self.return_to_battle_position():
             return True
-        self.battle_switch_target_once()
-        self._target_fail_count += 1
-        now = time.time()
-        if now >= getattr(self, '_next_relock_position_check', 0.0):
-            self._next_relock_position_check = now + self.RELOCK_POSITION_CHECK_SECONDS
-            logger.warning(f'连续 {self._target_fail_count} 次没有切到白名单目标，'
-                           f'检查打怪点位置')
-            if not self.return_to_battle_position():
-                self._resume_reposition = True
-                return False
-        return True
+        self._resume_reposition = True
+        return False
 
     def recognize_skill_slots(self) -> list:
         """识别技能位；认不出来就不盲点技能位，退回普通攻击"""

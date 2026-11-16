@@ -29,6 +29,7 @@
 （要收起右上角菜单 `ui_close_menu` 后才露出），
 WorldBoss 与域外迷窟都用它，素材与规则统一放在 GameUi 里，任务只调方法。
 """
+import time
 from typing import Callable
 
 from module.base.timer import Timer
@@ -55,6 +56,8 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
     TARGET_LOCK_MAX_SWITCH = 10
     # 锁定目标的整体超时（秒）
     TARGET_LOCK_TIMEOUT = 30
+    # 目标丢失补锁：连续切不到目标时，多久检查一次打怪点位置（秒）
+    RELOCK_POSITION_CHECK_SECONDS = 60
 
     def ui_target_name(self, scales: tuple = None, min_score: float = None,
                        close_menu: bool = False) -> str:
@@ -187,6 +190,59 @@ class SimpleBattle(BattleAttack, BaseTask, GameUiAssets):
         x, y = self.C_TARGET_BUTTON_CLICK.coord()
         self.device.click(x=x, y=y, control_name='BATTLE_TARGET', log=False)
         self.device.click_record_clear()
+        return True
+
+    def battle_target_ok(self, names=None, image=None) -> bool:
+        """
+        放技能前确认「锁着的就是白名单目标」，避免打到路过的玩家
+
+        每次现查名字（不缓存）：玩家可攻击，只判「可攻击」会在怪死后 /
+        游戏自动转锁到玩家时继续打偏。名字读不出来时按原目标处理；
+        白名单为空 = 不校验名字。校验通过时清零补锁失败计数。
+        """
+        if not self.ui_target_attackable(image=image):
+            return False
+        if names:
+            name = self.ui_target_name()
+            if name and not any(self.ocr_name_match(name, expected) for expected in names):
+                logger.warning(f'锁着的目标变成 [{name}]，不在白名单 {names}，停止放技能')
+                return False
+        self._target_fail_count = 0
+        return True
+
+    def battle_relock_abort(self) -> bool:
+        """目标丢失补锁是否应中止（死亡/掉线/回位中）；任务按需覆盖"""
+        return False
+
+    def battle_relock_recover_position(self) -> bool:
+        """连续切不到目标时回打怪点；返回 False 表示回不去；任务按需覆盖"""
+        return True
+
+    def battle_relock_once(self) -> bool:
+        """
+        目标丢失：点一次「目标」按钮切换，然后立刻回战斗循环的截图开头
+
+        补锁内部不等待、不截图、不校验，把「是不是可攻击 + 名字对不对」
+        留给下一轮 `battle_target_ok`。菜单展开时目标按钮会被盖住，先收起菜单，
+        本轮不点目标。
+
+        无目标时会连续点很多次，位置检查按 `RELOCK_POSITION_CHECK_SECONDS`
+        节流：每 60s 调一次 `battle_relock_recover_position`。
+        """
+        if self.battle_relock_abort():
+            return False
+        if self.menu_icons_visible():
+            self.ui_close_menu(abort_check=self.battle_relock_abort)
+            return True
+        self.battle_switch_target_once()
+        self._target_fail_count = getattr(self, '_target_fail_count', 0) + 1
+        now = time.time()
+        if now >= getattr(self, '_next_relock_position_check', 0.0):
+            self._next_relock_position_check = now + self.RELOCK_POSITION_CHECK_SECONDS
+            logger.warning(f'连续 {self._target_fail_count} 次没有切到白名单目标，'
+                           f'检查打怪点位置')
+            if not self.battle_relock_recover_position():
+                return False
         return True
 
     def battle_on_target_lost(self, names=None, abort_check: Callable[[], bool] = None):
