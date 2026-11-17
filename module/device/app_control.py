@@ -11,7 +11,7 @@ class AppControl(Adb, Uiautomator2):
     hierarchy: etree._Element
     _app_u2_family = ['uiautomator2', 'minitouch', 'scrcpy']
 
-    def app_is_running(self) -> bool:
+    def app_is_running(self, log: bool = True) -> bool:
         method = self.config.script.device.control_method
         # if self.is_wsa:
         #     package = self.app_current_wsa()
@@ -21,7 +21,8 @@ class AppControl(Adb, Uiautomator2):
             package = self.app_current_adb()
 
         package = package.strip(' \t\r\n')
-        logger.attr('Package_name', package)
+        if log:
+            logger.attr('Package_name', package)
         return package == self.package
 
     def app_start(self):

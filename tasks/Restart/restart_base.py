@@ -19,9 +19,12 @@ class RestartBase(BaseTask, RestartAssets):
 
     登录/启动阶段画面本来就可能是长时间黑屏（开屏、切服、读条），
     这里关掉基类的黑屏检测，否则会被误判成「游戏崩了」再触发一次重启。
+    启动/登录阶段前台是 X7 启动器或登录器，不是游戏包名，
+    所以进程检测也一起关掉。
     """
 
     CHECK_SCREEN_ALIVE = False
+    CHECK_APP_RUNNING = False
 
     login_retry = 2
     # 登录总时长上限默认值（秒），实际取配置 restart.login_config.login_timeout；

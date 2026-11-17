@@ -135,14 +135,15 @@ class MapMove(BaseTask, GameUiAssets):
         from tasks.GameUi.pages.page import page_main
 
         if not self.device.app_is_running():
-            logger.warning('Game is not running, cannot move')
-            return False
+            # 游戏进程已经退出：直接抛给任务层，由 script.py 立刻重启，
+            # 返回 False 只会让调用方继续空转重试
+            raise GameNotRunningError('Game is not running, cannot move')
         self.ui_reset_current_page()
         try:
             if not self.ui_goto(page_main, timeout=timeout):
                 logger.warning('Failed to go back to the main page')
                 return False
-        except (GameNotRunningError, GamePageUnknownError) as e:
+        except GamePageUnknownError as e:
             logger.warning(f'Main page is not reachable ({e})')
             return False
         self.map_close_main_popup()

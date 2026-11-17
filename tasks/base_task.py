@@ -34,6 +34,12 @@ class BaseTask(GlobalGame):
     # 每次截图统计一次，连续这么多次都是接近全黑才认定游戏崩了（截图节流 0.3s，约 1.5 秒）；
     # 登录/启动流程会长时间黑屏，那些任务把 CHECK_SCREEN_ALIVE 关掉（见 RestartBase）。
     CHECK_SCREEN_ALIVE = True
+    # 游戏进程意外退出检测：前台包名不是游戏就立刻抛 GameNotRunningError，
+    # 由 script.py 排 Restart 并在重启后重跑本任务。
+    # 登录/启动阶段前台可能是启动器或登录器，RestartBase 会把它关掉。
+    CHECK_APP_RUNNING = True
+    # 前台包名检查间隔（秒），避免每次截图都跑一次 adb/uiautomator
+    APP_CHECK_INTERVAL = 5
     BLACK_MEAN_MAX = 6.0
     BLACK_STRIKES = 5
 
@@ -92,10 +98,12 @@ class BaseTask(GlobalGame):
 
     def screenshot(self):
         """
-        截图，并做全局处理：黑屏检测、阵亡检测（复活并重跑）、人机验证答题与已知弹窗清理
+        截图，并做全局处理：游戏进程退出、黑屏检测、阵亡检测（复活并重跑）、人机验证答题与已知弹窗清理
         :return:
         """
         self.device.screenshot()
+        # 游戏进程意外退出：所有任务都在这里统一发现，立刻交给 script.py 重启
+        self.check_app_running()
         if self.CHECK_SCREEN_ALIVE:
             self.check_screen_alive()
         # 掉线重启后复用死亡复活逻辑；要放在死亡处理之前
@@ -106,6 +114,34 @@ class BaseTask(GlobalGame):
         self.handle_global_popup()
 
         return self.device.image
+
+    def check_app_running(self) -> None:
+        """
+        游戏进程意外退出检测（所有任务共用）
+
+        每隔 APP_CHECK_INTERVAL 秒查一次前台包名；不是游戏就立刻抛
+        GameNotRunningError，由 script.py 排 Restart 并在重启后重跑本任务。
+        不能等 device 的卡死检测（默认 1~5 分钟），那段时间全在空转重试。
+
+        Restart 的启动/登录阶段前台是启动器或登录器，必须关掉本检测。
+        """
+        if not self.CHECK_APP_RUNNING:
+            return
+
+        # 第一次立即检查，之后按间隔节流
+        timer = getattr(self, '_app_check_timer', None)
+        if timer is None:
+            self._app_check_timer = Timer(self.APP_CHECK_INTERVAL).start()
+        elif not timer.reached():
+            return
+        else:
+            timer.reset()
+
+        checker = getattr(self.device, 'app_is_running', None)
+        if checker is None:
+            return
+        if not checker(log=False):
+            raise GameNotRunningError('Game process is not running')
 
     def maybe_screenshot(self, soft_skip: bool = False):
         """
