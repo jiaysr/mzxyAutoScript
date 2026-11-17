@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from module.exception import TaskFailed
+from module.exception import GameNotRunningError, TaskFailed
 from tasks.WorldBoss.config import TianshiConfig, WorldBoss
 from tasks.WorldBoss.script_task import (BOSS_LIST, NAVIGATE_RETRY,
                                          REACH_WORLD_PEAK, ScriptTask)
@@ -299,9 +299,13 @@ class FakePair(ScriptTask):
                                   tianshi_12=True)
         self.calls = []
         self.done_events = set()
+        self.left_events = set()
         self._death_stage = None
         self.tianshi_finish_in_wait = tianshi_finish_in_wait
         self.device = SimpleNamespace(sleep=lambda seconds: None)
+
+    def map_in_location(self, name):
+        return False  # 重跑时默认已经不在世界之巅
 
     def pair_fight_boss(self, boss, pair, state, event_time, deadline,
                         max_skills=None, lock_timeout=None, cast_counter=None):
@@ -351,6 +355,101 @@ def test_simultaneous_flow_keeps_tianshi_unfinished_without_template():
     assert ('wait_finish', 'tianshi') in fake.calls
     # 没看到结束模板就不能按已结束处理
     assert not any('tianshi' in key for key in fake.done_events)
+
+
+def test_simultaneous_flow_skips_world_peak_when_already_left():
+    # 重跑时已经打完天师技能并离开过世界之巅：不再进图，直接打无情
+    fake = FakePair()
+    event_time = datetime.now() - timedelta(seconds=1)
+    fake.left_events.add(ScriptTask.event_key_for(TIANSHI, event_time))
+    ScriptTask.simultaneous_flow(fake, [WUQING, TIANSHI], event_time)
+
+    fights = [call for call in fake.calls if call[0] == 'fight']
+    assert ('fight', 'tianshi', 3) not in fights
+    assert ('fight', 'wuqing', None) in fights
+    # 已经不在世界之巅，不需要重启离开
+    assert not any(call[0] == 'leave' for call in fake.calls)
+    # 仍然会重新挂监听，无情打完后原地等天师结束模板
+    assert fake.calls.index(('wait_finish', 'tianshi')) > \
+        fake.calls.index(('fight', 'wuqing', None))
+
+
+def test_simultaneous_flow_resume_leaves_world_peak_when_still_inside():
+    # 理论上不该发生：left_events 已记但人还在图里（重启没成功），补一次离开
+    fake = FakePair()
+    event_time = datetime.now() - timedelta(seconds=1)
+    fake.left_events.add(ScriptTask.event_key_for(TIANSHI, event_time))
+    fake.map_in_location = lambda name: True
+    ScriptTask.simultaneous_flow(fake, [WUQING, TIANSHI], event_time)
+
+    leaves = [call for call in fake.calls if call[0] == 'leave']
+    assert leaves and '重跑时仍在世界之巅' in leaves[0][1]
+    assert ('fight', 'tianshi', 3) not in [
+        call for call in fake.calls if call[0] == 'fight']
+
+
+def test_task_record_keeps_left_events():
+    fake = SimpleNamespace(done_events={'done 1'}, left_events={'left 1'})
+    record = ScriptTask.save_task_record(fake)
+    assert record == {'done_events': ['done 1'], 'left_events': ['left 1']}
+
+    restored = SimpleNamespace()
+    assert ScriptTask.load_task_record(restored, record) is True
+    assert restored.done_events == {'done 1'}
+    assert restored.left_events == {'left 1'}
+
+
+def test_task_record_empty_returns_nothing():
+    fake = SimpleNamespace(done_events=set(), left_events=set())
+    assert ScriptTask.save_task_record(fake) == {}
+    assert ScriptTask.load_task_record(SimpleNamespace(), {}) is False
+
+
+def test_save_runtime_record_stores_for_restart():
+    fake = SimpleNamespace(
+        _task_records={},
+        config=SimpleNamespace(config_name='oas1'),
+        done_events={'done 1'},
+        left_events={'left 1'},
+        current_task_command=lambda: 'WorldBoss',
+    )
+    fake.save_task_record = lambda: ScriptTask.save_task_record(fake)
+
+    ScriptTask.save_runtime_record(fake)
+    assert fake._task_records[('oas1', 'WorldBoss')] == {
+        'done_events': ['done 1'], 'left_events': ['left 1']}
+
+
+class FakeGameDeadPair(ScriptTask):
+    """只测 pair_fight_boss 不再吞掉 GameNotRunningError"""
+
+    def __init__(self):
+        self.config = fake_config()
+        self.device = SimpleNamespace(sleep=lambda seconds: None, image=object())
+        self.done_events = set()
+        self.left_events = set()
+
+    def screenshot(self):
+        return object()
+
+    def pair_update_finish(self, *args, **kwargs):
+        return []
+
+    def handle_pair_new(self, *args, **kwargs):
+        pass
+
+    def navigate_to_boss(self, *args, **kwargs):
+        raise GameNotRunningError('Game died')
+
+
+def test_pair_fight_boss_propagates_game_not_running():
+    fake = FakeGameDeadPair()
+    state = {'wuqing': False, 'tianshi': False}
+    deadline = datetime.now() + timedelta(minutes=5)
+    with pytest.raises(GameNotRunningError):
+        ScriptTask.pair_fight_boss(fake, WUQING, [WUQING, TIANSHI], state,
+                                   datetime.now() - timedelta(seconds=1),
+                                   deadline)
 
 
 def test_simultaneous_flow_keep_pair_order_without_tianshi():

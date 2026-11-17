@@ -148,6 +148,8 @@ class ScriptTask(GameUi, WorldBossAssets):
     FINISH_REWARD_POLL = 0.2
     # 本次运行已完成的 {boss_key 时间} 事件（阵亡重跑时恢复）
     done_events: set = None
+    # 已打完技能并离开世界之巅的 {boss_key 时间} 事件（重跑时恢复，避免重新进图）
+    left_events: set = None
     # 当前阶段：navigate=寻路/锁定，attack=攻击（死亡时用于日志和恢复）
     _death_stage: str = 'navigate'
 
@@ -200,6 +202,15 @@ class ScriptTask(GameUi, WorldBossAssets):
             raise WorldBossFinished(boss['key'])
 
     def run(self) -> None:
+        try:
+            self.run_events()
+        except (GameNotRunningError, GameStuckError):
+            # 游戏进程退出 / 卡死时 script.py 会先 Restart 再重跑本任务。
+            # 这里把 done_events / left_events 留住，重跑时跳过已经打过的阶段。
+            self.save_runtime_record()
+            raise
+
+    def run_events(self) -> None:
         self.reset_records()
         events = self.current_events()
         if not events:
@@ -211,8 +222,10 @@ class ScriptTask(GameUi, WorldBossAssets):
             raise TaskEnd('WorldBoss')
 
         self.done_events = set()
+        self.left_events = set()
         if self.restore_task_record():
             logger.attr('Restored done events', ', '.join(sorted(self.done_events)) or '-')
+            logger.attr('Restored left events', ', '.join(sorted(self.left_events)) or '-')
 
         for event_time, group in self.group_events(events):
             pending = [boss for boss in group
@@ -259,19 +272,43 @@ class ScriptTask(GameUi, WorldBossAssets):
     # ---------------------------------------------------------------- 进度记录
     def save_task_record(self) -> dict:
         """
-        阵亡重跑时保留本次运行已完成的事件，避免重打已经结束的 boss
+        任务重跑时保留进度：
+
+        - done_events：已确认结束的事件，避免重打；
+        - left_events：已打完技能并离开世界之巅的天师事件，重跑时不要重新进图。
         """
-        return {'done_events': sorted(self.done_events or ())}
+        done = sorted(self.done_events or ())
+        left = sorted(self.left_events or ())
+        if not done and not left:
+            return {}
+        return {'done_events': done, 'left_events': left}
 
     def load_task_record(self, record: dict) -> bool:
         """
-        恢复已完成事件集合；旧版单事件记录不再兼容
+        恢复已完成 / 已离开世界之巅的事件集合；旧版单事件记录不再兼容
         """
         events = record.get('done_events') or []
-        if not events:
+        left = record.get('left_events') or []
+        if not events and not left:
             return False
         self.done_events = {str(event) for event in events}
+        self.left_events = {str(event) for event in left}
         return True
+
+    def save_runtime_record(self) -> None:
+        """
+        游戏进程退出 / 卡死时保存进度记录
+
+        script.py 的 `_handle_game_not_running` / `_handle_game_stuck` 只会
+        Restart 再重跑本任务，不走 `rerun_task`（那是角色死亡路径），
+        所以这里手动写进 GlobalGame._task_records，重跑时才能恢复。
+        """
+        command = self.current_task_command()
+        record = self.save_task_record()
+        if not command or not record:
+            return
+        self._task_records[(self.config.config_name, command)] = record
+        logger.attr('Task record', record)
 
     @staticmethod
     def event_key_for(boss: dict, event_time: datetime) -> str:
@@ -281,6 +318,12 @@ class ScriptTask(GameUi, WorldBossAssets):
         if self.done_events is None:
             self.done_events = set()
         self.done_events.add(self.event_key_for(boss, event_time))
+
+    def mark_event_left(self, boss: dict, event_time: datetime) -> None:
+        """记录「已打完技能并离开世界之巅」：重跑时不再进图，只监听结束模板"""
+        if self.left_events is None:
+            self.left_events = set()
+        self.left_events.add(self.event_key_for(boss, event_time))
 
     @staticmethod
     def group_events(events: list) -> list:
@@ -409,6 +452,24 @@ class ScriptTask(GameUi, WorldBossAssets):
         self.mark_event_done(boss, event_time)
         logger.info(f'{boss["name"]} finished (watched)')
         return boss
+
+    def leave_world_peak_pair(self, boss: dict, pair: list, state: dict,
+                              event_time: datetime, reason: str = '') -> bool:
+        """
+        双 boss 流程离开世界之巅（打够技能 / 重跑补离开）
+
+        先记 left_events：重启途中游戏挂了，重跑时也不能再进图打技能。
+        离开前如果刷出结束消息，按 key 归因，不打断另一个 boss 的流程。
+        :return: 已离开（含本来就不在图里）返回 True
+        """
+        self.mark_event_left(boss, event_time)
+        reason = reason or f'{boss["name"]} 打够技能数'
+        try:
+            return self.leave_world_peak_if_needed(reason)
+        except WorldBossFinished as e:
+            self.watch_finish_stop()
+            self.pair_mark_watched_finish(e.key, pair, state, event_time)
+            return self.leave_world_peak_if_needed(reason)
 
     def pair_update_finish(self, image, pair: list, state: dict, event_time: datetime) -> list:
         """
@@ -649,7 +710,7 @@ class ScriptTask(GameUi, WorldBossAssets):
 
                 try:
                     arrive = self.navigate_to_boss(boss, self.finish_rule(boss), deadline)
-                except (GameStuckError, GamePageUnknownError, GameNotRunningError) as e:
+                except (GameStuckError, GamePageUnknownError) as e:
                     logger.warning(f"Navigate {boss['name']} failed: {e}")
                     return 'navigate_failed'
                 if arrive == 'finished':
@@ -733,28 +794,34 @@ class ScriptTask(GameUi, WorldBossAssets):
         logger.attr('Pair state', str(state))
 
         # 1. 第一个 boss：打 N 个技能（中途结束则提前切换）
-        # cast_counter 在 pair_fight_boss 的死亡重试之间共享，避免复活后重打 N 个
-        cast_counter = {'casts': 0}
-        result = self.pair_fight_boss(first, pair, state, event_time, deadline,
-                                      max_skills=skills,
-                                      lock_timeout=self.PAIR_LOCK_TIMEOUT,
-                                      cast_counter=cast_counter)
-        logger.attr('First boss result', f'{result}（已释放 {cast_counter["casts"]}/{skills}）')
+        #    重跑时如果天师已经打完技能并离开过世界之巅，不再重新进图
+        first_left = (self.boss_direct_reach(first)
+                      and not state.get(first['key'])
+                      and self.event_key_for(first, event_time) in (self.left_events or set()))
+        if first_left:
+            logger.info(f'{first["name"]} 已打完技能并离开世界之巅，'
+                        f'跳过进图，直接打 {second["name"]}')
+            if self.map_in_location(WORLD_PEAK_MAP):
+                self.leave_world_peak_pair(first, pair, state, event_time,
+                                           reason='重跑时仍在世界之巅')
+        else:
+            # cast_counter 在 pair_fight_boss 的死亡重试之间共享，避免复活后重打 N 个
+            cast_counter = {'casts': 0}
+            result = self.pair_fight_boss(first, pair, state, event_time, deadline,
+                                          max_skills=skills,
+                                          lock_timeout=self.PAIR_LOCK_TIMEOUT,
+                                          cast_counter=cast_counter)
+            logger.attr('First boss result',
+                        f'{result}（已释放 {cast_counter["casts"]}/{skills}）')
 
-        # 1.5 第一个是天师的幻影：它在世界之巅，打够技能数（或它已结束）后只能重启离开。
-        #     离开不等于结束：结束消息是全局聊天，重启后继续用钩子监听它的结束模板。
-        if self.boss_direct_reach(first):
-            logger.info(f'{first["name"]} 攻击阶段结束（{result}），重启游戏离开世界之巅')
-            try:
-                self.leave_world_peak_if_needed(f'{first["name"]} 打够技能数')
-            except WorldBossFinished as e:
-                # 离开前恰好刷出结束消息：按 key 归因后重新执行一次离开
-                self.watch_finish_stop()
-                self.pair_mark_watched_finish(e.key, pair, state, event_time)
-                self.leave_world_peak_if_needed(f'{first["name"]} 打够技能数')
-            if not state.get(first['key']):
-                # 打另一个 boss 期间继续全局监听天师的结束模板
-                self.watch_finish_start(first, self.finish_rule(first), deadline)
+            # 1.5 第一个是天师的幻影：它在世界之巅，打够技能数（或它已结束）后只能重启离开。
+            #     离开不等于结束：结束消息是全局聊天，重启后继续用钩子监听它的结束模板。
+            if self.boss_direct_reach(first):
+                self.leave_world_peak_pair(first, pair, state, event_time)
+
+        # 天师离开世界之巅后继续全局监听结束模板；重跑跳过进图时也要重新挂上
+        if self.boss_direct_reach(first) and not state.get(first['key']):
+            self.watch_finish_start(first, self.finish_rule(first), deadline)
 
         # 2. 第二个 boss：打到它结束
         while (not state[second['key']] and not self.pair_all_done(state)
@@ -1080,7 +1147,7 @@ class ScriptTask(GameUi, WorldBossAssets):
                 return True
             logger.warning(f'Teleport to {target} failed, fallback to seek')
             return False
-        except (GameStuckError, GamePageUnknownError, GameNotRunningError) as e:
+        except (GameStuckError, GamePageUnknownError) as e:
             logger.warning(f'Prepare boss map failed: {e}')
             return False
 
@@ -1528,7 +1595,7 @@ class ScriptTask(GameUi, WorldBossAssets):
             self.prepare_boss_map(boss)
             self.enter_world_boss_page()
             return self.seek_boss(boss)
-        except (GameStuckError, GamePageUnknownError, GameNotRunningError) as e:
+        except (GameStuckError, GamePageUnknownError) as e:
             logger.warning(f'Reseek failed: {e}')
             return False
 
