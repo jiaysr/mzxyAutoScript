@@ -105,7 +105,8 @@ class ScriptTask(GameUi, WorldBossAssets):
     世界首领：按配置的时间段提前出发，自动寻路到首领位置
     锁定目标后按任务预设技能队列攻击，同时轮询聊天栏结束模板判定 boss 是否已结束。
     同一时段两个 boss：先打配置选中的 A 共 N 个技能，再打 B；全程同时轮询双方结束模板，
-    B 结束后 A 还没结束就回 A 继续打。
+    B 结束后 A 还没结束就回 A 继续打。天师的幻影离开世界之巅后回不去，
+    打够技能数后改为继续全局监听它的结束模板，B 打完后原地等模板。
     整点后最多参与 event_window（10 分钟）：没锁定到目标、也没出结束模板就到点结束。
 
     两个跨阶段的机制都由异常抛给事件流程统一处理：
@@ -389,6 +390,25 @@ class ScriptTask(GameUi, WorldBossAssets):
     @staticmethod
     def pair_all_done(state: dict) -> bool:
         return bool(state) and all(state.values())
+
+    def pair_mark_watched_finish(self, key: str, pair: list, state: dict,
+                                 event_time: datetime) -> dict | None:
+        """
+        全局结束监听命中后按 key 归因到 pair 里的 boss
+
+        结束消息可能是另一个 boss 的：记到当前 boss 头上会让它永远「没打完」。
+        :return: 新标记完成的 boss；未找到或已完成返回 None
+        """
+        boss = next((item for item in pair if item['key'] == key), None)
+        if boss is None:
+            logger.info(f'Boss {key} finished (watched, unknown boss)')
+            return None
+        if state.get(boss['key']):
+            return None
+        state[boss['key']] = True
+        self.mark_event_done(boss, event_time)
+        logger.info(f'{boss["name"]} finished (watched)')
+        return boss
 
     def pair_update_finish(self, image, pair: list, state: dict, event_time: datetime) -> list:
         """
@@ -690,6 +710,9 @@ class ScriptTask(GameUi, WorldBossAssets):
         """
         同一时段两个 boss：先打配置选中的 A 共 N 个技能，再打 B 到 B 结束；
         B 结束后 A 还没结束就回 A 继续打。全程同时轮询双方结束模板。
+
+        天师的幻影特殊：离开世界之巅后回不去，打够技能数后不按已结束处理，
+        继续监听它的结束模板；B 打完后若还没出模板，原地挂机等到 deadline。
         """
         pair = bosses[:2]
         deadline = event_time + self.event_window
@@ -719,14 +742,19 @@ class ScriptTask(GameUi, WorldBossAssets):
         logger.attr('First boss result', f'{result}（已释放 {cast_counter["casts"]}/{skills}）')
 
         # 1.5 第一个是天师的幻影：它在世界之巅，打够技能数（或它已结束）后只能重启离开。
-        #     重启后人已回域外灵岛，不再回世界之巅 —— 所以直接按已结束收尾，进第二个。
+        #     离开不等于结束：结束消息是全局聊天，重启后继续用钩子监听它的结束模板。
         if self.boss_direct_reach(first):
             logger.info(f'{first["name"]} 攻击阶段结束（{result}），重启游戏离开世界之巅')
-            self.leave_world_peak_if_needed(f'{first["name"]} 打够技能数')
+            try:
+                self.leave_world_peak_if_needed(f'{first["name"]} 打够技能数')
+            except WorldBossFinished as e:
+                # 离开前恰好刷出结束消息：按 key 归因后重新执行一次离开
+                self.watch_finish_stop()
+                self.pair_mark_watched_finish(e.key, pair, state, event_time)
+                self.leave_world_peak_if_needed(f'{first["name"]} 打够技能数')
             if not state.get(first['key']):
-                logger.info(f'{first["name"]} 离开世界之巅后回不去，按已结束处理')
-                state[first['key']] = True
-                self.mark_event_done(first, event_time)
+                # 打另一个 boss 期间继续全局监听天师的结束模板
+                self.watch_finish_start(first, self.finish_rule(first), deadline)
 
         # 2. 第二个 boss：打到它结束
         while (not state[second['key']] and not self.pair_all_done(state)
@@ -739,7 +767,9 @@ class ScriptTask(GameUi, WorldBossAssets):
             if result == 'timeout':
                 break
             if result in ('lock_timeout', 'target_lost', 'navigate_failed'):
-                if not state[first['key']]:
+                # 普通第一 boss 还没打完 -> 回第一个（步骤 3）；
+                # 天师的幻影离开世界之巅后回不去，继续重试第二个
+                if not self.boss_direct_reach(first) and not state[first['key']]:
                     break
                 logger.info(f'First boss finished, retry second until {deadline:%H:%M:%S}')
                 continue
@@ -759,8 +789,9 @@ class ScriptTask(GameUi, WorldBossAssets):
                 break
             logger.info('First boss not finished, retry until deadline')
 
-        # 4. 第一个已结束、第二个仍未结束 -> 剩余时间继续尝试第二个
-        while (not state[second['key']] and state[first['key']]
+        # 4. 第一个已结束（或天师离开世界之巅后回不去）、第二个仍未结束 -> 剩余时间继续尝试第二个
+        while (not state[second['key']]
+               and (state[first['key']] or self.boss_direct_reach(first))
                and not self.pair_all_done(state) and datetime.now() < deadline):
             result = self.pair_fight_boss(second, pair, state, event_time, deadline,
                                           max_skills=None,
@@ -770,6 +801,24 @@ class ScriptTask(GameUi, WorldBossAssets):
             if result == 'timeout':
                 break
             logger.info('Second boss not finished, retry until deadline')
+
+        # 5. 天师的幻影还没出结束模板：离开世界之巅后回不去，但结束消息在聊天栏里
+        #    全局可见，原地挂机轮询它的结束模板，不能按已结束处理
+        while (self.boss_direct_reach(first) and not state[first['key']]
+               and datetime.now() < deadline):
+            logger.info(f'{first["name"]} 还没有结束消息，原地等待结束模板')
+            try:
+                result = self.wait_pair_finish(first, pair, state, event_time, deadline,
+                                               timeout=(deadline - datetime.now()).total_seconds())
+            except WorldBossFinished as e:
+                # 钩子命中：按 key 归因，不是天师的结束消息就继续等
+                self.watch_finish_stop()
+                finished = self.pair_mark_watched_finish(e.key, pair, state, event_time)
+                if finished is not None:
+                    self.handle_finish(finished)
+                continue
+            if result == 'timeout':
+                break
 
         # >2 个同时 boss：前两个之后按单 boss 流程补齐（当前数据只有两个）
         for boss in bosses[2:]:

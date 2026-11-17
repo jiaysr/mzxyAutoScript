@@ -6,7 +6,8 @@
 世界之巅**没有传送出口**：进图靠「进入世界之巅」活动按钮，离开只能重启游戏，
 所以：
 - 只勾了天师：打完（结束消息或超时）-> 重启离开 -> 任务结束；
-- 同一时段勾了两个 boss：顺序写死「天师先打」-> 打够技能数 -> 重启离开 -> 打另一个。
+- 同一时段勾了两个 boss：顺序写死「天师先打」-> 打够技能数 -> 重启离开 -> 打另一个
+  -> 另一个打完后天师还没出结束模板就原地等模板。
 """
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -291,14 +292,15 @@ def test_leave_world_peak_reports_restart_failure():
 
 # ---------------------------------------------------------------- 双 boss 流程
 class FakePair(ScriptTask):
-    """只测 simultaneous_flow 的顺序：天师打够技能数 -> 重启 -> 另一个 boss"""
+    """只测 simultaneous_flow 的顺序：天师打够技能数 -> 重启 -> 另一个 boss -> 等天师结束模板"""
 
-    def __init__(self):
+    def __init__(self, tianshi_finish_in_wait=True):
         self.config = fake_config(first_boss='wuqing', first_boss_skills=3,
                                   tianshi_12=True)
         self.calls = []
         self.done_events = set()
         self._death_stage = None
+        self.tianshi_finish_in_wait = tianshi_finish_in_wait
         self.device = SimpleNamespace(sleep=lambda seconds: None)
 
     def pair_fight_boss(self, boss, pair, state, event_time, deadline,
@@ -312,12 +314,20 @@ class FakePair(ScriptTask):
         state[boss['key']] = True
         return 'finished'
 
+    def wait_pair_finish(self, boss, pair, state, event_time, deadline, timeout):
+        self.calls.append(('wait_finish', boss['key']))
+        if self.tianshi_finish_in_wait:
+            state[boss['key']] = True
+            self.mark_event_done(boss, event_time)
+            return 'finished'
+        return 'timeout'
+
     def leave_world_peak_if_needed(self, reason=''):
         self.calls.append(('leave', reason))
         return True
 
 
-def test_simultaneous_flow_tianshi_first_then_restart_then_other():
+def test_simultaneous_flow_waits_tianshi_finish_template_after_other_boss():
     fake = FakePair()
     event_time = datetime.now() - timedelta(seconds=1)
     ScriptTask.simultaneous_flow(fake, [WUQING, TIANSHI], event_time)
@@ -327,10 +337,20 @@ def test_simultaneous_flow_tianshi_first_then_restart_then_other():
     assert fights[0] == ('fight', 'tianshi', 3)
     assert any(call[0] == 'leave' for call in fake.calls)
     assert ('fight', 'wuqing', None) in fights
-    # 重启后不再回世界之巅打天师
-    assert [call for call in fights if call[1] == 'tianshi'] == [('fight', 'tianshi', 3)]
-    # 天师按「已结束」记进 done_events，不会在收尾时被当成未完成
+    # 无情打完后原地等天师的结束模板，不再按「回不去」直接收尾
+    assert fake.calls.index(('wait_finish', 'tianshi')) > \
+        fake.calls.index(('fight', 'wuqing', None))
     assert any('tianshi' in key for key in fake.done_events)
+
+
+def test_simultaneous_flow_keeps_tianshi_unfinished_without_template():
+    fake = FakePair(tianshi_finish_in_wait=False)
+    event_time = datetime.now() - timedelta(seconds=1)
+    ScriptTask.simultaneous_flow(fake, [WUQING, TIANSHI], event_time)
+
+    assert ('wait_finish', 'tianshi') in fake.calls
+    # 没看到结束模板就不能按已结束处理
+    assert not any('tianshi' in key for key in fake.done_events)
 
 
 def test_simultaneous_flow_keep_pair_order_without_tianshi():
