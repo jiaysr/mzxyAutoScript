@@ -19,14 +19,12 @@
     才记一次失败，连续 2 次失败换下一个打怪点。
   第 4 步：结束条件。
     - 正常结束 / 死亡低伤害提前退出：人物自动离开副本，出现「伏魔涧奖励结算」弹窗，
-      关掉即可；只完成活跃任务模式下会再次进副本，进度保留，直到进度满；
-    - 只完成活跃任务：读底部进度 OCR，满 250000/250000 或显示「已达上限」后重启游戏退出副本，
+      关掉即可；只完成活跃任务模式下会再次进副本，进度保留，直到显示「已达上限」；
+    - 只完成活跃任务：读底部进度 OCR，显示「已达上限」后重启游戏退出副本，
       上线后复查活动-活跃页，完成则关闭活跃页面回主页面结束。
   死亡复活：出现死亡弹窗时复活，然后按当前步骤继续执行，不重跑整个任务。
   掉线处理：出现「您掉线了...」时直接重启游戏，上线后同样按当前步骤继续。
 """
-import re
-
 from module.base.timer import Timer
 from module.exception import (GameNotRunningError,
                               GamePageUnknownError,
@@ -55,8 +53,10 @@ class ScriptTask(GameUi, FumoShanjianAssets):
     DUNGEON_LOCATION = '伏魔涧'
     # 活动-活跃页里对应的任务名
     ACTIVE_TASK_NAME = '伏魔山涧'
-    # 活跃任务进度目标：副本底部 OCR 读到 250000/250000 或「已达上限」即活跃任务完成
-    ACTIVE_PROGRESS_TARGET = 250000
+    # 活跃任务完成标志：副本底部 OCR 读到「已达上限」
+    # 不能按进度数字判断：副本内数字会超过 250000 继续显示（如 260000/250000），
+    # 数字 OCR 也可能认错，按数值判断会提前重启退出副本
+    ACTIVE_PROGRESS_CAPPED = '已达上限'
     # 小地图打怪点：按顺序循环点击，连续 TARGET_MISS_LIMIT 次锁不到可攻击目标就换下一个
     MINIMAP_POINTS = (
         'C_FUMO_MINIMAP_POINT_1',
@@ -350,7 +350,7 @@ class ScriptTask(GameUi, FumoShanjianAssets):
           关掉后返回 'finished'（只完成活跃任务模式下由调用方再次进副本，
           进度会保留）。副本内死亡不会弹死亡弹窗，所以不需要复活；
         - 掉线重启 / 死亡复活后不在副本：没有结算弹窗时在当前步骤内重新进副本继续；
-        - 只完成活跃任务：底部进度 OCR 满 250000/250000 或显示「已达上限」表示活跃任务完成，
+        - 只完成活跃任务：底部进度 OCR 显示「已达上限」表示活跃任务完成，
           直接重启游戏退出副本，上线后复查活跃任务，返回 'active_done'。
 
         :return: 'active_done' 活跃任务完成并已复查收工；
@@ -394,12 +394,10 @@ class ScriptTask(GameUi, FumoShanjianAssets):
                 self.close_finish_popup()
                 return 'finished'
 
-            if active_only:
-                progress = self.read_active_progress()
-                if progress is not None and progress[0] >= self.ACTIVE_PROGRESS_TARGET:
-                    logger.info(f'活跃任务进度已满：{progress[0]}/{progress[1]}，重启游戏退出副本')
-                    self.exit_dungeon_by_restart()
-                    return 'active_done'
+            if active_only and self.active_progress_capped():
+                logger.info('活跃任务进度已达上限，重启游戏退出副本')
+                self.exit_dungeon_by_restart()
+                return 'active_done'
 
             # 判断是否已到达点击位置：连续两次读到相同坐标才算到达。
             # 移动途中锁不到目标不算失败，避免刚点完还在赶路就换点。
@@ -547,28 +545,20 @@ class ScriptTask(GameUi, FumoShanjianAssets):
             return False
         return bool(self.I_FUMO_FINISH_POPUP.match(image))
 
-    def read_active_progress(self) -> tuple[int, int] | None:
+    def active_progress_capped(self) -> bool:
         """
-        读副本底部的活跃任务进度
+        副本底部进度是否显示「已达上限」
 
-        进度未满时是数字（如 0/250000），满值后游戏改成显示「已达上限」，
-        两种都按完成处理。
+        只认「已达上限」这段文字：副本内的数字会超过目标继续显示
+        （如 260000/250000），数字 OCR 也可能认错，按数值判断会提前重启退出副本。
 
-        :return: (已做, 总数)；已达上限返回 (目标值, 目标值)；
-                 OCR 读不到或解析失败返回 None
+        :return: True 表示已达上限，活跃任务完成
         """
         text = (self.O_FUMO_ACTIVE_PROGRESS.ocr(self.device.image) or '').strip()
-        # 满值后不再显示数字，而是文字「已达上限」（OCR 偶尔带尾巴也不影响包含判断）
-        if '已达上限' in text:
-            logger.attr('活跃任务进度', '已达上限')
-            return self.ACTIVE_PROGRESS_TARGET, self.ACTIVE_PROGRESS_TARGET
-        match = re.search(r'(\d+)\s*[/／]\s*(\d+)', text)
-        if not match:
-            logger.warning(f'活跃任务进度识别失败: [{text}]')
-            return None
-        done, total = int(match.group(1)), int(match.group(2))
-        logger.attr('活跃任务进度', f'{done}/{total}')
-        return done, total
+        # OCR 偶尔带尾巴（已达上限从其化投育），包含判断即可
+        capped = self.ACTIVE_PROGRESS_CAPPED in text
+        logger.attr('活跃任务进度', '已达上限' if capped else (text or '识别失败'))
+        return capped
 
     def close_finish_popup(self, timeout: int = 5) -> bool:
         """
@@ -591,7 +581,7 @@ class ScriptTask(GameUi, FumoShanjianAssets):
 
     def exit_dungeon_by_restart(self) -> None:
         """
-        活跃任务进度已满：直接重启游戏退出副本，上线后复查活跃任务
+        活跃任务进度显示「已达上限」：直接重启游戏退出副本，上线后复查活跃任务
         """
         logger.hr('重启游戏退出副本')
         self.ui_restart_game()

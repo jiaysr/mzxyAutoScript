@@ -37,7 +37,7 @@ class FumoShanjianAssets:
 	# Ocr Rule Assets
 	# 伏魔山涧-伏魔大使对话选项文字区（OCR 定位「进入伏魔涧」并点击） 
 	O_FUMO_DIALOG_OPTIONS = RuleOcr(roi=(526,314,226,213), area=(526,314,226,213), mode="Full", method="Default", keyword="", name="fumo_dialog_options")
-	# 伏魔山涧-活跃任务进度（0/250000，满 250000/250000 或显示已达上限表示活跃任务完成） 
+	# 伏魔山涧-活跃任务进度（显示「已达上限」才表示活跃任务完成；数字如 260000/250000 不算） 
 	O_FUMO_ACTIVE_PROGRESS = RuleOcr(roi=(600,595,242,39), area=(598,589,247,49), mode="Single", method="Default", keyword="", name="fumo_active_progress")
 
 

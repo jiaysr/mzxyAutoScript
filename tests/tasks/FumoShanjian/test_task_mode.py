@@ -164,36 +164,29 @@ class FakeProgressOcr:
 
 class FakeProgressTask:
     device = SimpleNamespace(image=object())
-    ACTIVE_PROGRESS_TARGET = ScriptTask.ACTIVE_PROGRESS_TARGET
+    ACTIVE_PROGRESS_CAPPED = ScriptTask.ACTIVE_PROGRESS_CAPPED
 
     def __init__(self, text):
         self.O_FUMO_ACTIVE_PROGRESS = FakeProgressOcr(text)
 
 
-def test_read_active_progress_parses_normal_text():
-    assert ScriptTask.read_active_progress(FakeProgressTask('123456/250000')) == (123456, 250000)
-
-
-def test_read_active_progress_parses_fullwidth_slash_and_spaces():
-    assert ScriptTask.read_active_progress(FakeProgressTask('250000 ／ 250000')) == (250000, 250000)
-
-
-def test_read_active_progress_returns_none_when_unreadable():
-    assert ScriptTask.read_active_progress(FakeProgressTask('')) is None
-
-
-def test_read_active_progress_capped_text_counts_as_full():
+def test_active_progress_capped_on_capped_text():
     # 满值后游戏不再显示数字，而是「已达上限」
-    assert ScriptTask.read_active_progress(
-        FakeProgressTask('已达上限')) == (ScriptTask.ACTIVE_PROGRESS_TARGET,
-                                          ScriptTask.ACTIVE_PROGRESS_TARGET)
+    assert ScriptTask.active_progress_capped(FakeProgressTask('已达上限')) is True
 
 
-def test_read_active_progress_capped_text_with_ocr_tail():
+def test_active_progress_capped_tolerates_ocr_tail():
     # OCR 偶尔会带尾巴：已达上限从其化投育
-    assert ScriptTask.read_active_progress(
-        FakeProgressTask('已达上限从其化投育')) == (ScriptTask.ACTIVE_PROGRESS_TARGET,
-                                                    ScriptTask.ACTIVE_PROGRESS_TARGET)
+    assert ScriptTask.active_progress_capped(FakeProgressTask('已达上限从其化投育')) is True
+
+
+def test_active_progress_number_over_target_is_not_capped():
+    # 副本内数字会超过 250000 继续显示，此时活跃任务还没完成，不能提前退出
+    assert ScriptTask.active_progress_capped(FakeProgressTask('260000/250000')) is False
+
+
+def test_active_progress_unreadable_is_not_capped():
+    assert ScriptTask.active_progress_capped(FakeProgressTask('')) is False
 
 
 # ---------------------------------------------------------------- 副本内结束条件
@@ -202,18 +195,17 @@ class FakeDungeonTask:
 
     I_FUMO_FINISH_POPUP = 'finish_popup'
     DUNGEON_LOCATION = ScriptTask.DUNGEON_LOCATION
-    ACTIVE_PROGRESS_TARGET = ScriptTask.ACTIVE_PROGRESS_TARGET
     MINIMAP_POINTS = ('point_1', 'point_2', 'point_3')
     TARGET_MISS_LIMIT = ScriptTask.TARGET_MISS_LIMIT
     FUMO_LOCK_MAX_SWITCH = ScriptTask.FUMO_LOCK_MAX_SWITCH
     FUMO_LOCK_TIMEOUT = ScriptTask.FUMO_LOCK_TIMEOUT
 
-    def __init__(self, mode, finish_popup=False, progress=None):
+    def __init__(self, mode, finish_popup=False, capped=False):
         self.config = SimpleNamespace(
             fumo_shanjian=SimpleNamespace(
                 fumo_shanjian_config=SimpleNamespace(task_mode=mode)))
         self.finish_popup = finish_popup
-        self.progress = progress
+        self.capped = capped
         self.closed = 0
         self.exited = 0
         self.points = []
@@ -232,8 +224,8 @@ class FakeDungeonTask:
         self.closed += 1
         return True
 
-    def read_active_progress(self):
-        return self.progress
+    def active_progress_capped(self):
+        return self.capped
 
     def exit_dungeon_by_restart(self):
         self.exited += 1
@@ -303,11 +295,33 @@ def test_handle_dungeon_reenters_when_outside_dungeon():
     assert fake.points == ['point_1']
 
 
-def test_handle_dungeon_active_mode_exits_when_progress_full():
-    fake = FakeDungeonTask(FumoTaskMode.ACTIVE_ONLY, progress=(250000, 250000))
+def test_handle_dungeon_active_mode_exits_when_progress_capped():
+    fake = FakeDungeonTask(FumoTaskMode.ACTIVE_ONLY, capped=True)
     assert ScriptTask.handle_dungeon(fake) == 'active_done'
     assert fake.exited == 1
     assert fake.closed == 0
+
+
+class FakeNotCappedTask(FakeDungeonTask):
+    """底部长数字超过目标但没显示「已达上限」：继续打，不能提前退出"""
+
+    def __init__(self):
+        super().__init__(FumoTaskMode.ACTIVE_ONLY)
+        self.checks = 0
+
+    def active_progress_capped(self):
+        self.checks += 1
+        if self.checks >= 3:
+            self.finish_popup = True
+        return False  # 数字即使显示 260000/250000 也不算完成
+
+
+def test_handle_dungeon_active_mode_keeps_fighting_until_finish():
+    fake = FakeNotCappedTask()
+    assert ScriptTask.handle_dungeon(fake) == 'finished'
+    assert fake.exited == 0
+    assert fake.checks == 3
+    assert fake.closed == 1
 
 
 class FakeFightTask(FakeDungeonTask):
