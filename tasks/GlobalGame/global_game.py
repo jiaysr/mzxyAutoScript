@@ -19,7 +19,8 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
     """
     全局处理：所有任务的 screenshot 都会经过 handle_disconnect / handle_death
     / handle_captcha / handle_global_popup
-    - 人物掉线时直接重启游戏，上线后复用死亡复活后的续跑逻辑
+    - 人物掉线（弹「您掉线了」或直接回到游戏登录页）时直接重启游戏，
+      上线后复用死亡复活后的续跑逻辑
     - 角色阵亡时点击「返回村子」复活，保留任务进度并立即重跑当前任务
     - 出现人机验证弹窗时算出答案并点中对应选项（见 captcha.py）
     - 出现已知弹窗时点击对应的关闭区域，避免弹窗挡住任务操作
@@ -45,6 +46,12 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
     # 会被忽略（见 BaseTask.set_next_run），保证 task_call 设的「立即重跑」不被覆盖。
     # 每个任务实例独立（每次运行新建实例），特殊情况（如域外迷窟原地复活）自己覆盖 handle_death。
     _rerun_requested: bool = False
+
+    # 登录页检测：人物掉线回到游戏登录页（不是「您掉线了」弹窗）时直接重启游戏。
+    # Restart 任务自己会停在登录页执行登录，RestartBase 会把它关掉。
+    CHECK_LOGIN_PAGE: bool = True
+    # 登录页检查间隔（秒）：避免每次截图都做登录页模板匹配
+    LOGIN_PAGE_CHECK_INTERVAL: float = 5.0
 
     # 全局弹窗处理：识别到特征点后点击对应的关闭区域
     # 素材放 tasks/GlobalGame/popup/，命名约定：
@@ -106,15 +113,15 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
 
     def handle_disconnect(self) -> None:
         """
-        检测到掉线弹窗时直接重启游戏，上线后复用死亡复活后的续跑逻辑
+        检测到掉线弹窗或游戏回到登录页时直接重启游戏，上线后复用死亡复活后的续跑逻辑
 
-        掉线不会弹死亡框，而是「您掉线了...」。重启并登录成功后调用
-        `handle_death_resume()`：默认重跑当前任务，任务可覆盖为「继续当前步骤」。
+        掉线不一定会弹「您掉线了...」：网络断开久了游戏会直接退回登录页，
+        只认弹窗会一路空转。登录页复用 Restart 任务的素材判定。
         调用前 device.image 需为最新截图。
         """
         if GlobalGame._disconnect_restarting:
             return
-        if not self.appear(self.I_DISCONNECT_DIALOG):
+        if not self.appear(self.I_DISCONNECT_DIALOG) and not self.appears_login_page():
             return
 
         logger.warning('Character disconnected, restart game')
@@ -124,6 +131,20 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
             self.handle_disconnect_resume()
         finally:
             GlobalGame._disconnect_restarting = False
+
+    def appears_login_page(self) -> bool:
+        """
+        当前画面是否是游戏登录页（掉线回到标题/登录界面）
+
+        复用 Restart 任务的登录页素材；Restart 任务自己会停在登录页执行登录，
+        所以 RestartBase 把 CHECK_LOGIN_PAGE 关掉，避免递归重启。
+        """
+        if not self.CHECK_LOGIN_PAGE:
+            return False
+        from tasks.Restart.assets import RestartAssets
+        interval = self.LOGIN_PAGE_CHECK_INTERVAL
+        return (self.appear(RestartAssets.I_X7_LOGIN_ENTER, interval=interval)
+                or self.appear(RestartAssets.I_OFFICIAL_LOGIN_ENTER, interval=interval))
 
     def handle_disconnect_resume(self) -> None:
         """

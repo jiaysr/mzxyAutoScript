@@ -25,6 +25,8 @@ class RestartBase(BaseTask, RestartAssets):
 
     CHECK_SCREEN_ALIVE = False
     CHECK_APP_RUNNING = False
+    # 登录流程本身就会停在登录页，不能把登录页当成「人物掉线」再触发一次重启
+    CHECK_LOGIN_PAGE = False
 
     login_retry = 2
     # 登录总时长上限默认值（秒），实际取配置 restart.login_config.login_timeout；

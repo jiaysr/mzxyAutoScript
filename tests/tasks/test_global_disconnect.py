@@ -6,15 +6,20 @@ from tasks.base_task import BaseTask
 
 class FakeDisconnectTask:
     I_DISCONNECT_DIALOG = 'disconnect_dialog'
+    CHECK_LOGIN_PAGE = True
 
-    def __init__(self, visible=True):
+    def __init__(self, visible=True, login_page=False):
         self.visible = visible
+        self.login_page = login_page
         self.restarted = 0
         self.resumed = 0
         self.disconnect_resumed = 0
 
     def appear(self, target, interval=None):
         return self.visible and target == self.I_DISCONNECT_DIALOG
+
+    def appears_login_page(self):
+        return self.login_page
 
     def restart_game_after_disconnect(self):
         self.restarted += 1
@@ -33,6 +38,47 @@ def test_disconnect_restarts_then_uses_disconnect_resume():
     assert task.disconnect_resumed == 1
     assert task.resumed == 0
     assert GlobalGame._disconnect_restarting is False
+
+
+def test_login_page_also_triggers_restart():
+    # 网络断开久了游戏会直接退回登录页，没有「您掉线了」弹窗
+    task = FakeDisconnectTask(visible=False, login_page=True)
+    GlobalGame.handle_disconnect(task)
+    assert task.restarted == 1
+    assert task.disconnect_resumed == 1
+    assert GlobalGame._disconnect_restarting is False
+
+
+class FakeLoginPageTask:
+    CHECK_LOGIN_PAGE = True
+    LOGIN_PAGE_CHECK_INTERVAL = 5
+
+    def __init__(self, hit):
+        self.hit = hit
+
+    def appear(self, target, interval=None):
+        return target is self.hit
+
+
+def test_appears_login_page_matches_both_clients():
+    from tasks.Restart.assets import RestartAssets
+
+    assert GlobalGame.appears_login_page(
+        FakeLoginPageTask(RestartAssets.I_X7_LOGIN_ENTER)) is True
+    assert GlobalGame.appears_login_page(
+        FakeLoginPageTask(RestartAssets.I_OFFICIAL_LOGIN_ENTER)) is True
+    assert GlobalGame.appears_login_page(FakeLoginPageTask(None)) is False
+
+
+def test_appears_login_page_skipped_when_disabled():
+    from tasks.Restart.assets import RestartAssets
+    from tasks.Restart.restart_base import RestartBase
+
+    task = FakeLoginPageTask(RestartAssets.I_X7_LOGIN_ENTER)
+    task.CHECK_LOGIN_PAGE = False
+    assert GlobalGame.appears_login_page(task) is False
+    # 登录流程本身会停在登录页，Restart 任务必须关掉检测
+    assert RestartBase.CHECK_LOGIN_PAGE is False
 
 
 def test_disconnect_default_resume_delegates_to_death_resume():
