@@ -16,5 +16,14 @@
     "method": "Default",
     "keyword": "",
     "description": "人机验证-选项区（左列 A~E、右列 F~J，每项「字母: 数字」）"
+  },
+  {
+    "itemName": "team_invite_text",
+    "roiFront": "339,276,606,78",
+    "roiBack": "339,276,606,78",
+    "mode": "Single",
+    "method": "Default",
+    "keyword": "",
+    "description": "组队邀请弹窗-邀请文案（如「月落云渊邀请你加入队伍」）"
   }
 ]

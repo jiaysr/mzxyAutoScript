@@ -33,7 +33,7 @@
     "roiBack": "510,290,361,45",
     "method": "Template matching",
     "threshold": 0.8,
-    "description": "邀请组队拒绝"
+    "description": "邀请组队弹窗（邀请文案特征）"
   },
   {
     "itemName": "popup_too_slow",

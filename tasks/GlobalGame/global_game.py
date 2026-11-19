@@ -24,6 +24,8 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
     - 角色阵亡时点击「返回村子」复活，保留任务进度并立即重跑当前任务
     - 出现人机验证弹窗时算出答案并点中对应选项（见 captcha.py）
     - 出现已知弹窗时点击对应的关闭区域，避免弹窗挡住任务操作
+    - 组队邀请弹窗默认拒绝；支持组队的任务可覆盖 team_invite_should_accept()
+      改成按配置接受（见 WildSnowman）
     """
 
     if TYPE_CHECKING:
@@ -61,6 +63,8 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
     popup_close: list = []
     # 弹窗检查间隔（秒）：避免每帧截图都做大量模板匹配
     popup_check_interval: float = 1.0
+    # 是否接受过组队邀请：任务结束/让路时据此决定要不要退队
+    _team_invite_accepted: bool = False
 
     def handle_global_popup(self) -> None:
         """
@@ -75,12 +79,64 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
             return
         timer.reset()
 
+        # 组队邀请不是固定拒绝：按任务的策略决定接受/拒绝（默认拒绝）
+        if self.handle_team_invite():
+            return
+
         for check, close in self._popup_pairs():
             if self.appear(check, interval=1):
                 logger.info(f'Close popup {check.name}')
                 self.click(close, interval=1)
                 self.device.click_record_clear()
                 return
+
+    # ------------------------------------------------------------------ 组队邀请
+    def handle_team_invite(self) -> bool:
+        """
+        处理组队邀请弹窗，出现即返回 True
+
+        默认拒绝；任务覆盖 team_invite_should_accept() 后可接受。
+        只有任务覆盖 team_invite_needs_text() 返回 True 时才 OCR 邀请人名称。
+        接受成功后置 _team_invite_accepted，任务结束/让路时可据此退队。
+        """
+        if not self.appear(self.I_POPUP_INVITE):
+            return False
+        # 只在策略需要按名字筛选时才 OCR（勾选自动接受时直接放行，不读名字）
+        text = self.team_invite_text() if self.team_invite_needs_text() else ''
+        if self.team_invite_should_accept(invite_text=text):
+            logger.info(f'Accept team invite: {text}' if text else 'Accept team invite')
+            if self.click(self.C_POPUP_INVITE_ACCEPT, interval=1):
+                self._team_invite_accepted = True
+        else:
+            logger.info(f'Reject team invite: {text}' if text else 'Reject team invite')
+            self.click(self.C_POPUP_INVITE_CLOSE, interval=1)
+        self.device.click_record_clear()
+        return True
+
+    def team_invite_needs_text(self) -> bool:
+        """
+        当前策略是否需要 OCR 邀请人名称：默认不需要（默认拒绝）
+
+        任务覆盖本方法后，GlobalGame 只在需要时读取邀请文案。
+        """
+        return False
+
+    def team_invite_text(self) -> str:
+        """读取组队邀请文案（如「月落云渊邀请你加入队伍」），识别失败返回空串"""
+        try:
+            text = self.O_TEAM_INVITE_TEXT.ocr(self.device.image)
+        except Exception as error:
+            logger.warning(f'Team invite OCR failed: {error}')
+            return ''
+        return str(text or '').strip()
+
+    def team_invite_should_accept(self, invite_text: str) -> bool:
+        """
+        组队邀请是否接受：默认拒绝
+
+        支持自动组队的任务覆盖本方法（WildSnowman 按配置和指定名单判断）。
+        """
+        return False
 
     def _popup_pairs(self) -> list:
         """
@@ -93,6 +149,9 @@ class GlobalGame(CaptchaHandler, GlobalGameAssets):
                 pairs.append((check, close))
         for name in dir(type(self)):
             if not name.startswith('I_POPUP_'):
+                continue
+            if name == 'I_POPUP_INVITE':
+                # 组队邀请由 handle_team_invite 按任务策略处理，不能固定点拒绝
                 continue
             check = getattr(type(self), name)
             if not isinstance(check, RuleImage):

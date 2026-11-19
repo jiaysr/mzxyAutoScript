@@ -24,6 +24,12 @@
     "description": "邀请组队关闭按钮"
   },
   {
+    "itemName": "popup_invite_accept",
+    "roiFront": "764,368,128,45",
+    "roiBack": "764,368,128,45",
+    "description": "邀请组队接受按钮"
+  },
+  {
     "itemName": "popup_too_slow_close",
     "roiFront": "944,249,47,44",
     "roiBack": "942,247,49,49",

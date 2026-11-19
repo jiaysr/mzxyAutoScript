@@ -44,6 +44,14 @@ class WildSnowmanConfig(BaseModel):
     target_names: str = Field(
         default='陵鱼,陵魚,可爱雪人,可愛雪人',
         description='只打这些目标，逗号分隔（陵鱼,陵魚,可爱雪人,可愛雪人）')
+    # 是否自动接受组队邀请（接受后任务结束/让路时会主动退队）
+    auto_accept_team: bool = Field(
+        default=False,
+        description='勾选后自动接受任意成员的组队邀请（不读取邀请人名称）')
+    # 指定组队名单：未勾选自动接受时生效，按邀请人名称匹配；留空表示不接受组队
+    team_names: str = Field(
+        default='',
+        description='未勾选自动接受组队时生效：按邀请人名称匹配，逗号分隔；留空表示不接受组队邀请')
 
 
 class WildSnowman(ConfigBase):

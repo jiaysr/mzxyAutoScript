@@ -11,12 +11,13 @@
      `I_BAG_MENU_REPAIR` 判弹窗、`I_BAG_REPAIR_CONFIRM_TEXT` 判确认框、
      `I_BAG_REPAIR_SUCCESS` / `I_BAG_REPAIR_NOTHING` 判结果
   -> 点修理后也可能直接弹「您没有装备需要修理」（无确认框），同样视为成功
+- `ensure_no_team()` 退出当前社交队伍：AutoTask 开跑前 / WildSnowman 结束与让路时共用
 """
 from module.base.timer import Timer
 from module.exception import GamePageUnknownError, GameStuckError
 from module.logger import logger
 from tasks.GameUi.assets import GameUiAssets
-from tasks.GameUi.pages.page import page_item_bag, page_main
+from tasks.GameUi.pages.page import page_item_bag, page_main, page_team
 from tasks.base_task import BaseTask
 
 
@@ -25,6 +26,42 @@ class GeneralFunctions(BaseTask, GameUiAssets):
     BAG_REPAIR_TIMEOUT = 10
     # 点击后等 UI 过渡的时间，秒
     UI_SETTLE = 0.5
+    # 退队点击循环超时（秒）
+    LEAVE_TEAM_TIMEOUT = 30
+
+    def ensure_no_team(self, timeout: int = 60) -> None:
+        """
+        去队伍页确保单人状态：没有队伍就返回，有队伍就退掉
+
+        - 有队伍（出现「离开队伍」按钮）：点它 -> 等「队伍已经解散」弹窗 -> 点绿 X
+        - 没队伍（「组队后经验翻倍」弹窗）：点绿 X 关闭
+        - 两者都没有：干净的无队伍状态，直接返回
+
+        :param timeout: 导航到队伍页的超时（退队点击循环固定 LEAVE_TEAM_TIMEOUT 秒）
+        """
+        logger.hr('Ensure no team')
+        self.ui_reset_current_page()
+        # 队伍页走引擎寻路：侧栏「队伍」由 ui_sidebar_click 滚动查找，
+        # 到达由 page_team 的 I_PAGE_TEAM 模板确认（单 tab 的 OCR 校验有拼接兜底）
+        if not self.ui_goto(page_team, timeout=timeout):
+            raise GameStuckError('Team page does not appear')
+        timer = Timer(getattr(self, 'LEAVE_TEAM_TIMEOUT', 30)).start()
+        while not timer.reached():
+            self.reset_records()
+            self.screenshot()
+            if self.appear_then_click(self.I_TEAM_LEAVE):
+                logger.info('In team, clicked leave')
+                self.device.click_record_clear()
+                self.device.sleep(1.0)
+                continue
+            if self.appear_then_click(self.I_TEAM_POPUP_CLOSE):
+                logger.info('Team popup closed')
+                self.device.click_record_clear()
+                self.device.sleep(0.5)
+                continue
+            logger.info('No team, proceed')
+            return
+        raise GameStuckError('Cannot leave team')
 
     def bag_repair_equipment(self) -> bool:
         """

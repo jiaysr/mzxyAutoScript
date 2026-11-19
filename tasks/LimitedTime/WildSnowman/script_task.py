@@ -7,6 +7,8 @@
     -> 用小地图坐标寻路模块走到配置的打怪坐标（默认 251,175）
     -> 只打「陵鱼 / 陵魚 / 可爱雪人 / 可愛雪人」
     -> 每 N 分钟（默认 40）找万事通治疗并修理装备，然后回打怪点
+    -> 可选自动接受组队邀请：勾选后接受任意邀请；未勾选时按指定名单筛选，
+       名单为空则不接受组队；任务结束/让路时主动退队
     -> 任务优先级最低：启用后一直打，检测到更高优先级任务到期时让路，
        立即重排自己，等正常任务跑完再继续
     -> 死亡复活后重新前往打怪坐标，并重置治疗/修理计时
@@ -64,6 +66,9 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
         self._casts = 0
         self._target_fail_count = 0
         self._next_relock_position_check = 0.0
+        # 组队：接受邀请后置位；结束时/让路时退队，清场期间不再接受新邀请
+        self._team_invite_accepted = False
+        self._team_cleanup = False
         self._yield_timer = Timer(self.YIELD_CHECK_INTERVAL).start()
         self._config_timer = Timer(self.CONFIG_CHECK_INTERVAL).start()
         # ConfigWatcher：运行中检测 UI 里是否把任务关掉
@@ -75,6 +80,8 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
             self.battle_loop()
             success = True
         finally:
+            # 任务结束 / 让路：自动组队模式下主动退队，避免把队伍留给下一个任务
+            self.leave_team_on_finish()
             if self._yielded or self._stopped_by_user:
                 # 让路 / 被 UI 关闭：稍后重排自己。关闭期间调度器不会运行，
                 # 重新启用后能立刻继续，而不是等到第二天。
@@ -121,6 +128,90 @@ class ScriptTask(DungeonBase, WildSnowmanAssets):
     def target_names(self) -> list:
         text = str(self.current_config().target_names or '')
         return [name for name in re.split(r'[,，;；\s]+', text) if name]
+
+    # ---------------------------------------------------------------- 自动组队
+    # 组队邀请文案后缀（兼容简繁体；名字在「邀请」之前）
+    TEAM_INVITE_MARKERS = ('邀请你加入队伍', '邀請你加入隊伍',
+                           '邀请你加入隊伍', '邀請你加入队伍')
+
+    def auto_accept_team_enabled(self) -> bool:
+        return bool(getattr(self.current_config(), 'auto_accept_team', False))
+
+    def team_names(self) -> list:
+        """指定组队名单：按邀请人名称匹配，支持逗号/分号/空白分隔"""
+        text = str(getattr(self.current_config(), 'team_names', '') or '')
+        return [name for name in re.split(r'[,，;；\s]+', text) if name]
+
+    def team_invite_inviter(self, invite_text: str) -> str:
+        """从「月落云渊邀请你加入队伍」里取出邀请人名字"""
+        text = re.sub(r'\s+', '', str(invite_text or ''))
+        for marker in self.TEAM_INVITE_MARKERS:
+            if marker in text:
+                return text.split(marker, 1)[0]
+        # OCR 可能漏掉后半句，退化为按「邀请」切分
+        for marker in ('邀请', '邀請'):
+            if marker in text:
+                return text.split(marker, 1)[0]
+        return ''
+
+    def team_invite_needs_text(self) -> bool:
+        """
+        是否需要 OCR 邀请人名称
+
+        勾选自动接受组队时接受任意邀请，不需要读名字；
+        只有未勾选且名单非空时，才需要读邀请人做名单匹配。
+        正在退队时一律拒绝，也不需要 OCR。
+        """
+        if getattr(self, '_team_cleanup', False):
+            return False
+        return not self.auto_accept_team_enabled() and bool(self.team_names())
+
+    def team_invite_should_accept(self, invite_text: str) -> bool:
+        """
+        组队邀请策略（覆盖 GlobalGame 的默认拒绝）：
+
+        - 勾选自动接受组队：接受任意成员的邀请
+        - 未勾选且名单非空：邀请人命中名单才接受（容忍 OCR 形近字）
+        - 未勾选且名单为空：不接受组队
+        - 正在退队：拒绝
+        """
+        if getattr(self, '_team_cleanup', False):
+            return False
+        if self.auto_accept_team_enabled():
+            logger.info('已勾选自动接受组队，接受任意组队邀请')
+            return True
+        names = self.team_names()
+        if not names:
+            logger.info('未勾选自动接受组队且名单为空，拒绝组队邀请')
+            return False
+        inviter = self.team_invite_inviter(invite_text)
+        if not inviter:
+            logger.warning(f'组队邀请文案读不出邀请人：[{invite_text}]，拒绝')
+            return False
+        for name in names:
+            if self.ocr_name_match(inviter, name):
+                logger.info(f'组队邀请人[{inviter}]命中名单[{name}]，接受')
+                return True
+        logger.info(f'组队邀请人[{inviter}]不在名单{names}内，拒绝')
+        return False
+
+    def leave_team_on_finish(self) -> None:
+        """
+        任务结束 / 让路时主动退队
+
+        只在接受过组队邀请、或当前开启了自动组队时执行；
+        退队失败只告警，不影响任务本身的结束/排期。
+        """
+        if not (getattr(self, '_team_invite_accepted', False)
+                or self.auto_accept_team_enabled()):
+            return
+        self._team_cleanup = True
+        try:
+            self.ensure_no_team(timeout=30)
+            self._team_invite_accepted = False
+            logger.info('野外雪人结束/让路，已主动退队')
+        except Exception as error:
+            logger.warning(f'野外雪人结束/让路退队失败：{error}')
 
     # ---------------------------------------------------------------- 进入地图 / 打怪点
     def ensure_in_map_and_position(self, reset_recover: bool = False) -> bool:

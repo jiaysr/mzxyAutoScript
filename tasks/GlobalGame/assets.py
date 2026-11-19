@@ -19,6 +19,8 @@ class GlobalGameAssets:
 	C_POPUP_SUPPLIES_CLOSE = RuleClick(roi_front=(1020,129,43,29), roi_back=(1005,120,73,54), name="popup_supplies_close")
 	# 邀请组队关闭按钮 
 	C_POPUP_INVITE_CLOSE = RuleClick(roi_front=(384,368,128,45), roi_back=(384,368,128,45), name="popup_invite_close")
+	# 邀请组队接受按钮 
+	C_POPUP_INVITE_ACCEPT = RuleClick(roi_front=(764,368,128,45), roi_back=(764,368,128,45), name="popup_invite_accept")
 	# 采集物被抢 
 	C_POPUP_TOO_SLOW_CLOSE = RuleClick(roi_front=(944,249,47,44), roi_back=(942,247,49,49), name="popup_too_slow_close")
 
@@ -30,7 +32,7 @@ class GlobalGameAssets:
 	I_POPUP_HUNT_NOTICE = RuleImage(roi_front=(576,199,122,40), roi_back=(559,185,156,69), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_hunt_notice.png")
 	# 物资争夺弹窗 
 	I_POPUP_SUPPLIES = RuleImage(roi_front=(572,197,125,47), roi_back=(554,189,158,66), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_supplies.png")
-	# 邀请组队拒绝 
+	# 邀请组队弹窗（邀请文案特征） 
 	I_POPUP_INVITE = RuleImage(roi_front=(593,297,59,32), roi_back=(510,290,361,45), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_invite.png")
 	# 采集物被强 
 	I_POPUP_TOO_SLOW = RuleImage(roi_front=(453,344,62,35), roi_back=(410,329,205,59), threshold=0.8, method="Template matching", file="./tasks/GlobalGame/popup/popup_popup_too_slow.png")
@@ -55,5 +57,7 @@ class GlobalGameAssets:
 	O_CAPTCHA_EXPRESSION = RuleOcr(roi=(525,195,230,55), area=(525,195,230,55), mode="Single", method="Default", keyword="", name="captcha_expression")
 	# 人机验证-选项区（左列 A~E、右列 F~J，每项「字母: 数字」） 
 	O_CAPTCHA_OPTIONS = RuleOcr(roi=(418,248,370,250), area=(418,248,370,250), mode="Full", method="Default", keyword="", name="captcha_options")
+	# 组队邀请弹窗-邀请文案（如「月落云渊邀请你加入队伍」） 
+	O_TEAM_INVITE_TEXT = RuleOcr(roi=(339,276,606,78), area=(339,276,606,78), mode="Single", method="Default", keyword="", name="team_invite_text")
 
 

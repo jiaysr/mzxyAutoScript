@@ -18,6 +18,8 @@ def test_default_config():
     assert '陵魚' in snowman.target_names
     assert '可爱雪人' in snowman.target_names
     assert '可愛雪人' in snowman.target_names
+    assert snowman.auto_accept_team is False
+    assert snowman.team_names == ''
     assert cfg.battle_config.battle_preset == 'default'
     assert cfg.battle_config.use_normal_attack is False
     assert not hasattr(cfg.battle_config, 'fast_relock')

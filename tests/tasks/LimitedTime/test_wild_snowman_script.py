@@ -63,6 +63,134 @@ def test_target_names_splits_variants():
     assert ScriptTask.target_names(task) == ['陵鱼', '可爱雪人', '可愛雪人']
 
 
+TEAM_INVITE_TEXT = '月落云渊邀请你加入队伍'
+
+
+class FakeTeamTask:
+    TEAM_INVITE_MARKERS = ScriptTask.TEAM_INVITE_MARKERS
+    ocr_name_match = ScriptTask.ocr_name_match
+
+    def __init__(self, auto_accept_team=True, team_names='', cleanup=False):
+        self._config = SimpleNamespace(
+            auto_accept_team=auto_accept_team,
+            team_names=team_names,
+        )
+        self._team_cleanup = cleanup
+
+    def current_config(self):
+        return self._config
+
+    def auto_accept_team_enabled(self):
+        return ScriptTask.auto_accept_team_enabled(self)
+
+    def team_names(self):
+        return ScriptTask.team_names(self)
+
+    def team_invite_inviter(self, invite_text):
+        return ScriptTask.team_invite_inviter(self, invite_text)
+
+    def team_invite_needs_text(self):
+        return ScriptTask.team_invite_needs_text(self)
+
+    def team_invite_should_accept(self, invite_text):
+        return ScriptTask.team_invite_should_accept(self, invite_text)
+
+
+def test_team_names_splits_variants():
+    task = FakeTeamTask(team_names='月落云渊，某某;另一个 玩家')
+    assert ScriptTask.team_names(task) == ['月落云渊', '某某', '另一个', '玩家']
+
+
+def test_team_invite_inviter_extracts_name():
+    task = FakeTeamTask()
+    assert ScriptTask.team_invite_inviter(task, TEAM_INVITE_TEXT) == '月落云渊'
+    assert ScriptTask.team_invite_inviter(
+        task, '月落云渊 邀請你加入隊伍') == '月落云渊'
+    assert ScriptTask.team_invite_inviter(task, '无法识别的文案') == ''
+
+
+def test_team_invite_rejected_when_auto_accept_off_and_names_empty():
+    task = FakeTeamTask(auto_accept_team=False, team_names='')
+    assert ScriptTask.team_invite_should_accept(task, TEAM_INVITE_TEXT) is False
+
+
+def test_team_invite_auto_accept_accepts_any_invite():
+    task = FakeTeamTask(auto_accept_team=True, team_names='')
+    assert ScriptTask.team_invite_should_accept(task, '') is True
+    # 勾选自动接受后不再关心名单内容
+    task = FakeTeamTask(auto_accept_team=True, team_names='其他玩家')
+    assert ScriptTask.team_invite_should_accept(task, '') is True
+
+
+def test_team_invite_whitelist_accepts_matching_name():
+    task = FakeTeamTask(auto_accept_team=False, team_names='其他玩家,月落云渊')
+    assert ScriptTask.team_invite_should_accept(task, TEAM_INVITE_TEXT) is True
+
+
+def test_team_invite_whitelist_rejects_other_name():
+    task = FakeTeamTask(auto_accept_team=False, team_names='其他玩家')
+    assert ScriptTask.team_invite_should_accept(task, TEAM_INVITE_TEXT) is False
+
+
+def test_team_invite_rejected_during_cleanup():
+    task = FakeTeamTask(auto_accept_team=True, team_names='', cleanup=True)
+    assert ScriptTask.team_invite_should_accept(task, '') is False
+
+
+def test_team_invite_needs_text_only_for_whitelist_mode():
+    # 勾选自动接受：不需要 OCR
+    assert ScriptTask.team_invite_needs_text(
+        FakeTeamTask(auto_accept_team=True, team_names='其他玩家')) is False
+    # 未勾选且名单非空：需要 OCR 邀请人
+    assert ScriptTask.team_invite_needs_text(
+        FakeTeamTask(auto_accept_team=False, team_names='月落云渊')) is True
+    # 未勾选且名单为空：直接拒绝，不需要 OCR
+    assert ScriptTask.team_invite_needs_text(
+        FakeTeamTask(auto_accept_team=False, team_names='')) is False
+    # 正在退队：一律拒绝，不需要 OCR
+    assert ScriptTask.team_invite_needs_text(
+        FakeTeamTask(auto_accept_team=False, team_names='月落云渊', cleanup=True)) is False
+
+
+def test_leave_team_on_finish_after_accepted_invite():
+    calls = []
+    task = SimpleNamespace(
+        _team_invite_accepted=True,
+        _team_cleanup=False,
+        auto_accept_team_enabled=lambda: False,
+        ensure_no_team=lambda timeout=60: calls.append(timeout),
+    )
+    ScriptTask.leave_team_on_finish(task)
+    assert calls == [30]
+    assert task._team_cleanup is True
+    assert task._team_invite_accepted is False
+
+
+def test_leave_team_on_finish_when_auto_accept_enabled():
+    calls = []
+    task = SimpleNamespace(
+        _team_invite_accepted=False,
+        _team_cleanup=False,
+        auto_accept_team_enabled=lambda: True,
+        ensure_no_team=lambda timeout=60: calls.append(timeout),
+    )
+    ScriptTask.leave_team_on_finish(task)
+    assert calls == [30]
+    assert task._team_cleanup is True
+
+
+def test_leave_team_on_finish_skips_when_team_feature_off():
+    calls = []
+    task = SimpleNamespace(
+        _team_invite_accepted=False,
+        _team_cleanup=False,
+        auto_accept_team_enabled=lambda: False,
+        ensure_no_team=lambda timeout=60: calls.append(timeout),
+    )
+    ScriptTask.leave_team_on_finish(task)
+    assert calls == []
+
+
 def test_need_recover_after_interval():
     task = _task_with_config(heal_repair_interval_minutes=40)
     task._last_recover = datetime.now() - timedelta(minutes=41)
@@ -601,6 +729,9 @@ class FakeRunTask:
         self.calls.append('battle_loop')
         self._yielded = self.yield_flag
 
+    def leave_team_on_finish(self):
+        self.calls.append('leave_team')
+
     def set_next_run(self, **kwargs):
         self.calls.append(('schedule', kwargs))
 
@@ -615,6 +746,7 @@ def test_run_yield_schedules_immediately():
     assert schedule['success'] is None
     assert schedule['server'] is False
     assert isinstance(schedule['target'], datetime)
+    assert 'leave_team' in task.calls
 
 
 def test_run_normal_schedules_success():
@@ -624,3 +756,4 @@ def test_run_normal_schedules_success():
     schedule = [item for item in task.calls if isinstance(item, tuple)
                 and item[0] == 'schedule'][0][1]
     assert schedule['success'] is True
+    assert 'leave_team' in task.calls

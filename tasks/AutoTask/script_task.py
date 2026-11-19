@@ -15,7 +15,7 @@ from tasks.AutoTask.assets import AutoTaskAssets
 from tasks.AutoTask.config import BonusMultiplier
 from tasks.AutoTask.page import page_bonus, page_privilege
 from tasks.GameUi.game_ui import GameUi
-from tasks.GameUi.pages.page import page_main, page_team
+from tasks.GameUi.pages.page import page_main
 
 import random
 import re
@@ -777,39 +777,6 @@ class ScriptTask(GameUi, AutoTaskAssets):
             logger.attr('任务完成', task_name)
         else:
             logger.warning(f'[{task_name}] 未检测到完成弹窗，回特权页复查进度后继续')
-
-    def ensure_no_team(self, timeout: int = 60) -> None:
-        """
-        去队伍页确保单人状态：自动任务开始不能是组队状态
-
-        - 有队伍（出现「离开队伍」按钮）：点它 -> 等「队伍已经解散」弹窗 -> 点绿 X
-        - 没队伍（「组队后经验翻倍」弹窗）：点绿 X 关闭
-        - 两者都没有：干净的无队伍状态，直接返回
-        """
-        logger.hr('Ensure no team')
-        self.ui_reset_current_page()
-        # 队伍页走引擎寻路：侧栏「队伍」由 ui_sidebar_click 滚动查找，
-        # 到达由 page_team 的 I_PAGE_TEAM 模板确认（单 tab 的 OCR 校验有拼接兜底）
-        if not self.ui_goto(page_team, timeout=timeout):
-            raise GameStuckError('Team page does not appear')
-        timer = Timer(30).start()
-        while not timer.reached():
-            self.reset_records()
-            self.screenshot()
-            if self.appear_then_click(self.I_TEAM_LEAVE):
-                logger.info('In team, clicked leave')
-                self.device.click_record_clear()
-                self.device.sleep(1.0)
-                continue
-            if self.appear_then_click(self.I_TEAM_POPUP_CLOSE):
-                logger.info('Team popup closed')
-                self.device.click_record_clear()
-                self.device.sleep(0.5)
-                continue
-            logger.info('No team, proceed')
-            return
-        raise GameStuckError('Cannot leave team')
-
 
 if __name__ == '__main__':
     from module.config.config import Config
