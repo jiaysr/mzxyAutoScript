@@ -48,7 +48,7 @@ SHOT_DIR = './log/quiz'
 BAG_ITEM_NAME = '趣味答题券'
 
 # 交给 AI 的弹窗区域 (x, y, w, h)：题号 + 题干 + 三个选项，不含右侧答题榜
-DIALOG_AREA = (60, 120, 790, 390)
+DIALOG_AREA = (108, 140, 709, 359)
 
 # 抢答预留秒数：预算扣到这个值就不再做任何耗时判断，直接用兜底策略把题答上
 RUSH_RESERVE = 1.5
@@ -75,6 +75,8 @@ PROGRESS_RE = re.compile(r'第?\s*(\d+)\s*[/／]')
 class ScriptTask(GameUi, QuizAssets):
     # 答题界面刚出现时题目还在刷新，等页面稳定再开始读题
     page_ready_wait = 2
+    # 本题未命中题库时的原始截图（只存一次，AI 答对/兜底时一起写进生题库）
+    question_shot = ''
 
     def run(self) -> None:
         self.check_assets()
@@ -281,6 +283,7 @@ class ScriptTask(GameUi, QuizAssets):
         """
         self.screenshot()
         question, options = self.ocr_locally()
+        self.question_shot = ''
         record, score = self.bank.find(question, options)
 
         # 1) 题库命中：已验证的答案（或未验证但配置为不重问）直接用
@@ -294,6 +297,10 @@ class ScriptTask(GameUi, QuizAssets):
                                          record=record, options=options)
             return
 
+        # 题库没给出可点的答案：存这一帧原始截图（不裁剪不压缩，只存一次），
+        # 本题的答题结果写入题库时一起带上，方便以后补题库
+        self.question_shot = self.save_unknown_shot()
+
         # 2) 先把题目落库（API 失败也不丢），再问 AI
         if question and self.quiz_config.learn_from_llm:
             record = self.bank.ensure_entry(question, options)
@@ -305,6 +312,8 @@ class ScriptTask(GameUi, QuizAssets):
             logger.warning(f'本题只剩 {self.question_budget_left():.1f}s，来不及问 AI，直接兜底作答')
             ai = None
 
+        # 回调的 answer 是模型给的原字母，answer_text 是匹配到的选项文字；
+        # 落库以选项文字为准（字母在选项顺序变化后不可靠）
         if ai is not None:
             letter, answer_text = self.pick_ai_option(question, ai, options, wrong_options)
             if letter:
@@ -327,7 +336,7 @@ class ScriptTask(GameUi, QuizAssets):
             return
 
         logger.warning('AI 不可用（题目已落库，下次会重试）' if ai is None else 'AI 与题库都给不出答案')
-        self.bank.append_unknown(question, options)
+        self.bank.append_unknown(question, options, self.question_shot)
         self.fallback_pick(options, wrong_options, record)
 
     def bank_letter(self, record: dict, options: dict, strict: bool = True) -> tuple:
@@ -498,7 +507,7 @@ class ScriptTask(GameUi, QuizAssets):
         self.bank.update_by_feedback(question, answer_text, feedback,
                                      record=record, options=options)
         if feedback is None:
-            self.bank.append_unknown(question, options)
+            self.bank.append_unknown(question, options, self.question_shot)
 
     # ---------------------------------------------------------------- OCR / AI
     def ocr_locally(self) -> tuple:
@@ -520,6 +529,24 @@ class ScriptTask(GameUi, QuizAssets):
             logger.attr('Question(OCR)', question)
         return question, options
 
+    def save_unknown_shot(self) -> str:
+        """
+        题库未命中时保存当前原始截图（不裁剪、不缩放、不压缩）
+
+        :return: 截图路径；未开启保存或写盘失败返回空串
+        """
+        if not self.quiz_config.save_unknown_screenshot:
+            return ''
+        try:
+            os.makedirs(SHOT_DIR, exist_ok=True)
+            path = f'{SHOT_DIR}/{datetime.now().strftime("%Y%m%d_%H%M%S_%f")}.png'
+            if cv2.imwrite(path, self.device.image):
+                return path
+            logger.warning(f'截图保存失败: {path}')
+        except Exception as e:
+            logger.warning(f'截图保存异常: {e}')
+        return ''
+
     def ask_ai(self, question: str = '', options: dict = None,
                wrong_options: list = None) -> dict:
         """
@@ -529,10 +556,6 @@ class ScriptTask(GameUi, QuizAssets):
         也不要卡在那里把整道题拖到超时
         """
         image = crop(self.device.image, DIALOG_AREA)
-        if self.quiz_config.save_unknown_screenshot:
-            os.makedirs(SHOT_DIR, exist_ok=True)
-            path = f'{SHOT_DIR}/{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
-            cv2.imwrite(path, image)
         return self.client.answer_quiz(image, question=question, options=options,
                                        wrong_options=wrong_options,
                                        timeout=self.ai_timeout())

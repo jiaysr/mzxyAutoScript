@@ -10,7 +10,7 @@
   Gitee 令牌写死在 `GITEE_TOKEN`，用户不需要配置
 - 合并是幂等的：同一份题库反复 pull/push 不会改变内容，也不会让计数膨胀
 
-合并规则（同一条题目 = 同一个 id = 归一化题干的 md5）：
+合并规则（同题干同选项 = 同一个 id；同题干不同选项使用变体 id）：
 - 答案：verified 优先 -> correct 次数多的优先 -> updated 晚的优先
 - 一边 verified、另一边不是：verified 的答案为准，另一边的答案进 wrong
 - 两边都 verified 且答案不同（且不是 OCR 写法差异）：标 conflict 并告警，人工核对
@@ -90,6 +90,16 @@ def _same_text(a: str, b: str) -> bool:
     return _similar(a, b) >= SAME_TEXT_THRESHOLD
 
 
+def _options_conflict(a, b) -> bool:
+    """
+    两组选项都读出来了但不相同 = 两道题（选项组不同）
+
+    只有一边选项为空时不算冲突：那是 OCR 没读全，合并时应当补全
+    """
+    ta, tb = QuestionBank.option_texts(a), QuestionBank.option_texts(b)
+    return bool(ta) and bool(tb) and not QuestionBank.same_options(ta, tb)
+
+
 def _answer_rank(record: dict) -> tuple:
     """
     答案的可信度排序：verified -> correct 次数 -> updated 日期
@@ -105,9 +115,13 @@ def _source_rank(source: str) -> int:
 
 def _merge_record(target: dict, other: dict) -> tuple:
     """
-    把 other 合并进 target（原地修改）
+    把 other 合并进 target（原地修改，调用方保证两条记录选项相同）
     :return: (是否改动, 是否答案冲突)
     """
+    if _options_conflict(target.get('options'), other.get('options')):
+        # 同 id 但选项不同：这是两道题，merge_questions 会把另一份拆成变体 id
+        return False, False
+
     changed = False
     conflict = False
 
@@ -208,18 +222,42 @@ def _clean_record(record: dict) -> None:
 def merge_questions(local: list, remote: list) -> tuple:
     """
     按 id 归并两份题目列表
-    :return: (合并后的题目列表, 统计 {'added', 'updated', 'conflict', 'changed'})
+
+    同 id 但选项不同的记录（旧数据里 id 只由题干决定留下的）不合并：
+    已有记录改挂变体 id，另一份继续用原 id，两份都保留；否则选项组和答案
+    会互相覆盖，同一条记录在两边同步时反复被改。
+
+    :return: (合并后的题目列表, 统计 {'added', 'updated', 'conflict', 'split', 'changed'})
     """
     merged = {}
     for item in local:
         if item.get('id') and item.get('q'):
             merged[item['id']] = copy.deepcopy(item)
 
-    stats = {'added': 0, 'updated': 0, 'conflict': 0, 'changed': False}
+    stats = {'added': 0, 'updated': 0, 'conflict': 0, 'split': 0, 'changed': False}
     for item in remote:
         if not item.get('id') or not item.get('q'):
             continue
         target = merged.get(item['id'])
+        if target is not None and _options_conflict(target.get('options'), item.get('options')):
+            # 同 id 但选项不同：这是两道题。已有记录按「题干 + 选项」改挂变体 id，
+            # 另一份继续用原 id；两边各同步一次后 id 就稳定了
+            variant_id = QuestionBank.make_variant_id(target['q'], target.get('options'))
+            variant = merged.pop(item['id'], None)
+            if variant is not None and merged.get(variant_id) is None:
+                variant['id'] = variant_id
+                merged[variant_id] = variant
+            elif variant is not None:
+                changed, conflict = _merge_record(merged[variant_id], variant)
+                if changed:
+                    stats['updated'] += 1
+                    stats['changed'] = True
+                if conflict:
+                    stats['conflict'] += 1
+            merged[item['id']] = copy.deepcopy(item)
+            stats['split'] += 1
+            stats['changed'] = True
+            continue
         if target is None:
             merged[item['id']] = copy.deepcopy(item)
             stats['added'] += 1
@@ -232,6 +270,8 @@ def merge_questions(local: list, remote: list) -> tuple:
         if conflict:
             stats['conflict'] += 1
 
+    if stats['split']:
+        logger.warning(f'题库合并：{stats["split"]} 条同 id 不同选项的记录已按变体 id 拆开')
     questions = list(merged.values())
     for record in questions:
         _clean_record(record)
@@ -258,8 +298,8 @@ def _ensure_repo(repo_dir: str, url: str = '') -> bool:
     """
     交换仓库目录不可用时按 url 自动 clone；已存在时确保 origin 指向当前仓库
 
-    从 GitHub 迁移到 Gitee 时，旧的 quiz-db 目录会保留，这里会自动把
-    origin 改成 Gitee 地址，不需要用户手动删目录。
+    旧目录的 origin 不是 Gitee 地址时，这里会自动改过来，
+    不需要用户手动删目录。
     """
     if not repo_dir:
         return False
@@ -336,7 +376,8 @@ def pull(bank_path: str, repo_dir: str = '', url: str = '', branch: str = BANK_B
     merged, stats = merge_questions(local, remote)
     logger.attr('Question bank pull',
                 f'{len(local)} + {len(remote)} -> {len(merged)} '
-                f'(added {stats["added"]}, updated {stats["updated"]}, conflict {stats["conflict"]})')
+                f'(added {stats["added"]}, updated {stats["updated"]}, '
+                f'conflict {stats["conflict"]}, split {stats["split"]})')
     if stats['conflict']:
         logger.warning(f'题库有 {stats["conflict"]} 条答案冲突，请在题库网页工具里人工核对')
     if stats['changed']:
@@ -424,7 +465,8 @@ def push(bank_path: str, device: str = '', retry: int = PUSH_RETRY,
             _gitee_put_bank(bank, sha, token, device, timeout)
             logger.attr('Question bank push',
                         f'{len(merged)} questions（有更新，added {stats["added"]}, '
-                        f'updated {stats["updated"]}, conflict {stats["conflict"]}）')
+                        f'updated {stats["updated"]}, conflict {stats["conflict"]}, '
+                        f'split {stats["split"]}）')
             return True
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else 0

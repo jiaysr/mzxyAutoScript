@@ -7,14 +7,16 @@
 （实测题库里「中国的国鸟是什么？」的答案被写成了「牡丹」——那是国花的答案）。
 所以题干模糊命中之后还要比对选项，题干和选项都像才算同一道题。
 
-选项对不上时一律按新题处理：宁可多问一次 AI（答案会写回已有记录，不会重复建条目），
-也不能拿另一道题的答案去点。
+选项对不上时一律按新题处理：宁可多问一次 AI，也不能拿另一道题的答案去点；
+同一题干出现不同选项时各存一条（变体 id 不同），同步时不会互相覆盖。
 
 **读和写的题目身份不同**：
 - 读（find）：题干模糊匹配 + 选项相似，容忍 OCR 少字/错字
 - 写（write_record / ensure_entry / upsert / update_by_feedback）：
-  必须「归一化题干完全相等」，模糊命中只当提示
-  （装备升星 0.95 命中到装备升级，写反馈会把升级题的答案污染掉）
+  必须「归一化题干完全相等」且「选项完全相同」（归一化后按文字比较，顺序无关），
+  模糊命中、选项不同都只当新题
+  （装备升星 0.95 命中到装备升级，写反馈会把升级题的答案污染掉；
+   实测「世界上最大的半岛」两组选项共用题干 id，同步时反复互相覆盖）
 
 主库 JSON 结构：
 {
@@ -74,7 +76,6 @@ class QuestionBank:
         self.unknown_path = unknown_path
         self.questions = []
         self._index = {}  # 归一化题干 -> [记录]（同一题干可能有多条，选项不同）
-        self._by_id = {}  # id -> 记录（题干 OCR 有出入时兜底复用，避免重复建条目）
 
     # ---------------------------------------------------------------- 读写
     def load(self) -> 'QuestionBank':
@@ -95,11 +96,8 @@ class QuestionBank:
 
     def _build_index(self) -> None:
         self._index = {}
-        self._by_id = {}
         for item in self.questions:
             self._index.setdefault(self.normalize(item.get('q', '')), []).append(item)
-            if item.get('id'):
-                self._by_id.setdefault(item['id'], item)
 
     def save(self) -> None:
         self.dump(self.bank_path, self.questions)
@@ -136,6 +134,19 @@ class QuestionBank:
     @staticmethod
     def make_id(question: str) -> str:
         return 'q' + md5(QuestionBank.normalize(question).encode('utf-8')).hexdigest()[:9]
+
+    @staticmethod
+    def make_variant_id(question: str, options=None) -> str:
+        """
+        同题干、不同选项的变体 id
+
+        id 只由题干决定时，同一道题在不同选项组下会共用 id，题库同步按 id 合并
+        会互相覆盖（实测「世界上最大的半岛是什么？」在两组选项间反复被改）。
+        变体 id 把选项也纳入指纹：选项组不同 = 不同记录，同步时各走各的。
+        """
+        fingerprint = QuestionBank.normalize(question) + '\x1f' + '|'.join(
+            sorted(QuestionBank.normalize(text) for text in QuestionBank.option_texts(options)))
+        return 'q' + md5(fingerprint.encode('utf-8')).hexdigest()[:9]
 
     # ---------------------------------------------------------------- 选项
     @staticmethod
@@ -176,6 +187,17 @@ class QuestionBank:
             return sum(max(cls.option_similarity(s, d) for d in dst) for s in src) / len(src)
 
         return (one_way(ta, tb) + one_way(tb, ta)) / 2
+
+    @classmethod
+    def same_options(cls, a, b) -> bool:
+        """
+        两组选项是否完全相同：归一化后按文字比较，顺序无关
+
+        写入题库和题库同步合并都用这个判定：题干相同但选项不同就是两道题，
+        不能共用一条记录，也不能把答案从一组选项搬到另一组上。
+        """
+        return (sorted(cls.normalize(text) for text in cls.option_texts(a))
+                == sorted(cls.normalize(text) for text in cls.option_texts(b)))
 
     @staticmethod
     def orphan_wrong(options: dict, wrong: list) -> list:
@@ -238,22 +260,21 @@ class QuestionBank:
         否则「装备升星 / 装备升级」这种相近题会把答案、排除表写串
         （实测升星题拿走了升级题的已验证答案，答错后还污染了升级题的记录）。
 
-        题干完全相同时可能有多条（选项不同），按选项挑最贴合的一条；
-        选项没读出来就取第一条。
+        题干完全相同时可能有多条（选项不同）：选项也必须完全相同才算同一条，
+        否则返回 None，由 ensure_entry 按变体 id 新建。
+        选项没读出来时只认选项同样为空的记录，避免把反馈写到别的选项组上。
         """
         target = self.normalize(question)
         if not target:
             return None
-        candidates = self._index.get(target) or []
-        if not candidates:
-            return None
-        if len(candidates) == 1 or not self.option_texts(options):
-            return candidates[0]
-        return max(candidates, key=lambda r: self.options_similarity(r.get('options'), options))
+        for record in self._index.get(target) or []:
+            if self.same_options(record.get('options'), options):
+                return record
+        return None
 
     def write_record(self, question: str, options=None, record: dict = None) -> dict | None:
         """
-        解析本次反馈要写入的记录：题干不完全相等就按精确题干重新找
+        解析本次反馈要写入的记录：题干完全相等且选项完全相同才算同一条
 
         调用方给的 record 可能来自 find() 的模糊命中，直接写会把两道题混在一起。
         找不到精确记录返回 None，由调用方决定是否新建（见 ensure_entry）。
@@ -264,7 +285,8 @@ class QuestionBank:
         target = self.normalize(question)
         if not target:
             return record
-        if record is not None and self.normalize(record.get('q', '')) == target:
+        if record is not None and self.normalize(record.get('q', '')) == target \
+                and self.same_options(record.get('options'), options):
             return record
         return self.exact_record(question, options)
 
@@ -364,6 +386,15 @@ class QuestionBank:
         return allowed[0] if mode == 'first' else random.choice(allowed)
 
     # ---------------------------------------------------------------- 写入
+    def new_record_id(self, question: str, options=None) -> str:
+        """
+        给新记录分配 id：该题干第一次出现用题干 id，
+        已有同题干（不同选项）的记录时用变体 id，避免同步时同 id 互相覆盖
+        """
+        if self._index.get(self.normalize(question)):
+            return self.make_variant_id(question, options)
+        return self.make_id(question)
+
     def ensure_entry(self, question: str, options=None) -> dict:
         """
         确保题目在库里（答案可以暂时为空）
@@ -371,23 +402,21 @@ class QuestionBank:
         用途：在调用 AI 之前先把题目落库，这样即使 API 超时/报错也不会丢题，
         留下一道 answer 为空的记录，下次遇到会重新作答，也可以人工补。
 
-        定位只看「归一化题干完全相等」的记录（见 write_record）：模糊命中是另一道题时
-        （如升星 vs 升级）要新建条目，不能把反馈写到别人的记录上。
+        定位只看「归一化题干完全相等 + 选项完全相同」的记录（见 write_record）：
+        模糊命中、同题干但选项不同都是另一道题，要新建条目，不能把反馈写过去。
 
-        题干 OCR 有出入导致没命中时，再按 id 兜一次：宁可复用已有记录，
-        也不给同一道题干建出两条（id 只由题干决定，两条同 id 的记录在题库同步时会互相覆盖）
+        同题干不同选项的新条目用 make_variant_id：id 只由题干决定时，
+        两份记录在题库同步（按 id 合并）时会互相覆盖
         """
         record = self.write_record(question, options)
         option_list = self.option_texts(options)
-        if record is None and question:
-            record = self._by_id.get(self.make_id(question))
         if record is not None:
             if option_list:
                 record['options'] = option_list
             return record
 
         record = {
-            'id': self.make_id(question),
+            'id': self.new_record_id(question, options),
             'q': question,
             'options': option_list,
             'answer': '',
@@ -408,14 +437,14 @@ class QuestionBank:
         """
         写入或更新一条题目的题目/选项/答案（不碰 verified，由 update_by_feedback 管）
         :param record: 已经定位到的记录（答题流程里由 find 给出），不传就按题干+选项再找一次；
-                       题干不完全相等的模糊命中会被换成精确记录（见 write_record）
+                       题干或选项对不上的模糊命中会被换成精确记录（见 write_record）
         """
         record = self.write_record(question, options, record)
         today = datetime.now().strftime('%Y-%m-%d')
         option_list = self.option_texts(options)
         if record is None:
             record = {
-                'id': self.make_id(question),
+                'id': self.new_record_id(question, options),
                 'q': question,
                 'options': option_list,
                 'answer': answer_text,
@@ -447,7 +476,7 @@ class QuestionBank:
         :param answer_text: 本次提交的答案文字
         :param feedback: 'correct' / 'wrong' / None
         :param record: 已经定位到的记录（答题流程里由 find 给出）；
-                       题干不完全相等时改用精确记录，没有就新建（见 write_record）
+                       题干或选项对不上时改用精确记录，没有就新建变体（见 write_record）
         :param options: 本次 OCR 的选项，用于顺手刷新记录里的选项
         """
         record = self.write_record(question, options, record)
