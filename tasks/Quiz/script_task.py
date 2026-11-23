@@ -109,8 +109,7 @@ class ScriptTask(GameUi, QuizAssets):
         if not repo_dir:
             return
         try:
-            stats = bank_sync.pull(BANK_FILE, repo_dir,
-                                   url=self.quiz_config.bank_repo_url.strip())
+            stats = bank_sync.pull(BANK_FILE, repo_dir)
         except Exception as e:
             logger.warning(f'题库同步失败（不影响答题）: {e}')
             return
@@ -119,10 +118,9 @@ class ScriptTask(GameUi, QuizAssets):
 
     def bank_push(self) -> None:
         """
-        答题后把本机题库提交到题库 API（同步失败只告警）
+        答题后把本机题库合并提交到 Gitee 仓库（同步失败只告警）
 
-        API 地址和 Key 都写死在 bank_sync 里，用户不需要配置；
-        没有可用 Key 时直接跳过，不会退回 git push。
+        Gitee 地址和令牌都写死在 bank_sync 里，用户不需要配置。
         """
         try:
             bank_sync.push(BANK_FILE, device=self.config.config_name)

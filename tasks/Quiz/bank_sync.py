@@ -1,13 +1,13 @@
 # This Python file uses the following encoding: utf-8
 """
-题库跨设备同步（git 拉取 + HTTP API 推送）
+题库跨设备同步（git 拉取 + Gitee API 推送）
 
 多台设备共用一份题库：
 - 本机题库仍是 tasks/Quiz/bank/quiz_zh.json（index.html 编辑器照常用）
-- 答题前 pull：从 git 交换仓库取题库 -> 与本机按 id 合并 -> 写回本机
-- 答题后 push：把本机题库提交到题库 API（地址写死在 `BANK_API_URL`），
-  服务端负责与仓库当前题库合并并提交 GitHub；**没配置 API Key 时跳过推送**，
-  不会退回 git push
+- 题库交换仓库在 Gitee（`DEFAULT_BANK_REPO_URL`），拉取和推送都走这里
+- 答题前 pull：从 Gitee 仓库取题库 -> 与本机按 id 合并 -> 写回本机
+- 答题后 push：通过 Gitee OpenAPI 读取远端 -> 合并 -> 提交回仓库；
+  Gitee 令牌写死在 `GITEE_TOKEN`，用户不需要配置
 - 合并是幂等的：同一份题库反复 pull/push 不会改变内容，也不会让计数膨胀
 
 合并规则（同一条题目 = 同一个 id = 归一化题干的 md5）：
@@ -22,14 +22,17 @@
 - 合并是幂等的：同一份题库反复 pull/push 不会改变内容，也不会让计数膨胀
 """
 import argparse
+import base64
 import copy
 import json
 import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -47,15 +50,18 @@ BANK_NAME = 'quiz_zh.json'
 # 各机器目录结构一致时，题库同步不需要任何配置
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BANK_REPO_DIR = (PROJECT_ROOT.parent / 'quiz-db').as_posix()
-# 默认的题库交换仓库地址（可配置覆盖，仅用于 pull）
-DEFAULT_BANK_REPO_URL = 'git@github.com:jiaysr/mzxy-quiz-db.git'
-# 题库共享 API（写死，用户不需要也不应该配置）
-BANK_API_URL = 'https://quiz-bank-api-xdweducowb.cn-hangzhou.fcapp.run'
-BANK_API_SUBMIT_PATH = '/quiz/submit'
-# 题库共享 API 的访问密钥（写死在客户端；环境变量可用于调试时覆盖）
-BANK_API_KEY = os.environ.get('BANK_API_KEY', '') or 'fewdiwiwidqjfhg'
+# 题库交换仓库（Gitee，国内访问更稳定；拉取和推送都走这里）
+DEFAULT_BANK_REPO_URL = 'https://gitee.com/jiysr/mzxy-quiz-db.git'
+# Gitee 仓库信息（写死，用户不需要配置）
+GITEE_API = 'https://gitee.com/api/v5'
+GITEE_OWNER = 'jiysr'
+GITEE_REPO = 'mzxy-quiz-db'
+GITEE_BRANCH = 'main'
+GITEE_BANK_PATH = 'quiz_zh.json'
+# Gitee 私人令牌（写死在客户端；拥有该仓库 Contents 写权限）
+GITEE_TOKEN = 'aca6aa595e5b973da1923d2272532cb3'
 # 交换仓库分支
-BANK_BRANCH = 'main'
+BANK_BRANCH = GITEE_BRANCH
 # 认为答案是「同一个选项的 OCR 写法差异」的相似度
 SAME_TEXT_THRESHOLD = 0.8
 # 推送被拒后的重试次数
@@ -250,17 +256,24 @@ def _git_ok(repo_dir: str, *args: str) -> bool:
 
 def _ensure_repo(repo_dir: str, url: str = '') -> bool:
     """
-    交换仓库目录不可用时按 url 自动 clone
+    交换仓库目录不可用时按 url 自动 clone；已存在时确保 origin 指向当前仓库
+
+    从 GitHub 迁移到 Gitee 时，旧的 quiz-db 目录会保留，这里会自动把
+    origin 改成 Gitee 地址，不需要用户手动删目录。
     """
     if not repo_dir:
         return False
+    url = url or DEFAULT_BANK_REPO_URL
     if os.path.isdir(os.path.join(repo_dir, '.git')):
+        current = _git(repo_dir, 'remote', 'get-url', 'origin')
+        if current.returncode != 0:
+            _git_ok(repo_dir, 'remote', 'add', 'origin', url)
+        elif current.stdout.strip() != url:
+            logger.info(f'题库仓库地址切换: {current.stdout.strip()} -> {url}')
+            _git_ok(repo_dir, 'remote', 'set-url', 'origin', url)
         return True
     if os.path.exists(os.path.join(repo_dir, BANK_NAME)):
         logger.warning(f'题库仓库目录没初始化 git: {repo_dir}')
-        return False
-    if not url:
-        logger.warning(f'题库仓库不存在且没有配置地址: {repo_dir}')
         return False
 
     folder = os.path.dirname(os.path.abspath(repo_dir))
@@ -331,21 +344,63 @@ def pull(bank_path: str, repo_dir: str = '', url: str = '', branch: str = BANK_B
     return stats
 
 
-def push(bank_path: str, api_key: str = '', device: str = '',
-         retry: int = PUSH_RETRY, timeout: float = 30) -> bool:
-    """
-    把本机题库提交到题库 API（服务端负责合并并写入 GitHub）
+def _canonical_questions(questions: list) -> str:
+    """按 id 排序后的规范 JSON，用来判断合并结果是否真的变化"""
+    return json.dumps(sorted(questions, key=lambda item: str(item.get('id') or '')),
+                      ensure_ascii=False, sort_keys=True)
 
-    - API 地址和默认 Key 都写死在模块里，用户不需要配置；
-    - 没有可用 Key 时**直接跳过**，不会退回 git push；
+
+def _gitee_contents_url() -> str:
+    return f'{GITEE_API}/repos/{GITEE_OWNER}/{GITEE_REPO}/contents/{quote(GITEE_BANK_PATH)}'
+
+
+def _gitee_get_bank(token: str, timeout: float) -> tuple:
+    """读取 Gitee 仓库里的题库，文件不存在时返回空题库和 None"""
+    url = f'{_gitee_contents_url()}?access_token={quote(token)}&ref={quote(GITEE_BRANCH)}'
+    resp = requests.get(url, timeout=timeout)
+    if resp.status_code == 404:
+        return {'questions': []}, None
+    resp.raise_for_status()
+    data = resp.json()
+    content = data.get('content') or ''
+    if not content:
+        raise RuntimeError('题库文件为空或过大')
+    bank = json.loads(base64.b64decode(content).decode('utf-8'))
+    if not isinstance(bank, dict):
+        bank = {'questions': bank}
+    bank.setdefault('questions', [])
+    return bank, data.get('sha')
+
+
+def _gitee_put_bank(bank: dict, sha, token: str, device: str, timeout: float) -> None:
+    payload = {
+        'content': base64.b64encode(
+            json.dumps(bank, ensure_ascii=False, indent=2).encode('utf-8')).decode('ascii'),
+        'message': f'sync({device or "oas"}): {len(bank.get("questions", []))} questions',
+        'branch': GITEE_BRANCH,
+    }
+    if sha:
+        payload['sha'] = sha
+    resp = requests.put(_gitee_contents_url(), params={'access_token': token},
+                        json=payload, timeout=timeout)
+    resp.raise_for_status()
+
+
+def push(bank_path: str, device: str = '', retry: int = PUSH_RETRY,
+         timeout: float = 30, token: str = '') -> bool:
+    """
+    把本机题库合并进 Gitee 仓库并提交
+
+    - Gitee 地址和令牌写死在模块里，用户不需要配置；
+    - 合并后与远端最终内容比较，完全一致时不创建空提交；
     - 本机题库为空时跳过；
-    - 网络错误 / 5xx / 429 会重试，4xx（鉴权、参数错误）不重试。
+    - 网络错误 / 5xx / 429 / 409 / 422 会重试，401/403 不重试。
 
-    :return: 是否提交成功
+    :return: 是否提交成功（内容无变化也算成功）
     """
-    api_key = (api_key or BANK_API_KEY).strip()
-    if not api_key:
-        logger.warning('题库 API Key 未配置，跳过推送（不会退回 git push）')
+    token = (token or GITEE_TOKEN).strip()
+    if not token:
+        logger.warning('Gitee 令牌未配置，跳过推送')
         return False
 
     local = read_questions(bank_path)
@@ -353,41 +408,35 @@ def push(bank_path: str, api_key: str = '', device: str = '',
         logger.warning('本机题库为空，跳过推送')
         return False
 
-    url = BANK_API_URL.rstrip('/') + BANK_API_SUBMIT_PATH
-    payload = {'questions': local, 'device': device or 'oas'}
-
     for attempt in range(retry):
         try:
-            resp = requests.post(url, json=payload,
-                                 headers={'X-Api-Key': api_key},
-                                 timeout=timeout)
+            remote_bank, sha = _gitee_get_bank(token, timeout)
+            remote = remote_bank.get('questions', [])
+            merged, stats = merge_questions(remote, local)
+            if _canonical_questions(remote) == _canonical_questions(merged):
+                logger.attr('Question bank push', f'{len(merged)} questions（无变化）')
+                return True
+            bank = {
+                'version': 1,
+                'updated': datetime.now().strftime('%Y-%m-%d'),
+                'questions': merged,
+            }
+            _gitee_put_bank(bank, sha, token, device, timeout)
+            logger.attr('Question bank push',
+                        f'{len(merged)} questions（有更新，added {stats["added"]}, '
+                        f'updated {stats["updated"]}, conflict {stats["conflict"]}）')
+            return True
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else 0
+            detail = str(e.response.text or '')[:200] if e.response is not None else ''
+            logger.warning(f'题库推送失败（第 {attempt + 1}/{retry} 次）: '
+                           f'HTTP {status} {detail}')
+            if status in (401, 403, 404):
+                break
+            time.sleep(1 + attempt)
         except requests.RequestException as e:
             logger.warning(f'题库推送失败（第 {attempt + 1}/{retry} 次）: {e}')
             time.sleep(1 + attempt)
-            continue
-
-        try:
-            data = resp.json()
-        except ValueError:
-            data = {}
-        if not isinstance(data, dict):
-            data = {}
-
-        if resp.status_code == 200 and data.get('ok'):
-            changed = bool(data.get('changed', True))
-            logger.attr('Question bank push',
-                        f'{data.get("total", len(local))} questions'
-                        f'（{"有更新" if changed else "无变化"}，'
-                        f'added {data.get("added", 0)}, updated {data.get("updated", 0)}, '
-                        f'conflict {data.get("conflict", 0)}）')
-            return True
-
-        detail = str(data.get('error') or resp.text or '')[:200]
-        logger.warning(f'题库推送被拒（第 {attempt + 1}/{retry} 次）: '
-                       f'HTTP {resp.status_code} {detail}')
-        if resp.status_code in (400, 401, 403, 404):
-            break
-        time.sleep(1 + attempt)
 
     logger.warning('题库推送失败，本机题库不受影响，下次答题结束后会重新同步')
     return False
@@ -395,7 +444,7 @@ def push(bank_path: str, api_key: str = '', device: str = '',
 
 # ---------------------------------------------------------------- CLI
 def main() -> int:
-    parser = argparse.ArgumentParser(description='题库跨设备同步（git 拉取 + API 推送）')
+    parser = argparse.ArgumentParser(description='题库跨设备同步（git 拉取 + Gitee API 推送）')
     sub = parser.add_subparsers(dest='command', required=True)
 
     merge = sub.add_parser('merge', help='合并两份题库文件（按 id 归并，verified 优先）')
@@ -410,12 +459,12 @@ def main() -> int:
     pull_parser.add_argument('--url', default=DEFAULT_BANK_REPO_URL,
                              help='仓库地址（目录不存在时自动 clone）')
 
-    push_parser = sub.add_parser('push', help='把本机题库提交到题库 API')
+    push_parser = sub.add_parser('push', help='把本机题库合并并提交到 Gitee 仓库')
     push_parser.add_argument('--bank', default=str(Path('tasks/Quiz/bank/quiz_zh.json')),
                              help='本机题库路径')
-    push_parser.add_argument('--api-key', default='',
-                             help='覆盖内置 API Key（一般不用填）')
-    push_parser.add_argument('--device', default='', help='设备名（随请求上报）')
+    push_parser.add_argument('--token', default='',
+                             help='覆盖内置 Gitee 令牌（一般不用填）')
+    push_parser.add_argument('--device', default='', help='设备名（写进提交信息）')
 
     args = parser.parse_args()
     if args.command == 'merge':
@@ -428,7 +477,7 @@ def main() -> int:
         stats = pull(args.bank, args.repo, url=args.url)
         print(f'pull: {stats or "未同步"}')
         return 0
-    ok = push(args.bank, api_key=args.api_key, device=args.device)
+    ok = push(args.bank, device=args.device, token=args.token)
     print(f'push: {"成功" if ok else "失败"}')
     return 0 if ok else 1
 

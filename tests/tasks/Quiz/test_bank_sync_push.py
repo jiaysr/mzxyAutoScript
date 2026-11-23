@@ -1,110 +1,151 @@
 # -*- coding: utf-8 -*-
-"""题库 API 推送测试（不连网络）"""
+"""题库 Gitee 推送测试（不连网络）"""
+import base64
 import json
+from types import SimpleNamespace
 
 from tasks.Quiz import bank_sync
 
 
 class FakeResponse:
-    def __init__(self, status_code, data):
+    def __init__(self, status_code, data=None, text=''):
         self.status_code = status_code
-        self._data = data
-        self.text = json.dumps(data, ensure_ascii=False)
+        self._data = data if data is not None else {}
+        self.text = text or json.dumps(self._data, ensure_ascii=False)
 
     def json(self):
         return self._data
 
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise bank_sync.requests.HTTPError(
+                f'HTTP {self.status_code}', response=self)
 
-def _bank_file(tmp_path):
+
+def _question(answer='A选项', verified=True):
+    return {
+        'id': 'qabcdef123',
+        'q': '测试题',
+        'options': ['A选项', 'B选项'],
+        'answer': answer,
+        'verified': verified,
+        'wrong': [],
+        'hits': 1,
+        'correct': 1,
+        'source': 'llm',
+        'updated': '2026-11-23',
+    }
+
+
+def _bank_file(tmp_path, questions):
     path = tmp_path / 'quiz_zh.json'
     path.write_text(json.dumps({
         'version': 1,
-        'questions': [
-            {
-                'id': 'qabcdef123',
-                'q': '测试题',
-                'options': ['A选项', 'B选项'],
-                'answer': 'A选项',
-                'verified': True,
-                'wrong': ['B选项'],
-                'hits': 1,
-                'correct': 1,
-                'source': 'llm',
-                'updated': '2026-11-23',
-            }
-        ],
+        'questions': questions,
     }, ensure_ascii=False), encoding='utf-8')
     return str(path)
 
 
-def test_push_uses_builtin_api_key(monkeypatch, tmp_path):
-    calls = {}
-
-    def fake_post(url, **kwargs):
-        calls.update(kwargs)
-        return FakeResponse(200, {
-            'ok': True, 'changed': False, 'total': 1,
-            'added': 0, 'updated': 0, 'conflict': 0,
-        })
-
-    monkeypatch.setattr(bank_sync.requests, 'post', fake_post)
-    assert bank_sync.push(_bank_file(tmp_path)) is True
-    assert calls['headers']['X-Api-Key'] == bank_sync.BANK_API_KEY
+def _remote_response(questions, sha='sha-old'):
+    bank = {'version': 1, 'questions': questions}
+    content = base64.b64encode(
+        json.dumps(bank, ensure_ascii=False).encode('utf-8')).decode('ascii')
+    return FakeResponse(200, {'content': content, 'sha': sha})
 
 
-def test_push_skips_when_builtin_key_missing(monkeypatch, tmp_path):
-    def fail(*args, **kwargs):
-        raise AssertionError('没有可用 Key 时不应该发起任何推送')
-
-    monkeypatch.setattr(bank_sync, 'BANK_API_KEY', '')
-    monkeypatch.setattr(bank_sync.requests, 'post', fail)
-    monkeypatch.setattr(bank_sync, '_git', fail)
-    assert bank_sync.push(_bank_file(tmp_path)) is False
+def test_gitee_config_is_hardcoded():
+    assert bank_sync.DEFAULT_BANK_REPO_URL == 'https://gitee.com/jiysr/mzxy-quiz-db.git'
+    assert bank_sync.GITEE_BRANCH == 'main'
+    assert bank_sync.GITEE_TOKEN
 
 
-def test_push_posts_to_hardcoded_api(monkeypatch, tmp_path):
-    calls = {}
+def test_push_skips_when_content_unchanged(monkeypatch, tmp_path):
+    question = _question()
+    put_calls = []
 
-    def fake_post(url, **kwargs):
-        calls['url'] = url
-        calls.update(kwargs)
-        return FakeResponse(200, {
-            'ok': True, 'changed': True, 'total': 1,
-            'added': 0, 'updated': 0, 'conflict': 0,
-        })
+    monkeypatch.setattr(bank_sync.requests, 'get',
+                        lambda *args, **kwargs: _remote_response([question]))
+    monkeypatch.setattr(bank_sync.requests, 'put',
+                        lambda *args, **kwargs: put_calls.append(1))
 
-    monkeypatch.setattr(bank_sync.requests, 'post', fake_post)
-    assert bank_sync.push(_bank_file(tmp_path), api_key='secret', device='oas1') is True
-
-    assert calls['url'] == bank_sync.BANK_API_URL + bank_sync.BANK_API_SUBMIT_PATH
-    assert calls['headers']['X-Api-Key'] == 'secret'
-    assert len(calls['json']['questions']) == 1
-    assert calls['json']['device'] == 'oas1'
+    assert bank_sync.push(_bank_file(tmp_path, [question])) is True
+    assert put_calls == []
 
 
-def test_push_does_not_retry_on_unauthorized(monkeypatch, tmp_path):
+def test_push_merges_and_puts_with_hardcoded_token(monkeypatch, tmp_path):
+    local = _question(answer='A选项', verified=True)
+    remote = _question(answer='B选项', verified=False)
+    captured = {}
+
+    monkeypatch.setattr(bank_sync.requests, 'get',
+                        lambda *args, **kwargs: _remote_response([remote], sha='sha-old'))
+
+    def fake_put(url, **kwargs):
+        captured['url'] = url
+        captured.update(kwargs)
+        return FakeResponse(200, {})
+
+    monkeypatch.setattr(bank_sync.requests, 'put', fake_put)
+
+    assert bank_sync.push(_bank_file(tmp_path, [local]), device='oas1') is True
+    assert captured['url'].startswith(f'{bank_sync.GITEE_API}/repos/')
+    assert captured['params']['access_token'] == bank_sync.GITEE_TOKEN
+    payload = captured['json']
+    assert payload['sha'] == 'sha-old'
+    assert payload['branch'] == 'main'
+    assert payload['message'].startswith('sync(oas1):')
+    merged = json.loads(base64.b64decode(payload['content']).decode('utf-8'))
+    assert merged['questions'][0]['answer'] == 'A选项'
+
+
+def test_push_retries_on_conflict(monkeypatch, tmp_path):
+    local = _question(answer='A选项', verified=True)
+    remote = _question(answer='B选项', verified=False)
+    put_calls = []
+
+    monkeypatch.setattr(bank_sync.requests, 'get',
+                        lambda *args, **kwargs: _remote_response([remote]))
+
+    def fake_put(*args, **kwargs):
+        put_calls.append(1)
+        if len(put_calls) == 1:
+            return FakeResponse(409, {'message': 'sha does not match'})
+        return FakeResponse(200, {})
+
+    monkeypatch.setattr(bank_sync.requests, 'put', fake_put)
+    monkeypatch.setattr(bank_sync.time, 'sleep', lambda seconds: None)
+
+    assert bank_sync.push(_bank_file(tmp_path, [local]), retry=3) is True
+    assert len(put_calls) == 2
+
+
+def test_push_stops_on_forbidden(monkeypatch, tmp_path):
+    local = _question(answer='A选项', verified=True)
+    remote = _question(answer='B选项', verified=False)
+    put_calls = []
+
+    monkeypatch.setattr(bank_sync.requests, 'get',
+                        lambda *args, **kwargs: _remote_response([remote]))
+    monkeypatch.setattr(bank_sync.requests, 'put',
+                        lambda *args, **kwargs: put_calls.append(1) or FakeResponse(403, {}))
+
+    assert bank_sync.push(_bank_file(tmp_path, [local]), retry=3) is False
+    assert len(put_calls) == 1
+
+
+def test_ensure_repo_switches_remote_to_gitee(monkeypatch, tmp_path):
+    repo = tmp_path / 'quiz-db'
+    (repo / '.git').mkdir(parents=True)
     calls = []
 
-    def fake_post(*args, **kwargs):
-        calls.append(1)
-        return FakeResponse(401, {'ok': False, 'error': 'unauthorized'})
+    def fake_git(repo_dir, *args):
+        calls.append(args)
+        if args[:2] == ('remote', 'get-url'):
+            return SimpleNamespace(returncode=0,
+                                   stdout='git@github.com:jiaysr/mzxy-quiz-db.git\n',
+                                   stderr='')
+        return SimpleNamespace(returncode=0, stdout='', stderr='')
 
-    monkeypatch.setattr(bank_sync.requests, 'post', fake_post)
-    monkeypatch.setattr(bank_sync.time, 'sleep', lambda seconds: None)
-    assert bank_sync.push(_bank_file(tmp_path), api_key='bad', retry=3) is False
-    assert len(calls) == 1
-
-
-def test_push_retries_on_network_error(monkeypatch, tmp_path):
-    calls = []
-
-    def fake_post(*args, **kwargs):
-        calls.append(1)
-        if len(calls) < 2:
-            raise bank_sync.requests.ConnectionError('boom')
-        return FakeResponse(200, {'ok': True, 'changed': False, 'total': 1})
-
-    monkeypatch.setattr(bank_sync.requests, 'post', fake_post)
-    monkeypatch.setattr(bank_sync.time, 'sleep', lambda seconds: None)
-    assert bank_sync.push(_bank_file(tmp_path), api_key='secret', retry=3) is True
-    assert len(calls) == 2
+    monkeypatch.setattr(bank_sync, '_git', fake_git)
+    assert bank_sync._ensure_repo(str(repo)) is True
+    assert ('remote', 'set-url', 'origin', bank_sync.DEFAULT_BANK_REPO_URL) in calls
