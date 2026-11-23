@@ -1,14 +1,14 @@
 # This Python file uses the following encoding: utf-8
 """
-题库跨设备同步（git 交换仓库）
+题库跨设备同步（git 拉取 + HTTP API 推送）
 
 多台设备共用一份题库：
 - 本机题库仍是 tasks/Quiz/bank/quiz_zh.json（index.html 编辑器照常用）
-- 交换仓库（如 mzxy-quiz-db）里只放一份 quiz_zh.json，当作传输通道
-- 答题前 pull：取仓库里的题库 -> 与本机按 id 合并 -> 写回本机
-- 答题后 push：合并后的题库写进交换仓库 -> commit -> push（被拒就重新合并再推）
-- git 永远不做 JSON 内容合并：每次都是「取远端 -> 结构化合并 -> 覆盖重写」，
-  所以不会出现 JSON 冲突
+- 答题前 pull：从 git 交换仓库取题库 -> 与本机按 id 合并 -> 写回本机
+- 答题后 push：把本机题库提交到题库 API（地址写死在 `BANK_API_URL`），
+  服务端负责与仓库当前题库合并并提交 GitHub；**没配置 API Key 时跳过推送**，
+  不会退回 git push
+- 合并是幂等的：同一份题库反复 pull/push 不会改变内容，也不会让计数膨胀
 
 合并规则（同一条题目 = 同一个 id = 归一化题干的 md5）：
 - 答案：verified 优先 -> correct 次数多的优先 -> updated 晚的优先
@@ -31,6 +31,8 @@ import time
 from difflib import SequenceMatcher
 from pathlib import Path
 
+import requests
+
 if __package__ in (None, ''):  # 支持 python tasks/Quiz/bank_sync.py 直接跑
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from tasks.Quiz.question_bank import QuestionBank
@@ -45,8 +47,13 @@ BANK_NAME = 'quiz_zh.json'
 # 各机器目录结构一致时，题库同步不需要任何配置
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BANK_REPO_DIR = (PROJECT_ROOT.parent / 'quiz-db').as_posix()
-# 默认的题库交换仓库地址（可配置覆盖）
+# 默认的题库交换仓库地址（可配置覆盖，仅用于 pull）
 DEFAULT_BANK_REPO_URL = 'git@github.com:jiaysr/mzxy-quiz-db.git'
+# 题库共享 API（写死，用户不需要也不应该配置）
+BANK_API_URL = 'https://quiz-bank-api-xdweducowb.cn-hangzhou.fcapp.run'
+BANK_API_SUBMIT_PATH = '/quiz/submit'
+# 题库共享 API 的访问密钥（写死在客户端；环境变量可用于调试时覆盖）
+BANK_API_KEY = os.environ.get('BANK_API_KEY', '') or 'fewdiwiwidqjfhg'
 # 交换仓库分支
 BANK_BRANCH = 'main'
 # 认为答案是「同一个选项的 OCR 写法差异」的相似度
@@ -324,38 +331,62 @@ def pull(bank_path: str, repo_dir: str = '', url: str = '', branch: str = BANK_B
     return stats
 
 
-def push(bank_path: str, repo_dir: str = '', url: str = '', branch: str = BANK_BRANCH,
-         device: str = '', retry: int = PUSH_RETRY) -> bool:
+def push(bank_path: str, api_key: str = '', device: str = '',
+         retry: int = PUSH_RETRY, timeout: float = 30) -> bool:
     """
-    把本机题库合并进交换仓库并推送（被拒就重新合并再推）
-    :return: 是否推送成功
+    把本机题库提交到题库 API（服务端负责合并并写入 GitHub）
+
+    - API 地址和默认 Key 都写死在模块里，用户不需要配置；
+    - 没有可用 Key 时**直接跳过**，不会退回 git push；
+    - 本机题库为空时跳过；
+    - 网络错误 / 5xx / 429 会重试，4xx（鉴权、参数错误）不重试。
+
+    :return: 是否提交成功
     """
-    if not _ensure_repo(repo_dir, url or DEFAULT_BANK_REPO_URL):
+    api_key = (api_key or BANK_API_KEY).strip()
+    if not api_key:
+        logger.warning('题库 API Key 未配置，跳过推送（不会退回 git push）')
         return False
+
     local = read_questions(bank_path)
     if not local:
         logger.warning('本机题库为空，跳过推送')
         return False
 
-    for attempt in range(retry):
-        _git_ok(repo_dir, 'fetch', 'origin', branch)
-        remote = _remote_questions(repo_dir, branch) or []
-        merged, stats = merge_questions(local, remote)
-        if remote and stats['changed']:
-            # 仓库里别人新加的题也一并写回本机
-            QuestionBank.dump(bank_path, merged)
+    url = BANK_API_URL.rstrip('/') + BANK_API_SUBMIT_PATH
+    payload = {'questions': local, 'device': device or 'oas'}
 
-        _reset_repo(repo_dir, branch)
-        QuestionBank.dump(os.path.join(repo_dir, BANK_NAME), merged)
-        _git_ok(repo_dir, 'add', BANK_NAME)
-        _git_ok(repo_dir, 'commit', '-m', f'sync({device or "oas"}): {len(merged)} questions')
-        result = _git(repo_dir, 'push', 'origin', f'HEAD:{branch}')
-        if result.returncode == 0:
+    for attempt in range(retry):
+        try:
+            resp = requests.post(url, json=payload,
+                                 headers={'X-Api-Key': api_key},
+                                 timeout=timeout)
+        except requests.RequestException as e:
+            logger.warning(f'题库推送失败（第 {attempt + 1}/{retry} 次）: {e}')
+            time.sleep(1 + attempt)
+            continue
+
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+
+        if resp.status_code == 200 and data.get('ok'):
+            changed = bool(data.get('changed', True))
             logger.attr('Question bank push',
-                        f'{len(merged)} questions (added {stats["added"]}, '
-                        f'updated {stats["updated"]}, conflict {stats["conflict"]})')
+                        f'{data.get("total", len(local))} questions'
+                        f'（{"有更新" if changed else "无变化"}，'
+                        f'added {data.get("added", 0)}, updated {data.get("updated", 0)}, '
+                        f'conflict {data.get("conflict", 0)}）')
             return True
-        logger.warning(f'题库推送被拒（第 {attempt + 1}/{retry} 次）: {result.stderr.strip()[-200:]}')
+
+        detail = str(data.get('error') or resp.text or '')[:200]
+        logger.warning(f'题库推送被拒（第 {attempt + 1}/{retry} 次）: '
+                       f'HTTP {resp.status_code} {detail}')
+        if resp.status_code in (400, 401, 403, 404):
+            break
         time.sleep(1 + attempt)
 
     logger.warning('题库推送失败，本机题库不受影响，下次答题结束后会重新同步')
@@ -364,7 +395,7 @@ def push(bank_path: str, repo_dir: str = '', url: str = '', branch: str = BANK_B
 
 # ---------------------------------------------------------------- CLI
 def main() -> int:
-    parser = argparse.ArgumentParser(description='题库跨设备同步（git 交换仓库）')
+    parser = argparse.ArgumentParser(description='题库跨设备同步（git 拉取 + API 推送）')
     sub = parser.add_subparsers(dest='command', required=True)
 
     merge = sub.add_parser('merge', help='合并两份题库文件（按 id 归并，verified 优先）')
@@ -372,13 +403,19 @@ def main() -> int:
     merge.add_argument('remote', help='远端题库 JSON')
     merge.add_argument('-o', '--output', default='', help='输出文件，不填则覆盖 local')
 
-    for name in ('pull', 'push'):
-        item = sub.add_parser(name, help=f'{name} 交换仓库')
-        item.add_argument('--bank', default=str(Path('tasks/Quiz/bank/quiz_zh.json')), help='本机题库路径')
-        item.add_argument('--repo', default=DEFAULT_BANK_REPO_DIR, help='题库交换仓库目录')
-        item.add_argument('--url', default=DEFAULT_BANK_REPO_URL, help='仓库地址（目录不存在时自动 clone）')
-        if name == 'push':
-            item.add_argument('--device', default='', help='设备名（写进提交信息）')
+    pull_parser = sub.add_parser('pull', help='从交换仓库拉取题库')
+    pull_parser.add_argument('--bank', default=str(Path('tasks/Quiz/bank/quiz_zh.json')),
+                             help='本机题库路径')
+    pull_parser.add_argument('--repo', default=DEFAULT_BANK_REPO_DIR, help='题库交换仓库目录')
+    pull_parser.add_argument('--url', default=DEFAULT_BANK_REPO_URL,
+                             help='仓库地址（目录不存在时自动 clone）')
+
+    push_parser = sub.add_parser('push', help='把本机题库提交到题库 API')
+    push_parser.add_argument('--bank', default=str(Path('tasks/Quiz/bank/quiz_zh.json')),
+                             help='本机题库路径')
+    push_parser.add_argument('--api-key', default='',
+                             help='覆盖内置 API Key（一般不用填）')
+    push_parser.add_argument('--device', default='', help='设备名（随请求上报）')
 
     args = parser.parse_args()
     if args.command == 'merge':
@@ -391,7 +428,7 @@ def main() -> int:
         stats = pull(args.bank, args.repo, url=args.url)
         print(f'pull: {stats or "未同步"}')
         return 0
-    ok = push(args.bank, args.repo, url=args.url, device=args.device)
+    ok = push(args.bank, api_key=args.api_key, device=args.device)
     print(f'push: {"成功" if ok else "失败"}')
     return 0 if ok else 1
 

@@ -43,10 +43,10 @@ class QuizConfig(BaseModel):
     save_unknown_screenshot: bool = Field(default=True, description='quiz_save_screenshot_help')
     # 是否把 AI 的答案也写入题库（会标记为未验证）
     learn_from_llm: bool = Field(default=True, description='quiz_learn_from_llm_help')
-    # 多设备共用题库：git 交换仓库，默认已按项目位置（项目同级 quiz-db）和仓库地址填好，
-    # 各机器目录结构一致时不需要改；把目录清空则只用本机题库、不同步
+    # 拉取题库用的 git 交换仓库：默认已按项目位置（项目同级 quiz-db）和仓库地址填好，
+    # 各机器目录结构一致时不需要改；把目录清空则不拉取远端题库
     bank_repo_dir: str = Field(default=DEFAULT_BANK_REPO_DIR, description='quiz_bank_repo_dir_help')
-    # 交换仓库地址，目录不存在时自动 clone
+    # 拉取用的交换仓库地址，目录不存在时自动 clone
     bank_repo_url: str = Field(default=DEFAULT_BANK_REPO_URL, description='quiz_bank_repo_url_help')
 
 

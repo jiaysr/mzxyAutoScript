@@ -119,15 +119,13 @@ class ScriptTask(GameUi, QuizAssets):
 
     def bank_push(self) -> None:
         """
-        答题后把本机新学的题推到交换仓库（同步失败只告警）
+        答题后把本机题库提交到题库 API（同步失败只告警）
+
+        API 地址和 Key 都写死在 bank_sync 里，用户不需要配置；
+        没有可用 Key 时直接跳过，不会退回 git push。
         """
-        repo_dir = self.quiz_config.bank_repo_dir.strip()
-        if not repo_dir:
-            return
         try:
-            bank_sync.push(BANK_FILE, repo_dir,
-                           url=self.quiz_config.bank_repo_url.strip(),
-                           device=self.config.config_name)
+            bank_sync.push(BANK_FILE, device=self.config.config_name)
         except Exception as e:
             logger.warning(f'题库同步失败（本机题库不受影响）: {e}')
 
