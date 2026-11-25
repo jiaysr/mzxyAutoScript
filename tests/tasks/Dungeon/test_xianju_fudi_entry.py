@@ -178,6 +178,10 @@ class FakeInsideDungeon(XianjuFudi):
             return 'killed'
         return self.fight_results.pop(0) if self.fight_results else 'killed'
 
+    def kill_thanksgiving_turkey(self):
+        self.calls.append(('turkey',))
+        return True
+
     def dungeon_close_result_popups(self):
         self.calls.append(('close_result',))
 
@@ -211,6 +215,45 @@ def test_run_from_inside_visits_all_five_rooms_then_exits():
     assert [call[1] for call in go_to] == ['焱', '垚', '森', '淼', '鑫']
     assert [call[2] for call in go_to] == [(63, 190), (331, 373), (163, 89),
                                            (440, 273), (419, 85)]
+    # 感恩节火鸡只挂在最后一个 Boss（鑫）之后，且每局只补一次
+    fight_indexes = [i for i, call in enumerate(fake.calls) if call[0] == 'fight']
+    turkey_indexes = [i for i, call in enumerate(fake.calls) if call[0] == 'turkey']
+    assert len(turkey_indexes) == 1
+    assert turkey_indexes[0] > fight_indexes[-1]
+
+
+def test_turkey_alias_is_expanded_for_fight():
+    class FakeAliasDungeon(XianjuFudi):
+        def __init__(self):
+            pass
+
+    fake = FakeAliasDungeon()
+    assert XianjuFudi._dungeon_target_names(fake, '感恩节火鸡') == [
+        '感恩节火鸡', '感恩节的火鸡']
+
+
+def test_run_from_inside_skips_turkey_when_last_boss_fails():
+    fake = FakeInsideDungeon(fight_results=['killed'] * 4 + ['timeout'])
+    assert XianjuFudi.run_from_inside(fake) is False
+    assert not [call for call in fake.calls if call[0] == 'turkey']
+
+
+class FakeTurkeyDeath(FakeInsideDungeon):
+    """火鸡阶段死亡：复活已回骨牢，这局按完成一次收尾"""
+
+    def kill_thanksgiving_turkey(self):
+        self.calls.append(('turkey',))
+        self.dead = True
+        return False
+
+
+def test_run_from_inside_finishes_run_when_died_at_turkey():
+    fake = FakeTurkeyDeath()
+    assert XianjuFudi.run_from_inside(fake) is True
+    assert ('turkey',) in fake.calls
+    assert ('finish_after_death',) in fake.calls
+    assert not [call for call in fake.calls if call[0] == 'minimap_walk'
+                and call[2] == 'xianju_fudi_exit']
 
 
 def test_run_from_inside_stops_when_room_entry_fails():
@@ -223,6 +266,118 @@ def test_run_from_inside_stops_when_boss_fight_fails():
     fake = FakeInsideDungeon(fight_results=['timeout'])
     assert XianjuFudi.run_from_inside(fake) is False
     assert len([call for call in fake.calls if call[0] == 'fight']) == 1
+
+
+# ---------------------------------------------------------------- 房间没进去：借门重试
+class FakeReenterRoom(XianjuFudi):
+    """只测 reenter_room 的点击顺序，不碰设备"""
+
+    def __init__(self, click_ok=True, wait_ok=True):
+        self.calls = []
+        self.click_ok = click_ok
+        self.wait_ok = wait_ok
+        self.device = SimpleNamespace(
+            sleep=lambda seconds: self.calls.append(('sleep', seconds)))
+
+    def dungeon_click_minimap_target(self, corner, click_rule):
+        self.calls.append(('click', corner, click_rule.name))
+        return self.click_ok
+
+    def dungeon_wait_location(self, name, position=None, tolerance=None,
+                              timeout=None, abort_on_leave=False):
+        self.calls.append(('wait', name, position, tolerance))
+        return self.wait_ok
+
+
+@pytest.mark.parametrize('room_index,anchor_rule', [
+    (0, 'xianju_fudi_room_2'),      # 第 1 间没进去 -> 先点第 2 间
+    (1, 'xianju_fudi_room_1'),      # 第 2 间没进去 -> 先点第 1 间
+    (2, 'xianju_fudi_room_2'),      # 其余房间 -> 都先点第 2 间
+    (3, 'xianju_fudi_room_2'),
+    (4, 'xianju_fudi_room_2'),
+])
+def test_reenter_room_clicks_anchor_then_current(room_index, anchor_rule):
+    fake = FakeReenterRoom()
+    assert XianjuFudi.reenter_room(fake, room_index) is True
+
+    boss_name, room_rule_name, room_position, _ = XianjuFudi.ROOMS[room_index]
+    assert fake.calls == [
+        ('click', 'top_left', anchor_rule),
+        ('sleep', 1.0),
+        ('click', 'top_left', room_rule_name),
+        ('wait', XianjuFudi.MAP_NAME, room_position,
+         XianjuFudi.ROOM_ARRIVE_TOLERANCE),
+    ]
+
+
+class FakeWalkRetry(XianjuFudi):
+    """只测「走不到 Boss -> 借门重进 -> 再走一次」的调用顺序"""
+
+    def __init__(self, walk_results):
+        self.calls = []
+        self.walk_results = list(walk_results)
+        self.device = SimpleNamespace(sleep=lambda seconds: None)
+
+    def dungeon_check_in_map(self, map_name):
+        pass
+
+    def dungeon_left_for_death(self):
+        return False
+
+    def dungeon_finish_detected(self, image=None):
+        return False
+
+    def dungeon_close_boss_reward(self):
+        pass
+
+    def enter_room(self, boss_name, room_rule_name, room_position):
+        self.calls.append(('enter_room', boss_name))
+        return True
+
+    def _walk_to_boss(self, boss_name, boss_position):
+        self.calls.append(('walk', boss_name))
+        return self.walk_results.pop(0)
+
+    def reenter_room(self, room_index):
+        self.calls.append(('reenter', room_index))
+        return True
+
+    def dungeon_fight_boss(self, target_name, timeout=None, map_name=None):
+        self.calls.append(('fight', target_name))
+        return 'finished'
+
+    def dungeon_close_result_popups(self):
+        pass
+
+    def dungeon_minimap_walk(self, corner, click_rule, target_map, position=None,
+                             tolerance=None, timeout=None, abort_on_leave=False,
+                             retries=1):
+        self.calls.append(('exit', click_rule.name, target_map))
+        return True
+
+
+def test_run_from_inside_reenters_room_then_retries_walk():
+    fake = FakeWalkRetry([False, True])
+    assert XianjuFudi.run_from_inside(fake) is True
+    assert fake.calls == [
+        ('enter_room', '焱'),
+        ('walk', '焱'),
+        ('reenter', 0),
+        ('walk', '焱'),
+        ('fight', '焱'),
+        ('exit', 'xianju_fudi_exit', '骨牢'),
+    ]
+
+
+def test_run_from_inside_gives_up_after_walk_retry_fails():
+    fake = FakeWalkRetry([False, False])
+    assert XianjuFudi.run_from_inside(fake) is False
+    assert fake.calls == [
+        ('enter_room', '焱'),
+        ('walk', '焱'),
+        ('reenter', 0),
+        ('walk', '焱'),
+    ]
 
 
 # ---------------------------------------------------------------- 坐标走路（基类 helper）
@@ -379,3 +534,82 @@ def test_run_once_repairs_before_healing():
     task = FakePrepareOrder()
     assert XianjuFudi.run_once(task) is True
     assert task.calls == ['enter_outer', 'repair', 'heal', 'enter_dungeon', 'inside']
+
+
+# ---------------------------------------------------------------- 感恩节火鸡
+class FakeTurkeyDungeon(XianjuFudi):
+    """只测 kill_thanksgiving_turkey 的补锁 / 开打顺序，不碰设备"""
+
+    def __init__(self, relock_results=None, fight_result='killed',
+                 finished=False, dead=False):
+        self.calls = []
+        self.relock_results = list(relock_results or [])
+        self.fight_result = fight_result
+        self.finished = finished
+        self.dead = dead
+        self.device = SimpleNamespace(
+            sleep=lambda seconds: self.calls.append(('sleep', seconds)))
+
+    def dungeon_finish_detected(self, image=None):
+        return self.finished
+
+    def dungeon_close_boss_reward(self):
+        self.calls.append(('close_reward',))
+
+    def ui_close_menu(self):
+        self.calls.append(('close_menu',))
+
+    def battle_relock_target(self, names=None, max_switch=None,
+                             abort_check=None):
+        self.calls.append(('relock', tuple(names or ()), max_switch))
+        return self.relock_results.pop(0) if self.relock_results else False
+
+    def dungeon_left_for_death(self):
+        return self.dead
+
+    def dungeon_fight_boss(self, target_name, timeout=None, map_name=None):
+        self.calls.append(('fight', target_name, timeout, map_name))
+        return self.fight_result
+
+
+def test_kill_thanksgiving_turkey_relocks_then_fights():
+    fake = FakeTurkeyDungeon([False, True])
+    assert XianjuFudi.kill_thanksgiving_turkey(fake) is True
+    assert fake.calls == [
+        ('close_reward',),
+        ('close_menu',),
+        ('relock', ('感恩节火鸡', '感恩节的火鸡'), 1),
+        ('sleep', XianjuFudi.TURKEY_PROBE_INTERVAL),
+        ('relock', ('感恩节火鸡', '感恩节的火鸡'), 1),
+        # 不传 timeout，沿用 dungeon_fight_boss 的默认值
+        ('fight', '感恩节火鸡', None, XianjuFudi.MAP_NAME),
+        ('close_reward',),
+    ]
+
+
+def test_kill_thanksgiving_turkey_gives_up_quickly_when_absent():
+    fake = FakeTurkeyDungeon([False] * XianjuFudi.TURKEY_PROBE_ATTEMPTS)
+    assert XianjuFudi.kill_thanksgiving_turkey(fake) is False
+    assert len([call for call in fake.calls if call[0] == 'relock']) == \
+        XianjuFudi.TURKEY_PROBE_ATTEMPTS
+    assert not [call for call in fake.calls if call[0] == 'fight']
+    assert len([call for call in fake.calls if call[0] == 'sleep']) == \
+        XianjuFudi.TURKEY_PROBE_ATTEMPTS - 1
+
+
+def test_kill_thanksgiving_turkey_skips_when_dungeon_finished():
+    fake = FakeTurkeyDungeon(finished=True)
+    assert XianjuFudi.kill_thanksgiving_turkey(fake) is False
+    assert fake.calls == []
+
+
+def test_kill_thanksgiving_turkey_reports_timeout():
+    fake = FakeTurkeyDungeon([True], fight_result='timeout')
+    assert XianjuFudi.kill_thanksgiving_turkey(fake) is False
+    assert [call[0] for call in fake.calls][-1] == 'fight'
+
+
+def test_kill_thanksgiving_turkey_stops_if_dead_while_probing():
+    fake = FakeTurkeyDungeon(dead=True)
+    assert XianjuFudi.kill_thanksgiving_turkey(fake) is False
+    assert fake.calls == [('close_reward',), ('close_menu',)]
