@@ -222,7 +222,7 @@ class XianjuFudi(DungeonBase):
             return
         raise DungeonRetry(self.name)
 
-    def dungeon_left_for_death(self) -> bool:
+    def dungeon_left_for_death(self, image=None) -> bool:
         """
         人是不是已经不在副本地图了（= 副本内死亡、复活回骨牢）
 
@@ -232,7 +232,7 @@ class XianjuFudi(DungeonBase):
         """
         if getattr(self, '_died_this_run', False):
             return True
-        location = self.map_current_location()
+        location = self.map_current_location(image)
         if location is None:
             return False
         if self.map_name_match(location[0], self.MAP_NAME):
@@ -242,9 +242,9 @@ class XianjuFudi(DungeonBase):
         self._died_this_run = True
         return True
 
-    def dungeon_check_in_map(self, map_name: str) -> None:
+    def dungeon_check_in_map(self, map_name: str, image=None) -> None:
         """基类会推「未通关」+ 跳过剩余次数；仙居福地的死亡要按完成一次处理"""
-        self.dungeon_left_for_death()
+        self.dungeon_left_for_death(image=image)
 
     def finish_run_after_death(self) -> bool:
         """副本内死亡收尾：人已在骨牢，这局算完成一次（不推通知、不跳过剩余次数）"""

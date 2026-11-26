@@ -126,9 +126,9 @@ class DungeonBase(GameUi, DungeonAssets):
             logger.warning(f'Notify uncleared dungeon failed: {e}')
         raise DungeonAborted(title)
 
-    def dungeon_check_in_map(self, map_name: str) -> None:
+    def dungeon_check_in_map(self, map_name: str, image=None) -> None:
         """校验还在副本地图里；已经自动离开则视为死亡未通关"""
-        location = self.map_current_location()
+        location = self.map_current_location(image)
         if location is None:
             return
         if not self.map_name_match(location[0], map_name):
@@ -481,6 +481,8 @@ class DungeonBase(GameUi, DungeonAssets):
     DUNGEON_FIGHT_TIMEOUT = 20 * 60
     # 战斗期间轮询地图名，离开副本地图即死亡
     DUNGEON_MAP_CHECK_INTERVAL = 3
+    # 目标名 OCR 降频：开战时已校验过名字，战斗中不必每个技能轮次都重新识别
+    DUNGEON_TARGET_NAME_CHECK_INTERVAL = 1.0
 
     def dungeon_wait_location(self, name: str, position: tuple = None,
                               tolerance: int = None, timeout: int = None,
@@ -798,7 +800,8 @@ class DungeonBase(GameUi, DungeonAssets):
 
     def _dungeon_battle_stop(self) -> bool:
         """战斗停止条件：完成弹窗 / 目标丢失 / 目标换了 / 超时"""
-        if time.time() >= self._dungeon_fight_deadline:
+        now = time.time()
+        if now >= self._dungeon_fight_deadline:
             logger.info('Fight deadline reached')
             return True
         image = self.device.image if self.exist_image() else None
@@ -812,23 +815,28 @@ class DungeonBase(GameUi, DungeonAssets):
             return True
         # 完成/奖励弹窗优先，避免完成后的自动传出被误判成死亡
         if (self._dungeon_fight_map
-                and time.time() >= self._dungeon_next_map_check):
-            self._dungeon_next_map_check = time.time() + self.DUNGEON_MAP_CHECK_INTERVAL
-            self.dungeon_check_in_map(self._dungeon_fight_map)
+                and now >= self._dungeon_next_map_check):
+            self._dungeon_next_map_check = now + self.DUNGEON_MAP_CHECK_INTERVAL
+            # 复用战斗循环本轮截图，避免地图检查再截一张图
+            self.dungeon_check_in_map(self._dungeon_fight_map, image=image)
         if not self.ui_target_locked(image=image):
             logger.info('Target lost, stop attacking')
             return True
         if self.ui_target_action(image=image) != ACTION_ATTACK:
             logger.info('Target action changed, stop attacking')
             return True
-        name = self.ui_target_name()
-        if not name:
-            # 右上角菜单可能挡住目标名，收起后重读一次
-            name = self.ui_target_name(close_menu=True)
-        if name and not any(self.ocr_name_match(name, expected)
-                            for expected in self._dungeon_fight_target):
-            logger.info(f'Target changed to [{name}], stop attacking')
-            return True
+        # 目标名 OCR 比模板判断重得多，每秒最多一次；开战时已由锁敌流程校验过名字
+        if now >= self._dungeon_next_target_name_check:
+            self._dungeon_next_target_name_check = (
+                now + self.DUNGEON_TARGET_NAME_CHECK_INTERVAL)
+            name = self.ui_target_name()
+            if not name:
+                # 右上角菜单可能挡住目标名，收起后重读一次
+                name = self.ui_target_name(close_menu=True)
+            if name and not any(self.ocr_name_match(name, expected)
+                                for expected in self._dungeon_fight_target):
+                logger.info(f'Target changed to [{name}], stop attacking')
+                return True
         return False
 
     def dungeon_fight_boss(self, target_name, timeout: int = None,
@@ -851,6 +859,8 @@ class DungeonBase(GameUi, DungeonAssets):
         self._dungeon_fight_deadline = deadline
         self._dungeon_fight_map = map_name
         self._dungeon_next_map_check = time.time() + self.DUNGEON_MAP_CHECK_INTERVAL
+        # 0 表示进入战斗后立即校验一次目标名，之后按间隔降频
+        self._dungeon_next_target_name_check = 0.0
         include_attack = self.battle_use_normal_attack()
         while True:
             if self.dungeon_finish_detected():
@@ -868,7 +878,8 @@ class DungeonBase(GameUi, DungeonAssets):
                     max_switch=self.DUNGEON_FIGHT_LOCK_SWITCH, timeout=15):
                 # 锁不到可能是死亡离场，先确认地图，再按击杀处理
                 if self._dungeon_fight_map:
-                    self.dungeon_check_in_map(self._dungeon_fight_map)
+                    image = self.device.image if self.exist_image() else None
+                    self.dungeon_check_in_map(self._dungeon_fight_map, image=image)
                 logger.info(f'[{target_name}] not locked '
                             f'{self.DUNGEON_FIGHT_LOCK_SWITCH} times, assume killed')
                 return 'killed'
