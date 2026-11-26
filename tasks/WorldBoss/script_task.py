@@ -384,6 +384,9 @@ class ScriptTask(GameUi, WorldBossAssets):
                         self.mark_event_done(boss, event_time)
                         self.handle_finish(boss)
                         return
+                    if result == 'target_wrong':
+                        logger.info(f"{boss['name']} 锁到了其他目标，重新锁定")
+                        continue
                     if result == 'target_lost':
                         logger.info(f"{boss['name']} target lost before finish, retry until {deadline:%H:%M:%S}")
                         continue
@@ -614,7 +617,7 @@ class ScriptTask(GameUi, WorldBossAssets):
         """
         双 boss 攻击：每轮同时轮询双方结束模板
         - max_skills=N：点击 N 个技能后返回 skill_limit；
-        - max_skills=None：打到当前 boss 结束/目标丢失/超时。
+        - max_skills=None：打到当前 boss 结束/目标丢失/锁到其他目标/超时。
 
         cast_counter 跨死亡重试累计「先攻击的技能数」：
         计数存在调用方传来的可变 dict 里，死亡抛异常中断本次攻击后，
@@ -652,7 +655,8 @@ class ScriptTask(GameUi, WorldBossAssets):
                 return 'finished'
             if self.pair_all_done(state):
                 return 'all_done'
-            return None
+            # 目标丢失 / 锁到路人玩家：停手交给外层重锁，绝不能继续放技能
+            return self.attack_target_state(boss, image)
 
         result = self.battle_skill_loop(
             slots,
@@ -662,6 +666,11 @@ class ScriptTask(GameUi, WorldBossAssets):
             max_skills=skill_left,
             on_cast=record_cast if cast_counter is not None else None,
         )
+
+        if result == 'target_wrong':
+            # 锁到路人玩家/小怪：立即停手交给外层重新锁定，不按首领已结束处理
+            logger.warning(f"{boss['name']} 锁到了其他目标，停止攻击并重新锁定")
+            return result
 
         if result == 'target_lost':
             # 目标消失 = 首领大概率已死，但结束消息可能慢几秒才刷出来。
@@ -693,7 +702,7 @@ class ScriptTask(GameUi, WorldBossAssets):
 
         cast_counter 用于跨死亡重试保留已释放的技能数（见 pair_attack_loop）。
         :return: 'finished' / 'all_done' / 'skill_limit' / 'target_lost' /
-                 'lock_timeout' / 'navigate_failed' / 'timeout'
+                 'target_wrong' / 'lock_timeout' / 'navigate_failed' / 'timeout'
         """
         while datetime.now() < deadline:
             if state.get(boss['key']):
@@ -813,6 +822,17 @@ class ScriptTask(GameUi, WorldBossAssets):
                                           cast_counter=cast_counter)
             logger.attr('First boss result',
                         f'{result}（已释放 {cast_counter["casts"]}/{skills}）')
+            # 锁到路人玩家停手不算「打够技能数」：重新锁定继续，别提前离开/切走
+            while (result == 'target_wrong'
+                   and cast_counter['casts'] < skills
+                   and datetime.now() < deadline):
+                logger.info(f'{first["name"]} 锁到了其他目标，重新锁定继续打')
+                result = self.pair_fight_boss(first, pair, state, event_time, deadline,
+                                              max_skills=skills,
+                                              lock_timeout=self.PAIR_LOCK_TIMEOUT,
+                                              cast_counter=cast_counter)
+                logger.attr('First boss result',
+                            f'{result}（已释放 {cast_counter["casts"]}/{skills}）')
 
             # 1.5 第一个是天师的幻影：它在世界之巅，打够技能数（或它已结束）后只能重启离开。
             #     离开不等于结束：结束消息是全局聊天，重启后继续用钩子监听它的结束模板。
@@ -833,6 +853,10 @@ class ScriptTask(GameUi, WorldBossAssets):
                 break
             if result == 'timeout':
                 break
+            if result == 'target_wrong':
+                # 第二个 boss 还在，只是刚才锁到了路人玩家：重锁继续打第二个
+                logger.info(f'{second["name"]} 锁到了其他目标，重新锁定')
+                continue
             if result in ('lock_timeout', 'target_lost', 'navigate_failed'):
                 # 普通第一 boss 还没打完 -> 回第一个（步骤 3）；
                 # 天师的幻影离开世界之巅后回不去，继续重试第二个
@@ -1231,6 +1255,23 @@ class ScriptTask(GameUi, WorldBossAssets):
             return [word.strip() for word in configured.split(',') if word.strip()]
         return [boss['name']]
 
+    def attack_target_state(self, boss: dict, image) -> str | None:
+        """
+        攻击循环每帧的目标校验（防止目标丢失后误打玩家）
+
+        目标丢失时游戏可能自动转锁到旁边的玩家/小怪。只判断「可攻击」不够，
+        这里再校验一次名字：
+        - 'target_lost'：没有锁定可攻击目标；
+        - 'target_wrong'：锁着别的目标（玩家/小怪），立刻停手，交给外层重新锁定；
+        - None：锁着的还是首领本人，可以继续攻击。
+        """
+        if not self.ui_target_attackable(image=image):
+            return 'target_lost'
+        if not self.battle_target_ok(self.target_keywords(boss), image=image):
+            logger.warning(f'锁着的目标不是 {boss["name"]}，停止攻击（可能是路过的玩家）')
+            return 'target_wrong'
+        return None
+
     def lock_boss(self, boss: dict, event_time: datetime, finish_rule,
                   deadline: datetime) -> str:
         """
@@ -1367,16 +1408,16 @@ class ScriptTask(GameUi, WorldBossAssets):
     def battle_stop_reason(self, image, boss: dict, finish_rule) -> str | None:
         """
         攻击循环每帧的停止判断：结束模板+OCR 确认 -> finished；
-        目标丢失或右下角不再是「攻击」-> target_lost
+        目标丢失 -> target_lost；锁到其他目标（玩家/小怪）-> target_wrong
         """
         self.reset_records()
         if self.finish_confirmed(boss, finish_rule, image):
             logger.info(f'结束模板 {finish_rule.name} + OCR 确认，结束攻击')
             return 'finished'
-        if not self.ui_target_attackable(image=image):
+        state = self.attack_target_state(boss, image)
+        if state == 'target_lost':
             logger.info('Target lost or not attackable, stop attacking')
-            return 'target_lost'
-        return None
+        return state
 
     def wait_finish_template(self, boss: dict, finish_rule, timeout: float = None) -> bool:
         """目标丢失后再等一小段时间的结束模板（聊天消息可能比目标消失稍晚）"""
@@ -1451,7 +1492,7 @@ class ScriptTask(GameUi, WorldBossAssets):
         """
         锁定后按任务预设的技能队列攻击，直到目标丢失、结束模板命中或整点 deadline
 
-        :return: 'finished' / 'target_lost' / 'timeout'
+        :return: 'finished' / 'target_lost' / 'target_wrong' / 'timeout'
         """
         logger.hr(f"Attack {boss['name']}")
         remaining = (deadline - datetime.now()).total_seconds()
@@ -1469,6 +1510,10 @@ class ScriptTask(GameUi, WorldBossAssets):
             target_check=lambda image: self.ui_target_attackable(image=image),
             timeout=remaining,
         )
+        if result == 'target_wrong':
+            # 锁到路人玩家/小怪：立即停手交给外层重新锁定，不按首领已结束处理
+            logger.warning(f"{boss['name']} 锁到了其他目标，停止攻击并重新锁定")
+            return result
         remaining = max(0.0, (deadline - datetime.now()).total_seconds())
         if result == 'target_lost':
             # 目标消失 = 首领大概率已死，但结束消息可能慢几秒才刷出来。
